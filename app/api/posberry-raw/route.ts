@@ -1,19 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { parseFechaSheet, parseNumero } from '@/lib/csvParser'
 
 const SHEET_ID   = '1oJiwMbjnrG6vUdtVFt19OjMFLFyTzCSu0y9aEKwdehQ'
 const SHEET_NAME = 'BD'
-
-function toISO(ddmmyyyy: string): string | null {
-  const [d, m, y] = (ddmmyyyy || '').split('/')
-  if (!d || !m || !y || y.length !== 4) return null
-  return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`
-}
-
-function parseNum(val: string | number): number {
-  if (typeof val === 'number') return val
-  return parseFloat(String(val).replace(/\./g,'').replace(',','.')) || 0
-}
 
 export async function GET(req: NextRequest) {
   // Auth: solo admin
@@ -60,7 +50,7 @@ export async function GET(req: NextRequest) {
     .filter(row => {
       if (!row[idx.idVenta] && !row[idx.cliente]) return false
       if (desde || hasta) {
-        const iso = toISO(String(row[idx.fecha] || ''))
+        const iso = parseFechaSheet(String(row[idx.fecha] || ''))
         if (!iso) return false
         if (desde && iso < desde) return false
         if (hasta && iso > hasta) return false
@@ -70,12 +60,12 @@ export async function GET(req: NextRequest) {
     .map(row => ({
       idVenta:   String(row[idx.idVenta]   || '').trim(),
       idCliente: idx.idCliente >= 0 ? String(row[idx.idCliente] || '').trim() : '',
-      fecha:     toISO(String(row[idx.fecha] || '')) || String(row[idx.fecha] || ''),
+      fecha:     parseFechaSheet(String(row[idx.fecha] || '')) || String(row[idx.fecha] || ''),
       cliente:   String(row[idx.cliente]   || '').trim(),
       direccion: idx.direccion >= 0 ? String(row[idx.direccion] || '').trim() : '',
       producto:  String(row[idx.producto]  || '').trim(),
       unidades:  Number(row[idx.unidades]) || 0,
-      monto:     idx.monto >= 0 ? parseNum(row[idx.monto]) : 0,
+      monto:     idx.monto >= 0 ? parseNumero(String(row[idx.monto] ?? '')) : 0,
     }))
     .filter(r => r.idVenta || r.cliente)
 

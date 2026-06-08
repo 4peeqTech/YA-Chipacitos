@@ -1,6 +1,7 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { parseFechaSheet, formatDateForSheet, parseNumero } from '@/lib/csvParser'
 
 const SHEET_ID = '1oJiwMbjnrG6vUdtVFt19OjMFLFyTzCSu0y9aEKwdehQ'
 const SHEET_NAME = 'BD'
@@ -12,22 +13,6 @@ function getAdmin() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
-}
-
-function toISO(ddmmyyyy: string): string | null {
-  const [d, m, y] = (ddmmyyyy || '').split('/')
-  if (!d || !m || !y || y.length !== 4) return null
-  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
-}
-
-function toSheet(iso: string): string {
-  const [y, m, d] = iso.split('-')
-  return `${d}/${m}/${y}`
-}
-
-function parseNum(val: string | number): number {
-  if (typeof val === 'number') return val
-  return parseFloat(String(val).replace(/\./g, '').replace(',', '.')) || 0
 }
 
 function esSucursal(cliente: string): boolean {
@@ -113,7 +98,7 @@ export async function POST(req: NextRequest) {
     if (unidades <= 0) return false
 
     const fechaStr = String(row[idx.fecha] || '').trim()
-    const iso = toISO(fechaStr)
+    const iso = parseFechaSheet(fechaStr)
     if (!iso) return false
 
     const [y, m, d] = iso.split('-').map(Number)
@@ -122,7 +107,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (!filasFiltradas.length) {
-    const rango = fechaDesde === fechaHasta ? toSheet(fechaDesde) : `${toSheet(fechaDesde)} al ${toSheet(fechaHasta)}`
+    const rango = fechaDesde === fechaHasta ? formatDateForSheet(fechaDesde) : `${formatDateForSheet(fechaDesde)} al ${formatDateForSheet(fechaHasta)}`
     return NextResponse.json({
       importados: 0, porLocal: {}, noMapeados: [],
       mensaje: `No hay ventas de sucursales del ${rango}.`
@@ -151,8 +136,8 @@ export async function POST(req: NextRequest) {
     const cliente  = String(row[idx.cliente]  || '').trim()
     const producto = String(row[idx.producto] || '').trim()
     const unidades = Number(row[idx.unidades]) || 0
-    const monto    = parseNum(row[idx.monto])
-    const fechaIso = toISO(String(row[idx.fecha] || '').trim())
+    const monto    = parseNumero(String(row[idx.monto] ?? ''))
+    const fechaIso = parseFechaSheet(String(row[idx.fecha] || '').trim())
 
     if (!idVenta || !fechaIso) continue
 
@@ -238,8 +223,8 @@ export async function POST(req: NextRequest) {
   )
 
   const rango = fechaDesde === fechaHasta
-    ? toSheet(fechaDesde)
-    : `${toSheet(fechaDesde)} al ${toSheet(fechaHasta)}`
+    ? formatDateForSheet(fechaDesde)
+    : `${formatDateForSheet(fechaDesde)} al ${formatDateForSheet(fechaHasta)}`
 
   return NextResponse.json({
     importados, porLocal, noMapeados,
