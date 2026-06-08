@@ -80,10 +80,10 @@ export async function proxy(request: NextRequest) {
     const rol = profile?.rol
 
     const rolRoutes: Record<string, string[]> = {
-      local: ['/local'],
-      deposito: ['/deposito'],
-      fabrica: ['/fabrica'],
-      admin: ['/admin', '/local', '/deposito', '/fabrica'],
+      local: ['/local', '/ayuda'],
+      deposito: ['/deposito', '/ayuda'],
+      fabrica: ['/fabrica', '/ayuda'],
+      admin: ['/admin', '/local', '/deposito', '/fabrica', '/ayuda'],
     }
 
     if (rol) {
