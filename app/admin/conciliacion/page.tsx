@@ -22,8 +22,9 @@ export default async function ConciliacionPage() {
 
   // Lookup: nombre_posberry → nombre local del sistema
   const mapaProductos: Record<string, string> = {}
-  ;(mapeos || []).forEach((m: { nombre_posberry: string; productos?: { nombre: string } | null }) => {
-    if (m.productos?.nombre) mapaProductos[m.nombre_posberry] = m.productos.nombre
+  ;(mapeos || []).forEach((m) => {
+    const prod = Array.isArray(m.productos) ? m.productos[0] : m.productos
+    if (prod?.nombre) mapaProductos[m.nombre_posberry] = prod.nombre
   })
 
   return (
