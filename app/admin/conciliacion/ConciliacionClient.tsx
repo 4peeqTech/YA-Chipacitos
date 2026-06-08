@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useDeferredValue, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Conciliacion, Profile } from '@/lib/types'
 import Card from '@/components/ui/Card'
@@ -112,18 +112,24 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
     setConfirmando(null)
   }
 
-  // Filtros
-  const localesUnicos = ['todos', ...new Set(
-    conc.map(c => c.profiles?.local_nombre || c.profiles?.nombre || '').filter(Boolean)
-  )]
+  // Filtros — useDeferredValue para que los controles respondan al instante
+  // mientras la tabla pesada se actualiza en background
+  const dFiltroLocal = useDeferredValue(filtroLocal)
+  const dSoloAlertas = useDeferredValue(soloAlertas)
+  const dSoloSinConfirmar = useDeferredValue(soloSinConfirmar)
+  const dConc = useDeferredValue(conc)
 
-  const concFiltrada = conc.filter(c => {
+  const localesUnicos = useMemo(() => ['todos', ...new Set(
+    conc.map(c => c.profiles?.local_nombre || c.profiles?.nombre || '').filter(Boolean)
+  )], [conc])
+
+  const concFiltrada = useMemo(() => dConc.filter(c => {
     const nom = c.profiles?.local_nombre || c.profiles?.nombre || ''
-    if (filtroLocal !== 'todos' && nom !== filtroLocal) return false
-    if (soloAlertas && !c.tiene_alerta) return false
-    if (soloSinConfirmar && c.confirmado) return false
+    if (dFiltroLocal !== 'todos' && nom !== dFiltroLocal) return false
+    if (dSoloAlertas && !c.tiene_alerta) return false
+    if (dSoloSinConfirmar && c.confirmado) return false
     return true
-  })
+  }), [dConc, dFiltroLocal, dSoloAlertas, dSoloSinConfirmar])
 
   // Stats
   const alertas = conc.filter(c => c.tiene_alerta)
@@ -133,12 +139,12 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
   const totalPedido = concFiltrada.reduce((s, c) => s + (c.pedido || 0), 0)
 
   // Resumen por local
-  const porLocal = locales.map(l => {
+  const porLocal = useMemo(() => locales.map(l => {
     const filas = conc.filter(c => c.local_id === l.id)
     const tieneDiff = filas.some(c => c.tiene_alerta || c.diferencia !== 0)
     const todoConfirmado = filas.length > 0 && filas.every(c => c.confirmado)
     return { local: l, tieneDiff, todoConfirmado, filas: filas.length }
-  }).filter(x => x.filas > 0)
+  }).filter(x => x.filas > 0), [locales, conc])
 
   const nombreLocal = (l: Pick<Profile, 'nombre' | 'local_nombre'>) =>
     l.local_nombre || l.nombre
@@ -268,6 +274,8 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
 
           {cargando
             ? <Card className="p-8 text-center text-sm text-[#888]">Cargando...</Card>
+            : dConc !== conc || dFiltroLocal !== filtroLocal || dSoloAlertas !== soloAlertas || dSoloSinConfirmar !== soloSinConfirmar
+              ? <Card className="p-8 text-center text-sm text-[#888]">Filtrando...</Card>
             : concFiltrada.length === 0
               ? <Card className="p-8 text-center text-sm text-[#888]">Sin datos para este período.</Card>
               : (
