@@ -1,6 +1,20 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+
+const CreateUserSchema = z.object({
+  email:        z.string().email('Email inválido'),
+  password:     z.string().min(6, 'Mínimo 6 caracteres'),
+  nombre:       z.string().min(2, 'Nombre muy corto'),
+  rol:          z.enum(['local', 'deposito', 'fabrica', 'admin']),
+  local_nombre: z.string().optional(),
+})
+
+const PatchSchema = z.union([
+  z.object({ id: z.string().uuid(), rol: z.enum(['local', 'deposito', 'fabrica', 'admin']), password: z.undefined() }),
+  z.object({ id: z.string().uuid(), password: z.string().min(6), rol: z.undefined() }),
+])
 
 function getAdminClient() {
   return createAdminClient(
@@ -18,7 +32,12 @@ export async function POST(req: NextRequest) {
   const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
   if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const { email, password, nombre, rol, local_nombre } = await req.json()
+  const body = await req.json()
+  const parsed = CreateUserSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+  }
+  const { email, password, nombre, rol, local_nombre } = parsed.data
 
   const adminClient = getAdminClient()
   const { data: newUser, error: authError } = await adminClient.auth.admin.createUser({
@@ -53,7 +72,18 @@ export async function PATCH(req: NextRequest) {
   const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
   if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const { id, rol, password } = await req.json()
+  const body = await req.json()
+  const parsed = PatchSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+  }
+  const { id, rol, password } = parsed.data as { id: string; rol?: string; password?: string }
+
+  // Evitar que admin se cambie su propio rol
+  if (rol && id === user.id) {
+    return NextResponse.json({ error: 'No podés cambiar tu propio rol' }, { status: 403 })
+  }
+
   const adminClient = getAdminClient()
 
   // Resetear contraseña

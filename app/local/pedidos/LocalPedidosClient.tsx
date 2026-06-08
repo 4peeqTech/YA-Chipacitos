@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile, Producto, Pedido, CarritoItem } from '@/lib/types'
 import { BadgeEstado, BadgeDestino } from '@/components/ui/Badge'
@@ -19,7 +19,7 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
   const [enviando, setEnviando] = useState(false)
   const [exitoNums, setExitoNums] = useState<number[]>([])
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const productosFabrica = productos.filter(p => p.destino === 'fabrica')
   const productosDeposito = productos.filter(p => p.destino === 'deposito')
@@ -77,7 +77,7 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
         p => setPedidos(prev => prev.map(x => x.id === p.new.id ? { ...x, ...p.new } : x)))
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [profile.id, supabase])
+  }, [profile.id]) // supabase es estable por useMemo, no necesita ser dependencia
 
   function FilaProducto({ producto }: { producto: Producto }) {
     const cantidad = getCantidad(producto.id)

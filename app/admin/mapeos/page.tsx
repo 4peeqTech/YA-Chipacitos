@@ -11,6 +11,7 @@ export default async function MapeosPage() {
     .from('ventas_posberry')
     .select('producto_nombre')
     .order('producto_nombre')
+    .limit(5000)
 
   const nombresUnicos = [...new Set((nombresRaw || []).map(r => r.producto_nombre).filter(Boolean))]
 

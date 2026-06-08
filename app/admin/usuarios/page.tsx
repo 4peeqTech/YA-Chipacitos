@@ -9,6 +9,7 @@ export default async function UsuariosPage() {
     .from('profiles')
     .select('*')
     .order('created_at', { ascending: false })
+    .limit(500)
 
   return <UsuariosClient usuariosIniciales={usuarios || []} />
 }

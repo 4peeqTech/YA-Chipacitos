@@ -72,12 +72,17 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
       pares.add(`${p.local_id}__${fechaArg}`)
     })
 
-    await Promise.all(
-      [...pares].map(par => {
-        const [lid, fecha] = par.split('__')
-        return supabase.rpc('recalcular_conciliacion', { p_fecha: fecha, p_local_id: lid })
-      })
-    )
+    // Batching: máximo 50 RPCs en paralelo para no saturar Supabase
+    const paresArr = [...pares]
+    const BATCH = 50
+    for (let i = 0; i < paresArr.length; i += BATCH) {
+      await Promise.all(
+        paresArr.slice(i, i + BATCH).map(par => {
+          const [lid, fecha] = par.split('__')
+          return supabase.rpc('recalcular_conciliacion', { p_fecha: fecha, p_local_id: lid })
+        })
+      )
+    }
 
     await cargarPeriodo(desde, hasta)
     setRecalculando(false)
