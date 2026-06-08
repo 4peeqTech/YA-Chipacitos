@@ -24,6 +24,9 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
   const [busqueda, setBusqueda] = useState('')
+  const [resetModal, setResetModal] = useState<{ id: string; nombre: string } | null>(null)
+  const [nuevaPassword, setNuevaPassword] = useState('')
+  const [reseteando, setReseteando] = useState(false)
 
   const usuariosFiltrados = usuarios.filter(u =>
     u.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -45,6 +48,25 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
     setExito('Usuario creado correctamente')
     setTimeout(() => setExito(''), 3000)
     setGuardando(false)
+  }
+
+  async function resetearPassword() {
+    if (!resetModal || !nuevaPassword) return
+    setReseteando(true)
+    const res = await fetch('/api/usuarios', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: resetModal.id, password: nuevaPassword }),
+    })
+    if (res.ok) {
+      setExito(`Contraseña de "${resetModal.nombre}" actualizada`)
+      setTimeout(() => setExito(''), 3000)
+    } else {
+      const d = await res.json()
+      setError(d.error || 'Error al resetear')
+    }
+    setResetModal(null)
+    setNuevaPassword('')
+    setReseteando(false)
   }
 
   async function cambiarRol(userId: string, nuevoRol: Rol) {
@@ -85,6 +107,7 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Local / Área</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Rol</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Fecha de alta</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -102,6 +125,14 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
                   </td>
                   <td className="px-4 py-3 text-[#888] text-xs">
                     {new Date(u.created_at).toLocaleDateString('es-AR')}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => { setResetModal({ id: u.id, nombre: u.nombre }); setNuevaPassword(''); setError('') }}
+                      className="text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1 rounded-lg hover:border-[#e8c547] hover:text-[#e8c547] transition-colors whitespace-nowrap"
+                    >
+                      🔑 Contraseña
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -133,7 +164,40 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
         ))}
       </div>
 
-      {/* Modal */}
+      {/* Modal reset contraseña */}
+      {resetModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-2xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-['Syne'] font-bold text-lg text-[#f0f0f0]">Resetear contraseña</h3>
+            <p className="text-sm text-[#888]">Usuario: <span className="text-[#f0f0f0] font-medium">{resetModal.nombre}</span></p>
+            {error && (
+              <div className="bg-[rgba(232,66,16,.1)] border border-[#e84210]/30 rounded-lg p-3 text-[#e84210] text-sm">{error}</div>
+            )}
+            <div>
+              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Nueva contraseña</label>
+              <input
+                type="text"
+                value={nuevaPassword}
+                onChange={e => setNuevaPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#e8c547]"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => { setResetModal(null); setError('') }}
+                className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0]">
+                Cancelar
+              </button>
+              <button onClick={resetearPassword} disabled={reseteando || nuevaPassword.length < 6}
+                className="flex-1 py-2.5 bg-[#e8c547] text-black rounded-xl text-sm font-['Syne'] font-bold disabled:opacity-40">
+                {reseteando ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal nuevo usuario */}
       {modalNuevo && (
         <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4">
           <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-2xl w-full max-w-md p-6 space-y-4">

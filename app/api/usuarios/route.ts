@@ -53,9 +53,17 @@ export async function PATCH(req: NextRequest) {
   const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
   if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const { id, rol } = await req.json()
+  const { id, rol, password } = await req.json()
   const adminClient = getAdminClient()
 
+  // Resetear contraseña
+  if (password) {
+    const { error } = await adminClient.auth.admin.updateUserById(id, { password })
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  }
+
+  // Cambiar rol
   const { error } = await adminClient.from('profiles').update({ rol }).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
