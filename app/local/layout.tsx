@@ -16,6 +16,7 @@ export default async function LocalLayout({ children }: { children: React.ReactN
   const navItems = [
     { href: '/local/pedidos',   label: 'Pedir',   icon: '＋' },
     { href: '/local/historial', label: 'Pedidos', icon: '📋' },
+    { href: '/ayuda',           label: 'Ayuda',   icon: '❓' },
   ]
 
   return (

@@ -19,7 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/admin/conciliacion', label: 'Conciliar',    icon: '📊' },
     { href: '/admin/mapeos',       label: 'Mapeos',       icon: '🔗' },
     { href: '/admin/importar',     label: 'Sincronizar',  icon: '🔄' },
-    { href: '/admin/usuarios',     label: 'Usuarios',     icon: '👥' },
+    { href: '/ayuda',              label: 'Ayuda',        icon: '❓' },
   ]
 
   return (

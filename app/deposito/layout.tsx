@@ -16,6 +16,7 @@ export default async function DepositoLayout({ children }: { children: React.Rea
   const navItems = [
     { href: '/deposito/pedidos',  label: 'Pedidos',  icon: '📋' },
     { href: '/deposito/catalogo', label: 'Catálogo', icon: '🔀' },
+    { href: '/ayuda',             label: 'Ayuda',    icon: '❓' },
   ]
 
   return (
