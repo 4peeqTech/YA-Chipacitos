@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg:           #0a0a0a;
+  --color-surface:      #111111;
+  --color-surface2:     #1a1a1a;
+  --color-border:       #2a2a2a;
+  --color-accent:       #e8c547;
+  --color-accent2:      #f0a030;
+  --color-brand-red:    #e84210;
+  --color-success:      #56d68a;
+  --color-warning:      #f0a849;
+  --color-text:         #f0f0f0;
+  --color-muted:        #888888;
+  --color-green:        #56d68a;
+  --color-green-bg:     rgba(86,214,138,.12);
+  --color-orange:       #f0a030;
+  --color-orange-bg:    rgba(240,160,48,.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: #0a0a0a;
+  color: #f0f0f0;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, .font-syne {
+  font-family: 'Syne', sans-serif;
+}
+
+input, select, textarea {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #f0f0f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: .9rem;
+  outline: none;
+  transition: border-color .2s;
+  width: 100%;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #e8c547;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #888;
+}
+
+select option {
+  background: #1a1a1a;
+  color: #f0f0f0;
+}
+
+/* Neutralizar autofill del browser (Chrome pone fondo azul/blanco) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset !important;
+  -webkit-text-fill-color: #f0f0f0 !important;
+  caret-color: #f0f0f0;
+  border-color: #2a2a2a;
+}
