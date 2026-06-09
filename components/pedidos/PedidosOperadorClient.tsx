@@ -26,9 +26,6 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   const [productos, setProductos] = useState(productosIniciales)
   const [pedidos, setPedidos] = useState(pedidosIniciales)
   const [filtro, setFiltro] = useState('activos')
-  const [modalNuevo, setModalNuevo] = useState(false)
-  const [nuevoForm, setNuevoForm] = useState({ nombre: '', descripcion: '', unidad: 'unidad' })
-  const [guardando, setGuardando] = useState(false)
   const [flashEnviado, setFlashEnviado] = useState<string | null>(null)
   const supabase = createClient()
 
@@ -42,16 +39,9 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
     if (data) setProductos(prev => prev.map(p => p.id === data.id ? data : p))
   }
 
-  async function agregarProducto() {
-    if (!nuevoForm.nombre) return
-    setGuardando(true)
-    const { data } = await supabase.from('productos').insert({ ...nuevoForm, tipo, destino, activo: true }).select().single()
-    if (data) { setProductos(prev => [...prev, data]); setModalNuevo(false); setNuevoForm({ nombre: '', descripcion: '', unidad: 'unidad' }) }
-    setGuardando(false)
-  }
-
   async function cambiarEstado(pedidoId: string, nuevoEstado: 'preparando' | 'enviado') {
     const update: Record<string, string> = { estado: nuevoEstado }
+    if (nuevoEstado === 'preparando') update.preparando_at = new Date().toISOString()
     if (nuevoEstado === 'enviado') update.enviado_at = new Date().toISOString()
     const { data } = await supabase.from('pedidos').update(update).eq('id', pedidoId).select().single()
     if (data) {
@@ -99,10 +89,6 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
             }
           </Card>
 
-          <button onClick={() => setModalNuevo(true)}
-            className="w-full border border-dashed border-[#e8c547]/30 text-[#e8c547] rounded-xl py-2.5 text-sm font-medium hover:bg-[#e8c547]/5 transition-colors">
-            + Agregar {tipo === 'producto' ? 'producto' : 'insumo'}
-          </button>
         </div>
 
         {/* Pedidos */}
@@ -216,36 +202,6 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
         </div>
       </div>
 
-      {/* Modal nuevo producto */}
-      {modalNuevo && (
-        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-2xl w-full max-w-md p-5 space-y-3">
-            <h3 className="font-['Syne'] font-bold text-base text-[#f0f0f0]">Nuevo {tipo === 'producto' ? 'producto' : 'insumo'}</h3>
-            {[
-              { label: 'Nombre *', key: 'nombre', placeholder: tipo === 'producto' ? 'Chipacitos clásicos' : 'Harina de mandioca 1kg' },
-              { label: 'Descripción', key: 'descripcion', placeholder: 'Descripción opcional' },
-              { label: 'Unidad', key: 'unidad', placeholder: 'unidad, kg, bolsa...' },
-            ].map(({ label, key, placeholder }) => (
-              <div key={key}>
-                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">{label}</label>
-                <input type="text" value={nuevoForm[key as keyof typeof nuevoForm]}
-                  onChange={e => setNuevoForm(f => ({ ...f, [key]: e.target.value }))}
-                  placeholder={placeholder} />
-              </div>
-            ))}
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => setModalNuevo(false)}
-                className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0]">
-                Cancelar
-              </button>
-              <button onClick={agregarProducto} disabled={guardando || !nuevoForm.nombre}
-                className="flex-1 py-2.5 bg-[#e8c547] text-black rounded-xl text-sm font-['Syne'] font-bold disabled:opacity-40">
-                {guardando ? 'Guardando...' : 'Agregar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

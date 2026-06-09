@@ -12,6 +12,7 @@ interface SidebarProps {
 const links = [
   { href: '/admin/dashboard',    label: 'Dashboard',       icon: '🏠' },
   { href: '/admin/conciliacion', label: 'Conciliación',    icon: '📊' },
+  { href: '/admin/catalogo',     label: 'Catálogo',        icon: '📦' },
   { href: '/admin/mapeos',       label: 'Mapeo productos', icon: '🔗' },
   { href: '/admin/importar',     label: 'Sincronizar',     icon: '🔄' },
   { href: '/admin/usuarios',     label: 'Usuarios',        icon: '👥' },
