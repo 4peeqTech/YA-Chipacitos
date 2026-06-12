@@ -120,9 +120,22 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
           {productosFabrica.length > 0 && (
             <Card className="p-4">
               <p className="text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                🏭 Fábrica
+                🛒 Mayorista
               </p>
-              {productosFabrica.map(p => <FilaProducto key={p.id} producto={p} />)}
+              {(() => {
+                const grupos = productosFabrica.reduce<Record<string, Producto[]>>((acc, p) => {
+                  const cat = p.categoria || 'Sin categoría'
+                  if (!acc[cat]) acc[cat] = []
+                  acc[cat].push(p)
+                  return acc
+                }, {})
+                return Object.entries(grupos).map(([cat, prods]) => (
+                  <div key={cat} className="mb-3 last:mb-0">
+                    <p className="text-[10px] font-semibold text-[#555] uppercase tracking-wider mb-1 pb-1 border-b border-[#2a2a2a]">{cat}</p>
+                    {prods.map(p => <FilaProducto key={p.id} producto={p} />)}
+                  </div>
+                ))
+              })()}
             </Card>
           )}
 
@@ -131,7 +144,20 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
               <p className="text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 📦 Depósito
               </p>
-              {productosDeposito.map(p => <FilaProducto key={p.id} producto={p} />)}
+              {(() => {
+                const grupos = productosDeposito.reduce<Record<string, Producto[]>>((acc, p) => {
+                  const cat = p.categoria || 'Sin categoría'
+                  if (!acc[cat]) acc[cat] = []
+                  acc[cat].push(p)
+                  return acc
+                }, {})
+                return Object.entries(grupos).map(([cat, prods]) => (
+                  <div key={cat} className="mb-3 last:mb-0">
+                    <p className="text-[10px] font-semibold text-[#555] uppercase tracking-wider mb-1 pb-1 border-b border-[#2a2a2a]">{cat}</p>
+                    {prods.map(p => <FilaProducto key={p.id} producto={p} />)}
+                  </div>
+                ))
+              })()}
             </Card>
           )}
 
@@ -140,7 +166,7 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
               <div className="space-y-1.5">
                 {itemsFabrica.length > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-[#888]">🏭 Fábrica</span>
+                    <span className="text-[#888]">🛒 Mayorista</span>
                     <span className="font-medium">{itemsFabrica.reduce((s, i) => s + i.cantidad, 0)} uds</span>
                   </div>
                 )}
