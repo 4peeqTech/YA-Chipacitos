@@ -33,7 +33,7 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
       return `"${nombre.replace(/"/g, '""')}","${productoNombre.replace(/"/g, '""')}"`
     })
     const csv = 'nombre_posberry,producto_nombre\n' + rows.join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url; a.download = 'mapeos_posberry.csv'; a.click()
@@ -48,21 +48,30 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
     setImportResult(null)
 
     const text = await file.text()
-    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
+    const lines = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
     // saltar header
     const dataLines = lines[0].toLowerCase().includes('nombre_posberry') ? lines.slice(1) : lines
 
     const productosPorNombre = Object.fromEntries(productos.map(p => [p.nombre.toLowerCase().trim(), p.id]))
 
+    function parseCsvLine(line: string): [string, string] {
+      const fields: string[] = []
+      let current = ''; let inQ = false
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i]
+        if (c === '"') { if (inQ && line[i+1] === '"') { current += '"'; i++ } else inQ = !inQ }
+        else if (c === ',' && !inQ) { fields.push(current); current = '' }
+        else current += c
+      }
+      fields.push(current)
+      return [fields[0]?.trim() ?? '', fields[1]?.trim() ?? '']
+    }
+
     const upserts: { nombre_posberry: string; producto_id: string | null }[] = []
     const errores: string[] = []
 
     for (const line of dataLines) {
-      // parse CSV simple (dos columnas entre comillas opcionales)
-      const match = line.match(/^"?([^",]*)"?,"?([^"]*)"?$/)
-      if (!match) continue
-      const nombrePosberry = match[1].trim()
-      const nombreProducto = match[2].trim()
+      const [nombrePosberry, nombreProducto] = parseCsvLine(line)
       if (!nombrePosberry) continue
 
       if (!nombreProducto) {
