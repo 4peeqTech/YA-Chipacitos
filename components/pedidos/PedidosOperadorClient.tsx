@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Producto, Pedido, TipoProducto, DestinoProducto } from '@/lib/types'
 import { BadgeEstado } from '@/components/ui/Badge'
@@ -22,12 +22,117 @@ const estadoBorderTop: Record<string, string> = {
   recibido:   'border-t-[#56d68a]',
 }
 
+function playBeep() {
+  try {
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(880, ctx.currentTime)
+    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15)
+    gain.gain.setValueAtTime(0.4, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.5)
+  } catch {}
+}
+
+function showBrowserNotification(pedido: Pedido) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return
+  if (Notification.permission !== 'granted') return
+
+  const items = pedido.pedido_items?.map(i => `${i.cantidad}× ${i.producto_nombre}`).join(', ') || ''
+  const notif = new Notification(`🔔 Nuevo pedido #${pedido.numero}`, {
+    body: `${pedido.local_nombre}${items ? `\n${items}` : ''}`,
+    icon: '/chipacitos-logo.png',
+    tag: pedido.id,
+    requireInteraction: true,
+  })
+  notif.onclick = () => {
+    window.focus()
+    notif.close()
+  }
+}
+
 export default function PedidosOperadorClient({ productosIniciales, pedidosIniciales, tipo, destino, operadorNombre }: Props) {
   const [productos, setProductos] = useState(productosIniciales)
   const [pedidos, setPedidos] = useState(pedidosIniciales)
   const [filtro, setFiltro] = useState('activos')
   const [flashEnviado, setFlashEnviado] = useState<string | null>(null)
+  const [nuevosIds, setNuevosIds] = useState<string[]>([])
+  const [notifPermiso, setNotifPermiso] = useState<NotificationPermission | 'unsupported'>('unsupported')
   const supabase = createClient()
+  const titleRef = useRef(document.title)
+
+  // Detectar soporte y permiso actual
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotifPermiso(Notification.permission)
+    }
+  }, [])
+
+  // Realtime: nuevos pedidos y cambios de estado
+  useEffect(() => {
+    const ch = supabase.channel(`operador-${destino}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'pedidos',
+        filter: `destino=eq.${destino}`,
+      }, async (payload) => {
+        // Cargar el pedido completo con items
+        const { data } = await supabase
+          .from('pedidos')
+          .select('*, pedido_items(*), pedido_mensajes(*)')
+          .eq('id', payload.new.id)
+          .single()
+        if (!data) return
+
+        setPedidos(prev => [data, ...prev])
+        setNuevosIds(prev => [...prev, data.id])
+        playBeep()
+        showBrowserNotification(data)
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'pedidos',
+        filter: `destino=eq.${destino}`,
+      }, (payload) => {
+        setPedidos(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(ch) }
+  }, [destino]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Título parpadeante cuando hay pedidos nuevos
+  useEffect(() => {
+    if (nuevosIds.length === 0) {
+      document.title = titleRef.current
+      return
+    }
+    const n = nuevosIds.length
+    const msg = `🔴 ${n} pedido${n > 1 ? 's' : ''} nuevo${n > 1 ? 's' : ''}!`
+    let toggle = true
+    document.title = msg
+    const iv = setInterval(() => {
+      document.title = toggle ? msg : 'Pedidos — YA! Chipacitos'
+      toggle = !toggle
+    }, 1000)
+    return () => {
+      clearInterval(iv)
+      document.title = titleRef.current
+    }
+  }, [nuevosIds])
+
+  async function pedirPermiso() {
+    if (!('Notification' in window)) return
+    const result = await Notification.requestPermission()
+    setNotifPermiso(result)
+  }
 
   const pendientes = pedidos.filter(p => p.estado === 'pendiente')
   const enviados = pedidos.filter(p => p.estado === 'enviado')
@@ -51,7 +156,51 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   }
 
   return (
-    <div className="w-full px-4 py-4 lg:px-8 lg:py-6">
+    <div className="w-full px-4 py-4 lg:px-8 lg:py-6 space-y-4">
+
+      {/* Banner: pedir permiso de notificaciones */}
+      {notifPermiso === 'default' && (
+        <div className="bg-[rgba(232,197,71,.08)] border border-[#e8c547]/30 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-[#e8c547]">🔔 Activar notificaciones</p>
+            <p className="text-xs text-[#888] mt-0.5">Te avisamos cuando llegue un pedido nuevo, aunque estés en otra pestaña.</p>
+          </div>
+          <button
+            onClick={pedirPermiso}
+            className="shrink-0 bg-[#e8c547] text-black text-xs font-['Syne'] font-bold px-4 py-2 rounded-lg whitespace-nowrap"
+          >
+            Activar
+          </button>
+        </div>
+      )}
+
+      {notifPermiso === 'denied' && (
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3 text-xs text-[#555]">
+          🔕 Notificaciones bloqueadas en este browser. Para activarlas, hacé clic en el candado de la barra de dirección.
+        </div>
+      )}
+
+      {/* Banner de pedidos nuevos (persiste hasta cerrar) */}
+      {nuevosIds.length > 0 && (
+        <div className="bg-[rgba(232,66,16,.12)] border-2 border-[#e84210] rounded-xl px-4 py-3 flex items-center justify-between gap-3 animate-pulse">
+          <div>
+            <p className="text-sm font-bold text-[#e84210]">
+              🚨 {nuevosIds.length} pedido{nuevosIds.length > 1 ? 's' : ''} nuevo{nuevosIds.length > 1 ? 's' : ''} sin revisar
+            </p>
+            <p className="text-xs text-[#e84210]/70 mt-0.5">
+              {pedidos.filter(p => nuevosIds.includes(p.id)).map(p => `#${p.numero} ${p.local_nombre}`).join(' · ')}
+            </p>
+          </div>
+          <button
+            onClick={() => setNuevosIds([])}
+            className="shrink-0 text-[#e84210] hover:text-[#f0f0f0] transition-colors text-xl leading-none"
+            title="Marcar como visto"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] xl:grid-cols-[380px_1fr] gap-6 items-start">
 
         {/* Catálogo */}
@@ -88,7 +237,6 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
               ))
             }
           </Card>
-
         </div>
 
         {/* Pedidos */}
@@ -138,7 +286,13 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                   {pedidosFiltrados.map(pedido => (
                     <div key={pedido.id}
-                      className={`bg-[#111111] border border-[#2a2a2a] border-t-[3px] ${estadoBorderTop[pedido.estado] || 'border-t-[#2a2a2a]'} rounded-[14px] overflow-hidden transition-shadow hover:shadow-[0_4px_24px_rgba(0,0,0,.4)]`}>
+                      className={`bg-[#111111] border border-[#2a2a2a] border-t-[3px] ${estadoBorderTop[pedido.estado] || 'border-t-[#2a2a2a]'} rounded-[14px] overflow-hidden transition-shadow hover:shadow-[0_4px_24px_rgba(0,0,0,.4)] ${nuevosIds.includes(pedido.id) ? 'ring-1 ring-[#e84210]/40' : ''}`}>
+
+                      {nuevosIds.includes(pedido.id) && (
+                        <div className="bg-[#e84210] text-white text-[10px] font-bold px-3 py-1 text-center tracking-wider uppercase">
+                          Nuevo
+                        </div>
+                      )}
 
                       {/* Header comanda */}
                       <div className="px-4 py-3 flex items-start justify-between gap-2 border-b border-[#2a2a2a]">
@@ -179,7 +333,7 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
                       {/* Footer acciones */}
                       <div className="px-4 py-3 flex flex-col gap-2">
                         {pedido.estado === 'pendiente' && (
-                          <button onClick={() => cambiarEstado(pedido.id, 'preparando')}
+                          <button onClick={() => { cambiarEstado(pedido.id, 'preparando'); setNuevosIds(prev => prev.filter(id => id !== pedido.id)) }}
                             className="w-full bg-[#e8c547] text-black rounded-lg py-2 text-sm font-['Syne'] font-bold">
                             🔄 Empezar preparación
                           </button>
@@ -201,7 +355,6 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
           </div>
         </div>
       </div>
-
     </div>
   )
 }
