@@ -27,6 +27,9 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
   const [resetModal, setResetModal] = useState<{ id: string; nombre: string } | null>(null)
   const [nuevaPassword, setNuevaPassword] = useState('')
   const [reseteando, setReseteando] = useState(false)
+  const [waModal, setWaModal] = useState<{ id: string; nombre: string; phone: string | null; apikey: string | null } | null>(null)
+  const [waForm, setWaForm] = useState({ phone: '', apikey: '' })
+  const [guardandoWa, setGuardandoWa] = useState(false)
 
   const usuariosFiltrados = usuarios.filter(u =>
     u.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -67,6 +70,31 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
     setResetModal(null)
     setNuevaPassword('')
     setReseteando(false)
+  }
+
+  async function guardarWhatsapp() {
+    if (!waModal) return
+    setGuardandoWa(true)
+    const res = await fetch('/api/usuarios', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: waModal.id,
+        whatsapp_phone: waForm.phone || null,
+        whatsapp_apikey: waForm.apikey || null,
+      }),
+    })
+    if (res.ok) {
+      setUsuarios(prev => prev.map(u => u.id === waModal.id
+        ? { ...u, whatsapp_phone: waForm.phone || null, whatsapp_apikey: waForm.apikey || null }
+        : u))
+      setExito(`WhatsApp de "${waModal.nombre}" actualizado`)
+      setTimeout(() => setExito(''), 3000)
+    } else {
+      const d = await res.json()
+      setError(d.error || 'Error al guardar')
+    }
+    setWaModal(null)
+    setGuardandoWa(false)
   }
 
   async function cambiarRol(userId: string, nuevoRol: Rol) {
@@ -127,12 +155,22 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
                     {new Date(u.created_at).toLocaleDateString('es-AR')}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => { setResetModal({ id: u.id, nombre: u.nombre }); setNuevaPassword(''); setError('') }}
-                      className="text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1 rounded-lg hover:border-[#e8c547] hover:text-[#e8c547] transition-colors whitespace-nowrap"
-                    >
-                      🔑 Contraseña
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setResetModal({ id: u.id, nombre: u.nombre }); setNuevaPassword(''); setError('') }}
+                        className="text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1 rounded-lg hover:border-[#e8c547] hover:text-[#e8c547] transition-colors whitespace-nowrap"
+                      >
+                        🔑 Contraseña
+                      </button>
+                      {(u.rol === 'fabrica' || u.rol === 'deposito') && (
+                        <button
+                          onClick={() => { setWaModal({ id: u.id, nombre: u.nombre, phone: u.whatsapp_phone, apikey: u.whatsapp_apikey }); setWaForm({ phone: u.whatsapp_phone || '', apikey: u.whatsapp_apikey || '' }); setError('') }}
+                          className={`text-xs border px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap ${u.whatsapp_phone ? 'border-[#25d366]/40 text-[#25d366]' : 'border-[#2a2a2a] text-[#888] hover:border-[#25d366] hover:text-[#25d366]'}`}
+                        >
+                          📱 WhatsApp
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -147,7 +185,7 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
       {/* Cards mobile */}
       <div className="md:hidden space-y-2">
         {usuariosFiltrados.map(u => (
-          <Card key={u.id} className="p-4">
+          <Card key={u.id} className="p-4 space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium text-[#f0f0f0] text-sm">{u.nombre}</p>
@@ -159,6 +197,22 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
                   <option key={r} value={r}>{ROL_LABELS[r]}</option>
                 ))}
               </select>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => { setResetModal({ id: u.id, nombre: u.nombre }); setNuevaPassword(''); setError('') }}
+                className="flex-1 text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1.5 rounded-lg hover:border-[#e8c547] hover:text-[#e8c547] transition-colors text-center"
+              >
+                🔑 Contraseña
+              </button>
+              {(u.rol === 'fabrica' || u.rol === 'deposito') && (
+                <button
+                  onClick={() => { setWaModal({ id: u.id, nombre: u.nombre, phone: u.whatsapp_phone, apikey: u.whatsapp_apikey }); setWaForm({ phone: u.whatsapp_phone || '', apikey: u.whatsapp_apikey || '' }); setError('') }}
+                  className={`flex-1 text-xs border px-2.5 py-1.5 rounded-lg transition-colors text-center ${u.whatsapp_phone ? 'border-[#25d366]/40 text-[#25d366]' : 'border-[#2a2a2a] text-[#888] hover:border-[#25d366] hover:text-[#25d366]'}`}
+                >
+                  📱 WhatsApp
+                </button>
+              )}
             </div>
           </Card>
         ))}
@@ -191,6 +245,42 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
               <button onClick={resetearPassword} disabled={reseteando || nuevaPassword.length < 6}
                 className="flex-1 py-2.5 bg-[#e8c547] text-black rounded-xl text-sm font-['Syne'] font-bold disabled:opacity-40">
                 {reseteando ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal WhatsApp */}
+      {waModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#25d366] rounded-2xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-['Syne'] font-bold text-lg text-[#f0f0f0]">WhatsApp — {waModal.nombre}</h3>
+            <div className="bg-[rgba(37,211,102,.06)] border border-[#25d366]/20 rounded-xl p-3 text-xs text-[#888] space-y-1">
+              <p className="text-[#25d366] font-semibold">WhatsApp via Meta Cloud API</p>
+              <p>Ingresá el número con código de país. Recibirá un mensaje cada vez que llegue un pedido nuevo.</p>
+            </div>
+            {error && (
+              <div className="bg-[rgba(232,66,16,.1)] border border-[#e84210]/30 rounded-lg p-3 text-[#e84210] text-sm">{error}</div>
+            )}
+            <div>
+              <label className="block text-xs font-semibold text-[#25d366] uppercase tracking-wider mb-1.5">Teléfono (con código de país)</label>
+              <input
+                type="text"
+                value={waForm.phone}
+                onChange={e => setWaForm(f => ({ ...f, phone: e.target.value }))}
+                placeholder="+5491123456789"
+                className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#25d366]"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => { setWaModal(null); setError('') }}
+                className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0]">
+                Cancelar
+              </button>
+              <button onClick={guardarWhatsapp} disabled={guardandoWa}
+                className="flex-1 py-2.5 bg-[#25d366] text-black rounded-xl text-sm font-['Syne'] font-bold disabled:opacity-40">
+                {guardandoWa ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
           </div>

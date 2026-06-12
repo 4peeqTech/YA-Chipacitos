@@ -112,8 +112,8 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
           <p className="text-sm text-[#888] text-center py-8">No hay resultados.</p>
         ) : (
           <div>
-            {/* Header */}
-            <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-4 px-4 py-2.5 bg-[#1a1a1a] border-b border-[#2a2a2a] text-xs font-semibold text-[#e8c547] uppercase tracking-wider">
+            {/* Header — solo desktop */}
+            <div className="hidden sm:grid sm:grid-cols-[1fr_auto_1fr_auto] items-center gap-4 px-4 py-2.5 bg-[#1a1a1a] border-b border-[#2a2a2a] text-xs font-semibold text-[#e8c547] uppercase tracking-wider">
               <span>Nombre en Posberry</span>
               <span className="text-center">→</span>
               <span>Producto en el sistema</span>
@@ -122,39 +122,51 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
 
             {nombresFiltrados.map((nombre, i) => {
               const mapeadoId = mapeos[nombre] || ''
-              const productoMapeado = productos.find(p => p.id === mapeadoId)
               const guardandoEste = guardando === nombre
+
+              const estadoIcon = guardandoEste
+                ? <span className="text-[#888] text-xs animate-pulse">…</span>
+                : mapeadoId
+                  ? <span className="text-[#56d68a] text-base">✓</span>
+                  : <span className="text-[#555] text-base">○</span>
 
               return (
                 <div key={nombre}
-                  className={`grid grid-cols-[1fr_auto_1fr_auto] items-center gap-4 px-4 py-3 ${i < nombresFiltrados.length - 1 ? 'border-b border-[#2a2a2a]' : ''} ${mapeadoId ? '' : 'bg-[rgba(232,66,16,.05)]'}`}>
+                  className={`px-4 py-3 ${i < nombresFiltrados.length - 1 ? 'border-b border-[#2a2a2a]' : ''} ${mapeadoId ? '' : 'bg-[rgba(232,66,16,.05)]'}`}>
 
-                  {/* Nombre Posberry */}
-                  <div>
-                    <p className="text-sm font-medium text-[#f0f0f0]">{nombre}</p>
-                    <p className="text-xs text-[#888]">Posberry</p>
+                  {/* Mobile: apilado */}
+                  <div className="sm:hidden space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-[#f0f0f0]">{nombre}</p>
+                        <p className="text-xs text-[#888]">Posberry</p>
+                      </div>
+                      <div className="w-6 text-center">{estadoIcon}</div>
+                    </div>
+                    <SelectBuscador
+                      value={mapeadoId}
+                      onChange={val => guardarMapeo(nombre, val)}
+                      opciones={opcionesProductos}
+                      placeholderVacio="— Sin mapear —"
+                      disabled={guardandoEste}
+                    />
                   </div>
 
-                  {/* Flecha */}
-                  <span className="text-[#2a2a2a] text-lg">→</span>
-
-                  {/* Selector producto sistema */}
-                  <SelectBuscador
-                    value={mapeadoId}
-                    onChange={val => guardarMapeo(nombre, val)}
-                    opciones={opcionesProductos}
-                    placeholderVacio="— Sin mapear —"
-                    disabled={guardandoEste}
-                  />
-
-                  {/* Estado */}
-                  <div className="w-6 text-center">
-                    {guardandoEste
-                      ? <span className="text-[#888] text-xs animate-pulse">…</span>
-                      : mapeadoId
-                        ? <span className="text-[#56d68a] text-base">✓</span>
-                        : <span className="text-[#555] text-base">○</span>
-                    }
+                  {/* Desktop: 4 columnas */}
+                  <div className="hidden sm:grid sm:grid-cols-[1fr_auto_1fr_auto] items-center gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[#f0f0f0]">{nombre}</p>
+                      <p className="text-xs text-[#888]">Posberry</p>
+                    </div>
+                    <span className="text-[#2a2a2a] text-lg">→</span>
+                    <SelectBuscador
+                      value={mapeadoId}
+                      onChange={val => guardarMapeo(nombre, val)}
+                      opciones={opcionesProductos}
+                      placeholderVacio="— Sin mapear —"
+                      disabled={guardandoEste}
+                    />
+                    <div className="w-6 text-center">{estadoIcon}</div>
                   </div>
                 </div>
               )
