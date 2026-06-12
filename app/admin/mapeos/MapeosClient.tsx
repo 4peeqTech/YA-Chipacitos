@@ -52,7 +52,12 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
     // saltar header
     const dataLines = lines[0].toLowerCase().includes('nombre_posberry') ? lines.slice(1) : lines
 
-    const productosPorNombre = Object.fromEntries(productos.map(p => [p.nombre.toLowerCase().trim(), p.id]))
+    function normalizar(s: string) {
+      return s.toLowerCase().trim()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '') // quitar tildes
+        .replace(/\s+/g, ' ')
+    }
+    const productosPorNombre = Object.fromEntries(productos.map(p => [normalizar(p.nombre), p.id]))
 
     // detectar separador: si la primer línea tiene ; usamos ;, sino ,
     const sep = dataLines[0]?.includes(';') ? ';' : ','
@@ -78,11 +83,11 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
       if (!nombrePosberry) continue
 
       if (!nombreProducto) {
-        upserts.push({ nombre_posberry: nombrePosberry, producto_id: null })
+        // fila sin producto asignado, ignorar silenciosamente
       } else {
-        const productoId = productosPorNombre[nombreProducto.toLowerCase()]
+        const productoId = productosPorNombre[normalizar(nombreProducto)]
         if (!productoId) {
-          errores.push(`"${nombreProducto}" no encontrado`)
+          errores.push(`"${nombreProducto}" no encontrado en el catálogo`)
         } else {
           upserts.push({ nombre_posberry: nombrePosberry, producto_id: productoId })
         }
