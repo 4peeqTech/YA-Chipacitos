@@ -9,7 +9,20 @@ interface Props {
   productosIniciales: Producto[]
 }
 
-const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto }
+const CATEGORIAS = [
+  'Bolsas Congelados',
+  'Cajas Congelados',
+  'Toppings',
+  'Productos Ya!',
+  'Masas',
+  'Insumos Facturas',
+  'Insumos General',
+  'Bolsas Ya!',
+  'Cajas Ya!',
+  'Vasos Café Ya!',
+]
+
+const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto, categoria: '' }
 
 export default function AdminCatalogoClient({ productosIniciales }: Props) {
   const [productos, setProductos] = useState(productosIniciales)
@@ -17,7 +30,7 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
   const [modalNuevo, setModalNuevo] = useState(false)
   const [editando, setEditando] = useState<Producto | null>(null)
   const [form, setForm] = useState(FORM_VACIO)
-  const [formEdit, setFormEdit] = useState({ nombre: '', descripcion: '', unidad: '' })
+  const [formEdit, setFormEdit] = useState({ nombre: '', descripcion: '', unidad: '', categoria: '' })
   const [guardando, setGuardando] = useState(false)
   const supabase = createClient()
 
@@ -41,7 +54,7 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
 
   function abrirEdicion(p: Producto) {
     setEditando(p)
-    setFormEdit({ nombre: p.nombre, descripcion: p.descripcion ?? '', unidad: p.unidad })
+    setFormEdit({ nombre: p.nombre, descripcion: p.descripcion ?? '', unidad: p.unidad, categoria: p.categoria ?? '' })
   }
 
   async function guardarEdicion() {
@@ -49,7 +62,7 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
     setGuardando(true)
     const { data } = await supabase
       .from('productos')
-      .update({ nombre: formEdit.nombre, descripcion: formEdit.descripcion, unidad: formEdit.unidad })
+      .update({ nombre: formEdit.nombre, descripcion: formEdit.descripcion, unidad: formEdit.unidad, categoria: formEdit.categoria || null })
       .eq('id', editando.id).select().single()
     if (data) { setProductos(prev => prev.map(p => p.id === data.id ? data : p)); setEditando(null) }
     setGuardando(false)
@@ -95,7 +108,11 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
               <div key={p.id} className={`flex items-center gap-2 px-3 py-3 ${i < filtrados.length - 1 ? 'border-b border-[#2a2a2a]' : ''}`}>
                 <div className="flex-1 min-w-0">
                   <p className={`text-xs font-medium ${p.activo ? 'text-[#f0f0f0]' : 'text-[#555]'}`}>{p.nombre}</p>
-                  <p className="text-[11px] text-[#555] mt-0.5">{p.unidad}{p.descripcion ? ` · ${p.descripcion}` : ''}</p>
+                  <p className="text-[11px] text-[#555] mt-0.5">
+                    {p.unidad}
+                    {p.categoria ? <span className="ml-1 px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#e8c547] text-[10px] font-medium">{p.categoria}</span> : null}
+                    {p.descripcion ? ` · ${p.descripcion}` : ''}
+                  </p>
                 </div>
                 <button
                   onClick={() => abrirEdicion(p)}
@@ -141,6 +158,14 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
                   placeholder={placeholder} />
               </div>
             ))}
+            <div>
+              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Categoría</label>
+              <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
+                className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2 text-xs text-[#f0f0f0] focus:outline-none focus:border-[#e8c547]">
+                <option value="">Sin categoría</option>
+                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
             <div className="flex gap-2 pt-1">
               <button onClick={() => setModalNuevo(false)}
                 className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-xs font-medium text-[#888] hover:text-[#f0f0f0]">
@@ -170,6 +195,14 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
                   onChange={e => setFormEdit(f => ({ ...f, [key]: e.target.value }))} />
               </div>
             ))}
+            <div>
+              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Categoría</label>
+              <select value={formEdit.categoria} onChange={e => setFormEdit(f => ({ ...f, categoria: e.target.value }))}
+                className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2 text-xs text-[#f0f0f0] focus:outline-none focus:border-[#e8c547]">
+                <option value="">Sin categoría</option>
+                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
             <div className="flex gap-2 pt-1">
               <button onClick={() => setEditando(null)}
                 className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-xs font-medium text-[#888] hover:text-[#f0f0f0]">

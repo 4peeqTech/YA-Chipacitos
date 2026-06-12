@@ -48,10 +48,11 @@ export default function CatalogoClient({ productosIniciales, tipo, destino }: Pr
               <div key={p.id} className={`flex items-center justify-between px-3 py-3 ${i < productos.length - 1 ? 'border-b border-[#2a2a2a]' : ''}`}>
                 <div className="flex-1 min-w-0 pr-2">
                   <p className={`text-xs font-medium ${p.activo ? 'text-[#f0f0f0]' : 'text-[#555]'}`}>{p.nombre}</p>
-                  <p className="text-[11px] text-[#555] mt-0.5">
-                    {p.activo
-                      ? `${p.unidad} · ${destino === 'fabrica' ? 'Fábrica' : 'Depósito'}`
-                      : 'Desactivado'}
+                  <p className="text-[11px] text-[#555] mt-0.5 flex items-center gap-1 flex-wrap">
+                    {p.activo ? p.unidad : 'Desactivado'}
+                    {p.activo && p.categoria && (
+                      <span className="px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#e8c547] text-[10px] font-medium">{p.categoria}</span>
+                    )}
                   </p>
                 </div>
                 <button

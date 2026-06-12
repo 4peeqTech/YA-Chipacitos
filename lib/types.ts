@@ -8,6 +8,8 @@ export interface Profile {
   nombre: string
   rol: Rol
   local_nombre: string | null
+  whatsapp_phone: string | null
+  whatsapp_apikey: string | null
   created_at: string
 }
 
@@ -19,6 +21,7 @@ export interface Producto {
   tipo: TipoProducto
   destino: DestinoProducto
   activo: boolean
+  categoria: string | null
   created_at: string
 }
 
