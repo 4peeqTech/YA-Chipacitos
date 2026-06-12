@@ -21,7 +21,75 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
   const [guardando, setGuardando] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro] = useState<'todos' | 'mapeados' | 'sin_mapear'>('todos')
+  const [importando, setImportando] = useState(false)
+  const [importResult, setImportResult] = useState<{ ok: number; errores: string[] } | null>(null)
   const supabase = createClient()
+
+  function exportarCSV() {
+    const productosPorId = Object.fromEntries(productos.map(p => [p.id, p.nombre]))
+    const rows = nombresPostberry.map(nombre => {
+      const productoId = mapeos[nombre] || ''
+      const productoNombre = productoId ? (productosPorId[productoId] || '') : ''
+      return `"${nombre.replace(/"/g, '""')}","${productoNombre.replace(/"/g, '""')}"`
+    })
+    const csv = 'nombre_posberry,producto_nombre\n' + rows.join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'mapeos_posberry.csv'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function importarCSV(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setImportando(true)
+    setImportResult(null)
+
+    const text = await file.text()
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
+    // saltar header
+    const dataLines = lines[0].toLowerCase().includes('nombre_posberry') ? lines.slice(1) : lines
+
+    const productosPorNombre = Object.fromEntries(productos.map(p => [p.nombre.toLowerCase().trim(), p.id]))
+
+    const upserts: { nombre_posberry: string; producto_id: string | null }[] = []
+    const errores: string[] = []
+
+    for (const line of dataLines) {
+      // parse CSV simple (dos columnas entre comillas opcionales)
+      const match = line.match(/^"?([^",]*)"?,"?([^"]*)"?$/)
+      if (!match) continue
+      const nombrePosberry = match[1].trim()
+      const nombreProducto = match[2].trim()
+      if (!nombrePosberry) continue
+
+      if (!nombreProducto) {
+        upserts.push({ nombre_posberry: nombrePosberry, producto_id: null })
+      } else {
+        const productoId = productosPorNombre[nombreProducto.toLowerCase()]
+        if (!productoId) {
+          errores.push(`"${nombreProducto}" no encontrado`)
+        } else {
+          upserts.push({ nombre_posberry: nombrePosberry, producto_id: productoId })
+        }
+      }
+    }
+
+    if (upserts.length > 0) {
+      await supabase.from('producto_mapeos').upsert(upserts, { onConflict: 'nombre_posberry' })
+      const newMapeos = { ...mapeos }
+      upserts.forEach(u => {
+        if (u.producto_id) newMapeos[u.nombre_posberry] = u.producto_id
+        else delete newMapeos[u.nombre_posberry]
+      })
+      setMapeos(newMapeos)
+    }
+
+    setImportResult({ ok: upserts.filter(u => u.producto_id).length, errores })
+    setImportando(false)
+  }
 
   const opcionesProductos: OpcionSelect[] = [
     ...productos.filter(p => p.destino === 'fabrica').map(p => ({ value: p.id, label: p.nombre, grupo: '🏭 Fábrica' })),
@@ -63,6 +131,29 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
           Vinculá cada nombre de Posberry con el producto correspondiente del sistema para que la conciliación funcione correctamente.
         </p>
       </div>
+
+      {/* Exportar / Importar */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <button onClick={exportarCSV}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] text-xs font-medium text-[#f0f0f0] hover:border-[#e8c547] transition-colors">
+          ↓ Exportar CSV
+        </button>
+        <label className={`flex items-center gap-1.5 px-4 py-2 rounded-xl border text-xs font-medium cursor-pointer transition-colors ${importando ? 'opacity-50 cursor-not-allowed border-[#2a2a2a] text-[#888]' : 'bg-[#1a1a1a] border-[#2a2a2a] text-[#f0f0f0] hover:border-[#e8c547]'}`}>
+          ↑ {importando ? 'Importando...' : 'Importar CSV'}
+          <input type="file" accept=".csv" className="hidden" disabled={importando} onChange={importarCSV} />
+        </label>
+        <span className="text-[10px] text-[#555]">Exportá, completá la columna "producto_nombre" y reimportá</span>
+      </div>
+
+      {importResult && (
+        <div className={`rounded-xl px-4 py-3 text-xs space-y-1 ${importResult.errores.length > 0 ? 'bg-[rgba(240,168,73,.1)] border border-[#f0a849]/30' : 'bg-[rgba(86,214,138,.08)] border border-[#56d68a]/30'}`}>
+          <p className={`font-semibold ${importResult.errores.length > 0 ? 'text-[#f0a849]' : 'text-[#56d68a]'}`}>
+            ✓ {importResult.ok} mapeo{importResult.ok !== 1 ? 's' : ''} importado{importResult.ok !== 1 ? 's' : ''}
+          </p>
+          {importResult.errores.map((e, i) => <p key={i} className="text-[#f0a849]">⚠ {e}</p>)}
+          <button onClick={() => setImportResult(null)} className="text-[#555] underline mt-1">Cerrar</button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
