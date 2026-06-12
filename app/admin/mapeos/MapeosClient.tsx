@@ -22,7 +22,7 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro] = useState<'todos' | 'mapeados' | 'sin_mapear'>('todos')
   const [importando, setImportando] = useState(false)
-  const [importResult, setImportResult] = useState<{ ok: number; errores: string[] } | null>(null)
+  const [importResult, setImportResult] = useState<{ ok: number; errores: string[]; lineas: number } | null>(null)
   const supabase = createClient()
 
   function exportarCSV() {
@@ -54,13 +54,16 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
 
     const productosPorNombre = Object.fromEntries(productos.map(p => [p.nombre.toLowerCase().trim(), p.id]))
 
+    // detectar separador: si la primer línea tiene ; usamos ;, sino ,
+    const sep = dataLines[0]?.includes(';') ? ';' : ','
+
     function parseCsvLine(line: string): [string, string] {
       const fields: string[] = []
       let current = ''; let inQ = false
       for (let i = 0; i < line.length; i++) {
         const c = line[i]
         if (c === '"') { if (inQ && line[i+1] === '"') { current += '"'; i++ } else inQ = !inQ }
-        else if (c === ',' && !inQ) { fields.push(current); current = '' }
+        else if (c === sep && !inQ) { fields.push(current); current = '' }
         else current += c
       }
       fields.push(current)
@@ -96,7 +99,7 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
       setMapeos(newMapeos)
     }
 
-    setImportResult({ ok: upserts.filter(u => u.producto_id).length, errores })
+    setImportResult({ ok: upserts.filter(u => u.producto_id).length, errores, lineas: dataLines.length })
     setImportando(false)
   }
 
@@ -157,7 +160,7 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
       {importResult && (
         <div className={`rounded-xl px-4 py-3 text-xs space-y-1 ${importResult.errores.length > 0 ? 'bg-[rgba(240,168,73,.1)] border border-[#f0a849]/30' : 'bg-[rgba(86,214,138,.08)] border border-[#56d68a]/30'}`}>
           <p className={`font-semibold ${importResult.errores.length > 0 ? 'text-[#f0a849]' : 'text-[#56d68a]'}`}>
-            ✓ {importResult.ok} mapeo{importResult.ok !== 1 ? 's' : ''} importado{importResult.ok !== 1 ? 's' : ''}
+            ✓ {importResult.ok} mapeo{importResult.ok !== 1 ? 's' : ''} importado{importResult.ok !== 1 ? 's' : ''} · {importResult.lineas} líneas leídas
           </p>
           {importResult.errores.map((e, i) => <p key={i} className="text-[#f0a849]">⚠ {e}</p>)}
           <button onClick={() => setImportResult(null)} className="text-[#555] underline mt-1">Cerrar</button>
