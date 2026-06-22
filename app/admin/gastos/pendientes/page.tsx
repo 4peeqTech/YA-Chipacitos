@@ -11,21 +11,15 @@ export default async function PendientesPage() {
 
   const { data: gastos } = await supabase
     .from('gastos')
-    .select(`
-      id, fecha, local, rubro, categoria, monto, forma_pago, estado,
-      observaciones, comprobante_url, fecha_pago,
-      proveedores (nombre)
-    `)
+    .select(`id, fecha, local, rubro, categoria, monto, forma_pago, estado, observaciones, comprobante_url, fecha_pago, proveedores (nombre)`)
     .in('estado', ['Pendiente de pago', 'Parcial'])
     .order('fecha', { ascending: true })
 
-  // Supabase devuelve proveedores como array; normalizar a objeto o null
-  const normalized = (gastos ?? []).map(g => ({
+  const gastosManual = (gastos ?? []).map(g => ({
     ...g,
-    proveedores: Array.isArray(g.proveedores)
-      ? (g.proveedores[0] ?? null)
-      : g.proveedores,
+    _source: 'manual' as const,
+    proveedores: Array.isArray(g.proveedores) ? (g.proveedores[0] ?? null) : g.proveedores,
   }))
 
-  return <PendientesClient gastos={normalized} />
+  return <PendientesClient gastosManual={gastosManual} />
 }
