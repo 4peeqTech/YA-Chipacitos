@@ -4,32 +4,78 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
 
 interface SidebarProps {
   nombre: string
 }
 
-const links = [
-  { href: '/admin/dashboard',    label: 'Dashboard',       icon: '🏠' },
-  { href: '/admin/conciliacion', label: 'Conciliación',    icon: '📊' },
-  { href: '/admin/catalogo',     label: 'Catálogo',        icon: '📦' },
-  { href: '/admin/mapeos',       label: 'Mapeo productos', icon: '🔗' },
-  { href: '/admin/importar',     label: 'Sincronizar',     icon: '🔄' },
-  { href: '/admin/usuarios',     label: 'Usuarios',        icon: '👥' },
-  { href: '/admin/posberry',     label: 'Ventas Posberry', icon: '📈' },
-  { href: '/ayuda',              label: 'Ayuda',           icon: '❓' },
+interface NavItem {
+  href: string
+  label: string
+  icon: string
+}
+
+interface NavSection {
+  label: string
+  items: NavItem[]
+}
+
+const standaloneItems: NavItem[] = [
+  { href: '/admin/dashboard', label: 'Dashboard', icon: '🏠' },
+  { href: '/ayuda', label: 'Ayuda', icon: '❓' },
+]
+
+const sections: NavSection[] = [
+  {
+    label: 'Parámetros',
+    items: [
+      { href: '/admin/catalogo', label: 'Catálogo', icon: '📦' },
+      { href: '/admin/mapeos', label: 'Mapeo productos', icon: '🔗' },
+      { href: '/admin/usuarios', label: 'Usuarios', icon: '👥' },
+    ],
+  },
+  {
+    label: 'Mayorista',
+    items: [
+      { href: '/admin/importar', label: 'Sincronizar', icon: '🔄' },
+      { href: '/admin/posberry', label: 'Ventas Posberry', icon: '📈' },
+      { href: '/admin/conciliacion', label: 'Conciliación', icon: '📊' },
+    ],
+  },
+  {
+    label: 'Operativo',
+    items: [
+      { href: '/admin/gastos', label: 'Gastos', icon: '💰' },
+    ],
+  },
 ]
 
 export default function Sidebar({ nombre }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(sections.map(s => s.label))
+  )
+
+  const toggleSection = (sectionLabel: string) => {
+    const newExpanded = new Set(expandedSections)
+    if (newExpanded.has(sectionLabel)) {
+      newExpanded.delete(sectionLabel)
+    } else {
+      newExpanded.add(sectionLabel)
+    }
+    setExpandedSections(newExpanded)
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
   }
+
+  const isItemActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
 
   return (
     <aside className="hidden lg:flex flex-col w-60 bg-[#111111] border-r border-[#2a2a2a] min-h-screen fixed left-0 top-0 z-40">
@@ -43,24 +89,56 @@ export default function Sidebar({ nombre }: SidebarProps) {
       </div>
 
       {/* Nav links */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {links.map(link => {
-          const active = pathname === link.href || pathname.startsWith(link.href + '/')
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                active
-                  ? 'bg-[#e8c547] text-black font-bold'
-                  : 'text-[#888] hover:text-[#f0f0f0] hover:bg-[#1a1a1a]'
-              }`}
+      <nav className="flex-1 px-3 py-4 space-y-3 overflow-y-auto">
+        {/* Standalone items */}
+        {standaloneItems.map(item => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              isItemActive(item.href)
+                ? 'bg-[#e8c547] text-black font-bold'
+                : 'text-[#888] hover:text-[#f0f0f0] hover:bg-[#1a1a1a]'
+            }`}
+          >
+            <span className="text-base">{item.icon}</span>
+            {item.label}
+          </Link>
+        ))}
+
+        {/* Sections */}
+        {sections.map(section => (
+          <div key={section.label}>
+            <button
+              onClick={() => toggleSection(section.label)}
+              className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-[#666] hover:text-[#888] transition-colors uppercase tracking-wider"
             >
-              <span className="text-base">{link.icon}</span>
-              {link.label}
-            </Link>
-          )
-        })}
+              {section.label}
+              <span className={`text-xs transition-transform ${expandedSections.has(section.label) ? 'rotate-0' : '-rotate-90'}`}>
+                ▼
+              </span>
+            </button>
+
+            {expandedSections.has(section.label) && (
+              <div className="space-y-1 pl-2">
+                {section.items.map(item => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      isItemActive(item.href)
+                        ? 'bg-[#e8c547] text-black font-bold'
+                        : 'text-[#888] hover:text-[#f0f0f0] hover:bg-[#1a1a1a]'
+                    }`}
+                  >
+                    <span className="text-base">{item.icon}</span>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </nav>
 
       {/* User footer */}
