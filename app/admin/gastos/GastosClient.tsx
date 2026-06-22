@@ -1,185 +1,298 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { RUBROS_CATEGORIAS, RUBROS, LOCALES, FORMAS_PAGO, ESTADOS_GASTO } from '@/lib/gastos-constants'
 
+interface Proveedor { id: string; nombre: string }
 interface Gasto {
   id: string
-  descripcion: string
-  cantidad: number
-  categoria: string
   fecha: string
-  estado: 'pendiente' | 'aprobado' | 'rechazado'
+  local: string
+  rubro: string
+  categoria: string
+  proveedor_id: string | null
+  monto: number
+  forma_pago: string
+  estado: string
+  observaciones: string | null
+  proveedores?: { nombre: string } | null
+}
+
+const hoy = () => new Date().toISOString().split('T')[0]
+
+const emptyForm = () => ({
+  fecha: hoy(),
+  local: '',
+  rubro: '',
+  categoria: '',
+  proveedor_id: '',
+  monto: '',
+  forma_pago: '',
+  estado: 'Pendiente de pago',
+  observaciones: '',
+})
+
+const estadoBadge = (estado: string) => {
+  if (estado === 'Pagado') return 'bg-green-900/50 text-green-300'
+  if (estado === 'Parcial') return 'bg-yellow-900/50 text-yellow-300'
+  return 'bg-red-900/30 text-red-300'
 }
 
 export default function GastosClient() {
+  const supabase = createClient()
   const [gastos, setGastos] = useState<Gasto[]>([])
-  const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({
-    descripcion: '',
-    cantidad: 0,
-    categoria: 'general',
-    fecha: new Date().toISOString().split('T')[0],
-  })
+  const [proveedores, setProveedores] = useState<Proveedor[]>([])
+  const [form, setForm] = useState(emptyForm())
+  const [error, setError] = useState('')
+  const [exito, setExito] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const [filtroEstado, setFiltroEstado] = useState<string>('todos')
 
-  const categorias = ['general', 'operativo', 'marketing', 'tecnología', 'infraestructura']
+  useEffect(() => {
+    supabase.from('proveedores').select('id, nombre').eq('estado', 'activo').order('nombre')
+      .then(({ data }) => setProveedores(data ?? []))
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const nuevoGasto: Gasto = {
-      id: Date.now().toString(),
-      ...formData,
-      cantidad: parseFloat(formData.cantidad.toString()),
-      estado: 'pendiente',
-    }
-    setGastos([nuevoGasto, ...gastos])
-    setFormData({
-      descripcion: '',
-      cantidad: 0,
-      categoria: 'general',
-      fecha: new Date().toISOString().split('T')[0],
+    supabase.from('gastos')
+      .select('*, proveedores(nombre)')
+      .order('fecha', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(100)
+      .then(({ data }) => setGastos(data ?? []))
+  }, [])
+
+  const categorias = form.rubro ? (RUBROS_CATEGORIAS[form.rubro] ?? []) : []
+
+  function setField(key: string, value: string) {
+    setForm(f => {
+      const updated = { ...f, [key]: value }
+      if (key === 'rubro') updated.categoria = ''
+      return updated
     })
-    setShowForm(false)
   }
 
-  const totalGastos = gastos.reduce((sum, g) => sum + g.cantidad, 0)
-  const gastosAprobados = gastos.filter(g => g.estado === 'aprobado').reduce((sum, g) => sum + g.cantidad, 0)
+  async function guardar(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.local || !form.rubro || !form.categoria || !form.monto || !form.forma_pago) {
+      setError('Completá todos los campos requeridos')
+      return
+    }
+    setError('')
+
+    startTransition(async () => {
+      const payload = {
+        fecha: form.fecha,
+        local: form.local,
+        rubro: form.rubro,
+        categoria: form.categoria,
+        proveedor_id: form.proveedor_id || null,
+        monto: parseFloat(form.monto),
+        forma_pago: form.forma_pago,
+        estado: form.estado,
+        observaciones: form.observaciones || null,
+      }
+
+      const { data, error: err } = await supabase
+        .from('gastos')
+        .insert([payload])
+        .select('*, proveedores(nombre)')
+        .single()
+
+      if (err) { setError(err.message); return }
+
+      setGastos(prev => [data, ...prev])
+      setForm(emptyForm())
+      setExito(true)
+      setTimeout(() => setExito(false), 2500)
+    })
+  }
+
+  const gastosFiltrados = filtroEstado === 'todos'
+    ? gastos
+    : gastos.filter(g => g.estado === filtroEstado)
+
+  const totalFiltrado = gastosFiltrados.reduce((s, g) => s + g.monto, 0)
+  const totalPendiente = gastos.filter(g => g.estado === 'Pendiente de pago').reduce((s, g) => s + g.monto, 0)
+
+  const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#e8c547] transition-colors [color-scheme:dark]"
+  const labelClass = "block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5"
+  const selectClass = `${inputClass} cursor-pointer`
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-[#f0f0f0]">Gestión de Gastos</h1>
-          <p className="text-[#888] mt-1">Registro y control de gastos operativos</p>
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-[#e8c547] hover:opacity-90 text-black font-semibold py-2 px-4 rounded-xl transition-all"
-        >
-          + Nuevo Gasto
-        </button>
+      <div>
+        <h1 className="text-2xl font-bold text-[#f0f0f0]">Registro de Egresos</h1>
+        <p className="text-[#888] text-sm mt-0.5">Cargá y seguí los gastos operativos</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      {/* Stats rápidas */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-sm">Total Gastos</p>
-          <p className="text-2xl font-bold text-[#f0f0f0] mt-1">${totalGastos.toFixed(2)}</p>
+          <p className="text-[#888] text-xs uppercase tracking-wider">Total registrado</p>
+          <p className="text-xl font-bold text-[#f0f0f0] mt-1">${gastos.reduce((s,g) => s+g.monto, 0).toLocaleString('es-AR', {minimumFractionDigits:2})}</p>
         </div>
         <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-sm">Aprobados</p>
-          <p className="text-2xl font-bold text-[#e8c547] mt-1">${gastosAprobados.toFixed(2)}</p>
+          <p className="text-[#888] text-xs uppercase tracking-wider">Pendiente de pago</p>
+          <p className="text-xl font-bold text-red-400 mt-1">${totalPendiente.toLocaleString('es-AR', {minimumFractionDigits:2})}</p>
         </div>
         <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-sm">Pendientes</p>
-          <p className="text-2xl font-bold text-[#f0f0f0] mt-1">{gastos.filter(g => g.estado === 'pendiente').length}</p>
+          <p className="text-[#888] text-xs uppercase tracking-wider">Gastos cargados</p>
+          <p className="text-xl font-bold text-[#f0f0f0] mt-1">{gastos.length}</p>
         </div>
       </div>
 
-      {/* Form */}
-      {showForm && (
-        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-6">
-          <h2 className="text-lg font-bold text-[#f0f0f0] mb-4">Nuevo Gasto</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-[#e8c547] mb-2">Descripción</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.descripcion}
-                  onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
-                  className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#e8c547]"
-                  placeholder="Ej: Compra de insumos"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#e8c547] mb-2">Cantidad</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={formData.cantidad}
-                  onChange={(e) => setFormData({...formData, cantidad: parseFloat(e.target.value) || 0})}
-                  className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#e8c547]"
-                  placeholder="0.00"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#e8c547] mb-2">Categoría</label>
-                <select
-                  value={formData.categoria}
-                  onChange={(e) => setFormData({...formData, categoria: e.target.value})}
-                  className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#e8c547]"
-                >
-                  {categorias.map(cat => (
-                    <option key={cat} value={cat} className="bg-[#1a1a1a]">{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#e8c547] mb-2">Fecha</label>
-                <input
-                  type="date"
-                  required
-                  value={formData.fecha}
-                  onChange={(e) => setFormData({...formData, fecha: e.target.value})}
-                  className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#e8c547]"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="submit"
-                className="flex-1 bg-[#e8c547] hover:opacity-90 text-black font-semibold py-2 rounded-lg transition-all"
-              >
-                Guardar Gasto
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="flex-1 bg-[#2a2a2a] hover:bg-[#333333] text-[#f0f0f0] font-semibold py-2 rounded-lg transition-all"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {/* Formulario */}
+      <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-xl p-6">
+        <h2 className="text-base font-bold text-[#f0f0f0] mb-5">Nuevo egreso</h2>
+        <form onSubmit={guardar} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
-      {/* Gastos List */}
-      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-        {gastos.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-[#888]">No hay gastos registrados</p>
+            {/* FECHA */}
+            <div>
+              <label className={labelClass}>📅 Fecha</label>
+              <input type="date" className={inputClass} value={form.fecha} onChange={e => setField('fecha', e.target.value)} />
+            </div>
+
+            {/* LOCAL */}
+            <div>
+              <label className={labelClass}>🏠 Local</label>
+              <select className={selectClass} value={form.local} onChange={e => setField('local', e.target.value)}>
+                <option value="">— elegí de la lista —</option>
+                {LOCALES.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+
+            {/* RUBRO */}
+            <div>
+              <label className={labelClass}>📁 Rubro</label>
+              <select className={selectClass} value={form.rubro} onChange={e => setField('rubro', e.target.value)}>
+                <option value="">— elegí primero el rubro —</option>
+                {RUBROS.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+
+            {/* CATEGORIA */}
+            <div>
+              <label className={labelClass}>🏷️ Categoría</label>
+              <select className={selectClass} value={form.categoria} onChange={e => setField('categoria', e.target.value)} disabled={!form.rubro}>
+                <option value="">— se filtra según el rubro —</option>
+                {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            {/* PROVEEDOR */}
+            <div>
+              <label className={labelClass}>🚚 Proveedor</label>
+              <select className={selectClass} value={form.proveedor_id} onChange={e => setField('proveedor_id', e.target.value)}>
+                <option value="">— elegí de la lista —</option>
+                {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+            </div>
+
+            {/* MONTO */}
+            <div>
+              <label className={labelClass}>$ Monto ARS</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="solo el número, sin $"
+                className={inputClass}
+                value={form.monto}
+                onChange={e => setField('monto', e.target.value)}
+              />
+            </div>
+
+            {/* FORMA DE PAGO */}
+            <div>
+              <label className={labelClass}>💳 Forma de pago</label>
+              <select className={selectClass} value={form.forma_pago} onChange={e => setField('forma_pago', e.target.value)}>
+                <option value="">— elegí de la lista —</option>
+                {FORMAS_PAGO.map(fp => <option key={fp} value={fp}>{fp}</option>)}
+              </select>
+            </div>
+
+            {/* ESTADO */}
+            <div>
+              <label className={labelClass}>🎯 Estado</label>
+              <select className={selectClass} value={form.estado} onChange={e => setField('estado', e.target.value)}>
+                {ESTADOS_GASTO.map(es => <option key={es} value={es}>{es}</option>)}
+              </select>
+            </div>
+
+            {/* OBSERVACIONES */}
+            <div className="sm:col-span-2 lg:col-span-1">
+              <label className={labelClass}>📝 Observaciones</label>
+              <input
+                type="text"
+                placeholder="opcional"
+                className={inputClass}
+                value={form.observaciones}
+                onChange={e => setField('observaciones', e.target.value)}
+              />
+            </div>
           </div>
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {exito && <p className="text-green-400 text-sm">✓ Egreso guardado correctamente</p>}
+
+          <button
+            type="submit"
+            disabled={isPending}
+            className="w-full bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-bold py-3 rounded-xl transition-all tracking-wide"
+          >
+            {isPending ? 'Guardando...' : 'GUARDAR EGRESO'}
+          </button>
+        </form>
+      </div>
+
+      {/* Lista de gastos */}
+      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#2a2a2a] flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-bold text-[#f0f0f0]">Egresos registrados</h2>
+          <div className="flex gap-2 flex-wrap">
+            {['todos', ...ESTADOS_GASTO].map(e => (
+              <button
+                key={e}
+                onClick={() => setFiltroEstado(e)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${filtroEstado === e ? 'bg-[#e8c547] text-black' : 'bg-[#2a2a2a] text-[#888] hover:text-[#f0f0f0]'}`}
+              >
+                {e === 'todos' ? 'Todos' : e}
+              </button>
+            ))}
+            {filtroEstado !== 'todos' && (
+              <span className="px-3 py-1 text-xs text-[#888]">
+                ${totalFiltrado.toLocaleString('es-AR', {minimumFractionDigits:2})}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {gastosFiltrados.length === 0 ? (
+          <p className="p-8 text-center text-[#888]">No hay egresos registrados</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
+            <table className="w-full text-sm">
+              <thead className="bg-[#1a1a1a]">
                 <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-[#e8c547]">Descripción</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-[#e8c547]">Cantidad</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-[#e8c547]">Categoría</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-[#e8c547]">Fecha</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-[#e8c547]">Estado</th>
+                  {['Fecha', 'Local', 'Rubro', 'Categoría', 'Proveedor', 'Monto', 'Forma pago', 'Estado'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#2a2a2a]">
-                {gastos.map(gasto => (
-                  <tr key={gasto.id} className="hover:bg-[#1a1a1a] transition-colors">
-                    <td className="px-6 py-3 text-sm text-[#f0f0f0]">{gasto.descripcion}</td>
-                    <td className="px-6 py-3 text-sm text-[#f0f0f0] font-medium">${gasto.cantidad.toFixed(2)}</td>
-                    <td className="px-6 py-3 text-sm text-[#888]">{gasto.categoria}</td>
-                    <td className="px-6 py-3 text-sm text-[#888]">{new Date(gasto.fecha).toLocaleDateString()}</td>
-                    <td className="px-6 py-3 text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        gasto.estado === 'aprobado' ? 'bg-green-900 text-green-200' :
-                        gasto.estado === 'rechazado' ? 'bg-red-900 text-red-200' :
-                        'bg-yellow-900 text-yellow-200'
-                      }`}>
-                        {gasto.estado.charAt(0).toUpperCase() + gasto.estado.slice(1)}
-                      </span>
+                {gastosFiltrados.map(g => (
+                  <tr key={g.id} className="hover:bg-[#1a1a1a] transition-colors">
+                    <td className="px-4 py-3 text-[#888] whitespace-nowrap">{new Date(g.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td>
+                    <td className="px-4 py-3 text-[#f0f0f0]">{g.local}</td>
+                    <td className="px-4 py-3 text-[#888]">{g.rubro}</td>
+                    <td className="px-4 py-3 text-[#888]">{g.categoria}</td>
+                    <td className="px-4 py-3 text-[#888]">{g.proveedores?.nombre ?? '—'}</td>
+                    <td className="px-4 py-3 text-[#f0f0f0] font-medium whitespace-nowrap">${g.monto.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                    <td className="px-4 py-3 text-[#888] whitespace-nowrap">{g.forma_pago}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${estadoBadge(g.estado)}`}>{g.estado}</span>
                     </td>
                   </tr>
                 ))}

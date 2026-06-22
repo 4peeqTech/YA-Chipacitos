@@ -30,23 +30,19 @@ const sections: NavSection[] = [
   {
     label: 'Parámetros',
     items: [
-      { href: '/admin/catalogo', label: 'Catálogo', icon: '📦' },
-      { href: '/admin/mapeos', label: 'Mapeo productos', icon: '🔗' },
-      { href: '/admin/usuarios', label: 'Usuarios', icon: '👥' },
+      { href: '/admin/catalogo',    label: 'Catálogo',          icon: '📦' },
+      { href: '/admin/mapeos',      label: 'Mapeo productos',   icon: '🔗' },
+      { href: '/admin/usuarios',    label: 'Usuarios',          icon: '👥' },
+      { href: '/admin/proveedores', label: 'Proveedores',       icon: '🚚' },
     ],
   },
   {
     label: 'Mayorista',
     items: [
-      { href: '/admin/importar', label: 'Sincronizar', icon: '🔄' },
-      { href: '/admin/posberry', label: 'Ventas Posberry', icon: '📈' },
-      { href: '/admin/conciliacion', label: 'Conciliación', icon: '📊' },
-    ],
-  },
-  {
-    label: 'Operativo',
-    items: [
-      { href: '/admin/gastos', label: 'Gastos', icon: '💰' },
+      { href: '/admin/importar',    label: 'Sincronizar',       icon: '🔄' },
+      { href: '/admin/posberry',    label: 'Ventas Posberry',   icon: '📈' },
+      { href: '/admin/conciliacion',label: 'Conciliación',      icon: '📊' },
+      { href: '/admin/gastos',      label: 'Gastos',            icon: '💰' },
     ],
   },
 ]

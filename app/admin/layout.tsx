@@ -15,11 +15,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (profile?.rol !== 'admin') redirect('/login')
 
   const navItems = [
-    { href: '/admin/dashboard',    label: 'Dashboard',    icon: '🏠' },
-    { href: '/admin/conciliacion', label: 'Conciliar',    icon: '📊' },
-    { href: '/admin/mapeos',       label: 'Mapeos',       icon: '🔗' },
-    { href: '/admin/importar',     label: 'Sincronizar',  icon: '🔄' },
-    { href: '/ayuda',              label: 'Ayuda',        icon: '❓' },
+    { href: '/admin/dashboard',    label: 'Dashboard',       icon: '🏠' },
+    { href: '/admin/gastos',       label: 'Gastos',          icon: '💰' },
+    { href: '/admin/conciliacion', label: 'Conciliación',    icon: '📊' },
+    { href: '/admin/importar',     label: 'Sincronizar',     icon: '🔄' },
+    { href: '/ayuda',              label: 'Ayuda',           icon: '❓' },
   ]
 
   return (
