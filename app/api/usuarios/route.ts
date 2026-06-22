@@ -12,9 +12,10 @@ const CreateUserSchema = z.object({
 })
 
 const PatchSchema = z.union([
-  z.object({ id: z.string().uuid(), rol: z.enum(['local', 'deposito', 'fabrica', 'admin']), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined() }),
-  z.object({ id: z.string().uuid(), password: z.string().min(6), rol: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined() }),
-  z.object({ id: z.string().uuid(), whatsapp_phone: z.string().nullable(), whatsapp_apikey: z.string().nullable(), rol: z.undefined(), password: z.undefined() }),
+  z.object({ id: z.string().uuid(), rol: z.enum(['local', 'deposito', 'fabrica', 'admin']), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre_posberry: z.undefined() }),
+  z.object({ id: z.string().uuid(), password: z.string().min(6), rol: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre_posberry: z.undefined() }),
+  z.object({ id: z.string().uuid(), whatsapp_phone: z.string().nullable(), whatsapp_apikey: z.string().nullable(), rol: z.undefined(), password: z.undefined(), nombre_posberry: z.undefined() }),
+  z.object({ id: z.string().uuid(), nombre_posberry: z.string().nullable(), rol: z.undefined(), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined() }),
 ])
 
 function getAdminClient() {
@@ -78,8 +79,8 @@ export async function PATCH(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
   }
-  const { id, rol, password, whatsapp_phone, whatsapp_apikey } = parsed.data as {
-    id: string; rol?: string; password?: string; whatsapp_phone?: string | null; whatsapp_apikey?: string | null
+  const { id, rol, password, whatsapp_phone, whatsapp_apikey, nombre_posberry } = parsed.data as {
+    id: string; rol?: string; password?: string; whatsapp_phone?: string | null; whatsapp_apikey?: string | null; nombre_posberry?: string | null
   }
 
   // Evitar que admin se cambie su propio rol
@@ -99,6 +100,13 @@ export async function PATCH(req: NextRequest) {
   // Configurar WhatsApp
   if (whatsapp_phone !== undefined) {
     const { error } = await adminClient.from('profiles').update({ whatsapp_phone, whatsapp_apikey }).eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  }
+
+  // Actualizar nombre_posberry
+  if (nombre_posberry !== undefined) {
+    const { error } = await adminClient.from('profiles').update({ nombre_posberry }).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ ok: true })
   }

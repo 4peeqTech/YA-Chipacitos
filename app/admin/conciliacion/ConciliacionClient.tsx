@@ -137,6 +137,8 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
   const sinConfirmar = conc.filter(c => !c.confirmado)
   const totalVendido = concFiltrada.reduce((s, c) => s + (c.vendido || 0), 0)
   const totalPedido = concFiltrada.reduce((s, c) => s + (c.pedido || 0), 0)
+  const totalMontoVendido = concFiltrada.reduce((s, c) => s + (c.monto_vendido || 0), 0)
+  const totalMontoRemito = concFiltrada.reduce((s, c) => s + (c.monto_remito || 0), 0)
 
   // Resumen por local
   const porLocal = useMemo(() => locales.map(l => {
@@ -155,7 +157,7 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#f0f0f0]">Conciliación</h1>
-          <p className="text-sm text-[#888] mt-1">Ventas Posberry vs pedidos del sistema, por período y local</p>
+          <p className="text-sm text-[#888] mt-1">Ventas Posberry vs remitos recibidos, por período y local</p>
         </div>
         {/* Selector de período + recalcular */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -188,7 +190,7 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
         </Card>
         <Card className="p-4">
           <p className="text-2xl font-black text-[#f0f0f0]">{totalPedido}</p>
-          <p className="text-xs text-[#888] mt-1">Total pedido</p>
+          <p className="text-xs text-[#888] mt-1">Total remito</p>
         </Card>
         <Card className={`p-4 ${alertas.length > 0 ? 'border-t-[3px] border-t-[#e84210]' : 'border-t-[3px] border-t-[#56d68a]'}`}>
           <p className={`text-2xl font-black ${alertas.length > 0 ? 'text-[#e84210]' : 'text-[#56d68a]'}`}>{alertas.length}</p>
@@ -202,7 +204,7 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
 
       {alertas.length > 0 && (
         <div className="bg-[rgba(240,168,73,.1)] border-l-4 border-[#f0a849] rounded-r-xl px-4 py-3 text-sm text-[#f0a849]">
-          ⚠️ {alertas.length} alerta{alertas.length !== 1 ? 's' : ''} de diferencia entre ventas y pedidos.
+          ⚠️ {alertas.length} alerta{alertas.length !== 1 ? 's' : ''} de diferencia entre ventas y remitos.
           {alertas.length > 0 && ` Primer caso: ${alertas[0].profiles?.local_nombre || alertas[0].profiles?.nombre} — ${alertas[0].producto_nombre}`}
         </div>
       )}
@@ -288,9 +290,12 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
                           <th className="text-left px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Local</th>
                           <th className="text-left px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Posberry</th>
                           <th className="text-left px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Sistema</th>
-                          <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Vendido</th>
-                          <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Pedido</th>
-                          <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Dif.</th>
+                          <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Vend. Ud.</th>
+                          <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Rem. Ud.</th>
+                          <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Dif. Ud.</th>
+                          <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">$ Vendido</th>
+                          <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">$ Remito</th>
+                          <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">$ Dif.</th>
                           <th className="text-center px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Estado</th>
                         </tr>
                       </thead>
@@ -315,11 +320,20 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
                               </td>
                               <td className="px-4 py-2.5 text-right tabular-nums">{c.vendido || '—'}</td>
                               <td className="px-4 py-2.5 text-right tabular-nums">{c.pedido || '—'}</td>
+                              <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${diff < 0 ? 'text-[#e84210]' : diff > 0 ? 'text-[#56d68a]' : 'text-[#888]'}`}>
+                                {diff > 0 ? `+${diff}` : diff === 0 ? '0' : diff}{c.tiene_alerta ? ' ⚠️' : ''}
+                              </td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-[#aaa]">
+                                {c.monto_vendido ? `$${(c.monto_vendido).toLocaleString('es-AR')}` : '—'}
+                              </td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-[#aaa]">
+                                {c.monto_remito ? `$${(c.monto_remito).toLocaleString('es-AR')}` : '—'}
+                              </td>
                               <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${
-                                diff < 0 ? 'text-[#e84210]' : diff > 0 ? 'text-[#56d68a]' : 'text-[#888]'
+                                (c.monto_vendido||0)-(c.monto_remito||0) < 0 ? 'text-[#e84210]' :
+                                (c.monto_vendido||0)-(c.monto_remito||0) > 0 ? 'text-[#56d68a]' : 'text-[#888]'
                               }`}>
-                                {diff > 0 ? `+${diff}` : diff === 0 ? '0' : diff}
-                                {c.tiene_alerta ? ' ⚠️' : ''}
+                                {(() => { const d = Math.round(((c.monto_vendido||0)-(c.monto_remito||0))*100)/100; return d > 0 ? `+$${d.toLocaleString('es-AR')}` : d === 0 ? '$0' : `-$${Math.abs(d).toLocaleString('es-AR')}` })()}
                               </td>
                               <td className="px-4 py-2.5 text-center">
                                 {esConf ? (
@@ -348,11 +362,13 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
                           <td colSpan={4} className="px-4 py-3 font-bold text-[#f0f0f0] text-sm">Total</td>
                           <td className="px-4 py-3 text-right font-bold tabular-nums">{totalVendido}</td>
                           <td className="px-4 py-3 text-right font-bold tabular-nums">{totalPedido}</td>
-                          <td className={`px-4 py-3 text-right font-bold tabular-nums ${
-                            totalVendido - totalPedido < 0 ? 'text-[#e84210]' :
-                            totalVendido - totalPedido > 0 ? 'text-[#56d68a]' : 'text-[#888]'
-                          }`}>
-                            {totalVendido - totalPedido > 0 ? `+${totalVendido - totalPedido}` : totalVendido - totalPedido}
+                          <td className={`px-4 py-3 text-right font-bold tabular-nums ${totalVendido-totalPedido < 0 ? 'text-[#e84210]' : totalVendido-totalPedido > 0 ? 'text-[#56d68a]' : 'text-[#888]'}`}>
+                            {totalVendido-totalPedido > 0 ? `+${totalVendido-totalPedido}` : totalVendido-totalPedido}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold tabular-nums">${totalMontoVendido.toLocaleString('es-AR')}</td>
+                          <td className="px-4 py-3 text-right font-bold tabular-nums">${totalMontoRemito.toLocaleString('es-AR')}</td>
+                          <td className={`px-4 py-3 text-right font-bold tabular-nums ${totalMontoVendido-totalMontoRemito < 0 ? 'text-[#e84210]' : totalMontoVendido-totalMontoRemito > 0 ? 'text-[#56d68a]' : 'text-[#888]'}`}>
+                            {(() => { const d = Math.round((totalMontoVendido-totalMontoRemito)*100)/100; return d > 0 ? `+$${d.toLocaleString('es-AR')}` : d === 0 ? '$0' : `-$${Math.abs(d).toLocaleString('es-AR')}` })()}
                           </td>
                           <td className="px-4 py-3 text-center text-xs text-[#888]">
                             {confirmados.length}/{conc.length} conf.
@@ -362,7 +378,7 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
                     </table>
                   </div>
                   <p className="text-[11px] text-[#888] px-4 py-2 border-t border-[#2a2a2a]">
-                    {concFiltrada.length} filas · Diferencia = Vendido − Pedido · Confirmados: {concFiltrada.filter(c => c.confirmado).length}/{concFiltrada.length}
+                    {concFiltrada.length} filas · Dif. Ud. = Vendido − Remito · Dif. $ = $ Vendido − $ Remito · Confirmados: {concFiltrada.filter(c => c.confirmado).length}/{concFiltrada.length}
                   </p>
                 </Card>
               )

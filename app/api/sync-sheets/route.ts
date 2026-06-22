@@ -117,10 +117,13 @@ export async function POST(req: NextRequest) {
   // Mapear locales
   const admin = getAdmin()
   const { data: locales } = await admin
-    .from('profiles').select('id, nombre, local_nombre').eq('rol', 'local')
+    .from('profiles').select('id, nombre, local_nombre, nombre_posberry').eq('rol', 'local')
 
   function matchLocal(cliente: string) {
     if (!locales) return null
+    // Prioridad: match exacto por nombre_posberry asignado en el perfil
+    const porPosberry = locales.find(l => l.nombre_posberry && l.nombre_posberry === cliente)
+    if (porPosberry) return porPosberry
     return locales.find(l => l.local_nombre === cliente)
       || locales.find(l => l.local_nombre && (
         cliente.includes(l.local_nombre) || l.local_nombre.includes(cliente)

@@ -12,18 +12,53 @@ interface Props {
   productos: Pick<Producto, 'id' | 'nombre' | 'tipo' | 'destino'>[]
 }
 
-export default function MapeosClient({ nombresPostberry, mapeosIniciales, productos }: Props) {
+export default function MapeosClient({ nombresPostberry: nombresPostberryIniciales, mapeosIniciales, productos }: Props) {
+  const [nombresPostberry, setNombresPostberry] = useState(nombresPostberryIniciales)
   const [mapeos, setMapeos] = useState<Record<string, string>>(() => {
     const m: Record<string, string> = {}
     mapeosIniciales.forEach(mp => { if (mp.producto_id) m[mp.nombre_posberry] = mp.producto_id })
     return m
   })
   const [guardando, setGuardando] = useState<string | null>(null)
+  const [editandoNombre, setEditandoNombre] = useState<string | null>(null)
+  const [editandoValor, setEditandoValor] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro] = useState<'todos' | 'mapeados' | 'sin_mapear'>('todos')
   const [importando, setImportando] = useState(false)
   const [importResult, setImportResult] = useState<{ ok: number; errores: string[]; lineas: number } | null>(null)
   const supabase = createClient()
+
+  async function guardarNombrePostberry(nombreOriginal: string) {
+    const nuevoNombre = editandoValor.trim()
+    if (!nuevoNombre || nuevoNombre === nombreOriginal) { setEditandoNombre(null); return }
+    setGuardando(nombreOriginal)
+    const { error } = await supabase.from('producto_mapeos')
+      .update({ nombre_posberry: nuevoNombre })
+      .eq('nombre_posberry', nombreOriginal)
+    if (!error) {
+      setNombresPostberry(prev => prev.map(n => n === nombreOriginal ? nuevoNombre : n))
+      setMapeos(prev => {
+        const next = { ...prev }
+        if (prev[nombreOriginal] !== undefined) { next[nuevoNombre] = prev[nombreOriginal]; delete next[nombreOriginal] }
+        return next
+      })
+    }
+    setEditandoNombre(null)
+    setGuardando(null)
+  }
+
+  async function eliminarPostberry(nombre: string) {
+    if (!confirm(`¿Eliminar "${nombre}" de los mapeos?`)) return
+    setGuardando(nombre)
+    // Upsert marcando como ignorado (así no reaparece desde ventas_posberry)
+    const { error } = await supabase.from('producto_mapeos')
+      .upsert({ nombre_posberry: nombre, producto_id: null, ignorado: true }, { onConflict: 'nombre_posberry' })
+    if (!error) {
+      setNombresPostberry(prev => prev.filter(n => n !== nombre))
+      setMapeos(prev => { const next = { ...prev }; delete next[nombre]; return next })
+    }
+    setGuardando(null)
+  }
 
   function exportarCSV() {
     const productosPorId = Object.fromEntries(productos.map(p => [p.id, p.nombre]))
@@ -83,7 +118,8 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
       if (!nombrePosberry) continue
 
       if (!nombreProducto) {
-        // fila sin producto asignado, ignorar silenciosamente
+        // sin producto asignado: igual insertar el nombre de Posberry si no existe ya
+        upserts.push({ nombre_posberry: nombrePosberry, producto_id: null })
       } else {
         const productoId = productosPorNombre[normalizar(nombreProducto)]
         if (!productoId) {
@@ -95,13 +131,20 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
     }
 
     if (upserts.length > 0) {
-      await supabase.from('producto_mapeos').upsert(upserts, { onConflict: 'nombre_posberry' })
-      const newMapeos = { ...mapeos }
-      upserts.forEach(u => {
-        if (u.producto_id) newMapeos[u.nombre_posberry] = u.producto_id
-        else delete newMapeos[u.nombre_posberry]
-      })
-      setMapeos(newMapeos)
+      const { error: upsertError } = await supabase.from('producto_mapeos').upsert(upserts, { onConflict: 'nombre_posberry' })
+      if (upsertError) {
+        errores.push(`Error al guardar: ${upsertError.message}`)
+      } else {
+        const newMapeos = { ...mapeos }
+        upserts.forEach(u => {
+          if (u.producto_id) newMapeos[u.nombre_posberry] = u.producto_id
+          else delete newMapeos[u.nombre_posberry]
+        })
+        setMapeos(newMapeos)
+        // agregar nuevos nombres de Posberry al estado local
+        const nuevosNombres = upserts.map(u => u.nombre_posberry).filter(n => !nombresPostberry.includes(n))
+        if (nuevosNombres.length > 0) setNombresPostberry(prev => [...prev, ...nuevosNombres].sort())
+      }
     }
 
     setImportResult({ ok: upserts.filter(u => u.producto_id).length, errores, lineas: dataLines.length })
@@ -245,8 +288,22 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
                   {/* Mobile: apilado */}
                   <div className="sm:hidden space-y-2">
                     <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-[#f0f0f0]">{nombre}</p>
+                      <div className="flex-1 min-w-0">
+                        {editandoNombre === nombre ? (
+                          <div className="flex gap-1">
+                            <input autoFocus value={editandoValor} onChange={e => setEditandoValor(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') guardarNombrePostberry(nombre); if (e.key === 'Escape') setEditandoNombre(null) }}
+                              className="flex-1 bg-[#111] border border-[#e8c547] rounded px-2 py-0.5 text-sm text-[#f0f0f0] focus:outline-none" />
+                            <button onClick={() => guardarNombrePostberry(nombre)} className="text-[#56d68a] text-xs px-1">✓</button>
+                            <button onClick={() => setEditandoNombre(null)} className="text-[#555] text-xs px-1">✕</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <p className="text-sm font-medium text-[#f0f0f0] truncate">{nombre}</p>
+                            <button onClick={() => { setEditandoNombre(nombre); setEditandoValor(nombre) }} className="text-[#444] hover:text-[#e8c547] text-xs shrink-0">✏️</button>
+                            <button onClick={() => eliminarPostberry(nombre)} className="text-[#444] hover:text-red-400 text-xs shrink-0">🗑️</button>
+                          </div>
+                        )}
                         <p className="text-xs text-[#888]">Posberry</p>
                       </div>
                       <div className="w-6 text-center">{estadoIcon}</div>
@@ -262,8 +319,24 @@ export default function MapeosClient({ nombresPostberry, mapeosIniciales, produc
 
                   {/* Desktop: 4 columnas */}
                   <div className="hidden sm:grid sm:grid-cols-[1fr_auto_1fr_auto] items-center gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-[#f0f0f0]">{nombre}</p>
+                    <div className="min-w-0">
+                      {editandoNombre === nombre ? (
+                        <div className="flex gap-1 items-center">
+                          <input autoFocus value={editandoValor} onChange={e => setEditandoValor(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') guardarNombrePostberry(nombre); if (e.key === 'Escape') setEditandoNombre(null) }}
+                            className="flex-1 bg-[#111] border border-[#e8c547] rounded px-2 py-0.5 text-sm text-[#f0f0f0] focus:outline-none" />
+                          <button onClick={() => guardarNombrePostberry(nombre)} className="text-[#56d68a] text-xs">✓</button>
+                          <button onClick={() => setEditandoNombre(null)} className="text-[#555] text-xs">✕</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 group">
+                          <p className="text-sm font-medium text-[#f0f0f0] truncate">{nombre}</p>
+                          <button onClick={() => { setEditandoNombre(nombre); setEditandoValor(nombre) }}
+                            className="text-[#444] hover:text-[#e8c547] text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0">✏️</button>
+                          <button onClick={() => eliminarPostberry(nombre)}
+                            className="text-[#444] hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0">🗑️</button>
+                        </div>
+                      )}
                       <p className="text-xs text-[#888]">Posberry</p>
                     </div>
                     <span className="text-[#2a2a2a] text-lg">→</span>

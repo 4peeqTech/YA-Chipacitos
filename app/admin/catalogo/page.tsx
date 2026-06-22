@@ -5,8 +5,10 @@ import AdminCatalogoClient from './AdminCatalogoClient'
 
 export default async function AdminCatalogoPage() {
   const supabase = await createClient()
-  const { data: productos } = await supabase
-    .from('productos').select('*').order('destino').order('nombre')
+  const [{ data: productos }, { data: mapeos }] = await Promise.all([
+    supabase.from('productos').select('*').order('destino').order('nombre'),
+    supabase.from('producto_mapeos').select('nombre_posberry, producto_id'),
+  ])
 
-  return <AdminCatalogoClient productosIniciales={productos || []} />
+  return <AdminCatalogoClient productosIniciales={productos || []} mapeos={mapeos || []} />
 }

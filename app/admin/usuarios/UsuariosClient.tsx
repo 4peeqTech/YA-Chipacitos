@@ -27,6 +27,10 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
   const [resetModal, setResetModal] = useState<{ id: string; nombre: string } | null>(null)
   const [nuevaPassword, setNuevaPassword] = useState('')
   const [reseteando, setReseteando] = useState(false)
+  const [posberryEdits, setPosberryEdits] = useState<Record<string, string>>(() =>
+    Object.fromEntries(usuariosIniciales.map(u => [u.id, u.nombre_posberry || '']))
+  )
+  const [posberrySaving, setPosberrySaving] = useState<Record<string, 'saving' | 'ok' | 'error'>>(() => ({}))
 
   const usuariosFiltrados = usuarios.filter(u =>
     u.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -77,6 +81,22 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
     if (res.ok) setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, rol: nuevoRol } : u))
   }
 
+  async function guardarPosberry(userId: string) {
+    const valor = posberryEdits[userId] ?? ''
+    setPosberrySaving(prev => ({ ...prev, [userId]: 'saving' }))
+    const res = await fetch('/api/usuarios', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: userId, nombre_posberry: valor || null }),
+    })
+    if (res.ok) {
+      setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, nombre_posberry: valor || null } : u))
+      setPosberrySaving(prev => ({ ...prev, [userId]: 'ok' }))
+      setTimeout(() => setPosberrySaving(prev => { const n = { ...prev }; delete n[userId]; return n }), 2000)
+    } else {
+      setPosberrySaving(prev => ({ ...prev, [userId]: 'error' }))
+    }
+  }
+
   return (
     <div className="space-y-5 max-w-4xl">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -105,6 +125,7 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
               <tr className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Nombre</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Local / Área</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Cliente Posberry</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Rol</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Fecha de alta</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
@@ -115,6 +136,29 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
                 <tr key={u.id} className={`border-b border-[#2a2a2a] ${i % 2 === 1 ? 'bg-[#1a1a1a]/40' : ''}`}>
                   <td className="px-4 py-3 font-medium text-[#f0f0f0]">{u.nombre}</td>
                   <td className="px-4 py-3 text-[#888]">{u.local_nombre || '—'}</td>
+                  <td className="px-4 py-3">
+                    {u.rol === 'local' ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={posberryEdits[u.id] ?? ''}
+                          onChange={e => setPosberryEdits(prev => ({ ...prev, [u.id]: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') guardarPosberry(u.id) }}
+                          placeholder="Nombre en Posberry..."
+                          className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] text-xs px-2 py-1 w-44 rounded-lg focus:outline-none focus:border-[#e8c547] placeholder:text-[#444]"
+                        />
+                        {posberrySaving[u.id] === 'saving' && <span className="text-[10px] text-[#888]">...</span>}
+                        {posberrySaving[u.id] === 'ok' && <span className="text-[10px] text-[#56d68a]">✓</span>}
+                        {posberrySaving[u.id] === 'error' && <span className="text-[10px] text-[#e84210]">✗</span>}
+                        {!posberrySaving[u.id] && (
+                          <button onClick={() => guardarPosberry(u.id)}
+                            className="text-[10px] text-[#555] hover:text-[#e8c547] px-1.5 py-0.5 rounded border border-[#2a2a2a] hover:border-[#e8c547]">
+                            Guardar
+                          </button>
+                        )}
+                      </div>
+                    ) : <span className="text-[#444] text-xs">—</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <select value={u.rol} onChange={e => cambiarRol(u.id, e.target.value as Rol)}
                       className={`text-xs font-semibold px-2.5 py-1 rounded-full border-0 cursor-pointer w-auto ${ROL_COLORS[u.rol]}`}>

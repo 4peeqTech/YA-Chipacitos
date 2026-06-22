@@ -8,6 +8,7 @@ export interface Profile {
   nombre: string
   rol: Rol
   local_nombre: string | null
+  nombre_posberry: string | null
   whatsapp_phone: string | null
   whatsapp_apikey: string | null
   created_at: string
@@ -22,6 +23,8 @@ export interface Producto {
   destino: DestinoProducto
   activo: boolean
   categoria: string | null
+  precio: number | null
+  codigo: number | null
   created_at: string
 }
 
@@ -47,6 +50,8 @@ export interface PedidoItem {
   producto_id: string
   producto_nombre: string
   cantidad: number
+  cantidad_recibida: number | null
+  valor_total: number | null
   created_at: string
 }
 
@@ -70,6 +75,8 @@ export interface Conciliacion {
   vendido: number
   pedido: number
   diferencia: number
+  monto_vendido: number | null
+  monto_remito: number | null
   tiene_alerta: boolean
   confirmado: boolean
   confirmado_at: string | null
@@ -81,6 +88,7 @@ export interface ProductoMapeo {
   id: string
   nombre_posberry: string
   producto_id: string | null
+  ignorado: boolean
   created_at: string
   productos?: { nombre: string; tipo: string; destino: string } | null
 }

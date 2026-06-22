@@ -23,7 +23,7 @@ interface NavSection {
 
 const standaloneItems: NavItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: '🏠' },
-  { href: '/ayuda', label: 'Ayuda', icon: '❓' },
+  { href: '/ayuda',           label: 'Ayuda',     icon: '❓' },
 ]
 
 const sections: NavSection[] = [
@@ -37,12 +37,18 @@ const sections: NavSection[] = [
     ],
   },
   {
+    label: 'Gastos',
+    items: [
+      { href: '/admin/gastos', label: 'Gastos',      icon: '💰' },
+      { href: '/admin/fudo',   label: 'Fudo / Caja', icon: '🏧' },
+    ],
+  },
+  {
     label: 'Mayorista',
     items: [
-      { href: '/admin/importar',    label: 'Sincronizar',       icon: '🔄' },
-      { href: '/admin/posberry',    label: 'Ventas Posberry',   icon: '📈' },
-      { href: '/admin/conciliacion',label: 'Conciliación',      icon: '📊' },
-      { href: '/admin/gastos',      label: 'Gastos',            icon: '💰' },
+      { href: '/admin/importar',     label: 'Sincronizar',       icon: '🔄' },
+      { href: '/admin/posberry',     label: 'Ventas Posberry',   icon: '📈' },
+      { href: '/admin/conciliacion', label: 'Conciliación',      icon: '📊' },
     ],
   },
 ]

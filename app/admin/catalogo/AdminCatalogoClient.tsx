@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Producto, TipoProducto, DestinoProducto } from '@/lib/types'
 import Card from '@/components/ui/Card'
 
 interface Props {
   productosIniciales: Producto[]
+  mapeos: { nombre_posberry: string; producto_id: string | null }[]
 }
 
 const CATEGORIAS = [
@@ -22,17 +23,98 @@ const CATEGORIAS = [
   'Vasos Café Ya!',
 ]
 
-const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto, categoria: '' }
+const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto, categoria: '', precio: '', codigo: '' }
 
-export default function AdminCatalogoClient({ productosIniciales }: Props) {
+export default function AdminCatalogoClient({ productosIniciales, mapeos }: Props) {
+  const mapeosPorProductoId = mapeos.reduce<Record<string, string[]>>((acc, m) => {
+    if (m.producto_id) {
+      if (!acc[m.producto_id]) acc[m.producto_id] = []
+      acc[m.producto_id].push(m.nombre_posberry)
+    }
+    return acc
+  }, {})
   const [productos, setProductos] = useState(productosIniciales)
   const [tab, setTab] = useState<DestinoProducto>('fabrica')
   const [modalNuevo, setModalNuevo] = useState(false)
   const [editando, setEditando] = useState<Producto | null>(null)
   const [form, setForm] = useState(FORM_VACIO)
-  const [formEdit, setFormEdit] = useState({ nombre: '', descripcion: '', unidad: '', categoria: '' })
+  const [formEdit, setFormEdit] = useState({ nombre: '', descripcion: '', unidad: '', categoria: '', precio: '', codigo: '' })
   const [guardando, setGuardando] = useState(false)
+  const [importando, setImportando] = useState(false)
+  const [importMsg, setImportMsg] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const inputCsvRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
+
+  function descargarCSV() {
+    const cabecera = ['codigo', 'nombre', 'descripcion', 'unidad', 'tipo', 'destino', 'categoria', 'precio', 'activo']
+    const filas = filtrados.map(p => [
+      p.codigo ?? '',
+      p.nombre,
+      p.descripcion ?? '',
+      p.unidad,
+      p.tipo,
+      p.destino,
+      p.categoria ?? '',
+      p.precio ?? '',
+      p.activo ? 'true' : 'false',
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    const csv = [cabecera.join(','), ...filas].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `catalogo_${tab}_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function subirCSV(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportando(true)
+    setImportMsg(null)
+    try {
+      const text = await file.text()
+      const lines = text.trim().split('\n')
+      const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim())
+      const rows = lines.slice(1).map(line => {
+        const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || []
+        const obj: Record<string, string> = {}
+        headers.forEach((h, i) => { obj[h] = (vals[i] ?? '').replace(/^"|"$/g, '').replace(/""/g, '"') })
+        return obj
+      }).filter(r => r.nombre)
+
+      let creados = 0, actualizados = 0, errores = 0
+      for (const row of rows) {
+        const payload = {
+          nombre: row.nombre,
+          descripcion: row.descripcion || null,
+          unidad: row.unidad || 'unidad',
+          tipo: (row.tipo as TipoProducto) || (tab === 'fabrica' ? 'producto' : 'insumo'),
+          destino: (row.destino as DestinoProducto) || tab,
+          categoria: row.categoria || null,
+          precio: row.precio ? parseFloat(row.precio.replace(',', '.')) : null,
+          codigo: row.codigo ? parseInt(row.codigo) : null,
+          activo: row.activo !== 'false',
+        }
+        const existing = productos.find(p => p.nombre.toLowerCase() === payload.nombre.toLowerCase() && p.destino === payload.destino)
+        if (existing) {
+          const { data } = await supabase.from('productos').update(payload).eq('id', existing.id).select().single()
+          if (data) { setProductos(prev => prev.map(p => p.id === data.id ? data : p)); actualizados++ }
+          else errores++
+        } else {
+          const { data } = await supabase.from('productos').insert(payload).select().single()
+          if (data) { setProductos(prev => [...prev, data]); creados++ }
+          else errores++
+        }
+      }
+      setImportMsg({ tipo: 'ok', texto: `Importado: ${creados} creados, ${actualizados} actualizados${errores > 0 ? `, ${errores} errores` : ''}.` })
+    } catch {
+      setImportMsg({ tipo: 'error', texto: 'Error al leer el archivo. Verificá el formato CSV.' })
+    }
+    setImportando(false)
+    if (inputCsvRef.current) inputCsvRef.current.value = ''
+  }
 
   const filtrados = productos.filter(p => p.destino === tab)
   const activos = filtrados.filter(p => p.activo).length
@@ -47,14 +129,14 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
     if (!form.nombre) return
     setGuardando(true)
     const { data } = await supabase
-      .from('productos').insert({ ...form, activo: true }).select().single()
+      .from('productos').insert({ ...form, precio: form.precio ? parseFloat(form.precio.replace(',', '.')) : null, codigo: form.codigo ? parseInt(form.codigo) : null, activo: true }).select().single()
     if (data) { setProductos(prev => [...prev, data]); setModalNuevo(false); setForm({ ...FORM_VACIO, destino: tab, tipo: tab === 'fabrica' ? 'producto' : 'insumo' }) }
     setGuardando(false)
   }
 
   function abrirEdicion(p: Producto) {
     setEditando(p)
-    setFormEdit({ nombre: p.nombre, descripcion: p.descripcion ?? '', unidad: p.unidad, categoria: p.categoria ?? '' })
+    setFormEdit({ nombre: p.nombre, descripcion: p.descripcion ?? '', unidad: p.unidad, categoria: p.categoria ?? '', precio: p.precio != null ? String(p.precio) : '', codigo: p.codigo != null ? String(p.codigo) : '' })
   }
 
   async function guardarEdicion() {
@@ -62,7 +144,7 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
     setGuardando(true)
     const { data } = await supabase
       .from('productos')
-      .update({ nombre: formEdit.nombre, descripcion: formEdit.descripcion, unidad: formEdit.unidad, categoria: formEdit.categoria || null })
+      .update({ nombre: formEdit.nombre, descripcion: formEdit.descripcion, unidad: formEdit.unidad, categoria: formEdit.categoria || null, precio: formEdit.precio ? parseFloat(formEdit.precio.replace(',', '.')) : null, codigo: formEdit.codigo ? parseInt(formEdit.codigo) : null })
       .eq('id', editando.id).select().single()
     if (data) { setProductos(prev => prev.map(p => p.id === data.id ? data : p)); setEditando(null) }
     setGuardando(false)
@@ -93,6 +175,23 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
         ))}
       </div>
 
+      {/* CSV */}
+      <div className="flex gap-2 flex-wrap items-center">
+        <button onClick={descargarCSV}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-xs text-[#e8c547] hover:border-[#e8c547]/40 transition-colors">
+          ↓ Descargar CSV
+        </button>
+        <label className={`flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-xs text-[#f0f0f0] hover:border-[#e8c547]/40 transition-colors cursor-pointer ${importando ? 'opacity-50 pointer-events-none' : ''}`}>
+          ↑ {importando ? 'Importando...' : 'Subir CSV'}
+          <input ref={inputCsvRef} type="file" accept=".csv" className="hidden" onChange={subirCSV} />
+        </label>
+        {importMsg && (
+          <span className={`text-xs ${importMsg.tipo === 'ok' ? 'text-[#56d68a]' : 'text-red-400'}`}>
+            {importMsg.texto}
+          </span>
+        )}
+      </div>
+
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-[11px] font-semibold text-[#e8c547] uppercase tracking-wider">
@@ -106,13 +205,25 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
           ) : (
             filtrados.map((p, i) => (
               <div key={p.id} className={`flex items-center gap-2 px-3 py-3 ${i < filtrados.length - 1 ? 'border-b border-[#2a2a2a]' : ''}`}>
+                {p.codigo != null && (
+                  <span className="shrink-0 w-8 text-center text-[11px] font-bold text-[#e8c547] bg-[#e8c547]/10 rounded-md py-0.5">{p.codigo}</span>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className={`text-xs font-medium ${p.activo ? 'text-[#f0f0f0]' : 'text-[#555]'}`}>{p.nombre}</p>
-                  <p className="text-[11px] text-[#555] mt-0.5">
-                    {p.unidad}
-                    {p.categoria ? <span className="ml-1 px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#e8c547] text-[10px] font-medium">{p.categoria}</span> : null}
-                    {p.descripcion ? ` · ${p.descripcion}` : ''}
+                  <p className="text-[11px] text-[#555] mt-0.5 flex flex-wrap items-center gap-1">
+                    <span>{p.unidad}</span>
+                    {p.categoria ? <span className="px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#e8c547] text-[10px] font-medium">{p.categoria}</span> : null}
+                    {p.precio != null ? <span className="text-[#56d68a]">${p.precio.toLocaleString('es-AR')}</span> : null}
+                    {p.descripcion ? <span>· {p.descripcion}</span> : null}
                   </p>
+                  {(mapeosPorProductoId[p.id] || []).length > 0 && (
+                    <p className="text-[10px] text-[#555] mt-0.5 flex flex-wrap gap-1">
+                      <span className="text-[#444]">Posberry:</span>
+                      {mapeosPorProductoId[p.id].map(n => (
+                        <span key={n} className="px-1.5 py-0.5 rounded bg-[#1a1a1a] border border-[#2a2a2a] text-[#777]">{n}</span>
+                      ))}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => abrirEdicion(p)}
@@ -147,15 +258,17 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
               Nuevo {tab === 'fabrica' ? 'producto' : 'insumo'} · {tab === 'fabrica' ? 'Fábrica' : 'Depósito'}
             </h3>
             {[
-              { label: 'Nombre *', key: 'nombre', placeholder: tab === 'fabrica' ? 'Chipacitos clásicos' : 'Harina de mandioca 1kg' },
-              { label: 'Descripción', key: 'descripcion', placeholder: 'Descripción opcional' },
-              { label: 'Unidad', key: 'unidad', placeholder: 'unidad, kg, bolsa...' },
-            ].map(({ label, key, placeholder }) => (
+              { label: 'Código', key: 'codigo', placeholder: '1', type: 'number' },
+              { label: 'Nombre *', key: 'nombre', placeholder: tab === 'fabrica' ? 'Chipacitos clásicos' : 'Harina de mandioca 1kg', type: 'text' },
+              { label: 'Descripción', key: 'descripcion', placeholder: 'Descripción opcional', type: 'text' },
+              { label: 'Unidad', key: 'unidad', placeholder: 'unidad, kg, bolsa...', type: 'text' },
+              { label: 'Precio', key: 'precio', placeholder: '0.00', type: 'number' },
+            ].map(({ label, key, placeholder, type }) => (
               <div key={key}>
                 <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">{label}</label>
-                <input type="text" value={(form as Record<string, string>)[key]}
+                <input type={type} value={(form as Record<string, string>)[key]}
                   onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                  placeholder={placeholder} />
+                  placeholder={placeholder} min={type === 'number' ? '0' : undefined} step={key === 'precio' ? '0.01' : '1'} />
               </div>
             ))}
             <div>
@@ -185,14 +298,17 @@ export default function AdminCatalogoClient({ productosIniciales }: Props) {
           <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-t-2xl w-full max-w-lg p-5 space-y-3">
             <h3 className="font-['Syne'] font-bold text-sm text-[#f0f0f0]">Editar producto</h3>
             {[
-              { label: 'Nombre *', key: 'nombre' },
-              { label: 'Descripción', key: 'descripcion' },
-              { label: 'Unidad', key: 'unidad' },
-            ].map(({ label, key }) => (
+              { label: 'Código', key: 'codigo', type: 'number' },
+              { label: 'Nombre *', key: 'nombre', type: 'text' },
+              { label: 'Descripción', key: 'descripcion', type: 'text' },
+              { label: 'Unidad', key: 'unidad', type: 'text' },
+              { label: 'Precio', key: 'precio', type: 'number' },
+            ].map(({ label, key, type }) => (
               <div key={key}>
                 <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">{label}</label>
-                <input type="text" value={(formEdit as Record<string, string>)[key]}
-                  onChange={e => setFormEdit(f => ({ ...f, [key]: e.target.value }))} />
+                <input type={type} value={(formEdit as Record<string, string>)[key]}
+                  onChange={e => setFormEdit(f => ({ ...f, [key]: e.target.value }))}
+                  min={type === 'number' ? '0' : undefined} step={key === 'precio' ? '0.01' : '1'} />
               </div>
             ))}
             <div>

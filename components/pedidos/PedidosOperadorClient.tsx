@@ -60,6 +60,8 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   const [productos, setProductos] = useState(productosIniciales)
   const [pedidos, setPedidos] = useState(pedidosIniciales)
   const [filtro, setFiltro] = useState('activos')
+  const [sucursal, setSucursal] = useState('todas')
+  const [actualizando, setActualizando] = useState(false)
   const [flashEnviado, setFlashEnviado] = useState<string | null>(null)
   const [nuevosIds, setNuevosIds] = useState<string[]>([])
   const [notifPermiso, setNotifPermiso] = useState<NotificationPermission | 'unsupported'>('unsupported')
@@ -134,10 +136,30 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
     setNotifPermiso(result)
   }
 
-  const pendientes = pedidos.filter(p => p.estado === 'pendiente')
-  const enviados = pedidos.filter(p => p.estado === 'enviado')
-  const pedidosActivos = pedidos.filter(p => p.estado !== 'recibido')
-  const pedidosFiltrados = filtro === 'activos' ? pedidosActivos : pedidos.filter(p => p.estado === filtro)
+  const [busqueda, setBusqueda] = useState('')
+
+  const sucursales = Array.from(new Set(pedidos.map(p => p.local_nombre))).sort()
+  const pedidosSucursal = sucursal === 'todas' ? pedidos : pedidos.filter(p => p.local_nombre === sucursal)
+  const pendientes = pedidosSucursal.filter(p => p.estado === 'pendiente')
+  const enviados = pedidosSucursal.filter(p => p.estado === 'enviado')
+  const pedidosActivos = pedidosSucursal.filter(p => p.estado !== 'recibido')
+  const pedidosPorFiltro = filtro === 'activos' ? pedidosActivos : pedidosSucursal.filter(p => p.estado === filtro)
+  const pedidosFiltrados = busqueda.trim()
+    ? pedidosPorFiltro.filter(p => {
+        const q = busqueda.toLowerCase()
+        return String(p.numero).includes(q) ||
+          p.local_nombre.toLowerCase().includes(q) ||
+          (p.pedido_items || []).some(i => i.producto_nombre.toLowerCase().includes(q))
+      })
+    : pedidosPorFiltro
+
+  async function actualizar() {
+    setActualizando(true)
+    const { data } = await supabase.from('pedidos').select('*, pedido_items(*), pedido_mensajes(*)')
+      .eq('destino', destino).order('created_at', { ascending: false }).limit(100)
+    if (data) setPedidos(data)
+    setActualizando(false)
+  }
 
   async function toggleActivo(producto: Producto) {
     const { data } = await supabase.from('productos').update({ activo: !producto.activo }).eq('id', producto.id).select().single()
@@ -201,46 +223,7 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] xl:grid-cols-[380px_1fr] gap-6 items-start">
-
-        {/* Catálogo */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-[#e8c547] uppercase tracking-wider">
-              Catálogo — {tipo === 'producto' ? 'productos' : 'insumos'}
-            </p>
-            <span className="text-xs text-[#888]">{productos.filter(p => p.activo).length} activos</span>
-          </div>
-
-          {productos.filter(p => !p.activo).length > 0 && (
-            <div className="bg-[rgba(240,168,73,.1)] border-l-4 border-[#f0a849] rounded-r-lg px-3 py-2 text-xs text-[#f0a849]">
-              ⚠️ {productos.filter(p => !p.activo).length} desactivado{productos.filter(p => !p.activo).length !== 1 ? 's' : ''}. Revisá el stock.
-            </div>
-          )}
-
-          <Card>
-            {productos.length === 0
-              ? <p className="text-xs text-[#888] text-center py-6">Sin {tipo === 'producto' ? 'productos' : 'insumos'}.</p>
-              : productos.map((p, i) => (
-                <div key={p.id} className={`flex items-center justify-between px-4 py-3 ${i < productos.length - 1 ? 'border-b border-[#2a2a2a]' : ''}`}>
-                  <div className="flex-1 min-w-0 pr-3">
-                    <p className={`text-sm font-medium ${p.activo ? 'text-[#f0f0f0]' : 'text-[#555]'}`}>{p.nombre}</p>
-                    <p className="text-xs text-[#555] mt-0.5">
-                      {p.activo ? (tipo === 'producto' ? 'Disponible' : 'Insumo activo') : 'Desactivado — stock bajo'}
-                    </p>
-                  </div>
-                  <button onClick={() => toggleActivo(p)}
-                    className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${p.activo ? 'bg-[#e8c547]' : 'bg-[#2a2a2a]'}`}>
-                    <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full shadow transition-all ${p.activo ? 'right-[3px] bg-black' : 'left-[3px] bg-[#888]'}`} />
-                  </button>
-                </div>
-              ))
-            }
-          </Card>
-        </div>
-
-        {/* Pedidos */}
-        <div className="space-y-4">
+      <div className="space-y-4">
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Card className="p-4 border-t-2 border-t-[#f0a849]">
@@ -249,7 +232,7 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
             </Card>
             <Card className="p-4 border-t-2 border-t-[#56d68a]">
               <p className="text-3xl font-['Syne'] font-bold text-[#56d68a]">{enviados.length}</p>
-              <p className="text-xs text-[#888] mt-1">Enviados hoy</p>
+              <p className="text-xs text-[#888] mt-1">Enviados</p>
             </Card>
           </div>
 
@@ -259,26 +242,48 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
             </div>
           )}
 
-          <div>
-            <p className="text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-3">Pedidos</p>
-            <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-none">
+          {/* Buscador */}
+          <input
+            type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar por sucursal, número o producto..."
+          />
+
+          {/* Controles: filtro estado + sucursal + actualizar */}
+          <div className="flex flex-wrap gap-2 items-center sticky top-0 z-10 bg-[#0a0a0a] py-2 -mx-4 px-4 lg:-mx-8 lg:px-8">
+            <div className="flex gap-2 overflow-x-auto scrollbar-none flex-1">
               {[
                 { key: 'activos',    label: 'Activos' },
                 { key: 'pendiente',  label: 'Pendientes' },
                 { key: 'preparando', label: 'Preparando' },
                 { key: 'enviado',    label: 'Enviados' },
                 { key: 'recibido',   label: 'Recibidos' },
-              ].map(f => (
-                <button key={f.key} onClick={() => setFiltro(f.key)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                    filtro === f.key
-                      ? 'bg-[#e8c547] text-black'
-                      : 'bg-[#1a1a1a] text-[#888] border border-[#2a2a2a] hover:text-[#f0f0f0]'
-                  }`}>
-                  {f.label}
-                </button>
-              ))}
+              ].map(f => {
+                const count = f.key === 'activos' ? pedidosSucursal.filter(p => p.estado !== 'recibido').length : pedidosSucursal.filter(p => p.estado === f.key).length
+                return (
+                  <button key={f.key} onClick={() => setFiltro(f.key)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                      filtro === f.key ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] border border-[#2a2a2a] hover:text-[#f0f0f0]'
+                    }`}>
+                    {f.label}
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${filtro === f.key ? 'bg-black/20 text-black' : 'bg-[#2a2a2a] text-[#666]'}`}>{count}</span>
+                  </button>
+                )
+              })}
             </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <select value={sucursal} onChange={e => setSucursal(e.target.value)}
+                className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#e8c547]">
+                <option value="todas">Todas las sucursales</option>
+                {sucursales.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <button onClick={actualizar} disabled={actualizando}
+                className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#888] hover:text-[#e8c547] hover:border-[#e8c547] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 whitespace-nowrap">
+                {actualizando ? '...' : '↻ Actualizar'}
+              </button>
+            </div>
+          </div>
+
+          <div>
 
             {pedidosFiltrados.length === 0
               ? <Card className="p-8 text-center text-sm text-[#888]">No hay pedidos.</Card>
@@ -307,13 +312,44 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
 
                       {/* Items */}
                       {pedido.pedido_items && pedido.pedido_items.length > 0 && (
-                        <div className="px-4 py-2 space-y-1 border-b border-[#2a2a2a]">
-                          {pedido.pedido_items.map(i => (
-                            <div key={i.id} className="flex justify-between items-center text-xs">
-                              <span className="text-[#f0f0f0]">{i.producto_nombre}</span>
-                              <span className="text-[#aaa] ml-2">× {i.cantidad}</span>
+                        <div className="px-4 py-2 border-b border-[#2a2a2a]">
+                          {pedido.pedido_items.some(i => i.cantidad_recibida != null || i.valor_total != null) ? (
+                            <>
+                              <div className="grid grid-cols-[1fr_52px_72px] gap-x-2 pb-1 mb-1 border-b border-[#2a2a2a]">
+                                <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider">Producto</span>
+                                <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider text-center">Rec./Ped.</span>
+                                <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider text-right">$ Total</span>
+                              </div>
+                              {pedido.pedido_items.map(i => (
+                                <div key={i.id} className="grid grid-cols-[1fr_52px_72px] gap-x-2 py-1 items-center">
+                                  <span className="text-xs text-[#f0f0f0] leading-tight">{i.producto_nombre}</span>
+                                  <span className={`text-xs text-center font-medium ${i.cantidad_recibida != null && i.cantidad_recibida < i.cantidad ? 'text-[#f59e0b]' : 'text-[#56d68a]'}`}>
+                                    {i.cantidad_recibida ?? '—'}{i.cantidad_recibida != null ? `/${i.cantidad}` : ''}
+                                  </span>
+                                  <span className="text-xs text-right text-[#f0f0f0]">
+                                    {i.valor_total != null ? `$${Number(i.valor_total).toLocaleString('es-AR')}` : '—'}
+                                  </span>
+                                </div>
+                              ))}
+                              {pedido.pedido_items.some(i => i.valor_total != null) && (
+                                <div className="flex justify-between pt-1.5 mt-1 border-t border-[#2a2a2a]">
+                                  <span className="text-[10px] font-semibold text-[#888] uppercase tracking-wider">Total remito</span>
+                                  <span className="text-xs font-bold text-[#e8c547]">
+                                    ${pedido.pedido_items.reduce((s, i) => s + (i.valor_total ? Number(i.valor_total) : 0), 0).toLocaleString('es-AR')}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="space-y-1">
+                              {pedido.pedido_items.map(i => (
+                                <div key={i.id} className="flex justify-between items-center text-xs">
+                                  <span className="text-[#f0f0f0]">{i.producto_nombre}</span>
+                                  <span className="text-[#aaa] ml-2">× {i.cantidad}</span>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
                       )}
 
@@ -353,7 +389,6 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
               )
             }
           </div>
-        </div>
       </div>
     </div>
   )
