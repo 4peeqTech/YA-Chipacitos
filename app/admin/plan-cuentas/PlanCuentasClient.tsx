@@ -8,6 +8,8 @@ interface Cuenta {
   categoria: string | null
   activo: boolean
   orden: number
+  variabilidad: 'VARIABLE' | 'FIJO' | null
+  flujo: 'INGRESO' | 'EGRESO' | null
 }
 
 type Grouped = Record<string, Cuenta[]>
@@ -78,6 +80,15 @@ export default function PlanCuentasClient() {
       next.has(rubro) ? next.delete(rubro) : next.add(rubro)
       return next
     })
+  }
+
+  async function patchField(c: Cuenta, field: string, value: unknown) {
+    await fetch('/api/plan-cuentas', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: c.id, [field]: value }),
+    })
+    setCuentas(prev => prev.map(x => x.id === c.id ? { ...x, [field]: value } : x))
   }
 
   async function toggleActivo(c: Cuenta) {
@@ -191,6 +202,28 @@ export default function PlanCuentasClient() {
                         {c.categoria ?? <span className="italic text-[#555]">Sin categoría</span>}
                       </span>
                     )}
+
+                    {/* Variabilidad */}
+                    <select
+                      value={c.variabilidad ?? ''}
+                      onChange={e => patchField(c, 'variabilidad', e.target.value || null)}
+                      className="bg-[#0a0a0a] border border-[#2a2a2a] text-xs rounded px-2 py-1 focus:outline-none focus:border-[#e8c547] text-[#888]"
+                    >
+                      <option value="">— Var/Fijo</option>
+                      <option value="VARIABLE">Variable</option>
+                      <option value="FIJO">Fijo</option>
+                    </select>
+
+                    {/* Flujo */}
+                    <select
+                      value={c.flujo ?? ''}
+                      onChange={e => patchField(c, 'flujo', e.target.value || null)}
+                      className="bg-[#0a0a0a] border border-[#2a2a2a] text-xs rounded px-2 py-1 focus:outline-none focus:border-[#e8c547] text-[#888]"
+                    >
+                      <option value="">— Ing/Egr</option>
+                      <option value="INGRESO">Ingreso</option>
+                      <option value="EGRESO">Egreso</option>
+                    </select>
 
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       {editingId !== c.id && c.categoria !== null && (
