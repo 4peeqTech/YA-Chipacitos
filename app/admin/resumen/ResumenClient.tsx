@@ -3,14 +3,13 @@
 import { useState, useCallback } from 'react'
 
 interface CatRow { categoria: string; total: number }
-interface VentaRow { producto: string; vendido: number; remito: number; montoVendido: number; montoRemito: number }
+interface VentaRow { producto: string; cantidad: number; importe: number }
 interface LocalData {
   local: string
   gastos: CatRow[]
   ventas: VentaRow[]
   totalGastos: number
   totalVendido: number
-  totalRemito: number
   totalMontoVendido: number
 }
 
@@ -209,9 +208,8 @@ export default function ResumenClient() {
                         <thead>
                           <tr className="text-[#555] text-xs">
                             <th className="text-left pb-2 font-medium">Producto</th>
-                            <th className="text-right pb-2 font-medium">Vendido</th>
-                            <th className="text-right pb-2 font-medium">Remito</th>
-                            <th className="text-right pb-2 font-medium">$ Venta</th>
+                            <th className="text-right pb-2 font-medium">Cant.</th>
+                            <th className="text-right pb-2 font-medium">Importe</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#1a1a1a]">
@@ -219,13 +217,10 @@ export default function ResumenClient() {
                             <tr key={v.producto}>
                               <td className="py-1.5 text-[#f0f0f0]">{v.producto}</td>
                               <td className="py-1.5 text-right text-[#f0f0f0] font-medium">
-                                {v.vendido.toLocaleString('es-AR')}
-                              </td>
-                              <td className="py-1.5 text-right text-[#888] text-xs">
-                                {v.remito.toLocaleString('es-AR')}
+                                {v.cantidad.toLocaleString('es-AR')}
                               </td>
                               <td className="py-1.5 text-right text-green-400 text-xs">
-                                {v.montoVendido > 0 ? fmt(v.montoVendido) : '—'}
+                                {v.importe > 0 ? fmt(v.importe) : '—'}
                               </td>
                             </tr>
                           ))}
@@ -235,9 +230,6 @@ export default function ResumenClient() {
                             <td className="pt-2 text-[#888] font-semibold text-xs">TOTAL</td>
                             <td className="pt-2 text-right text-[#f0f0f0] font-bold">
                               {d.totalVendido.toLocaleString('es-AR')} u
-                            </td>
-                            <td className="pt-2 text-right text-[#888] text-xs">
-                              {d.totalRemito.toLocaleString('es-AR')} u
                             </td>
                             <td className="pt-2 text-right text-green-400 font-bold text-xs">
                               {d.totalMontoVendido > 0 ? fmt(d.totalMontoVendido) : '—'}

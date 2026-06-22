@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
 
   let ventasQ = supabase
     .from('ventas_posberry')
-    .select('local_id, producto_nombre, vendido, pedido, monto_vendido, monto_remito, fecha, profiles(local_nombre)')
-    .not('local_id', 'is', null)
+    .select('local_nombre, producto_nombre, cantidad, importe, fecha')
+    .not('local_nombre', 'is', null)
 
   if (desde) ventasQ = ventasQ.gte('fecha', desde)
   if (hasta) ventasQ = ventasQ.lte('fecha', hasta)
@@ -42,19 +42,16 @@ export async function GET(req: NextRequest) {
     gastosPorLocal[local][cat] = (gastosPorLocal[local][cat] ?? 0) + Number(g.monto ?? 0)
   }
 
-  // Ventas posberry agrupadas: { [local_nombre]: { [producto]: { vendido, remito, montoVendido, montoRemito } } }
-  type VentaMap = Record<string, { vendido: number; remito: number; montoVendido: number; montoRemito: number }>
+  // Ventas posberry agrupadas: { [local_nombre]: { [producto]: { cantidad, importe } } }
+  type VentaMap = Record<string, { cantidad: number; importe: number }>
   const ventasPorLocal: Record<string, VentaMap> = {}
   for (const v of ventas ?? []) {
-    const prof = (Array.isArray(v.profiles) ? v.profiles[0] : v.profiles) as { local_nombre: string } | null
-    const local = prof?.local_nombre ?? 'Sin local'
+    const local = (v.local_nombre as string) || 'Sin local'
     const prod = (v.producto_nombre as string) || 'Sin nombre'
     if (!ventasPorLocal[local]) ventasPorLocal[local] = {}
-    if (!ventasPorLocal[local][prod]) ventasPorLocal[local][prod] = { vendido: 0, remito: 0, montoVendido: 0, montoRemito: 0 }
-    ventasPorLocal[local][prod].vendido += Number(v.vendido ?? 0)
-    ventasPorLocal[local][prod].remito += Number(v.pedido ?? 0)
-    ventasPorLocal[local][prod].montoVendido += Number(v.monto_vendido ?? 0)
-    ventasPorLocal[local][prod].montoRemito += Number(v.monto_remito ?? 0)
+    if (!ventasPorLocal[local][prod]) ventasPorLocal[local][prod] = { cantidad: 0, importe: 0 }
+    ventasPorLocal[local][prod].cantidad += Number(v.cantidad ?? 0)
+    ventasPorLocal[local][prod].importe += Number(v.importe ?? 0)
   }
 
   // Unify locales from both sources
@@ -67,11 +64,10 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.total - a.total),
     ventas: Object.entries(ventasPorLocal[local] ?? {})
       .map(([producto, stats]) => ({ producto, ...stats }))
-      .sort((a, b) => b.vendido - a.vendido),
+      .sort((a, b) => b.cantidad - a.cantidad),
     totalGastos: Object.values(gastosPorLocal[local] ?? {}).reduce((s, v) => s + v, 0),
-    totalVendido: Object.values(ventasPorLocal[local] ?? {}).reduce((s, v) => s + v.vendido, 0),
-    totalRemito: Object.values(ventasPorLocal[local] ?? {}).reduce((s, v) => s + v.remito, 0),
-    totalMontoVendido: Object.values(ventasPorLocal[local] ?? {}).reduce((s, v) => s + v.montoVendido, 0),
+    totalVendido: Object.values(ventasPorLocal[local] ?? {}).reduce((s, v) => s + v.cantidad, 0),
+    totalMontoVendido: Object.values(ventasPorLocal[local] ?? {}).reduce((s, v) => s + v.importe, 0),
   }))
 
   return NextResponse.json(result)
