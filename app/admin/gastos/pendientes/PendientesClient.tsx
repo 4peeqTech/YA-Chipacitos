@@ -65,6 +65,13 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
   const [cajas, setCajas] = useState<string[]>([])
   const [formasPago, setFormasPago] = useState<string[]>([])
 
+  // Filtros
+  const [filtroSucursal, setFiltroSucursal] = useState('todas')
+  const [filtroOrigen, setFiltroOrigen] = useState<'todos' | 'manual' | 'fudo'>('todos')
+  const [filtroDesde, setFiltroDesde] = useState('')
+  const [filtroHasta, setFiltroHasta] = useState('')
+  const [filtroBusqueda, setFiltroBusqueda] = useState('')
+
   const [modalGasto, setModalGasto] = useState<GastoPendiente | null>(null)
   const [fechaPago, setFechaPago] = useState(hoy())
   const [caja, setCaja] = useState('')
@@ -99,7 +106,21 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
     ...gastosFudo,
   ]
 
-  const porLocal = todos.reduce<Record<string, GastoPendiente[]>>((acc, g) => {
+  const todosFiltrados = todos.filter(g => {
+    if (filtroOrigen !== 'todos' && g._source !== filtroOrigen) return false
+    if (filtroSucursal !== 'todas' && getLocal(g) !== filtroSucursal) return false
+    if (filtroDesde && getFecha(g) < filtroDesde) return false
+    if (filtroHasta && getFecha(g) > filtroHasta) return false
+    if (filtroBusqueda) {
+      const q = filtroBusqueda.toLowerCase()
+      if (!getDescripcion(g).toLowerCase().includes(q) && !getLocal(g).toLowerCase().includes(q)) return false
+    }
+    return true
+  })
+
+  const sucursalesDisponibles = [...new Set(todos.map(getLocal))].sort()
+
+  const porLocal = todosFiltrados.reduce<Record<string, GastoPendiente[]>>((acc, g) => {
     const k = getLocal(g)
     if (!acc[k]) acc[k] = []
     acc[k].push(g)
@@ -182,7 +203,7 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
           <p className="text-[#888] text-xs uppercase tracking-wider">Total pendiente</p>
-          <p className="text-xl font-bold text-red-400 mt-1">{formatMonto(totalPendiente)}</p>
+          <p className="text-xl font-bold text-red-400 mt-1">{formatMonto(todosFiltrados.reduce((s, g) => s + getMonto(g), 0))}</p>
         </div>
         <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
           <p className="text-[#888] text-xs uppercase tracking-wider">Manuales</p>
@@ -195,9 +216,52 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
           </p>
         </div>
         <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-xs uppercase tracking-wider">Sucursales</p>
-          <p className="text-xl font-bold text-[#f0f0f0] mt-1">{Object.keys(porLocal).length}</p>
+          <p className="text-[#888] text-xs uppercase tracking-wider">Mostrando</p>
+          <p className="text-xl font-bold text-[#f0f0f0] mt-1">{todosFiltrados.length}</p>
         </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4 flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Sucursal</label>
+          <select className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547]"
+            value={filtroSucursal} onChange={e => setFiltroSucursal(e.target.value)}>
+            <option value="todas">Todas</option>
+            {sucursalesDisponibles.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Origen</label>
+          <select className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547]"
+            value={filtroOrigen} onChange={e => setFiltroOrigen(e.target.value as 'todos' | 'manual' | 'fudo')}>
+            <option value="todos">Todos</option>
+            <option value="manual">Manual</option>
+            <option value="fudo">Fudo</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Desde</label>
+          <input type="date" className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] [color-scheme:dark]"
+            value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Hasta</label>
+          <input type="date" className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] [color-scheme:dark]"
+            value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} />
+        </div>
+        <div className="flex-1 min-w-[180px]">
+          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Buscar</label>
+          <input type="text" placeholder="Descripción o sucursal..."
+            className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547]"
+            value={filtroBusqueda} onChange={e => setFiltroBusqueda(e.target.value)} />
+        </div>
+        {(filtroSucursal !== 'todas' || filtroOrigen !== 'todos' || filtroDesde || filtroHasta || filtroBusqueda) && (
+          <button onClick={() => { setFiltroSucursal('todas'); setFiltroOrigen('todos'); setFiltroDesde(''); setFiltroHasta(''); setFiltroBusqueda('') }}
+            className="text-xs text-[#888] hover:text-[#f0f0f0] border border-[#2a2a2a] px-3 py-2 rounded-lg">
+            Limpiar
+          </button>
+        )}
       </div>
 
       {errorFudo && (
@@ -206,11 +270,11 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
         </div>
       )}
 
-      {todos.length === 0 && !loadingFudo && (
+      {todosFiltrados.length === 0 && !loadingFudo && (
         <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-12 text-center">
           <p className="text-4xl mb-3">✅</p>
-          <p className="text-[#f0f0f0] font-medium">Todo al día</p>
-          <p className="text-[#888] text-sm mt-1">No hay gastos pendientes de pago</p>
+          <p className="text-[#f0f0f0] font-medium">{todos.length === 0 ? 'Todo al día' : 'Sin resultados'}</p>
+          <p className="text-[#888] text-sm mt-1">{todos.length === 0 ? 'No hay gastos pendientes de pago' : 'Probá cambiando los filtros'}</p>
         </div>
       )}
 
