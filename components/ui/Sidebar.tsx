@@ -29,8 +29,9 @@ const sections: NavSection[] = [
   {
     label: 'Gastos',
     items: [
-      { href: '/admin/gastos', label: 'Gastos',      icon: '💰' },
-      { href: '/admin/fudo',   label: 'Fudo / Caja', icon: '🏧' },
+      { href: '/admin/gastos',            label: 'Gastos',            icon: '💰' },
+      { href: '/admin/gastos/pendientes', label: 'Pendientes de pago', icon: '⏳' },
+      { href: '/admin/fudo',              label: 'Fudo / Caja',       icon: '🏧' },
     ],
   },
   {
