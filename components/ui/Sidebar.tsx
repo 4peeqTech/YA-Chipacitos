@@ -91,7 +91,13 @@ export default function Sidebar({ nombre }: SidebarProps) {
     router.refresh()
   }
 
-  const isItemActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
+  const allNavItems = [...standaloneItems, ...sections.flatMap(s => s.items), ...bottomStandaloneItems]
+  const isItemActive = (href: string) => {
+    const best = allNavItems
+      .filter(item => pathname === item.href || pathname.startsWith(item.href + '/'))
+      .sort((a, b) => b.href.length - a.href.length)[0]
+    return best?.href === href
+  }
 
   return (
     <aside className="hidden lg:flex flex-col w-60 bg-[#111111] border-r border-[#2a2a2a] min-h-screen fixed left-0 top-0 z-40">
