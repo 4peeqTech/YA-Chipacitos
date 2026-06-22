@@ -45,11 +45,13 @@ const sections: NavSection[] = [
   {
     label: 'Parámetros',
     items: [
-      { href: '/admin/catalogo',    label: 'Catálogo',          icon: '📦' },
-      { href: '/admin/mapeos',      label: 'Mapeo productos',   icon: '🔗' },
-      { href: '/admin/usuarios',    label: 'Usuarios',          icon: '👥' },
-      { href: '/admin/proveedores', label: 'Proveedores',       icon: '🚚' },
-      { href: '/admin/locales',     label: 'Locales',           icon: '🏪' },
+      { href: '/admin/catalogo',     label: 'Catálogo',          icon: '📦' },
+      { href: '/admin/mapeos',       label: 'Mapeo productos',   icon: '🔗' },
+      { href: '/admin/usuarios',     label: 'Usuarios',          icon: '👥' },
+      { href: '/admin/proveedores',  label: 'Proveedores',       icon: '🚚' },
+      { href: '/admin/locales',      label: 'Locales',           icon: '🏪' },
+      { href: '/admin/cajas',        label: 'Cajas',             icon: '🏦' },
+      { href: '/admin/formas-pago',  label: 'Formas de pago',    icon: '💳' },
     ],
   },
 ]

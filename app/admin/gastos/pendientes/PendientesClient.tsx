@@ -62,12 +62,26 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
   const [loadingFudo, setLoadingFudo] = useState(true)
   const [errorFudo, setErrorFudo] = useState('')
 
+  const [cajas, setCajas] = useState<string[]>([])
+  const [formasPago, setFormasPago] = useState<string[]>([])
+
   const [modalGasto, setModalGasto] = useState<GastoPendiente | null>(null)
   const [fechaPago, setFechaPago] = useState(hoy())
+  const [caja, setCaja] = useState('')
+  const [formaPago, setFormaPago] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [, startTransition] = useTransition()
+
+  useEffect(() => {
+    fetch('/api/cajas').then(r => r.json()).then((d: Array<{ nombre: string; activo: boolean }>) => {
+      setCajas(Array.isArray(d) ? d.filter(x => x.activo).map(x => x.nombre) : [])
+    })
+    fetch('/api/formas-pago').then(r => r.json()).then((d: Array<{ nombre: string; activo: boolean }>) => {
+      setFormasPago(Array.isArray(d) ? d.filter(x => x.activo).map(x => x.nombre) : [])
+    })
+  }, [])
 
   useEffect(() => {
     fetch('/api/fudo/pendientes')
@@ -97,6 +111,8 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
   function openModal(gasto: GastoPendiente) {
     setModalGasto(gasto)
     setFechaPago(hoy())
+    setCaja('')
+    setFormaPago(gasto._source === 'manual' ? gasto.forma_pago : '')
     setFile(null)
     setError('')
   }
@@ -105,6 +121,8 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
 
   async function marcarPagado() {
     if (!modalGasto) return
+    if (!caja) { setError('Seleccioná una caja'); return }
+    if (!formaPago) { setError('Seleccioná una forma de pago'); return }
     setSaving(true); setError('')
     try {
       let comprobante_url: string | null = null
@@ -122,7 +140,7 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
       if (modalGasto._source === 'manual') {
         const { error: e } = await supabase
           .from('gastos')
-          .update({ estado: 'Pagado', fecha_pago: fechaPago, comprobante_url })
+          .update({ estado: 'Pagado', fecha_pago: fechaPago, forma_pago: formaPago, caja, comprobante_url })
           .eq('id', modalGasto.id)
         if (e) throw new Error(e.message)
         setGastosManual(prev => prev.filter(g => g.id !== modalGasto.id))
@@ -135,6 +153,8 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
           monto: fg.amount,
           fecha_gasto: fg.date,
           fecha_pago: fechaPago,
+          forma_pago: formaPago,
+          caja,
           comprobante_url,
         })
         if (e) throw new Error(e.message)
@@ -272,9 +292,25 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Fecha de pago</label>
+                <input type="date" className={inputClass} value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Caja <span className="text-red-400">*</span></label>
+                <select className={inputClass} value={caja} onChange={e => setCaja(e.target.value)}>
+                  <option value="">Seleccionar...</option>
+                  {cajas.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
             <div>
-              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Fecha de pago</label>
-              <input type="date" className={inputClass} value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
+              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Forma de pago <span className="text-red-400">*</span></label>
+              <select className={inputClass} value={formaPago} onChange={e => setFormaPago(e.target.value)}>
+                <option value="">Seleccionar...</option>
+                {formasPago.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
             </div>
 
             <div>
