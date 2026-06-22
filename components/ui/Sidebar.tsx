@@ -23,20 +23,9 @@ interface NavSection {
 
 const standaloneItems: NavItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: '🏠' },
-  { href: '/ayuda',           label: 'Ayuda',     icon: '❓' },
 ]
 
 const sections: NavSection[] = [
-  {
-    label: 'Parámetros',
-    items: [
-      { href: '/admin/catalogo',    label: 'Catálogo',          icon: '📦' },
-      { href: '/admin/mapeos',      label: 'Mapeo productos',   icon: '🔗' },
-      { href: '/admin/usuarios',    label: 'Usuarios',          icon: '👥' },
-      { href: '/admin/proveedores', label: 'Proveedores',       icon: '🚚' },
-      { href: '/admin/locales',     label: 'Locales',           icon: '🏪' },
-    ],
-  },
   {
     label: 'Gastos',
     items: [
@@ -52,6 +41,20 @@ const sections: NavSection[] = [
       { href: '/admin/conciliacion', label: 'Conciliación',      icon: '📊' },
     ],
   },
+  {
+    label: 'Parámetros',
+    items: [
+      { href: '/admin/catalogo',    label: 'Catálogo',          icon: '📦' },
+      { href: '/admin/mapeos',      label: 'Mapeo productos',   icon: '🔗' },
+      { href: '/admin/usuarios',    label: 'Usuarios',          icon: '👥' },
+      { href: '/admin/proveedores', label: 'Proveedores',       icon: '🚚' },
+      { href: '/admin/locales',     label: 'Locales',           icon: '🏪' },
+    ],
+  },
+]
+
+const bottomStandaloneItems: NavItem[] = [
+  { href: '/ayuda', label: 'Ayuda', icon: '❓' },
 ]
 
 export default function Sidebar({ nombre }: SidebarProps) {
@@ -147,6 +150,22 @@ export default function Sidebar({ nombre }: SidebarProps) {
               </div>
             )}
           </div>
+        ))}
+
+        {/* Ayuda al final */}
+        {bottomStandaloneItems.map(item => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              isItemActive(item.href)
+                ? 'bg-[#e8c547] text-black font-bold'
+                : 'text-[#888] hover:text-[#f0f0f0] hover:bg-[#1a1a1a]'
+            }`}
+          >
+            <span className="text-base">{item.icon}</span>
+            {item.label}
+          </Link>
         ))}
       </nav>
 
