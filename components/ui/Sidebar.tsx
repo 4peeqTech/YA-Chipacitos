@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface SidebarProps {
   nombre: string
@@ -58,9 +58,15 @@ export default function Sidebar({ nombre }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(sections.map(s => s.label))
-  )
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+
+  // Abre automáticamente la sección activa
+  useEffect(() => {
+    const activeSection = sections.find(s => s.items.some(i => pathname.startsWith(i.href)))
+    if (activeSection) {
+      setExpandedSections(new Set([activeSection.label]))
+    }
+  }, [pathname])
 
   const toggleSection = (sectionLabel: string) => {
     const newExpanded = new Set(expandedSections)
