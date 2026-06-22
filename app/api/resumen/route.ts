@@ -16,17 +16,17 @@ export async function GET(req: NextRequest) {
   if (desde) gastosQ = gastosQ.gte('fecha', desde)
   if (hasta) gastosQ = gastosQ.lte('fecha', hasta)
 
-  let pedidosQ = supabase
-    .from('pedidos')
-    .select('id, local_nombre, created_at, pedido_items(producto_nombre, cantidad, valor_total)')
-    .not('local_nombre', 'is', null)
+  let ventasQ = supabase
+    .from('ventas_posberry')
+    .select('local_id, producto_nombre, vendido, pedido, monto_vendido, monto_remito, fecha, profiles(local_nombre)')
+    .not('local_id', 'is', null)
 
-  if (desde) pedidosQ = pedidosQ.gte('created_at', `${desde}T00:00:00Z`)
-  if (hasta) pedidosQ = pedidosQ.lte('created_at', `${hasta}T23:59:59Z`)
+  if (desde) ventasQ = ventasQ.gte('fecha', desde)
+  if (hasta) ventasQ = ventasQ.lte('fecha', hasta)
 
-  const [{ data: gastos, error: e1 }, { data: pedidos, error: e2 }] = await Promise.all([
+  const [{ data: gastos, error: e1 }, { data: ventas, error: e2 }] = await Promise.all([
     gastosQ,
-    pedidosQ,
+    ventasQ,
   ])
 
   if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
@@ -42,35 +42,36 @@ export async function GET(req: NextRequest) {
     gastosPorLocal[local][cat] = (gastosPorLocal[local][cat] ?? 0) + Number(g.monto ?? 0)
   }
 
-  // Pedidos agrupados: { [local]: { [producto]: { cantidad, valor } } }
-  type ProdMap = Record<string, { cantidad: number; valor: number }>
-  const pedidosPorLocal: Record<string, ProdMap> = {}
-  for (const p of pedidos ?? []) {
-    const local = p.local_nombre as string
-    if (!pedidosPorLocal[local]) pedidosPorLocal[local] = {}
-    const items = (p.pedido_items ?? []) as Array<{ producto_nombre: string; cantidad: number; valor_total: number }>
-    for (const item of items) {
-      const prod = item.producto_nombre || 'Sin nombre'
-      if (!pedidosPorLocal[local][prod]) pedidosPorLocal[local][prod] = { cantidad: 0, valor: 0 }
-      pedidosPorLocal[local][prod].cantidad += Number(item.cantidad ?? 0)
-      pedidosPorLocal[local][prod].valor += Number(item.valor_total ?? 0)
-    }
+  // Ventas posberry agrupadas: { [local_nombre]: { [producto]: { vendido, remito, montoVendido, montoRemito } } }
+  type VentaMap = Record<string, { vendido: number; remito: number; montoVendido: number; montoRemito: number }>
+  const ventasPorLocal: Record<string, VentaMap> = {}
+  for (const v of ventas ?? []) {
+    const prof = (Array.isArray(v.profiles) ? v.profiles[0] : v.profiles) as { local_nombre: string } | null
+    const local = prof?.local_nombre ?? 'Sin local'
+    const prod = (v.producto_nombre as string) || 'Sin nombre'
+    if (!ventasPorLocal[local]) ventasPorLocal[local] = {}
+    if (!ventasPorLocal[local][prod]) ventasPorLocal[local][prod] = { vendido: 0, remito: 0, montoVendido: 0, montoRemito: 0 }
+    ventasPorLocal[local][prod].vendido += Number(v.vendido ?? 0)
+    ventasPorLocal[local][prod].remito += Number(v.pedido ?? 0)
+    ventasPorLocal[local][prod].montoVendido += Number(v.monto_vendido ?? 0)
+    ventasPorLocal[local][prod].montoRemito += Number(v.monto_remito ?? 0)
   }
 
   // Unify locales from both sources
-  const locales = [...new Set([...Object.keys(gastosPorLocal), ...Object.keys(pedidosPorLocal)])].sort()
+  const locales = [...new Set([...Object.keys(gastosPorLocal), ...Object.keys(ventasPorLocal)])].sort()
 
   const result = locales.map(local => ({
     local,
     gastos: Object.entries(gastosPorLocal[local] ?? {})
       .map(([categoria, total]) => ({ categoria, total }))
       .sort((a, b) => b.total - a.total),
-    pedidos: Object.entries(pedidosPorLocal[local] ?? {})
-      .map(([producto, { cantidad, valor }]) => ({ producto, cantidad, valor }))
-      .sort((a, b) => b.cantidad - a.cantidad),
+    ventas: Object.entries(ventasPorLocal[local] ?? {})
+      .map(([producto, stats]) => ({ producto, ...stats }))
+      .sort((a, b) => b.vendido - a.vendido),
     totalGastos: Object.values(gastosPorLocal[local] ?? {}).reduce((s, v) => s + v, 0),
-    totalPedidosUnidades: Object.values(pedidosPorLocal[local] ?? {}).reduce((s, v) => s + v.cantidad, 0),
-    totalPedidosValor: Object.values(pedidosPorLocal[local] ?? {}).reduce((s, v) => s + v.valor, 0),
+    totalVendido: Object.values(ventasPorLocal[local] ?? {}).reduce((s, v) => s + v.vendido, 0),
+    totalRemito: Object.values(ventasPorLocal[local] ?? {}).reduce((s, v) => s + v.remito, 0),
+    totalMontoVendido: Object.values(ventasPorLocal[local] ?? {}).reduce((s, v) => s + v.montoVendido, 0),
   }))
 
   return NextResponse.json(result)

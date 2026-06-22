@@ -3,14 +3,15 @@
 import { useState, useCallback } from 'react'
 
 interface CatRow { categoria: string; total: number }
-interface ProdRow { producto: string; cantidad: number; valor: number }
+interface VentaRow { producto: string; vendido: number; remito: number; montoVendido: number; montoRemito: number }
 interface LocalData {
   local: string
   gastos: CatRow[]
-  pedidos: ProdRow[]
+  ventas: VentaRow[]
   totalGastos: number
-  totalPedidosUnidades: number
-  totalPedidosValor: number
+  totalVendido: number
+  totalRemito: number
+  totalMontoVendido: number
 }
 
 function hoy() { return new Date().toISOString().slice(0, 10) }
@@ -61,7 +62,8 @@ export default function ResumenClient() {
 
   const dataFiltrada = filtroLocal === 'todos' ? (data ?? []) : (data ?? []).filter(d => d.local === filtroLocal)
   const totalGastos = dataFiltrada.reduce((s, d) => s + d.totalGastos, 0)
-  const totalPedidos = dataFiltrada.reduce((s, d) => s + d.totalPedidosUnidades, 0)
+  const totalVendido = dataFiltrada.reduce((s, d) => s + d.totalVendido, 0)
+  const totalMontoVendido = dataFiltrada.reduce((s, d) => s + d.totalMontoVendido, 0)
 
   return (
     <div className="space-y-6">
@@ -115,12 +117,12 @@ export default function ResumenClient() {
               <p className="text-xl font-bold text-red-400 mt-1">{fmt(totalGastos)}</p>
             </div>
             <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-              <p className="text-[#888] text-xs uppercase tracking-wider">Total pedidos</p>
-              <p className="text-xl font-bold text-[#f0f0f0] mt-1">{totalPedidos.toLocaleString('es-AR')} u</p>
+              <p className="text-[#888] text-xs uppercase tracking-wider">Total vendido</p>
+              <p className="text-xl font-bold text-[#f0f0f0] mt-1">{totalVendido.toLocaleString('es-AR')} u</p>
             </div>
             <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-              <p className="text-[#888] text-xs uppercase tracking-wider">Período</p>
-              <p className="text-sm font-bold text-[#f0f0f0] mt-1">{desde} → {hasta}</p>
+              <p className="text-[#888] text-xs uppercase tracking-wider">Monto vendido</p>
+              <p className="text-xl font-bold text-green-400 mt-1">{fmt(totalMontoVendido)}</p>
             </div>
           </div>
 
@@ -139,7 +141,7 @@ export default function ResumenClient() {
                 <div className="flex items-center gap-4">
                   <span className="text-base font-bold text-[#f0f0f0] uppercase tracking-wide">{d.local}</span>
                   <span className="text-xs text-[#555] bg-[#1a1a1a] px-2 py-0.5 rounded-full">
-                    {d.gastos.length} categorías · {d.pedidos.length} productos
+                    {d.gastos.length} categorías · {d.ventas.length} productos
                   </span>
                 </div>
                 <div className="flex items-center gap-6 text-right">
@@ -148,8 +150,12 @@ export default function ResumenClient() {
                     <p className="text-sm font-bold text-red-400">{fmt(d.totalGastos)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-[#555] uppercase">Pedidos</p>
-                    <p className="text-sm font-bold text-[#f0f0f0]">{d.totalPedidosUnidades.toLocaleString('es-AR')} u</p>
+                    <p className="text-[10px] text-[#555] uppercase">Vendido</p>
+                    <p className="text-sm font-bold text-green-400">{fmt(d.totalMontoVendido)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-[#555] uppercase">Unidades</p>
+                    <p className="text-sm font-bold text-[#f0f0f0]">{d.totalVendido.toLocaleString('es-AR')} u</p>
                   </div>
                   <span className={`text-[#555] text-xs transition-transform ${expandido[d.local] ? '' : '-rotate-90'}`}>▼</span>
                 </div>
@@ -193,29 +199,33 @@ export default function ResumenClient() {
                     )}
                   </div>
 
-                  {/* Pedidos por producto */}
+                  {/* Ventas Posberry por producto */}
                   <div className="p-4">
-                    <h3 className="text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-3">Pedidos por producto</h3>
-                    {d.pedidos.length === 0 ? (
-                      <p className="text-[#555] text-sm">Sin pedidos en el período</p>
+                    <h3 className="text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-3">Ventas por producto (Posberry)</h3>
+                    {d.ventas.length === 0 ? (
+                      <p className="text-[#555] text-sm">Sin ventas registradas en el período</p>
                     ) : (
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-[#555] text-xs">
                             <th className="text-left pb-2 font-medium">Producto</th>
-                            <th className="text-right pb-2 font-medium">Cant.</th>
-                            <th className="text-right pb-2 font-medium">Valor</th>
+                            <th className="text-right pb-2 font-medium">Vendido</th>
+                            <th className="text-right pb-2 font-medium">Remito</th>
+                            <th className="text-right pb-2 font-medium">$ Venta</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#1a1a1a]">
-                          {d.pedidos.map(p => (
-                            <tr key={p.producto}>
-                              <td className="py-1.5 text-[#f0f0f0]">{p.producto}</td>
+                          {d.ventas.map(v => (
+                            <tr key={v.producto}>
+                              <td className="py-1.5 text-[#f0f0f0]">{v.producto}</td>
                               <td className="py-1.5 text-right text-[#f0f0f0] font-medium">
-                                {p.cantidad.toLocaleString('es-AR')}
+                                {v.vendido.toLocaleString('es-AR')}
                               </td>
                               <td className="py-1.5 text-right text-[#888] text-xs">
-                                {p.valor > 0 ? fmt(p.valor) : '—'}
+                                {v.remito.toLocaleString('es-AR')}
+                              </td>
+                              <td className="py-1.5 text-right text-green-400 text-xs">
+                                {v.montoVendido > 0 ? fmt(v.montoVendido) : '—'}
                               </td>
                             </tr>
                           ))}
@@ -224,10 +234,13 @@ export default function ResumenClient() {
                           <tr className="border-t border-[#2a2a2a]">
                             <td className="pt-2 text-[#888] font-semibold text-xs">TOTAL</td>
                             <td className="pt-2 text-right text-[#f0f0f0] font-bold">
-                              {d.totalPedidosUnidades.toLocaleString('es-AR')} u
+                              {d.totalVendido.toLocaleString('es-AR')} u
                             </td>
                             <td className="pt-2 text-right text-[#888] text-xs">
-                              {d.totalPedidosValor > 0 ? fmt(d.totalPedidosValor) : '—'}
+                              {d.totalRemito.toLocaleString('es-AR')} u
+                            </td>
+                            <td className="pt-2 text-right text-green-400 font-bold text-xs">
+                              {d.totalMontoVendido > 0 ? fmt(d.totalMontoVendido) : '—'}
                             </td>
                           </tr>
                         </tfoot>
