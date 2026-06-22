@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       path = `/expenses?fields[expense]=amount,date,description,status,canceled`
             + `&fields[expenseCategory]=name&fields[provider]=name&fields[payment]=amount,paid_at,canceled&fields[paymentMethod]=name`
             + `&include=expenseCategory,provider,payments,payments.paymentMethod`
-            + `&filter[date]=and(gte.${desde}T00:00:00Z,lte.${hasta}T23:59:59Z)`
+            + `&filter[date]=and(gte.${desde},lte.${hasta})`
             + `&page[size]=500&sort=-id`
     } else if (tipo === 'sales') {
       path = `/sales?fields[sale]=total,createdAt,closedAt,saleType,saleState`
