@@ -32,6 +32,7 @@ export default function ResumenClient() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [expandido, setExpandido] = useState<Record<string, boolean>>({})
+  const [filtroLocal, setFiltroLocal] = useState('todos')
 
   const consultar = useCallback(async () => {
     setLoading(true)
@@ -58,8 +59,9 @@ export default function ResumenClient() {
   const toggle = (local: string) =>
     setExpandido(prev => ({ ...prev, [local]: !prev[local] }))
 
-  const totalGastos = data?.reduce((s, d) => s + d.totalGastos, 0) ?? 0
-  const totalPedidos = data?.reduce((s, d) => s + d.totalPedidosUnidades, 0) ?? 0
+  const dataFiltrada = filtroLocal === 'todos' ? (data ?? []) : (data ?? []).filter(d => d.local === filtroLocal)
+  const totalGastos = dataFiltrada.reduce((s, d) => s + d.totalGastos, 0)
+  const totalPedidos = dataFiltrada.reduce((s, d) => s + d.totalPedidosUnidades, 0)
 
   return (
     <div className="space-y-6">
@@ -78,6 +80,15 @@ export default function ResumenClient() {
           <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Hasta</label>
           <input type="date" className={inputClass} value={hasta} onChange={e => setHasta(e.target.value)} />
         </div>
+        {data && data.length > 0 && (
+          <div>
+            <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Sucursal</label>
+            <select className={inputClass} value={filtroLocal} onChange={e => setFiltroLocal(e.target.value)}>
+              <option value="todos">Todas</option>
+              {data.map(d => <option key={d.local} value={d.local}>{d.local}</option>)}
+            </select>
+          </div>
+        )}
         <button
           onClick={consultar}
           disabled={loading}
@@ -97,7 +108,7 @@ export default function ResumenClient() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
               <p className="text-[#888] text-xs uppercase tracking-wider">Locales</p>
-              <p className="text-xl font-bold text-[#f0f0f0] mt-1">{data.length}</p>
+              <p className="text-xl font-bold text-[#f0f0f0] mt-1">{dataFiltrada.length}</p>
             </div>
             <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
               <p className="text-[#888] text-xs uppercase tracking-wider">Total gastos</p>
@@ -113,12 +124,12 @@ export default function ResumenClient() {
             </div>
           </div>
 
-          {data.length === 0 && (
+          {dataFiltrada.length === 0 && (
             <div className="text-center py-16 text-[#888]">Sin datos para el período seleccionado</div>
           )}
 
           {/* Cards por local */}
-          {data.map(d => (
+          {dataFiltrada.map(d => (
             <div key={d.local} className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
               {/* Header */}
               <button
