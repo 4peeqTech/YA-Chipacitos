@@ -1,22 +1,6 @@
 const FUDO_AUTH_URL = 'https://auth.fu.do/api'
 const FUDO_API_URL = 'https://api.fu.do/v1alpha1'
 
-export interface FudoCredential {
-  sucursal: string
-  apiKey: string
-  apiSecret: string
-}
-
-export const FUDO_LOCALES: FudoCredential[] = [
-  {
-    sucursal: 'YA! PARAGUAY',
-    apiKey: process.env.FUDO_PARAGUAY_API_KEY ?? '',
-    apiSecret: process.env.FUDO_PARAGUAY_API_SECRET ?? '',
-  },
-  // Agregar más locales a medida que se configuren:
-  // { sucursal: 'YA! SAN LORENZO', apiKey: process.env.FUDO_SANLORENZO_API_KEY ?? '', apiSecret: process.env.FUDO_SANLORENZO_API_SECRET ?? '' },
-]
-
 export async function getFudoToken(apiKey: string, apiSecret: string): Promise<string> {
   const res = await fetch(FUDO_AUTH_URL, {
     method: 'POST',
@@ -38,7 +22,6 @@ export async function fudoGet(token: string, path: string): Promise<unknown> {
   return res.json()
 }
 
-// Normaliza la respuesta JSON:API a un array plano
 export function normalizeJsonApi(data: {
   data: Array<{ id: string; type: string; attributes?: Record<string, unknown>; relationships?: Record<string, unknown> }>;
   included?: Array<{ id: string; type: string; attributes?: Record<string, unknown> }>;
@@ -50,8 +33,6 @@ export function normalizeJsonApi(data: {
 
   return data.data.map(item => {
     const attrs: Record<string, unknown> = { id: item.id, ...item.attributes }
-
-    // Resolver relationships
     const rels = item.relationships as Record<string, { data: { type: string; id: string } | Array<{ type: string; id: string }> | null }> | undefined
     if (rels) {
       for (const [key, rel] of Object.entries(rels)) {

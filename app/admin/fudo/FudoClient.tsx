@@ -1,10 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 type Tipo = 'expenses' | 'sales' | 'payments'
-
-const SUCURSALES = ['YA! PARAGUAY']
 
 const hoy = () => new Date().toISOString().split('T')[0]
 const haceDias = (n: number) => new Date(Date.now() - n * 86400000).toISOString().split('T')[0]
@@ -44,7 +42,8 @@ function getPaymentAmount(item: Record<string, unknown>): number {
 }
 
 export default function FudoClient() {
-  const [sucursal, setSucursal] = useState(SUCURSALES[0])
+  const [sucursales, setSucursales] = useState<string[]>([])
+  const [sucursal, setSucursal] = useState('')
   const [tipo, setTipo] = useState<Tipo>('expenses')
   const [desde, setDesde] = useState(haceDias(7))
   const [hasta, setHasta] = useState(hoy())
@@ -52,6 +51,17 @@ export default function FudoClient() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [fetched, setFetched] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/locales')
+      .then(r => r.json())
+      .then((data: Array<{ sucursal: string; activo: boolean }>) => {
+        const activos = Array.isArray(data) ? data.filter(l => l.activo).map(l => l.sucursal) : []
+        setSucursales(activos)
+        if (activos.length > 0) setSucursal(activos[0])
+      })
+      .catch(() => {})
+  }, [])
 
   async function fetchData() {
     setLoading(true)
@@ -157,7 +167,7 @@ export default function FudoClient() {
         <div>
           <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Sucursal</label>
           <select className={inputClass} value={sucursal} onChange={e => setSucursal(e.target.value)}>
-            {SUCURSALES.map(s => <option key={s} value={s}>{s}</option>)}
+            {sucursales.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
 

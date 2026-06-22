@@ -34,6 +34,7 @@ const sections: NavSection[] = [
       { href: '/admin/mapeos',      label: 'Mapeo productos',   icon: '🔗' },
       { href: '/admin/usuarios',    label: 'Usuarios',          icon: '👥' },
       { href: '/admin/proveedores', label: 'Proveedores',       icon: '🚚' },
+      { href: '/admin/locales',     label: 'Locales',           icon: '🏪' },
     ],
   },
   {
