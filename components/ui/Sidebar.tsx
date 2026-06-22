@@ -31,6 +31,7 @@ const sections: NavSection[] = [
     items: [
       { href: '/admin/gastos',            label: 'Gastos',            icon: '💰' },
       { href: '/admin/gastos/pendientes', label: 'Pendientes de pago', icon: '⏳' },
+      { href: '/admin/resumen',           label: 'Resumen por local', icon: '📊' },
       { href: '/admin/fudo',              label: 'Fudo / Caja',       icon: '🏧' },
     ],
   },
