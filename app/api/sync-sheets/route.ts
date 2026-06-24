@@ -198,10 +198,10 @@ export async function POST(req: NextRequest) {
     )
   )
 
-  // Deduplicar por id_externo (el sheet puede tener filas repetidas)
+  // Deduplicar por (id_externo + producto_nombre): una orden puede tener varios productos
   const vistos = new Set<string>()
   const registrosUnicos = registros.filter(r => {
-    const id = r.id_externo as string
+    const id = `${r.id_externo as string}__${r.producto_nombre as string}`
     if (vistos.has(id)) return false
     vistos.add(id)
     return true
