@@ -131,6 +131,39 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
     return true
   }), [dConc, dFiltroLocal, dSoloAlertas, dSoloSinConfirmar])
 
+  // Resumen agrupado por producto (suma de todas las filas filtradas)
+  const resumenPorProducto = useMemo(() => {
+    const mapa = new Map<string, {
+      producto_nombre: string
+      vendido: number
+      pedido: number
+      monto_vendido: number
+      monto_remito: number
+      tieneAlerta: boolean
+      totalFilas: number
+      filasConfirmadas: number
+    }>()
+    for (const c of concFiltrada) {
+      const key = c.producto_nombre
+      const prev = mapa.get(key) ?? {
+        producto_nombre: key,
+        vendido: 0, pedido: 0, monto_vendido: 0, monto_remito: 0,
+        tieneAlerta: false, totalFilas: 0, filasConfirmadas: 0,
+      }
+      mapa.set(key, {
+        ...prev,
+        vendido: prev.vendido + (c.vendido || 0),
+        pedido: prev.pedido + (c.pedido || 0),
+        monto_vendido: prev.monto_vendido + (c.monto_vendido || 0),
+        monto_remito: prev.monto_remito + (c.monto_remito || 0),
+        tieneAlerta: prev.tieneAlerta || c.tiene_alerta,
+        totalFilas: prev.totalFilas + 1,
+        filasConfirmadas: prev.filasConfirmadas + (c.confirmado ? 1 : 0),
+      })
+    }
+    return [...mapa.values()].sort((a, b) => b.vendido - a.vendido)
+  }, [concFiltrada])
+
   // Stats
   const alertas = conc.filter(c => c.tiene_alerta)
   const confirmados = conc.filter(c => c.confirmado)
@@ -286,8 +319,6 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-[#0a0a0a] border-b border-[#2a2a2a]">
-                          <th className="text-left px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Fecha</th>
-                          <th className="text-left px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Local</th>
                           <th className="text-left px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Posberry</th>
                           <th className="text-left px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Sistema</th>
                           <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Vend. Ud.</th>
@@ -296,62 +327,35 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
                           <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">$ Vendido</th>
                           <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">$ Remito</th>
                           <th className="text-right px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">$ Dif.</th>
-                          <th className="text-center px-4 py-3 font-semibold text-[#e8c547] text-xs uppercase tracking-wider">Estado</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {concFiltrada.map((c, i) => {
-                          const diff = c.diferencia
-                          const esConf = c.confirmado
+                        {resumenPorProducto.map((r, i) => {
+                          const difUd = r.vendido - r.pedido
+                          const difMonto = Math.round((r.monto_vendido - r.monto_remito) * 100) / 100
                           return (
-                            <tr key={c.id}
+                            <tr key={r.producto_nombre}
                               className={`border-b border-[#1a1a1a] transition-colors ${
-                                esConf ? 'bg-[rgba(86,214,138,.04)]' :
-                                c.tiene_alerta ? 'bg-[rgba(232,66,16,.06)]' :
+                                r.tieneAlerta ? 'bg-[rgba(232,66,16,.06)]' :
                                 i % 2 === 1 ? 'bg-[#0a0a0a]' : ''
                               }`}>
-                              <td className="px-4 py-2.5 text-xs text-[#888] whitespace-nowrap">{c.fecha}</td>
-                              <td className="px-4 py-2.5 text-xs text-[#888] whitespace-nowrap">
-                                {(c.profiles?.local_nombre || c.profiles?.nombre || '').replace('Suc. ', '')}
-                              </td>
-                              <td className="px-4 py-2.5 text-sm text-[#888]">{c.producto_nombre}</td>
+                              <td className="px-4 py-2.5 text-sm text-[#888]">{r.producto_nombre}</td>
                               <td className="px-4 py-2.5 font-medium text-[#f0f0f0]">
-                                {mapaProductos[c.producto_nombre] || <span className="text-[#555] text-xs italic">sin mapear</span>}
+                                {mapaProductos[r.producto_nombre] || <span className="text-[#555] text-xs italic">sin mapear</span>}
                               </td>
-                              <td className="px-4 py-2.5 text-right tabular-nums">{c.vendido || '—'}</td>
-                              <td className="px-4 py-2.5 text-right tabular-nums">{c.pedido || '—'}</td>
-                              <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${diff < 0 ? 'text-[#e84210]' : diff > 0 ? 'text-[#56d68a]' : 'text-[#888]'}`}>
-                                {diff > 0 ? `+${diff}` : diff === 0 ? '0' : diff}{c.tiene_alerta ? ' ⚠️' : ''}
-                              </td>
-                              <td className="px-4 py-2.5 text-right tabular-nums text-[#aaa]">
-                                {c.monto_vendido ? `$${(c.monto_vendido).toLocaleString('es-AR')}` : '—'}
+                              <td className="px-4 py-2.5 text-right tabular-nums">{r.vendido || '—'}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums">{r.pedido || '—'}</td>
+                              <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${difUd < 0 ? 'text-[#e84210]' : difUd > 0 ? 'text-[#56d68a]' : 'text-[#888]'}`}>
+                                {difUd > 0 ? `+${difUd}` : difUd === 0 ? '0' : difUd}{r.tieneAlerta ? ' ⚠️' : ''}
                               </td>
                               <td className="px-4 py-2.5 text-right tabular-nums text-[#aaa]">
-                                {c.monto_remito ? `$${(c.monto_remito).toLocaleString('es-AR')}` : '—'}
+                                {r.monto_vendido ? `$${r.monto_vendido.toLocaleString('es-AR')}` : '—'}
                               </td>
-                              <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${
-                                (c.monto_vendido||0)-(c.monto_remito||0) < 0 ? 'text-[#e84210]' :
-                                (c.monto_vendido||0)-(c.monto_remito||0) > 0 ? 'text-[#56d68a]' : 'text-[#888]'
-                              }`}>
-                                {(() => { const d = Math.round(((c.monto_vendido||0)-(c.monto_remito||0))*100)/100; return d > 0 ? `+$${d.toLocaleString('es-AR')}` : d === 0 ? '$0' : `-$${Math.abs(d).toLocaleString('es-AR')}` })()}
+                              <td className="px-4 py-2.5 text-right tabular-nums text-[#aaa]">
+                                {r.monto_remito ? `$${r.monto_remito.toLocaleString('es-AR')}` : '—'}
                               </td>
-                              <td className="px-4 py-2.5 text-center">
-                                {esConf ? (
-                                  <button
-                                    onClick={() => desconfirmar(c.id)}
-                                    disabled={confirmando === c.id}
-                                    title="Haz clic para desconfirmar"
-                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#56d68a] bg-[rgba(86,214,138,.1)] px-2.5 py-1 rounded-full hover:bg-[rgba(86,214,138,.2)] transition-colors disabled:opacity-50">
-                                    ✓ Confirmado
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => confirmar(c.id)}
-                                    disabled={confirmando === c.id}
-                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#888] bg-[#1a1a1a] border border-[#2a2a2a] px-2.5 py-1 rounded-full hover:border-[#56d68a] hover:text-[#56d68a] transition-colors disabled:opacity-50">
-                                    {confirmando === c.id ? '...' : '○ Confirmar'}
-                                  </button>
-                                )}
+                              <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${difMonto < 0 ? 'text-[#e84210]' : difMonto > 0 ? 'text-[#56d68a]' : 'text-[#888]'}`}>
+                                {difMonto > 0 ? `+$${difMonto.toLocaleString('es-AR')}` : difMonto === 0 ? '$0' : `-$${Math.abs(difMonto).toLocaleString('es-AR')}`}
                               </td>
                             </tr>
                           )
@@ -359,7 +363,7 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
                       </tbody>
                       <tfoot>
                         <tr className="bg-[#0a0a0a] border-t-2 border-[#2a2a2a]">
-                          <td colSpan={4} className="px-4 py-3 font-bold text-[#f0f0f0] text-sm">Total</td>
+                          <td colSpan={2} className="px-4 py-3 font-bold text-[#f0f0f0] text-sm">Total</td>
                           <td className="px-4 py-3 text-right font-bold tabular-nums">{totalVendido}</td>
                           <td className="px-4 py-3 text-right font-bold tabular-nums">{totalPedido}</td>
                           <td className={`px-4 py-3 text-right font-bold tabular-nums ${totalVendido-totalPedido < 0 ? 'text-[#e84210]' : totalVendido-totalPedido > 0 ? 'text-[#56d68a]' : 'text-[#888]'}`}>
@@ -370,15 +374,12 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
                           <td className={`px-4 py-3 text-right font-bold tabular-nums ${totalMontoVendido-totalMontoRemito < 0 ? 'text-[#e84210]' : totalMontoVendido-totalMontoRemito > 0 ? 'text-[#56d68a]' : 'text-[#888]'}`}>
                             {(() => { const d = Math.round((totalMontoVendido-totalMontoRemito)*100)/100; return d > 0 ? `+$${d.toLocaleString('es-AR')}` : d === 0 ? '$0' : `-$${Math.abs(d).toLocaleString('es-AR')}` })()}
                           </td>
-                          <td className="px-4 py-3 text-center text-xs text-[#888]">
-                            {confirmados.length}/{conc.length} conf.
-                          </td>
                         </tr>
                       </tfoot>
                     </table>
                   </div>
                   <p className="text-[11px] text-[#888] px-4 py-2 border-t border-[#2a2a2a]">
-                    {concFiltrada.length} filas · Dif. Ud. = Vendido − Remito · Dif. $ = $ Vendido − $ Remito · Confirmados: {concFiltrada.filter(c => c.confirmado).length}/{concFiltrada.length}
+                    {resumenPorProducto.length} productos · Dif. Ud. = Vendido − Remito · Dif. $ = $ Vendido − $ Remito · Confirmados: {concFiltrada.filter(c => c.confirmado).length}/{concFiltrada.length}
                   </p>
                 </Card>
               )
