@@ -351,8 +351,8 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
             ) : (
               <div className="space-y-1.5">
                 {carrito.map(item => (
-                  <div key={item.producto.id} className="flex items-center gap-2">
-                    <span className="text-[#c0c0c0] flex-1 min-w-0 truncate text-xs">{item.producto.nombre}</span>
+                  <div key={item.producto.id} style={{display:'grid', gridTemplateColumns:'1fr 36px 18px', gap:'6px', alignItems:'center'}}>
+                    <span className="text-[#c0c0c0] text-xs truncate">{item.producto.nombre}</span>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -361,9 +361,9 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
                         const v = parseFloat(e.target.value.replace(',', '.'))
                         setCantidad(item.producto, isNaN(v) ? 0 : v)
                       }}
-                      className="w-9 shrink-0 bg-[#1a1a1a] border border-[#2a2a2a] text-[#e8c547] font-semibold rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:border-[#e8c547]"
+                      className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#e8c547] font-semibold rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:border-[#e8c547] w-full"
                     />
-                    <button onClick={() => setCantidad(item.producto, 0)} className="shrink-0 text-[#444] hover:text-[#e84210] transition-colors text-xs" title="Quitar">✕</button>
+                    <button onClick={() => setCantidad(item.producto, 0)} className="text-[#444] hover:text-[#e84210] transition-colors text-xs text-center" title="Quitar">✕</button>
                   </div>
                 ))}
               </div>
