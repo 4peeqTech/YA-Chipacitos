@@ -344,28 +344,26 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
         <div className="hidden lg:block w-72 shrink-0 sticky top-4">
           <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-4 space-y-3">
             <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">
-              Pedido actual {totalItems > 0 && <span className="text-[#e8c547]">· {totalItems} uds</span>}
+              Pedido actual {totalItems > 0 && <span className="text-[#e8c547]">· {totalItems} unidades</span>}
             </p>
             {carrito.length === 0 ? (
               <p className="text-sm text-[#555] text-center py-4">Todavía no agregaste productos.</p>
             ) : (
               <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
                 {carrito.map(item => (
-                  <div key={item.producto.id} className="flex items-center justify-between text-sm gap-2">
+                  <div key={item.producto.id} className="flex items-center gap-2">
                     <span className="text-[#c0c0c0] flex-1 min-w-0 truncate text-xs leading-tight">{item.producto.nombre}</span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <input
-                        type="number"
-                        min="0"
-                        value={item.cantidad}
-                        onChange={e => {
-                          const v = parseFloat(e.target.value)
-                          setCantidad(item.producto, isNaN(v) ? 0 : v)
-                        }}
-                        className="w-12 bg-[#1a1a1a] border border-[#2a2a2a] text-[#e8c547] font-semibold rounded-md px-1 py-0.5 text-sm text-center focus:outline-none focus:border-[#e8c547] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                      <button onClick={() => setCantidad(item.producto, 0)} className="w-6 h-6 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] text-[#555] flex items-center justify-center text-xs hover:text-[#e84210] hover:border-[#e84210] transition-colors" title="Quitar">✕</button>
-                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      value={item.cantidad}
+                      onChange={e => {
+                        const v = parseFloat(e.target.value)
+                        setCantidad(item.producto, isNaN(v) ? 0 : v)
+                      }}
+                      className="w-10 shrink-0 bg-[#1a1a1a] border border-[#2a2a2a] text-[#e8c547] font-semibold rounded-md px-1 py-0.5 text-xs text-center focus:outline-none focus:border-[#e8c547] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <button onClick={() => setCantidad(item.producto, 0)} className="shrink-0 w-5 h-5 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] text-[#555] flex items-center justify-center text-[10px] hover:text-[#e84210] hover:border-[#e84210] transition-colors" title="Quitar">✕</button>
                   </div>
                 ))}
               </div>
@@ -375,7 +373,7 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
               className="w-full border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] resize-none bg-[#1a1a1a] text-[#f0f0f0] placeholder:text-[#555]" />
             <button onClick={enviarPedido} disabled={enviando || carrito.length === 0}
               className="w-full bg-[#e8c547] text-black rounded-xl py-3 text-sm font-['Syne'] font-bold disabled:opacity-40 active:opacity-80">
-              {enviando ? 'Enviando...' : carrito.length === 0 ? 'Enviar Pedido' : `Enviar Pedido (${totalItems} uds)`}
+              {enviando ? 'Enviando...' : carrito.length === 0 ? 'Enviar Pedido' : `Enviar Pedido (${totalItems} unidades)`}
             </button>
           </div>
         </div>
@@ -386,12 +384,12 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
       {carrito.length > 0 && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#111] border-t border-[#2a2a2a] px-4 py-3 space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">Pedido · <span className="text-[#e8c547]">{totalItems} uds</span></p>
+            <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">Pedido · <span className="text-[#e8c547]">{totalItems} unidades</span></p>
             <p className="text-xs text-[#888]">{carrito.length} producto{carrito.length !== 1 ? 's' : ''}</p>
           </div>
           <button onClick={enviarPedido} disabled={enviando}
             className="w-full bg-[#e8c547] text-black rounded-xl py-3 text-sm font-['Syne'] font-bold disabled:opacity-40 active:opacity-80">
-            {enviando ? 'Enviando...' : `Enviar Pedido (${totalItems} uds)`}
+            {enviando ? 'Enviando...' : `Enviar Pedido (${totalItems} unidades)`}
           </button>
         </div>
       )}
