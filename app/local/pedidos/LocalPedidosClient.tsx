@@ -30,22 +30,30 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
   const productosFabrica = productos.filter(p => p.destino === 'fabrica')
   const productosDeposito = productos.filter(p => p.destino === 'deposito')
   const productosTabBase = tabActiva === 'fabrica' ? productosFabrica : productosDeposito
-  const esBusquedaNumerica = /^\d+$/.test(busqueda.trim())
-  const productosTab = busqueda.trim()
+  // Detectar formato "codigo*cantidad" (ej: "1*15")
+  const matchCodigoCantidad = busqueda.trim().match(/^(\d+)\*(\d+(?:[.,]\d+)?)$/)
+  const busquedaBase = matchCodigoCantidad ? matchCodigoCantidad[1] : busqueda.trim()
+  const esBusquedaNumerica = /^\d+$/.test(busquedaBase)
+  const productosTab = busquedaBase
     ? productosTabBase.filter(p => {
         if (esBusquedaNumerica) {
-          // búsqueda numérica: match exacto de código
-          return p.codigo != null && String(p.codigo) === busqueda.trim()
+          return p.codigo != null && String(p.codigo) === busquedaBase
         }
         return (
-          p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-          (p.categoria || '').toLowerCase().includes(busqueda.toLowerCase())
+          p.nombre.toLowerCase().includes(busquedaBase.toLowerCase()) ||
+          (p.categoria || '').toLowerCase().includes(busquedaBase.toLowerCase())
         )
       })
     : productosTabBase
 
   function handleBusquedaEnter() {
     if (!busqueda.trim()) return
+    if (matchCodigoCantidad && productosTab.length === 1) {
+      const cantidad = parseFloat(matchCodigoCantidad[2].replace(',', '.')) || 1
+      setCantidad(productosTab[0], (carrito.find(i => i.producto.id === productosTab[0].id)?.cantidad || 0) + cantidad)
+      setBusqueda('')
+      return
+    }
     if (productosTab.length === 1) {
       agregarAlCarrito(productosTab[0])
       setBusqueda('')
