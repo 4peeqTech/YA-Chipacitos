@@ -354,9 +354,17 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
                   <div key={item.producto.id} className="flex items-center justify-between text-sm gap-2">
                     <span className="text-[#c0c0c0] flex-1 min-w-0 truncate text-xs leading-tight">{item.producto.nombre}</span>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={() => setCantidad(item.producto, item.cantidad - 1)} className="w-6 h-6 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] text-[#888] flex items-center justify-center text-base leading-none hover:text-[#f0f0f0]">−</button>
-                      <span className="w-7 text-center font-semibold text-[#e8c547] text-sm">{item.cantidad}</span>
-                      <button onClick={() => setCantidad(item.producto, item.cantidad + 1)} className="w-6 h-6 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] text-[#888] flex items-center justify-center text-base leading-none hover:text-[#f0f0f0]">+</button>
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.cantidad}
+                        onChange={e => {
+                          const v = parseFloat(e.target.value)
+                          setCantidad(item.producto, isNaN(v) ? 0 : v)
+                        }}
+                        className="w-12 bg-[#1a1a1a] border border-[#2a2a2a] text-[#e8c547] font-semibold rounded-md px-1 py-0.5 text-sm text-center focus:outline-none focus:border-[#e8c547] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <button onClick={() => setCantidad(item.producto, 0)} className="w-6 h-6 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] text-[#555] flex items-center justify-center text-xs hover:text-[#e84210] hover:border-[#e84210] transition-colors" title="Quitar">✕</button>
                     </div>
                   </div>
                 ))}
