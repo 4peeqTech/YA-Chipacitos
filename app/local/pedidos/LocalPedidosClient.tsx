@@ -349,21 +349,21 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
             {carrito.length === 0 ? (
               <p className="text-sm text-[#555] text-center py-4">Todavía no agregaste productos.</p>
             ) : (
-              <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
                 {carrito.map(item => (
-                  <div key={item.producto.id} className="flex items-center gap-2">
-                    <span className="text-[#c0c0c0] flex-1 min-w-0 truncate text-xs leading-tight">{item.producto.nombre}</span>
+                  <div key={item.producto.id} className="flex items-center gap-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-1.5">
+                    <span className="text-[#c0c0c0] flex-1 min-w-0 truncate text-xs">{item.producto.nombre}</span>
                     <input
-                      type="number"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       value={item.cantidad}
                       onChange={e => {
-                        const v = parseFloat(e.target.value)
+                        const v = parseFloat(e.target.value.replace(',', '.'))
                         setCantidad(item.producto, isNaN(v) ? 0 : v)
                       }}
-                      className="w-10 shrink-0 bg-[#1a1a1a] border border-[#2a2a2a] text-[#e8c547] font-semibold rounded-md px-1 py-0.5 text-xs text-center focus:outline-none focus:border-[#e8c547] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-9 shrink-0 bg-[#111] border border-[#2a2a2a] text-[#e8c547] font-semibold rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:border-[#e8c547]"
                     />
-                    <button onClick={() => setCantidad(item.producto, 0)} className="shrink-0 w-5 h-5 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] text-[#555] flex items-center justify-center text-[10px] hover:text-[#e84210] hover:border-[#e84210] transition-colors" title="Quitar">✕</button>
+                    <button onClick={() => setCantidad(item.producto, 0)} className="shrink-0 text-[#444] hover:text-[#e84210] transition-colors text-xs leading-none" title="Quitar">✕</button>
                   </div>
                 ))}
               </div>
