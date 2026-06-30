@@ -567,11 +567,16 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       })
-      await fetch('/api/push/subscribe', {
+      const res = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sub),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setErrorAudio(data.error || 'No se pudo guardar la suscripción')
+        return
+      }
       setPushActivo(true)
       setToastAudio('🔔 Notificaciones activadas')
       setTimeout(() => setToastAudio(''), 3000)

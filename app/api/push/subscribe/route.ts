@@ -1,5 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+
+function getAdminClient() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
 
 // POST /api/push/subscribe
 // Body: PushSubscription del browser (endpoint, keys.p256dh, keys.auth)
@@ -16,7 +25,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Suscripción inválida' }, { status: 400 })
   }
 
-  const { error } = await supabase
+  // Un mismo dispositivo/navegador puede generar el mismo endpoint para
+  // distintas cuentas (alguien se desloguea y entra con otro usuario en
+  // el mismo celular). RLS no deja "robarle" la fila a otro user_id desde
+  // la sesión propia, así que esta reasignación va con service role —
+  // el endpoint es del dispositivo, tiene que quedar con quien esté
+  // logueado ahora.
+  const { error } = await getAdminClient()
     .from('push_subscriptions')
     .upsert({ user_id: user.id, endpoint, p256dh, auth }, { onConflict: 'endpoint' })
 
