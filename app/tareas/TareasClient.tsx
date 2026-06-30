@@ -448,8 +448,9 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
       valor_nuevo: ESTADO_META[nuevoEstado]?.label || nuevoEstado,
       autor_id: userId,
     }])
-    if (tarea.creado_por !== userId) {
-      notificarTarea({ userIds: [tarea.creado_por], title: '📋 Tarea actualizada', body: `${userNombre} marcó "${tarea.titulo}" como ${ESTADO_META[nuevoEstado]?.label}`, url: '/tareas' })
+    const destinatarios = [...new Set([tarea.creado_por, ...(tarea.asignado_a || [])])].filter(id => id !== userId)
+    if (destinatarios.length) {
+      notificarTarea({ userIds: destinatarios, title: '📋 Estado actualizado', body: `${userNombre} marcó "${tarea.titulo}" como ${ESTADO_META[nuevoEstado]?.label}`, url: '/tareas' })
     }
   }
 

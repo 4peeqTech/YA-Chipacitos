@@ -16,6 +16,10 @@ const CAMPO_LABELS: Record<string, string> = {
   estado: 'Estado', prioridad: 'Prioridad', fecha_limite: 'Fecha límite', asignado_a: 'Asignado a', titulo: 'Título',
 }
 
+const ESTADO_LABELS: Record<string, string> = {
+  pendiente: 'Pendiente', en_progreso: 'En progreso', completada: 'Completada',
+}
+
 function fmtRelativo(isoStr: string) {
   if (!isoStr) return ''
   const diff = Date.now() - new Date(isoStr).getTime()
@@ -465,10 +469,21 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, onCerr
         const { error: err } = await supabase.from('tareas').update(payload).eq('id', tarea.id)
         if (err) throw err
         await registrarCambios(tarea, { ...tarea, ...payload } as Tarea)
-        if (!esCreador && form.fecha_limite !== (tarea?.fecha_limite || '')) {
-          const nf = form.fecha_limite ? new Date(form.fecha_limite + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'sin fecha'
-          notificarTarea({ userIds: [tarea.creado_por], title: '📅 Propuesta de nueva fecha', body: `${userNombre} propuso: ${nf} en "${tarea.titulo}"`, url: '/tareas' })
+
+        // Avisar a todos los demás participantes (creador + asignados,
+        // menos quien hizo el cambio) ante cambios de estado o fecha,
+        // sin importar quién de los dos lo haya hecho.
+        const destinatarios = [...new Set([tarea.creado_por, ...(tarea.asignado_a || [])])].filter(id => id !== userId)
+
+        if (esCreador && payload.estado && payload.estado !== tarea.estado) {
+          notificarTarea({ userIds: destinatarios, title: '📋 Estado actualizado', body: `${userNombre} marcó "${tarea.titulo}" como ${ESTADO_LABELS[payload.estado as string] || payload.estado}`, url: '/tareas' })
         }
+
+        if (form.fecha_limite !== (tarea?.fecha_limite || '')) {
+          const nf = form.fecha_limite ? new Date(form.fecha_limite + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'sin fecha'
+          notificarTarea({ userIds: destinatarios, title: '📅 Fecha actualizada', body: `${userNombre} cambió la fecha de "${tarea.titulo}" a ${nf}`, url: '/tareas' })
+        }
+
         onGuardado({ ...tarea, ...payload } as Tarea, 'editada')
       }
     } catch (e: any) { setError(e.message) }
