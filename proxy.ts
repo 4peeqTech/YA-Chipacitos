@@ -130,5 +130,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // sw.js y manifest.webmanifest tienen que quedar accesibles sin sesión:
+  // el browser los pide para evaluar instalabilidad de la PWA antes de
+  // que el usuario inicie sesión, y si se redirigen a /login el navegador
+  // recibe HTML en vez del manifest/SW real y nunca ofrece instalar.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }
