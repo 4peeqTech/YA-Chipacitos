@@ -61,9 +61,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: authError?.message || 'Error al crear auth' }, { status: 400 })
   }
 
+  // Squad arranca con acceso a Tareas por defecto — es el módulo base de ese rol.
+  const modulosPermitidos = rol === 'squad' ? ['tareas'] : []
+
   const { data: newProfile, error: profileError } = await adminClient
     .from('profiles')
-    .insert({ id: newUser.user.id, nombre, rol, local_nombre: local_nombre || null })
+    .insert({ id: newUser.user.id, nombre, rol, local_nombre: local_nombre || null, modulos_permitidos: modulosPermitidos })
     .select()
     .single()
 
