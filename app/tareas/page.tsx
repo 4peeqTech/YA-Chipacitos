@@ -21,6 +21,7 @@ export default async function TareasPage() {
     supabase
       .from('profiles')
       .select('id, nombre, rol, local_nombre')
+      .or('rol.eq.admin,modulos_permitidos.cs.{tareas}')
       .order('nombre'),
   ])
 
