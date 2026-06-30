@@ -48,7 +48,7 @@ export default function InstallPrompt() {
   if (!visible) return null
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[500] bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-2xl px-4 py-3 shadow-lg flex items-center gap-3 max-w-[92vw]">
+    <div className="lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[500] bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-2xl px-4 py-3 shadow-lg flex items-center gap-3 max-w-[92vw]">
       {iosHint ? (
         <p className="text-xs text-[#f0f0f0]">
           📲 Para instalar: tocá <strong>Compartir</strong> y después <strong>"Agregar a pantalla de inicio"</strong>
