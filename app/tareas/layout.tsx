@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Header from '@/components/ui/Header'
 import Sidebar from '@/components/ui/Sidebar'
+import BottomNav from '@/components/ui/BottomNav'
 import { ROLE_HOME } from '@/lib/modulos'
 import type { Rol } from '@/lib/types'
 
@@ -27,6 +28,18 @@ export default async function TareasLayout({ children }: { children: React.React
   // Local/Depósito/Fábrica no tienen ese patrón (usan BottomNav), así que
   // se quedan con el header simple + volver.
   if (profile.rol === 'admin' || profile.rol === 'squad') {
+    const candidatos = [
+      { href: '/admin/dashboard',    label: 'Dashboard',       icon: '🏠', key: 'dashboard' },
+      { href: '/admin/gastos',       label: 'Gastos',          icon: '💰', key: 'gastos' },
+      { href: '/admin/conciliacion', label: 'Conciliación',    icon: '📊', key: 'conciliacion' },
+      { href: '/admin/importar',     label: 'Sincronizar',     icon: '🔄', key: 'importar' },
+    ]
+    const navItems = [
+      ...(profile.rol === 'admin' ? candidatos : candidatos.filter(c => modulosPermitidos.includes(c.key))),
+      { href: '/tareas', label: 'Tareas', icon: '📋' },
+      { href: '/ayuda', label: 'Ayuda', icon: '❓' },
+    ]
+
     return (
       <div className="min-h-screen bg-[#0a0a0a]">
         <Sidebar
@@ -45,9 +58,12 @@ export default async function TareasLayout({ children }: { children: React.React
               <span className="text-xs bg-[#e8c547]/10 text-[#e8c547] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">{ROL_LABEL[profile.rol] || 'Admin'}</span>
             </div>
           </header>
-          <main className="flex-1">
+          <main className="flex-1 pb-20 lg:pb-0">
             {children}
           </main>
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40">
+            <BottomNav items={navItems} />
+          </div>
         </div>
       </div>
     )

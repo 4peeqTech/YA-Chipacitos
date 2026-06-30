@@ -22,11 +22,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const esSquad = profile.rol === 'squad'
   const modulosPermitidos: string[] = profile.modulos_permitidos || []
 
+  const tieneTareas = !esSquad || modulosPermitidos.includes('tareas')
+
   const navItems = [
     { href: '/admin/dashboard',    label: 'Dashboard',       icon: '🏠' },
     { href: '/admin/gastos',       label: 'Gastos',          icon: '💰' },
     { href: '/admin/conciliacion', label: 'Conciliación',    icon: '📊' },
     { href: '/admin/importar',     label: 'Sincronizar',     icon: '🔄' },
+    ...(tieneTareas ? [{ href: '/tareas', label: 'Tareas', icon: '📋' }] : []),
     { href: '/ayuda',              label: 'Ayuda',           icon: '❓' },
   ]
 
@@ -59,8 +62,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {children}
         </main>
 
-        {/* Bottom nav solo mobile */}
-        <div className="lg:hidden">
+        {/* Bottom nav solo mobile — fijo abajo */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40">
           <BottomNav items={navItems} />
         </div>
       </div>
