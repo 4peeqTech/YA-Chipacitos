@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import AyudaClient from './AyudaClient'
+import { MODULOS } from '@/lib/modulos'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,14 +12,16 @@ export default async function AyudaPage() {
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('nombre, rol, local_nombre').eq('id', user.id).single()
+    .from('profiles').select('nombre, rol, local_nombre, modulos_permitidos').eq('id', user.id).single()
   if (!profile) redirect('/login')
 
   const backHref = profile.rol === 'admin'
     ? '/admin/dashboard'
-    : profile.rol === 'deposito' || profile.rol === 'fabrica'
-      ? '/operador/pedidos'
-      : '/local/pedidos'
+    : profile.rol === 'squad'
+      ? MODULOS.find(m => (profile.modulos_permitidos || []).includes(m.key))?.href || '/ayuda'
+      : profile.rol === 'deposito' || profile.rol === 'fabrica'
+        ? '/operador/pedidos'
+        : '/local/pedidos'
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">

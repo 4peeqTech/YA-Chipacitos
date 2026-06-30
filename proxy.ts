@@ -45,11 +45,17 @@ export async function proxy(request: NextRequest) {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('rol')
+          .select('rol, modulos_permitidos')
           .eq('id', user.id)
           .single()
 
-        const dest = profile?.rol ? ROLE_HOME[profile.rol as keyof typeof ROLE_HOME] : '/login'
+        let dest = profile?.rol ? ROLE_HOME[profile.rol as keyof typeof ROLE_HOME] : '/login'
+        // Squad no tiene un home fijo: depende de qué módulos tiene asignados.
+        if (profile?.rol === 'squad') {
+          const modulosPermitidos: string[] = profile.modulos_permitidos || []
+          const primerModulo = MODULOS.find(m => modulosPermitidos.includes(m.key))
+          dest = primerModulo?.href || '/ayuda'
+        }
         return NextResponse.redirect(new URL(dest || '/login', request.url))
       }
       return NextResponse.redirect(new URL('/login', request.url))
@@ -106,7 +112,9 @@ export async function proxy(request: NextRequest) {
         const tieneAcceso = modulo && modulosPermitidos.includes(modulo.key)
         if (!tieneAcceso) {
           const primerModulo = MODULOS.find(m => modulosPermitidos.includes(m.key))
-          return NextResponse.redirect(new URL(primerModulo?.href || '/login', request.url))
+          // Si no tiene NINGÚN módulo asignado, '/ayuda' es la única ruta que
+          // rolRoutes.squad permite sin permisos — evita un loop con /login.
+          return NextResponse.redirect(new URL(primerModulo?.href || '/ayuda', request.url))
         }
       }
     }
