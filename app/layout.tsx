@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { cookies } from 'next/headers'
 import SWRegister from '@/components/ui/SWRegister'
+import InstallPrompt from '@/components/ui/InstallPrompt'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <SWRegister />
+        <InstallPrompt />
         {children}
       </body>
     </html>
