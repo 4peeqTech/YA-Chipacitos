@@ -563,6 +563,15 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
       const reg = await navigator.serviceWorker.register('/sw.js')
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       if (!vapidKey) { setErrorAudio('Notificaciones push no configuradas'); return }
+
+      // Forzar una suscripción nueva: si ya había una en el navegador
+      // (por ej. de otra cuenta que usó este mismo dispositivo antes),
+      // el browser la devuelve tal cual aunque esté muerta del lado del
+      // servicio de push, y eso queda guardado como "activado" sin
+      // funcionar nunca.
+      const existente = await reg.pushManager.getSubscription()
+      if (existente) await existente.unsubscribe()
+
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
