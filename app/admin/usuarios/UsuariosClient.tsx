@@ -128,6 +128,7 @@ export default function UsuariosClient({ usuariosIniciales, emailsById }: Props)
   function abrirPermisos(u: Profile) {
     setPermisosModal(u)
     setPermisosEdit(u.modulos_permitidos || [])
+    setError('')
   }
 
   function toggleModulo(key: string) {

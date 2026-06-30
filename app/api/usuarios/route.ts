@@ -11,12 +11,19 @@ const CreateUserSchema = z.object({
   local_nombre: z.string().optional(),
 })
 
+// Cada variante exige solo su propio campo discriminante; el resto de
+// las keys simplemente no se declaran (z.object no es estricto por
+// default, así que tolera — e ignora — cualquier key de más). Usar
+// z.undefined() para "marcar como ausente" los campos de las otras
+// variantes no funciona en Zod v4: una key realmente ausente del body
+// no satisface z.undefined(), así que esa key se reporta como inválida
+// en TODAS las variantes y el union entero falla con "Invalid input".
 const PatchSchema = z.union([
-  z.object({ id: z.string().uuid(), rol: z.enum(['local', 'deposito', 'fabrica', 'admin', 'squad']), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre_posberry: z.undefined(), nombre: z.undefined(), local_nombre: z.undefined(), modulos_permitidos: z.undefined() }),
-  z.object({ id: z.string().uuid(), password: z.string().min(6), rol: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre_posberry: z.undefined(), nombre: z.undefined(), local_nombre: z.undefined(), modulos_permitidos: z.undefined() }),
-  z.object({ id: z.string().uuid(), whatsapp_phone: z.string().nullable(), whatsapp_apikey: z.string().nullable(), rol: z.undefined(), password: z.undefined(), nombre_posberry: z.undefined(), nombre: z.undefined(), local_nombre: z.undefined(), modulos_permitidos: z.undefined() }),
-  z.object({ id: z.string().uuid(), nombre_posberry: z.string().nullable(), rol: z.undefined(), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre: z.undefined(), local_nombre: z.undefined(), modulos_permitidos: z.undefined() }),
-  z.object({ id: z.string().uuid(), modulos_permitidos: z.array(z.string()), rol: z.undefined(), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre_posberry: z.undefined(), nombre: z.undefined(), local_nombre: z.undefined() }),
+  z.object({ id: z.string().uuid(), rol: z.enum(['local', 'deposito', 'fabrica', 'admin', 'squad']) }),
+  z.object({ id: z.string().uuid(), password: z.string().min(6) }),
+  z.object({ id: z.string().uuid(), whatsapp_phone: z.string().nullable(), whatsapp_apikey: z.string().nullable() }),
+  z.object({ id: z.string().uuid(), nombre_posberry: z.string().nullable() }),
+  z.object({ id: z.string().uuid(), modulos_permitidos: z.array(z.string()) }),
 ])
 
 const EditUserSchema = z.object({
