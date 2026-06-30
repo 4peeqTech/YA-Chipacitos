@@ -384,6 +384,29 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
     return () => { supabase.removeChannel(channel) }
   }, [userId])
 
+  // En mobile, el navegador suele cortar el websocket cuando la pestaña
+  // pasa a segundo plano (pantalla apagada, cambio de app), y al volver
+  // no recupera los eventos perdidos mientras estuvo desconectado. Como
+  // respaldo, al volver a primer plano se vuelve a traer la lista
+  // completa del servidor en vez de confiar solo en el realtime.
+  useEffect(() => {
+    async function refetch() {
+      if (document.visibilityState !== 'visible') return
+      const { data } = await supabase
+        .from('tareas')
+        .select('*')
+        .or(`creado_por.eq.${userId},asignado_a.cs.{${userId}}`)
+        .order('created_at', { ascending: false })
+      if (data) setTareas(data)
+    }
+    document.addEventListener('visibilitychange', refetch)
+    window.addEventListener('focus', refetch)
+    return () => {
+      document.removeEventListener('visibilitychange', refetch)
+      window.removeEventListener('focus', refetch)
+    }
+  }, [userId])
+
   // ── Filtros ────────────────────────────────────────────────────────
   function ordenar(lista: Tarea[]) {
     return [...lista].sort((a, b) => {
