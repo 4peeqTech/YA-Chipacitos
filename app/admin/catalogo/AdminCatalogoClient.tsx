@@ -40,32 +40,65 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
   const [form, setForm] = useState(FORM_VACIO)
   const [formEdit, setFormEdit] = useState({ nombre: '', descripcion: '', unidad: '', categoria: '', precio: '', codigo: '' })
   const [guardando, setGuardando] = useState(false)
+  const [eliminando, setEliminando] = useState<Producto | null>(null)
   const [importando, setImportando] = useState(false)
   const [importMsg, setImportMsg] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const inputCsvRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
+  function csvCell(v: string | number | null | undefined) {
+    return `"${String(v ?? '').replace(/"/g, '""')}"`
+  }
+
   function descargarCSV() {
     const cabecera = ['codigo', 'nombre', 'descripcion', 'unidad', 'tipo', 'destino', 'categoria', 'precio', 'activo']
     const filas = filtrados.map(p => [
-      p.codigo ?? '',
-      p.nombre,
-      p.descripcion ?? '',
-      p.unidad,
-      p.tipo,
-      p.destino,
-      p.categoria ?? '',
-      p.precio ?? '',
-      p.activo ? 'true' : 'false',
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-    const csv = [cabecera.join(','), ...filas].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      csvCell(p.codigo),
+      csvCell(p.nombre),
+      csvCell(p.descripcion),
+      csvCell(p.unidad),
+      csvCell(p.tipo),
+      csvCell(p.destino),
+      csvCell(p.categoria),
+      csvCell(p.precio),
+      csvCell(p.activo ? 'true' : 'false'),
+    ].join(','))
+    const csv = [cabecera.map(csvCell).join(','), ...filas].join('\r\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = `catalogo_${tab}_${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  function parsearCSV(text: string): Record<string, string>[] {
+    const rows: string[][] = []
+    let col = '', row: string[] = [], inQuotes = false
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i], next = text[i + 1]
+      if (inQuotes) {
+        if (ch === '"' && next === '"') { col += '"'; i++ }
+        else if (ch === '"') inQuotes = false
+        else col += ch
+      } else {
+        if (ch === '"') inQuotes = true
+        else if (ch === ',') { row.push(col); col = '' }
+        else if (ch === '\n' || (ch === '\r' && next === '\n')) {
+          row.push(col); rows.push(row); row = []; col = ''
+          if (ch === '\r') i++
+        } else col += ch
+      }
+    }
+    if (col || row.length) { row.push(col); rows.push(row) }
+    if (rows.length < 2) return []
+    const headers = rows[0]
+    return rows.slice(1).filter(r => r.some(v => v.trim())).map(r => {
+      const obj: Record<string, string> = {}
+      headers.forEach((h, i) => { obj[h.trim()] = (r[i] ?? '').trim() })
+      return obj
+    })
   }
 
   async function subirCSV(e: React.ChangeEvent<HTMLInputElement>) {
@@ -75,14 +108,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
     setImportMsg(null)
     try {
       const text = await file.text()
-      const lines = text.trim().split('\n')
-      const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim())
-      const rows = lines.slice(1).map(line => {
-        const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || []
-        const obj: Record<string, string> = {}
-        headers.forEach((h, i) => { obj[h] = (vals[i] ?? '').replace(/^"|"$/g, '').replace(/""/g, '"') })
-        return obj
-      }).filter(r => r.nombre)
+      const rows = parsearCSV(text).filter(r => r.nombre)
 
       let creados = 0, actualizados = 0, errores = 0
       for (const row of rows) {
@@ -147,6 +173,15 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
       .update({ nombre: formEdit.nombre, descripcion: formEdit.descripcion, unidad: formEdit.unidad, categoria: formEdit.categoria || null, precio: formEdit.precio ? parseFloat(formEdit.precio.replace(',', '.')) : null, codigo: formEdit.codigo ? parseInt(formEdit.codigo) : null })
       .eq('id', editando.id).select().single()
     if (data) { setProductos(prev => prev.map(p => p.id === data.id ? data : p)); setEditando(null) }
+    setGuardando(false)
+  }
+
+  async function eliminarProducto() {
+    if (!eliminando) return
+    setGuardando(true)
+    const { error } = await supabase.from('productos').delete().eq('id', eliminando.id)
+    if (!error) setProductos(prev => prev.filter(p => p.id !== eliminando.id))
+    setEliminando(null)
     setGuardando(false)
   }
 
@@ -233,6 +268,13 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
                   ✏️
                 </button>
                 <button
+                  onClick={() => setEliminando(p)}
+                  className="text-[#444] hover:text-red-500 transition-colors text-xs px-1.5 py-1 rounded shrink-0"
+                  title="Eliminar"
+                >
+                  🗑️
+                </button>
+                <button
                   onClick={() => toggleActivo(p)}
                   className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${p.activo ? 'bg-[#e8c547]' : 'bg-[#2a2a2a]'}`}
                 >
@@ -287,6 +329,27 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
               <button onClick={agregar} disabled={guardando || !form.nombre}
                 className="flex-1 py-2.5 bg-[#e8c547] text-black rounded-xl text-xs font-['Syne'] font-bold disabled:opacity-40">
                 {guardando ? 'Guardando...' : 'Agregar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {eliminando && (
+        <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50">
+          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-red-500 rounded-t-2xl w-full max-w-lg p-5 space-y-3">
+            <h3 className="font-['Syne'] font-bold text-sm text-[#f0f0f0]">Eliminar producto</h3>
+            <p className="text-xs text-[#888]">
+              ¿Estás seguro que querés eliminar <span className="text-[#f0f0f0] font-medium">{eliminando.nombre}</span>? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setEliminando(null)}
+                className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-xs font-medium text-[#888] hover:text-[#f0f0f0]">
+                Cancelar
+              </button>
+              <button onClick={eliminarProducto} disabled={guardando}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-xs font-['Syne'] font-bold disabled:opacity-40 hover:bg-red-500 transition-colors">
+                {guardando ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { ROLE_HOME, getModuloPorPath, MODULOS } from '@/lib/modulos'
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -48,14 +49,8 @@ export async function proxy(request: NextRequest) {
           .eq('id', user.id)
           .single()
 
-        const redirectMap: Record<string, string> = {
-          local: '/local/pedidos',
-          deposito: '/deposito/pedidos',
-          fabrica: '/fabrica/pedidos',
-          admin: '/admin/dashboard',
-        }
-        const dest = profile?.rol ? redirectMap[profile.rol] : '/login'
-        return NextResponse.redirect(new URL(dest, request.url))
+        const dest = profile?.rol ? ROLE_HOME[profile.rol as keyof typeof ROLE_HOME] : '/login'
+        return NextResponse.redirect(new URL(dest || '/login', request.url))
       }
       return NextResponse.redirect(new URL('/login', request.url))
     }
@@ -73,30 +68,46 @@ export async function proxy(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('rol')
+      .select('rol, modulos_permitidos')
       .eq('id', user.id)
       .single()
 
     const rol = profile?.rol
+    const modulosPermitidos: string[] = profile?.modulos_permitidos || []
+
+    // /tareas es transversal a todos los roles: el acceso real lo decide
+    // modulos_permitidos (o ser admin), no el rol en sí.
+    if (pathname.startsWith('/tareas')) {
+      if (rol !== 'admin' && !modulosPermitidos.includes('tareas')) {
+        return NextResponse.redirect(new URL(rol ? ROLE_HOME[rol as keyof typeof ROLE_HOME] : '/login', request.url))
+      }
+      return supabaseResponse
+    }
 
     const rolRoutes: Record<string, string[]> = {
       local: ['/local', '/ayuda'],
       deposito: ['/deposito', '/ayuda'],
       fabrica: ['/fabrica', '/ayuda'],
       admin: ['/admin', '/local', '/deposito', '/fabrica', '/ayuda'],
+      squad: ['/admin', '/ayuda'],
     }
 
     if (rol) {
       const allowed = rolRoutes[rol] || []
       const hasAccess = allowed.some((r) => pathname.startsWith(r))
       if (!hasAccess) {
-        const redirectMap: Record<string, string> = {
-          local: '/local/pedidos',
-          deposito: '/deposito/pedidos',
-          fabrica: '/fabrica/pedidos',
-          admin: '/admin/dashboard',
+        return NextResponse.redirect(new URL(ROLE_HOME[rol as keyof typeof ROLE_HOME], request.url))
+      }
+
+      // Squad: dentro de /admin/*, solo puede entrar a los módulos que
+      // tiene asignados en modulos_permitidos.
+      if (rol === 'squad' && pathname.startsWith('/admin')) {
+        const modulo = getModuloPorPath(pathname)
+        const tieneAcceso = modulo && modulosPermitidos.includes(modulo.key)
+        if (!tieneAcceso) {
+          const primerModulo = MODULOS.find(m => modulosPermitidos.includes(m.key))
+          return NextResponse.redirect(new URL(primerModulo?.href || '/login', request.url))
         }
-        return NextResponse.redirect(new URL(redirectMap[rol], request.url))
       }
     }
 

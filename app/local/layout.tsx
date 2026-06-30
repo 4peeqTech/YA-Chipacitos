@@ -9,13 +9,14 @@ export default async function LocalLayout({ children }: { children: React.ReactN
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('nombre, rol, local_nombre').eq('id', user.id).single()
+    .from('profiles').select('nombre, rol, local_nombre, modulos_permitidos').eq('id', user.id).single()
 
   if (profile?.rol !== 'local' && profile?.rol !== 'admin') redirect('/login')
 
   const navItems = [
     { href: '/local/pedidos',   label: 'Pedir',   icon: '＋' },
     { href: '/local/historial', label: 'Pedidos', icon: '📋' },
+    ...(profile?.modulos_permitidos?.includes('tareas') ? [{ href: '/tareas', label: 'Tareas', icon: '📋' }] : []),
     { href: '/ayuda',           label: 'Ayuda',   icon: '❓' },
   ]
 

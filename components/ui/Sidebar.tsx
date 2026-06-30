@@ -5,9 +5,14 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect } from 'react'
+import ThemeToggle from '@/components/ui/ThemeToggle'
+import { MODULOS } from '@/lib/modulos'
 
 interface SidebarProps {
   nombre: string
+  rolLabel?: string
+  /** Si se omite, el usuario ve todos los módulos (admin). Si se pasa, solo ve los incluidos. */
+  modulosPermitidos?: string[]
 }
 
 interface NavItem {
@@ -21,52 +26,32 @@ interface NavSection {
   items: NavItem[]
 }
 
-const standaloneItems: NavItem[] = [
-  { href: '/admin/dashboard', label: 'Dashboard', icon: '🏠' },
-]
-
-const sections: NavSection[] = [
-  {
-    label: 'Gastos',
-    items: [
-      { href: '/admin/gastos',            label: 'Gastos',            icon: '💰' },
-      { href: '/admin/gastos/pendientes', label: 'Pendientes de pago', icon: '⏳' },
-      { href: '/admin/resumen',           label: 'Resumen por local', icon: '📊' },
-      { href: '/admin/fudo',              label: 'Fudo / Caja',       icon: '🏧' },
-    ],
-  },
-  {
-    label: 'Mayorista',
-    items: [
-      { href: '/admin/importar',     label: 'Sincronizar',       icon: '🔄' },
-      { href: '/admin/posberry',     label: 'Ventas Posberry',   icon: '📈' },
-      { href: '/admin/conciliacion', label: 'Conciliación',      icon: '📊' },
-    ],
-  },
-  {
-    label: 'Parámetros',
-    items: [
-      { href: '/admin/catalogo',     label: 'Catálogo',          icon: '📦' },
-      { href: '/admin/mapeos',       label: 'Mapeo productos',   icon: '🔗' },
-      { href: '/admin/usuarios',     label: 'Usuarios',          icon: '👥' },
-      { href: '/admin/plan-cuentas', label: 'Plan de cuentas',   icon: '📋' },
-      { href: '/admin/proveedores',  label: 'Proveedores',       icon: '🚚' },
-      { href: '/admin/locales',      label: 'Locales',           icon: '🏪' },
-      { href: '/admin/cajas',        label: 'Cajas',             icon: '🏦' },
-      { href: '/admin/formas-pago',  label: 'Formas de pago',    icon: '💳' },
-    ],
-  },
-]
-
 const bottomStandaloneItems: NavItem[] = [
   { href: '/ayuda', label: 'Ayuda', icon: '❓' },
 ]
 
-export default function Sidebar({ nombre }: SidebarProps) {
+export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+
+  const modulosVisibles = modulosPermitidos
+    ? MODULOS.filter(m => modulosPermitidos.includes(m.key))
+    : MODULOS
+
+  const standaloneItems: NavItem[] = modulosVisibles
+    .filter(m => !m.section)
+    .map(m => ({ href: m.href, label: m.label, icon: m.icon }))
+
+  const sections: NavSection[] = Object.values(
+    modulosVisibles.reduce((acc, m) => {
+      if (!m.section) return acc
+      if (!acc[m.section]) acc[m.section] = { label: m.section, items: [] }
+      acc[m.section].items.push({ href: m.href, label: m.label, icon: m.icon })
+      return acc
+    }, {} as Record<string, NavSection>)
+  )
 
   // Abre automáticamente la sección activa
   useEffect(() => {
@@ -188,9 +173,10 @@ export default function Sidebar({ nombre }: SidebarProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[#f0f0f0] text-xs font-medium truncate">{nombre}</p>
-            <p className="text-[#888] text-[10px]">Admin</p>
+            <p className="text-[#888] text-[10px]">{rolLabel}</p>
           </div>
         </div>
+        <ThemeToggle />
         <button
           onClick={handleLogout}
           className="w-full text-xs text-[#888] hover:text-[#f0f0f0] hover:bg-[#1a1a1a] py-2 rounded-lg transition-colors text-left px-3"

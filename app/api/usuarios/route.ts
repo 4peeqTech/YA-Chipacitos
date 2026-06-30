@@ -7,16 +7,25 @@ const CreateUserSchema = z.object({
   email:        z.string().email('Email inválido'),
   password:     z.string().min(6, 'Mínimo 6 caracteres'),
   nombre:       z.string().min(2, 'Nombre muy corto'),
-  rol:          z.enum(['local', 'deposito', 'fabrica', 'admin']),
+  rol:          z.enum(['local', 'deposito', 'fabrica', 'admin', 'squad']),
   local_nombre: z.string().optional(),
 })
 
 const PatchSchema = z.union([
-  z.object({ id: z.string().uuid(), rol: z.enum(['local', 'deposito', 'fabrica', 'admin']), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre_posberry: z.undefined() }),
-  z.object({ id: z.string().uuid(), password: z.string().min(6), rol: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre_posberry: z.undefined() }),
-  z.object({ id: z.string().uuid(), whatsapp_phone: z.string().nullable(), whatsapp_apikey: z.string().nullable(), rol: z.undefined(), password: z.undefined(), nombre_posberry: z.undefined() }),
-  z.object({ id: z.string().uuid(), nombre_posberry: z.string().nullable(), rol: z.undefined(), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined() }),
+  z.object({ id: z.string().uuid(), rol: z.enum(['local', 'deposito', 'fabrica', 'admin', 'squad']), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre_posberry: z.undefined(), nombre: z.undefined(), local_nombre: z.undefined(), modulos_permitidos: z.undefined() }),
+  z.object({ id: z.string().uuid(), password: z.string().min(6), rol: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre_posberry: z.undefined(), nombre: z.undefined(), local_nombre: z.undefined(), modulos_permitidos: z.undefined() }),
+  z.object({ id: z.string().uuid(), whatsapp_phone: z.string().nullable(), whatsapp_apikey: z.string().nullable(), rol: z.undefined(), password: z.undefined(), nombre_posberry: z.undefined(), nombre: z.undefined(), local_nombre: z.undefined(), modulos_permitidos: z.undefined() }),
+  z.object({ id: z.string().uuid(), nombre_posberry: z.string().nullable(), rol: z.undefined(), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre: z.undefined(), local_nombre: z.undefined(), modulos_permitidos: z.undefined() }),
+  z.object({ id: z.string().uuid(), modulos_permitidos: z.array(z.string()), rol: z.undefined(), password: z.undefined(), whatsapp_phone: z.undefined(), whatsapp_apikey: z.undefined(), nombre_posberry: z.undefined(), nombre: z.undefined(), local_nombre: z.undefined() }),
 ])
+
+const EditUserSchema = z.object({
+  id: z.string().uuid(),
+  nombre: z.string().min(1),
+  local_nombre: z.string().nullable(),
+  email: z.string().email().optional(),
+  nueva_password: z.string().min(6).optional(),
+})
 
 function getAdminClient() {
   return createAdminClient(
@@ -75,20 +84,37 @@ export async function PATCH(req: NextRequest) {
   if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const body = await req.json()
+  const adminClient = getAdminClient()
+
+  // Editar nombre / local_nombre / email / nueva_password — schema separado
+  if ('nombre' in body) {
+    const parsed = EditUserSchema.safeParse(body)
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    const { id, nombre, local_nombre, email, nueva_password } = parsed.data
+    const { error: profileError } = await adminClient.from('profiles').update({ nombre, local_nombre: local_nombre ?? null }).eq('id', id)
+    if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 })
+    if (email || nueva_password) {
+      const authUpdate: Record<string, string> = {}
+      if (email) authUpdate.email = email
+      if (nueva_password) authUpdate.password = nueva_password
+      const { error: authError } = await adminClient.auth.admin.updateUserById(id, authUpdate)
+      if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
+    }
+    return NextResponse.json({ ok: true })
+  }
+
   const parsed = PatchSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
   }
-  const { id, rol, password, whatsapp_phone, whatsapp_apikey, nombre_posberry } = parsed.data as {
-    id: string; rol?: string; password?: string; whatsapp_phone?: string | null; whatsapp_apikey?: string | null; nombre_posberry?: string | null
+  const { id, rol, password, whatsapp_phone, whatsapp_apikey, nombre_posberry, modulos_permitidos } = parsed.data as {
+    id: string; rol?: string; password?: string; whatsapp_phone?: string | null; whatsapp_apikey?: string | null; nombre_posberry?: string | null; modulos_permitidos?: string[]
   }
 
   // Evitar que admin se cambie su propio rol
   if (rol && id === user.id) {
     return NextResponse.json({ error: 'No podés cambiar tu propio rol' }, { status: 403 })
   }
-
-  const adminClient = getAdminClient()
 
   // Resetear contraseña
   if (password) {
@@ -111,8 +137,34 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  // Actualizar módulos permitidos
+  if (modulos_permitidos !== undefined) {
+    const { error } = await adminClient.from('profiles').update({ modulos_permitidos }).eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  }
+
   // Cambiar rol
   const { error } = await adminClient.from('profiles').update({ rol }).eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  return NextResponse.json({ ok: true })
+}
+
+export async function DELETE(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
+  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  const { id } = await req.json()
+  if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+  if (id === user.id) return NextResponse.json({ error: 'No podés eliminarte a vos mismo' }, { status: 403 })
+
+  const adminClient = getAdminClient()
+  const { error } = await adminClient.auth.admin.deleteUser(id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   return NextResponse.json({ ok: true })

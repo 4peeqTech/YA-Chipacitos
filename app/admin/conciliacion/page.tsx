@@ -13,7 +13,7 @@ export default async function ConciliacionPage() {
       .select('*, profiles(nombre, local_nombre)')
       .eq('fecha', hoy)
       .order('tiene_alerta', { ascending: false }),
-    supabase.from('profiles').select('id, nombre, local_nombre').eq('rol', 'local'),
+    supabase.from('profiles').select('id, nombre, local_nombre').eq('rol', 'local').ilike('local_nombre', 'Suc.%'),
     supabase.from('ventas_posberry').select('importe').eq('fecha', hoy),
     supabase.from('mapeos').select('nombre_posberry, productos(nombre)'),
   ])

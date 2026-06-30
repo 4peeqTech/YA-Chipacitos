@@ -136,7 +136,7 @@ export default function LocalesClient() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#f0f0f0]">Locales</h1>
+          <h1 className="text-2xl font-bold text-[#f0f0f0]">APIs</h1>
           <p className="text-[#888] text-sm mt-0.5">Configuración de credenciales Fudo por sucursal</p>
         </div>
         <button

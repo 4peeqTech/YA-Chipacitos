@@ -9,13 +9,14 @@ export default async function FabricaLayout({ children }: { children: React.Reac
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('nombre, rol').eq('id', user.id).single()
+    .from('profiles').select('nombre, rol, modulos_permitidos').eq('id', user.id).single()
 
   if (profile?.rol !== 'fabrica' && profile?.rol !== 'admin') redirect('/login')
 
   const navItems = [
     { href: '/fabrica/pedidos',   label: 'Pedidos',  icon: '🚚' },
     { href: '/fabrica/catalogo',  label: 'Catálogo', icon: '🔀' },
+    ...(profile?.modulos_permitidos?.includes('tareas') ? [{ href: '/tareas', label: 'Tareas', icon: '📋' }] : []),
     { href: '/ayuda',             label: 'Ayuda',    icon: '❓' },
   ]
 

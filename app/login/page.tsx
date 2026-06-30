@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { ROLE_HOME } from '@/lib/modulos'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -34,14 +35,7 @@ export default function LoginPage() {
       .eq('id', user.id)
       .single()
 
-    const redirectMap: Record<string, string> = {
-      local:    '/local/pedidos',
-      deposito: '/deposito/pedidos',
-      fabrica:  '/fabrica/pedidos',
-      admin:    '/admin/dashboard',
-    }
-
-    router.push(profile?.rol ? redirectMap[profile.rol] : '/')
+    router.push(profile?.rol ? ROLE_HOME[profile.rol as keyof typeof ROLE_HOME] : '/')
     router.refresh()
   }
 

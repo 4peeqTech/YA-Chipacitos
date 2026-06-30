@@ -18,6 +18,9 @@ export default function HistorialClient({ pedidos: init, localNombre }: Props) {
   const [pedidos, setPedidos] = useState(init)
   const [filtro, setFiltro] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
+  const [turno, setTurno] = useState<'manana' | 'tarde' | null>(null)
   const [remitoPedidoId, setRemitoPedidoId] = useState<string | null>(null)
   const [remitoItems, setRemitoItems] = useState<Record<string, { cantidad_recibida: string; valor_total: string }>>({})
   const [confirmando, setConfirmando] = useState(false)
@@ -26,6 +29,18 @@ export default function HistorialClient({ pedidos: init, localNombre }: Props) {
   function filtrados() {
     let lista = pedidos
     if (filtro) lista = lista.filter(p => p.estado === filtro)
+    if (fechaDesde) {
+      lista = lista.filter(p => new Date(p.created_at).toLocaleDateString('en-CA') >= fechaDesde)
+    }
+    if (fechaHasta) {
+      lista = lista.filter(p => new Date(p.created_at).toLocaleDateString('en-CA') <= fechaHasta)
+    }
+    if (turno) {
+      lista = lista.filter(p => {
+        const hora = new Date(p.created_at).getHours()
+        return turno === 'manana' ? hora < 14 : hora >= 14
+      })
+    }
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase()
       lista = lista.filter(p =>
@@ -83,6 +98,39 @@ export default function HistorialClient({ pedidos: init, localNombre }: Props) {
         type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
         placeholder="Buscar por número, producto o destino..."
       />
+
+      {/* Filtros de fecha y turno */}
+      <div className="flex gap-2 flex-wrap items-center">
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={fechaDesde}
+            onChange={e => setFechaDesde(e.target.value)}
+            className="w-auto text-xs px-3 py-1.5 rounded-full bg-[#111111] border border-[#2a2a2a] text-[#888] focus:outline-none focus:border-[#e8c547]"
+          />
+          <span className="text-[#555] text-xs">→</span>
+          <input
+            type="date"
+            value={fechaHasta}
+            onChange={e => setFechaHasta(e.target.value)}
+            className="w-auto text-xs px-3 py-1.5 rounded-full bg-[#111111] border border-[#2a2a2a] text-[#888] focus:outline-none focus:border-[#e8c547]"
+          />
+        </div>
+        {(fechaDesde || fechaHasta) && (
+          <button onClick={() => { setFechaDesde(''); setFechaHasta('') }}
+            className="text-[10px] text-[#888] hover:text-[#f0f0f0] px-2 py-1 rounded-full border border-[#2a2a2a] bg-[#111111]">
+            ✕
+          </button>
+        )}
+        {(['manana', 'tarde'] as const).map(t => (
+          <button key={t} onClick={() => setTurno(turno === t ? null : t)}
+            className={`px-3 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors border ${
+              turno === t ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-[#111111] text-[#888] border-[#2a2a2a]'
+            }`}>
+            {t === 'manana' ? '🌅 Mañana' : '🌆 Tarde'}
+          </button>
+        ))}
+      </div>
 
       {/* Filtros de estado */}
       <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">

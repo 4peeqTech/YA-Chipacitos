@@ -9,13 +9,14 @@ export default async function DepositoLayout({ children }: { children: React.Rea
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('nombre, rol').eq('id', user.id).single()
+    .from('profiles').select('nombre, rol, modulos_permitidos').eq('id', user.id).single()
 
   if (profile?.rol !== 'deposito' && profile?.rol !== 'admin') redirect('/login')
 
   const navItems = [
     { href: '/deposito/pedidos',  label: 'Pedidos',  icon: '📋' },
     { href: '/deposito/catalogo', label: 'Catálogo', icon: '🔀' },
+    ...(profile?.modulos_permitidos?.includes('tareas') ? [{ href: '/tareas', label: 'Tareas', icon: '📋' }] : []),
     { href: '/ayuda',             label: 'Ayuda',    icon: '❓' },
   ]
 

@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 interface HeaderProps {
   titulo: string
@@ -15,11 +16,29 @@ const rolLabel: Record<string, string> = {
   fabrica:  'Fábrica',
   deposito: 'Depósito',
   admin:    'Admin',
+  squad:    'Squad',
 }
 
 export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
   const router = useRouter()
   const supabase = createClient()
+  const [light, setLight] = useState(false)
+
+  useEffect(() => {
+    setLight(document.documentElement.classList.contains('light'))
+  }, [])
+
+  function toggleTheme() {
+    const next = !light
+    setLight(next)
+    if (next) {
+      document.documentElement.classList.add('light')
+      document.cookie = 'theme=light; path=/; max-age=31536000'
+    } else {
+      document.documentElement.classList.remove('light')
+      document.cookie = 'theme=dark; path=/; max-age=31536000'
+    }
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -43,6 +62,13 @@ export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
           </span>
         </div>
       )}
+      <button
+        onClick={toggleTheme}
+        className="text-[#888] hover:text-[#e8c547] transition-colors shrink-0 flex items-center"
+        title={light ? 'Tema oscuro' : 'Tema claro'}
+      >
+        {light ? '🌙' : '☀️'}
+      </button>
       <button
         onClick={handleLogout}
         className="text-[#888] hover:text-[#e8c547] transition-colors shrink-0 flex items-center ml-1"

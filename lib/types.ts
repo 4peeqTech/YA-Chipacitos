@@ -1,7 +1,9 @@
-export type Rol = 'local' | 'deposito' | 'fabrica' | 'admin'
+export type Rol = 'local' | 'deposito' | 'fabrica' | 'admin' | 'squad'
 export type TipoProducto = 'producto' | 'insumo'
 export type DestinoProducto = 'fabrica' | 'deposito'
 export type EstadoPedido = 'pendiente' | 'preparando' | 'enviado' | 'recibido'
+export type PrioridadTarea = 'alta' | 'media' | 'baja'
+export type EstadoTarea = 'pendiente' | 'en_progreso' | 'completada'
 
 export interface Profile {
   id: string
@@ -11,6 +13,57 @@ export interface Profile {
   nombre_posberry: string | null
   whatsapp_phone: string | null
   whatsapp_apikey: string | null
+  modulos_permitidos: string[]
+  created_at: string
+}
+
+export interface Tarea {
+  id: string
+  titulo: string
+  descripcion: string | null
+  prioridad: PrioridadTarea
+  estado: EstadoTarea
+  fecha_limite: string | null
+  asignado_a: string[]
+  creado_por: string
+  created_at: string
+  updated_at: string
+}
+
+export interface TareaComentario {
+  id: string
+  tarea_id: string
+  autor_id: string
+  texto: string
+  created_at: string
+}
+
+export interface TareaSubtarea {
+  id: string
+  tarea_id: string
+  texto: string
+  completada: boolean
+  orden: number
+  created_at: string
+}
+
+export interface TareaHistorial {
+  id: string
+  tarea_id: string
+  campo: string
+  valor_anterior: string | null
+  valor_nuevo: string | null
+  autor_id: string
+  created_at: string
+}
+
+export interface TareaAdjunto {
+  id: string
+  tarea_id: string
+  nombre: string
+  storage_path: string
+  size_bytes: number | null
+  autor_id: string
   created_at: string
 }
 

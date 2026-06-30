@@ -3,20 +3,29 @@
 import { useState } from 'react'
 import { Profile, Rol } from '@/lib/types'
 import Card from '@/components/ui/Card'
+import { MODULOS } from '@/lib/modulos'
 
 const ROL_LABELS: Record<Rol, string> = {
-  local: 'Local', deposito: 'Depósito', fabrica: 'Fábrica', admin: 'Admin',
+  local: 'Local', deposito: 'Depósito', fabrica: 'Fábrica', admin: 'Admin', squad: 'Squad',
 }
 const ROL_COLORS: Record<Rol, string> = {
   local:    'bg-[rgba(140,100,255,.2)] text-[#a78bfa]',
   deposito: 'bg-[rgba(56,189,248,.2)] text-[#38bdf8]',
   fabrica:  'bg-[rgba(240,168,73,.2)] text-[#f0a849]',
   admin:    'bg-[rgba(232,197,71,.2)] text-[#e8c547]',
+  squad:    'bg-[rgba(232,66,16,.2)] text-[#e84210]',
 }
 
-interface Props { usuariosIniciales: Profile[] }
+const MODULOS_POR_SECCION = MODULOS.reduce((acc, m) => {
+  const seccion = m.section || 'General'
+  if (!acc[seccion]) acc[seccion] = []
+  acc[seccion].push(m)
+  return acc
+}, {} as Record<string, typeof MODULOS>)
 
-export default function UsuariosClient({ usuariosIniciales }: Props) {
+interface Props { usuariosIniciales: Profile[]; emailsById: Record<string, string> }
+
+export default function UsuariosClient({ usuariosIniciales, emailsById }: Props) {
   const [usuarios, setUsuarios] = useState(usuariosIniciales)
   const [modalNuevo, setModalNuevo] = useState(false)
   const [form, setForm] = useState({ email: '', password: '', nombre: '', rol: 'local' as Rol, local_nombre: '' })
@@ -27,10 +36,16 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
   const [resetModal, setResetModal] = useState<{ id: string; nombre: string } | null>(null)
   const [nuevaPassword, setNuevaPassword] = useState('')
   const [reseteando, setReseteando] = useState(false)
+  const [editModal, setEditModal] = useState<Profile | null>(null)
+  const [formEdit, setFormEdit] = useState({ nombre: '', local_nombre: '', email: '', nueva_password: '' })
+  const [eliminando, setEliminando] = useState<Profile | null>(null)
   const [posberryEdits, setPosberryEdits] = useState<Record<string, string>>(() =>
     Object.fromEntries(usuariosIniciales.map(u => [u.id, u.nombre_posberry || '']))
   )
   const [posberrySaving, setPosberrySaving] = useState<Record<string, 'saving' | 'ok' | 'error'>>(() => ({}))
+  const [permisosModal, setPermisosModal] = useState<Profile | null>(null)
+  const [permisosEdit, setPermisosEdit] = useState<string[]>([])
+  const [guardandoPermisos, setGuardandoPermisos] = useState(false)
 
   const usuariosFiltrados = usuarios.filter(u =>
     u.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -54,6 +69,43 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
     setGuardando(false)
   }
 
+  function abrirEdicion(u: Profile) {
+    setEditModal(u)
+    setFormEdit({ nombre: u.nombre, local_nombre: u.local_nombre ?? '', email: emailsById[u.id] ?? '', nueva_password: '' })
+  }
+
+  async function guardarEdicion() {
+    if (!editModal || !formEdit.nombre) return
+    setGuardando(true)
+    const res = await fetch('/api/usuarios', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editModal.id, nombre: formEdit.nombre, local_nombre: formEdit.local_nombre || null, email: formEdit.email || undefined, nueva_password: formEdit.nueva_password || undefined }),
+    })
+    if (res.ok) {
+      setUsuarios(prev => prev.map(u => u.id === editModal.id ? { ...u, nombre: formEdit.nombre, local_nombre: formEdit.local_nombre || null } : u))
+      setEditModal(null)
+    } else {
+      const d = await res.json(); setError(d.error || 'Error')
+    }
+    setGuardando(false)
+  }
+
+  async function eliminarUsuario() {
+    if (!eliminando) return
+    setGuardando(true)
+    const res = await fetch('/api/usuarios', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: eliminando.id }),
+    })
+    if (res.ok) {
+      setUsuarios(prev => prev.filter(u => u.id !== eliminando.id))
+      setEliminando(null)
+    } else {
+      const d = await res.json(); setError(d.error || 'Error')
+    }
+    setGuardando(false)
+  }
+
   async function resetearPassword() {
     if (!resetModal || !nuevaPassword) return
     setReseteando(true)
@@ -71,6 +123,31 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
     setResetModal(null)
     setNuevaPassword('')
     setReseteando(false)
+  }
+
+  function abrirPermisos(u: Profile) {
+    setPermisosModal(u)
+    setPermisosEdit(u.modulos_permitidos || [])
+  }
+
+  function toggleModulo(key: string) {
+    setPermisosEdit(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+  }
+
+  async function guardarPermisos() {
+    if (!permisosModal) return
+    setGuardandoPermisos(true)
+    const res = await fetch('/api/usuarios', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: permisosModal.id, modulos_permitidos: permisosEdit }),
+    })
+    if (res.ok) {
+      setUsuarios(prev => prev.map(u => u.id === permisosModal.id ? { ...u, modulos_permitidos: permisosEdit } : u))
+      setPermisosModal(null)
+    } else {
+      const d = await res.json(); setError(d.error || 'Error')
+    }
+    setGuardandoPermisos(false)
   }
 
   async function cambiarRol(userId: string, nuevoRol: Rol) {
@@ -98,7 +175,7 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
   }
 
   return (
-    <div className="space-y-5 max-w-4xl">
+    <div className="space-y-5 w-full">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="font-['Syne'] text-2xl font-bold text-[#f0f0f0]">Usuarios</h1>
@@ -173,10 +250,28 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
+                        onClick={() => abrirEdicion(u)}
+                        className="text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1 rounded-lg hover:border-[#e8c547] hover:text-[#e8c547] transition-colors whitespace-nowrap"
+                      >
+                        ✏️ Editar
+                      </button>
+                      <button
+                        onClick={() => abrirPermisos(u)}
+                        className="text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1 rounded-lg hover:border-[#e8c547] hover:text-[#e8c547] transition-colors whitespace-nowrap"
+                      >
+                        🔐 Módulos
+                      </button>
+                      <button
                         onClick={() => { setResetModal({ id: u.id, nombre: u.nombre }); setNuevaPassword(''); setError('') }}
                         className="text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1 rounded-lg hover:border-[#e8c547] hover:text-[#e8c547] transition-colors whitespace-nowrap"
                       >
                         🔑 Contraseña
+                      </button>
+                      <button
+                        onClick={() => { setEliminando(u); setError('') }}
+                        className="text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1 rounded-lg hover:border-red-500 hover:text-red-500 transition-colors"
+                      >
+                        🗑️
                       </button>
                     </div>
                   </td>
@@ -206,12 +301,30 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
                 ))}
               </select>
             </div>
-            <div className="flex gap-2 pt-1">
+            <div className="flex gap-2 pt-1 flex-wrap">
+              <button
+                onClick={() => abrirEdicion(u)}
+                className="flex-1 text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1.5 rounded-lg hover:border-[#e8c547] hover:text-[#e8c547] transition-colors text-center"
+              >
+                ✏️ Editar
+              </button>
+              <button
+                onClick={() => abrirPermisos(u)}
+                className="flex-1 text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1.5 rounded-lg hover:border-[#e8c547] hover:text-[#e8c547] transition-colors text-center"
+              >
+                🔐 Módulos
+              </button>
               <button
                 onClick={() => { setResetModal({ id: u.id, nombre: u.nombre }); setNuevaPassword(''); setError('') }}
                 className="flex-1 text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1.5 rounded-lg hover:border-[#e8c547] hover:text-[#e8c547] transition-colors text-center"
               >
                 🔑 Contraseña
+              </button>
+              <button
+                onClick={() => { setEliminando(u); setError('') }}
+                className="text-xs text-[#888] border border-[#2a2a2a] px-2.5 py-1.5 rounded-lg hover:border-red-500 hover:text-red-500 transition-colors px-3"
+              >
+                🗑️
               </button>
             </div>
           </Card>
@@ -245,6 +358,111 @@ export default function UsuariosClient({ usuariosIniciales }: Props) {
               <button onClick={resetearPassword} disabled={reseteando || nuevaPassword.length < 6}
                 className="flex-1 py-2.5 bg-[#e8c547] text-black rounded-xl text-sm font-['Syne'] font-bold disabled:opacity-40">
                 {reseteando ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal editar usuario */}
+      {editModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-2xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-['Syne'] font-bold text-lg text-[#f0f0f0]">Editar usuario</h3>
+            {error && <div className="bg-[rgba(232,66,16,.1)] border border-[#e84210]/30 rounded-lg p-3 text-[#e84210] text-sm">{error}</div>}
+            <div>
+              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Nombre</label>
+              <input type="text" value={formEdit.nombre} onChange={e => setFormEdit(f => ({ ...f, nombre: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Nombre del local</label>
+              <input type="text" value={formEdit.local_nombre} onChange={e => setFormEdit(f => ({ ...f, local_nombre: e.target.value }))} placeholder="Suc. Nombre" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Email (nombre de usuario)</label>
+              <input type="email" value={formEdit.email} onChange={e => setFormEdit(f => ({ ...f, email: e.target.value }))} placeholder="usuario@email.com" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Nueva contraseña <span className="text-[#555] normal-case font-normal">(dejar vacío para no cambiar)</span></label>
+              <input type="text" value={formEdit.nueva_password} onChange={e => setFormEdit(f => ({ ...f, nueva_password: e.target.value }))} placeholder="Mínimo 6 caracteres" />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => { setEditModal(null); setError('') }}
+                className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0]">
+                Cancelar
+              </button>
+              <button onClick={guardarEdicion} disabled={guardando || !formEdit.nombre}
+                className="flex-1 py-2.5 bg-[#e8c547] text-black rounded-xl text-sm font-['Syne'] font-bold disabled:opacity-40">
+                {guardando ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal permisos por módulo */}
+      {permisosModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-2xl w-full max-w-md p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div>
+              <h3 className="font-['Syne'] font-bold text-lg text-[#f0f0f0]">Módulos visibles</h3>
+              <p className="text-sm text-[#888] mt-0.5">Usuario: <span className="text-[#f0f0f0] font-medium">{permisosModal.nombre}</span></p>
+            </div>
+            {error && <div className="bg-[rgba(232,66,16,.1)] border border-[#e84210]/30 rounded-lg p-3 text-[#e84210] text-sm">{error}</div>}
+            {permisosModal.rol === 'admin' && (
+              <div className="bg-[rgba(232,197,71,.08)] border-l-4 border-[#e8c547] rounded-r-xl p-3 text-[#e8c547] text-xs">
+                Admin siempre ve todos los módulos, independientemente de esta selección.
+              </div>
+            )}
+            <div className="space-y-4">
+              {Object.entries(MODULOS_POR_SECCION).map(([seccion, items]) => (
+                <div key={seccion}>
+                  <p className="text-xs font-semibold text-[#666] uppercase tracking-wider mb-2">{seccion}</p>
+                  <div className="space-y-1.5">
+                    {items.map(m => (
+                      <label key={m.key} className="flex items-center gap-2.5 text-sm text-[#f0f0f0] cursor-pointer py-1">
+                        <input
+                          type="checkbox"
+                          checked={permisosEdit.includes(m.key)}
+                          onChange={() => toggleModulo(m.key)}
+                          className="w-4 h-4 accent-[#e8c547] cursor-pointer"
+                        />
+                        <span>{m.icon} {m.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => { setPermisosModal(null); setError('') }}
+                className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0]">
+                Cancelar
+              </button>
+              <button onClick={guardarPermisos} disabled={guardandoPermisos}
+                className="flex-1 py-2.5 bg-[#e8c547] text-black rounded-xl text-sm font-['Syne'] font-bold disabled:opacity-40">
+                {guardandoPermisos ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal eliminar usuario */}
+      {eliminando && (
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-red-500 rounded-2xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-['Syne'] font-bold text-lg text-[#f0f0f0]">Eliminar usuario</h3>
+            {error && <div className="bg-[rgba(232,66,16,.1)] border border-[#e84210]/30 rounded-lg p-3 text-[#e84210] text-sm">{error}</div>}
+            <p className="text-sm text-[#888]">¿Eliminar a <span className="text-[#f0f0f0] font-medium">{eliminando.nombre}</span>? Esta acción no se puede deshacer.</p>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => { setEliminando(null); setError('') }}
+                className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0]">
+                Cancelar
+              </button>
+              <button onClick={eliminarUsuario} disabled={guardando}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-['Syne'] font-bold disabled:opacity-40 hover:bg-red-500 transition-colors">
+                {guardando ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
           </div>

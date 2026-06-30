@@ -288,7 +288,7 @@ export default function ImportarClient({ urlInicial }: Props) {
                             <tr key={c.id}
                               className={`border-b border-black/[0.04] ${c.tiene_alerta ? 'bg-[rgba(232,66,16,.1)]/70' : i % 2 === 1 ? 'bg-[#0a0a0a]/40' : ''}`}>
                               <td className="px-4 py-2.5 text-sm text-[#888] whitespace-nowrap">
-                                {localNom.replace('Suc. ', '').replace('Facultad (papa)', 'Facultad')}
+                                {localNom.replace('Suc. ', '')}
                               </td>
                               <td className="px-4 py-2.5 text-sm font-medium text-[#f0f0f0]">
                                 {c.producto_nombre}

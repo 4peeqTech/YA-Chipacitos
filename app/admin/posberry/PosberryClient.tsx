@@ -67,7 +67,7 @@ export default function PosberryClient() {
   const totalUnidades = filtradas.reduce((s, f) => s + f.unidades, 0)
 
   // Detectar tipos de cliente para chips rápidos
-  const isSucursal = (c: string) => c.startsWith('Suc.') || c.startsWith('Facultad')
+  const isSucursal = (c: string) => c.startsWith('Suc.')
   const isMayorista = (c: string) => !isSucursal(c)
 
   const [tipoFiltro, setTipoFiltro] = useState<'todos' | 'sucursal' | 'mayorista'>('todos')
