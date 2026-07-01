@@ -2,15 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { PRIORIDAD_META, nombrePerfil, notificarTarea } from './helpers'
 import type { Tarea, TareaComentario, TareaSubtarea, TareaHistorial, TareaAdjunto, PrioridadTarea } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
-
-const PRIORIDAD_META: Record<PrioridadTarea, { label: string; color: string; bg: string }> = {
-  alta:  { label: 'Alta',  color: '#e84210', bg: 'rgba(232,66,16,.10)'  },
-  media: { label: 'Media', color: '#f0a849', bg: 'rgba(240,168,73,.10)' },
-  baja:  { label: 'Baja',  color: '#56d68a', bg: 'rgba(86,214,138,.10)' },
-}
 
 const CAMPO_LABELS: Record<string, string> = {
   estado: 'Estado', prioridad: 'Prioridad', fecha_limite: 'Fecha límite', asignado_a: 'Asignado a', titulo: 'Título',
@@ -34,24 +29,8 @@ function fmtRelativo(isoStr: string) {
   return new Date(isoStr).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
 }
 
-function nombrePerfil(id: string, perfiles: PerfilLite[]) {
-  const p = perfiles.find(x => x.id === id)
-  if (!p) return '—'
-  return p.local_nombre ? `${p.nombre} (${p.local_nombre})` : p.nombre
-}
-
-async function notificarTarea({ userIds, title, body, url }: { userIds: string[]; title: string; body: string; url?: string }) {
-  if (!userIds?.length) return
-  try {
-    await fetch('/api/notificaciones/tareas', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userIds, title, body, url }),
-    })
-  } catch { /* best-effort */ }
-}
-
 // ── Buscador de usuarios ──────────────────────────────────────────────
-function BuscadorUsuario({ perfiles, value = [], onChange }: { perfiles: PerfilLite[]; value: string[]; onChange: (v: string[]) => void }) {
+export function BuscadorUsuario({ perfiles, value = [], onChange }: { perfiles: PerfilLite[]; value: string[]; onChange: (v: string[]) => void }) {
   const [query, setQuery] = useState('')
   const filtrados = perfiles.filter(p => {
     const q = query.toLowerCase()
@@ -398,11 +377,12 @@ interface ModalTareaProps {
   perfiles: PerfilLite[]
   userId: string
   userNombre: string
+  fechaInicial?: string
   onCerrar: () => void
   onGuardado: (t: Tarea, tipo: 'nueva' | 'editada') => void
 }
 
-export default function ModalTarea({ tarea, perfiles, userId, userNombre, onCerrar, onGuardado }: ModalTareaProps) {
+export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaInicial, onCerrar, onGuardado }: ModalTareaProps) {
   const supabase = createClient()
   const esNueva = !tarea?.id
   const esCreador = esNueva || tarea?.creado_por === userId
@@ -412,7 +392,7 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, onCerr
     descripcion: tarea?.descripcion || '',
     prioridad: tarea?.prioridad || 'media' as PrioridadTarea,
     estado: tarea?.estado || 'pendiente',
-    fecha_limite: tarea?.fecha_limite || '',
+    fecha_limite: tarea?.fecha_limite || fechaInicial || '',
     asignado_a: tarea?.asignado_a?.length ? tarea.asignado_a : [userId],
   })
   const [loading, setLoading] = useState(false)

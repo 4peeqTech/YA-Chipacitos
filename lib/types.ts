@@ -44,6 +44,17 @@ export interface TareaSubtarea {
   texto: string
   completada: boolean
   orden: number
+  fecha: string | null
+  created_at: string
+}
+
+export interface InformeDiario {
+  id: string
+  autor_id: string
+  destinatarios: string[]
+  fecha: string
+  tareas_completadas: { id: string; titulo: string }[]
+  comentario: string | null
   created_at: string
 }
 

@@ -13,21 +13,11 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import ModalTarea from './ModalTarea'
+import VistaCalendario from './VistaCalendario'
+import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, isVencida, esMiaTarea, nombrePerfil, notificarTarea } from './helpers'
 import type { Tarea, Profile, PrioridadTarea, EstadoTarea } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
-
-const PRIORIDAD_META: Record<PrioridadTarea, { label: string; color: string; bg: string }> = {
-  alta:  { label: 'Alta',  color: '#e84210', bg: 'rgba(232,66,16,.10)'  },
-  media: { label: 'Media', color: '#f0a849', bg: 'rgba(240,168,73,.10)' },
-  baja:  { label: 'Baja',  color: '#56d68a', bg: 'rgba(86,214,138,.10)' },
-}
-
-const ESTADO_META: Record<EstadoTarea, { label: string; color: string; bg: string }> = {
-  pendiente:   { label: 'Pendiente',   color: '#888888', bg: 'rgba(136,136,136,.10)' },
-  en_progreso: { label: 'En progreso', color: '#f0a030', bg: 'rgba(240,160,48,.12)'  },
-  completada:  { label: 'Completada',  color: '#56d68a', bg: 'rgba(86,214,138,.12)'  },
-}
 
 const COLUMNAS = [
   { id: 'vencidas',    label: 'Vencidas',    border: '#e84210', bg: 'rgba(232,66,16,.07)',   text: '#e84210' },
@@ -36,53 +26,9 @@ const COLUMNAS = [
   { id: 'completada',  label: 'Completadas', border: '#56d68a', bg: 'rgba(86,214,138,.07)',  text: '#56d68a' },
 ] as const
 
-function fmt(dateStr: string | null) {
-  if (!dateStr) return null
-  const d = new Date(dateStr + 'T12:00:00')
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
-function fmtRelativoFecha(dateStr: string | null) {
-  if (!dateStr) return null
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
-  const fecha = new Date(dateStr + 'T00:00:00'); fecha.setHours(0, 0, 0, 0)
-  const diff = Math.round((fecha.getTime() - hoy.getTime()) / 86400000)
-  if (diff < 0) return `venció hace ${Math.abs(diff)} día${Math.abs(diff) === 1 ? '' : 's'}`
-  if (diff === 0) return 'vence hoy'
-  if (diff === 1) return 'vence mañana'
-  if (diff <= 7) return `vence en ${diff} días`
-  return fmt(dateStr)
-}
-
 function fmtCreated(isoStr: string) {
   if (!isoStr) return ''
   return new Date(isoStr).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
-function isVencida(fechaLimite: string | null, estado: EstadoTarea) {
-  if (!fechaLimite || estado === 'completada') return false
-  return new Date(fechaLimite + 'T23:59:59') < new Date()
-}
-
-function esMiaTarea(tarea: Tarea, userId: string) {
-  return tarea.creado_por === userId || (Array.isArray(tarea.asignado_a) && tarea.asignado_a.includes(userId))
-}
-
-function nombrePerfil(id: string, perfiles: PerfilLite[]) {
-  const p = perfiles.find(x => x.id === id)
-  if (!p) return '—'
-  return p.local_nombre ? `${p.nombre} (${p.local_nombre})` : p.nombre
-}
-
-async function notificarTarea({ userIds, title, body, url }: { userIds: string[]; title: string; body: string; url?: string }) {
-  if (!userIds?.length) return
-  try {
-    await fetch('/api/notificaciones/tareas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userIds, title, body, url }),
-    })
-  } catch { /* notificación best-effort */ }
 }
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -337,8 +283,9 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
   const [tareas, setTareas] = useState<Tarea[]>(initial)
   const [filtroPrioridad, setFiltroPrioridad] = useState<'todas' | PrioridadTarea>('todas')
   const [busqueda, setBusqueda] = useState('')
-  const [vista, setVista] = useState<'board' | 'lista'>('board')
+  const [vista, setVista] = useState<'board' | 'lista' | 'calendario'>('board')
   const [modal, setModal] = useState<Tarea | 'nueva' | null>(null)
+  const [fechaNuevaTarea, setFechaNuevaTarea] = useState<string | undefined>(undefined)
   const [confirmEliminar, setConfirmEliminar] = useState<Tarea | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -670,6 +617,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
           <div className="flex bg-[#111111] border border-[#2a2a2a] rounded-full overflow-hidden">
             <button onClick={() => setVista('board')} className={`px-3 py-1.5 text-xs font-semibold border-none cursor-pointer ${vista === 'board' ? 'bg-[#e8c547] text-black' : 'bg-transparent text-[#888]'}`}>⊞ Board</button>
             <button onClick={() => setVista('lista')} className={`px-3 py-1.5 text-xs font-semibold border-none cursor-pointer ${vista === 'lista' ? 'bg-[#e8c547] text-black' : 'bg-transparent text-[#888]'}`}>☰ Lista</button>
+            <button onClick={() => setVista('calendario')} className={`px-3 py-1.5 text-xs font-semibold border-none cursor-pointer ${vista === 'calendario' ? 'bg-[#e8c547] text-black' : 'bg-transparent text-[#888]'}`}>📅 Calendario</button>
           </div>
         </div>
 
@@ -684,6 +632,18 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
         <div className="pb-6 pt-3">
           <VistaTabla tareas={filtradas} {...accionesProps} />
         </div>
+      )}
+
+      {/* Vista calendario */}
+      {vista === 'calendario' && (
+        <VistaCalendario
+          tareas={tareas}
+          perfiles={perfiles}
+          userId={userId}
+          userNombre={userNombre}
+          onEditarTarea={t => setModal(t)}
+          onNuevaTarea={fecha => { setFechaNuevaTarea(fecha); setModal('nueva') }}
+        />
       )}
 
       {/* Vista board */}
@@ -740,7 +700,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
 
           {!grabando && (
             <button
-              onClick={() => setModal('nueva')}
+              onClick={() => { setFechaNuevaTarea(undefined); setModal('nueva') }}
               className="w-14 h-14 rounded-full bg-[#e8c547] text-black border-none text-3xl cursor-pointer flex items-center justify-center shadow-[0_4px_16px_rgba(232,197,71,.45)]"
             >+</button>
           )}
@@ -793,7 +753,8 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
           perfiles={perfiles}
           userId={userId}
           userNombre={userNombre}
-          onCerrar={() => setModal(null)}
+          fechaInicial={fechaNuevaTarea}
+          onCerrar={() => { setModal(null); setFechaNuevaTarea(undefined) }}
           onGuardado={onGuardado}
         />
       )}
