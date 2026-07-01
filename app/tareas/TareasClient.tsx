@@ -310,6 +310,17 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
     }).catch(() => {})
   }, [])
 
+  // Acceso directo a grabar: shortcut del manifest en Android (mantener
+  // presionado el ícono) o un ícono de iOS agregado a mano apuntando a esta
+  // URL (Safari → Compartir → Agregar a pantalla de inicio). No limpiamos
+  // el query param de la barra de direcciones a propósito: en iOS hace
+  // falta que la URL se mantenga tal cual para poder guardarla como acceso
+  // directo — cada vez que se abra, vuelve a arrancar la grabación.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('accion') === 'grabar') iniciarGrabacion()
+  }, [])
+
   // ── Realtime ──────────────────────────────────────────────────────
   useEffect(() => {
     const channel = supabase.channel('tareas-realtime')
