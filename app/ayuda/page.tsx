@@ -35,7 +35,7 @@ export default async function AyudaPage() {
         <span className="text-xs bg-[#e8c547]/10 text-[#e8c547] px-2 py-0.5 rounded-full uppercase tracking-wider">Ayuda</span>
       </header>
 
-      <AyudaClient rol={profile.rol} />
+      <AyudaClient rol={profile.rol} modulosPermitidos={profile.modulos_permitidos || []} />
     </div>
   )
 }
