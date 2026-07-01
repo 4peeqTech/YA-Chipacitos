@@ -3,22 +3,24 @@
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PRIORIDAD_META } from './helpers'
-import type { Tarea, TareaSubtarea } from '@/lib/types'
+import type { Tarea, TareaSubtarea, Turno } from '@/lib/types'
 
 interface ModalSubtareaProps {
   tareas: Tarea[]
   userId: string
   fechaInicial: string
+  turnoInicial: Turno
   onCerrar: () => void
   onCreada: (sub: TareaSubtarea) => void
 }
 
-export default function ModalSubtarea({ tareas, userId, fechaInicial, onCerrar, onCreada }: ModalSubtareaProps) {
+export default function ModalSubtarea({ tareas, userId, fechaInicial, turnoInicial, onCerrar, onCreada }: ModalSubtareaProps) {
   const supabase = createClient()
   const [query, setQuery] = useState('')
   const [tareaId, setTareaId] = useState<string | null>(null)
   const [texto, setTexto] = useState('')
   const [fecha, setFecha] = useState(fechaInicial)
+  const [turno, setTurno] = useState<Turno>(turnoInicial)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -40,7 +42,7 @@ export default function ModalSubtarea({ tareas, userId, fechaInicial, onCerrar, 
     try {
       const { count } = await supabase.from('tarea_subtareas').select('id', { count: 'exact', head: true }).eq('tarea_id', tareaId)
       const { data, error: err } = await supabase.from('tarea_subtareas')
-        .insert([{ tarea_id: tareaId, texto: texto.trim(), completada: false, orden: count || 0, fecha: fecha || null }])
+        .insert([{ tarea_id: tareaId, texto: texto.trim(), completada: false, orden: count || 0, fecha: fecha || null, turno }])
         .select().single()
       if (err) throw err
       onCreada(data)
@@ -94,6 +96,14 @@ export default function ModalSubtarea({ tareas, userId, fechaInicial, onCerrar, 
           <div>
             <label className="text-[11px] font-semibold text-[#888] block mb-1">FECHA</label>
             <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-[#888] block mb-1">TURNO</label>
+            <select value={turno} onChange={e => setTurno(e.target.value as Turno)}>
+              <option value="manana">🌅 Mañana</option>
+              <option value="tarde">🌇 Tarde</option>
+            </select>
           </div>
 
           {error && <div className="bg-[rgba(232,66,16,.10)] text-[#e84210] px-3 py-2 rounded-lg text-[13px]">{error}</div>}

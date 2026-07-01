@@ -1,4 +1,4 @@
-import type { Tarea, PrioridadTarea, EstadoTarea } from '@/lib/types'
+import type { Tarea, PrioridadTarea, EstadoTarea, Turno } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
@@ -6,6 +6,11 @@ export const PRIORIDAD_META: Record<PrioridadTarea, { label: string; color: stri
   alta:  { label: 'Alta',  color: '#e84210', bg: 'rgba(232,66,16,.10)'  },
   media: { label: 'Media', color: '#f0a849', bg: 'rgba(240,168,73,.10)' },
   baja:  { label: 'Baja',  color: '#56d68a', bg: 'rgba(86,214,138,.10)' },
+}
+
+export const TURNO_META: Record<Turno, { label: string; icon: string }> = {
+  manana: { label: 'Turno mañana', icon: '🌅' },
+  tarde:  { label: 'Turno tarde',  icon: '🌇' },
 }
 
 export const ESTADO_META: Record<EstadoTarea, { label: string; color: string; bg: string }> = {

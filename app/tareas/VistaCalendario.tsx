@@ -14,12 +14,13 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import ModalSubtarea from './ModalSubtarea'
 import ModalInforme from './ModalInforme'
-import { PRIORIDAD_META, notificarTarea } from './helpers'
-import type { Tarea, TareaSubtarea, InformeDiario } from '@/lib/types'
+import { PRIORIDAD_META, TURNO_META, notificarTarea } from './helpers'
+import type { Tarea, TareaSubtarea, InformeDiario, Turno } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
 const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+const TURNOS: Turno[] = ['manana', 'tarde']
 
 function toISODate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -90,7 +91,7 @@ function InformeChip({ informe, onClick }: { informe: InformeDiario; onClick: ()
   return (
     <div
       onClick={e => { e.stopPropagation(); onClick() }}
-      className="text-[11px] px-1.5 py-1 rounded-md mb-1 truncate cursor-pointer bg-[rgba(167,139,250,.12)] text-[#a78bfa]"
+      className="text-[10px] px-1.5 py-0.5 rounded-md truncate cursor-pointer bg-[rgba(167,139,250,.12)] text-[#a78bfa]"
       style={{ borderLeft: '3px solid #a78bfa' }}
     >
       📨 Informe
@@ -98,37 +99,41 @@ function InformeChip({ informe, onClick }: { informe: InformeDiario; onClick: ()
   )
 }
 
-// ── Celda de día droppable ──────────────────────────────────────────────
-function DiaCelda({
-  iso, numero, esHoy, tareasDia, subtareasDia, informesDia, activeId,
-  pickerAbierto, onAbrirPicker, onCerrarPicker, onNuevaTarea, onNuevaSubtarea, onNuevoInforme,
-  onClickTarea, onClickSubtarea, onClickInforme,
-}: {
-  iso: string; numero: number; esHoy: boolean
-  tareasDia: Tarea[]; subtareasDia: TareaSubtarea[]; informesDia: InformeDiario[]
-  activeId: string | null
-  pickerAbierto: boolean; onAbrirPicker: () => void; onCerrarPicker: () => void
-  onNuevaTarea: () => void; onNuevaSubtarea: () => void; onNuevoInforme: () => void
-  onClickTarea: (t: Tarea) => void; onClickSubtarea: (s: TareaSubtarea) => void; onClickInforme: (i: InformeDiario) => void
+// ── Zona de un turno dentro del día (droppable) ──────────────────────────
+interface ZonaData {
+  tareasDia: Tarea[]
+  subtareasDia: TareaSubtarea[]
+  pickerAbierto: boolean
+  onAbrirPicker: () => void
+  onCerrarPicker: () => void
+  onNuevaTarea: () => void
+  onNuevaSubtarea: () => void
+  onNuevoInforme: () => void
+}
+
+function TurnoZona({
+  iso, turno, activeId, onClickTarea, onClickSubtarea,
+  tareasDia, subtareasDia, pickerAbierto, onAbrirPicker, onCerrarPicker, onNuevaTarea, onNuevaSubtarea, onNuevoInforme,
+}: ZonaData & {
+  iso: string; turno: Turno; activeId: string | null
+  onClickTarea: (t: Tarea) => void; onClickSubtarea: (s: TareaSubtarea) => void
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `dia:${iso}` })
+  const { setNodeRef, isOver } = useDroppable({ id: `dia:${iso}:${turno}` })
 
   return (
     <div
       ref={setNodeRef}
       onClick={onAbrirPicker}
-      className="relative h-[440px] rounded-lg border border-[#2a2a2a] p-1.5 flex flex-col cursor-pointer"
-      style={{ background: isOver ? 'rgba(232,197,71,.08)' : '#111111' }}
+      className={`relative flex-1 min-h-0 p-1.5 flex flex-col cursor-pointer ${isOver ? 'bg-[rgba(232,197,71,.08)]' : 'bg-[#111111]'}`}
     >
-      <div className="flex justify-between items-center mb-1.5">
-        <span className={`text-[11px] font-bold leading-none ${esHoy ? 'bg-[#e8c547] text-black rounded-full w-5 h-5 flex items-center justify-center' : 'text-[#888] px-0.5'}`}>{numero}</span>
+      <div className="flex justify-between items-center mb-1 shrink-0">
+        <span className="text-[9px] font-bold uppercase tracking-wide text-[#666]">{TURNO_META[turno].icon} {turno === 'manana' ? 'Mañana' : 'Tarde'}</span>
         <button onClick={e => { e.stopPropagation(); onAbrirPicker() }} className="bg-transparent border-none text-[#555] cursor-pointer text-xs leading-none px-0.5">+</button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {tareasDia.map(t => <TareaChip key={t.id} tarea={t} isDragging={activeId === `tarea:${t.id}`} onClick={onClickTarea} />)}
         {subtareasDia.map(s => <SubtareaChip key={s.id} sub={s} isDragging={activeId === `subtarea:${s.id}`} onClick={onClickSubtarea} />)}
-        {informesDia.map(i => <InformeChip key={i.id} informe={i} onClick={() => onClickInforme(i)} />)}
       </div>
 
       {pickerAbierto && (
@@ -145,6 +150,33 @@ function DiaCelda({
   )
 }
 
+// ── Celda de día (header + 2 turnos) ─────────────────────────────────────
+function DiaCelda({
+  iso, numero, esHoy, informesDia, activeId, manana, tarde, onClickTarea, onClickSubtarea, onClickInforme,
+}: {
+  iso: string; numero: number; esHoy: boolean
+  informesDia: InformeDiario[]
+  activeId: string | null
+  manana: ZonaData; tarde: ZonaData
+  onClickTarea: (t: Tarea) => void; onClickSubtarea: (s: TareaSubtarea) => void; onClickInforme: (i: InformeDiario) => void
+}) {
+  return (
+    <div className="h-[460px] rounded-lg border border-[#2a2a2a] flex flex-col overflow-hidden">
+      <div className="flex flex-col items-center gap-1 py-1.5 bg-[#111111] shrink-0">
+        <span className={`text-[11px] font-bold leading-none ${esHoy ? 'bg-[#e8c547] text-black rounded-full w-5 h-5 flex items-center justify-center' : 'text-[#888] px-0.5'}`}>{numero}</span>
+        {informesDia.length > 0 && (
+          <div className="w-full px-1 flex flex-col gap-0.5">
+            {informesDia.map(i => <InformeChip key={i.id} informe={i} onClick={() => onClickInforme(i)} />)}
+          </div>
+        )}
+      </div>
+      <TurnoZona iso={iso} turno="manana" activeId={activeId} onClickTarea={onClickTarea} onClickSubtarea={onClickSubtarea} {...manana} />
+      <div className="h-px bg-[#2a2a2a] shrink-0" />
+      <TurnoZona iso={iso} turno="tarde" activeId={activeId} onClickTarea={onClickTarea} onClickSubtarea={onClickSubtarea} {...tarde} />
+    </div>
+  )
+}
+
 // ── Vista calendario ─────────────────────────────────────────────────────
 interface VistaCalendarioProps {
   tareas: Tarea[]
@@ -152,7 +184,7 @@ interface VistaCalendarioProps {
   userId: string
   userNombre: string
   onEditarTarea: (t: Tarea) => void
-  onNuevaTarea: (fecha: string) => void
+  onNuevaTarea: (fecha: string, turno: Turno) => void
 }
 
 export default function VistaCalendario({ tareas, perfiles, userId, userNombre, onEditarTarea, onNuevaTarea }: VistaCalendarioProps) {
@@ -161,8 +193,8 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
   const [subtareas, setSubtareas] = useState<TareaSubtarea[]>([])
   const [informes, setInformes] = useState<InformeDiario[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [diaPicker, setDiaPicker] = useState<string | null>(null)
-  const [modalSubtarea, setModalSubtarea] = useState<string | null>(null)
+  const [diaPicker, setDiaPicker] = useState<{ iso: string; turno: Turno } | null>(null)
+  const [modalSubtarea, setModalSubtarea] = useState<{ iso: string; turno: Turno } | null>(null)
   const [modalInforme, setModalInforme] = useState<{ fecha: string; informe: InformeDiario | null } | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -208,24 +240,26 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
     return () => { supabase.removeChannel(canal) }
   }, [])
 
-  const tareasPorDia = useMemo(() => {
+  const tareasPorDiaTurno = useMemo(() => {
     const m = new Map<string, Tarea[]>()
     for (const t of tareas) {
       if (!t.fecha_limite) continue
-      const arr = m.get(t.fecha_limite) || []
+      const key = `${t.fecha_limite}|${t.turno}`
+      const arr = m.get(key) || []
       arr.push(t)
-      m.set(t.fecha_limite, arr)
+      m.set(key, arr)
     }
     return m
   }, [tareas])
 
-  const subtareasPorDia = useMemo(() => {
+  const subtareasPorDiaTurno = useMemo(() => {
     const m = new Map<string, TareaSubtarea[]>()
     for (const s of subtareas) {
       if (!s.fecha) continue
-      const arr = m.get(s.fecha) || []
+      const key = `${s.fecha}|${s.turno}`
+      const arr = m.get(key) || []
       arr.push(s)
-      m.set(s.fecha, arr)
+      m.set(key, arr)
     }
     return m
   }, [subtareas])
@@ -240,11 +274,11 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
     return m
   }, [informes])
 
-  async function moverTarea(tareaId: string, nuevaFecha: string) {
+  async function moverTarea(tareaId: string, nuevaFecha: string, nuevoTurno: Turno) {
     const tarea = tareas.find(t => t.id === tareaId)
-    if (!tarea || tarea.fecha_limite === nuevaFecha) return
+    if (!tarea || (tarea.fecha_limite === nuevaFecha && tarea.turno === nuevoTurno)) return
     const anterior = tarea.fecha_limite
-    const { error } = await supabase.from('tareas').update({ fecha_limite: nuevaFecha }).eq('id', tareaId)
+    const { error } = await supabase.from('tareas').update({ fecha_limite: nuevaFecha, turno: nuevoTurno }).eq('id', tareaId)
     if (error) { alert('No se pudo mover la tarea: ' + error.message); return }
     await supabase.from('tarea_historial').insert([{
       tarea_id: tareaId, campo: 'fecha_limite',
@@ -252,13 +286,13 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
     }])
     const destinatarios = [...new Set([tarea.creado_por, ...(tarea.asignado_a || [])])].filter(id => id !== userId)
     if (destinatarios.length) {
-      notificarTarea({ userIds: destinatarios, title: '📅 Fecha actualizada', body: `${userNombre} movió "${tarea.titulo}" al ${nuevaFecha}`, url: '/tareas' })
+      notificarTarea({ userIds: destinatarios, title: '📅 Fecha actualizada', body: `${userNombre} movió "${tarea.titulo}" al ${nuevaFecha} (${TURNO_META[nuevoTurno].label})`, url: '/tareas' })
     }
   }
 
-  async function moverSubtarea(subId: string, nuevaFecha: string) {
-    setSubtareas(prev => prev.map(s => s.id === subId ? { ...s, fecha: nuevaFecha } : s))
-    await supabase.from('tarea_subtareas').update({ fecha: nuevaFecha }).eq('id', subId)
+  async function moverSubtarea(subId: string, nuevaFecha: string, nuevoTurno: Turno) {
+    setSubtareas(prev => prev.map(s => s.id === subId ? { ...s, fecha: nuevaFecha, turno: nuevoTurno } : s))
+    await supabase.from('tarea_subtareas').update({ fecha: nuevaFecha, turno: nuevoTurno }).eq('id', subId)
   }
 
   function handleDragEnd({ active, over }: DragEndEvent) {
@@ -266,10 +300,23 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
     if (!over) return
     const overId = String(over.id)
     if (!overId.startsWith('dia:')) return
-    const nuevaFecha = overId.slice(4)
+    const [nuevaFecha, nuevoTurno] = overId.slice(4).split(':') as [string, Turno]
     const activeIdStr = String(active.id)
-    if (activeIdStr.startsWith('tarea:')) moverTarea(activeIdStr.slice(6), nuevaFecha)
-    else if (activeIdStr.startsWith('subtarea:')) moverSubtarea(activeIdStr.slice(9), nuevaFecha)
+    if (activeIdStr.startsWith('tarea:')) moverTarea(activeIdStr.slice(6), nuevaFecha, nuevoTurno)
+    else if (activeIdStr.startsWith('subtarea:')) moverSubtarea(activeIdStr.slice(9), nuevaFecha, nuevoTurno)
+  }
+
+  function zonaFor(iso: string, turno: Turno): ZonaData {
+    return {
+      tareasDia: tareasPorDiaTurno.get(`${iso}|${turno}`) || [],
+      subtareasDia: subtareasPorDiaTurno.get(`${iso}|${turno}`) || [],
+      pickerAbierto: diaPicker?.iso === iso && diaPicker?.turno === turno,
+      onAbrirPicker: () => setDiaPicker({ iso, turno }),
+      onCerrarPicker: () => setDiaPicker(null),
+      onNuevaTarea: () => { setDiaPicker(null); onNuevaTarea(iso, turno) },
+      onNuevaSubtarea: () => { setDiaPicker(null); setModalSubtarea({ iso, turno }) },
+      onNuevoInforme: () => { setDiaPicker(null); setModalInforme({ fecha: iso, informe: null }) },
+    }
   }
 
   return (
@@ -302,16 +349,10 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
                 iso={iso}
                 numero={dia.getDate()}
                 esHoy={iso === hoyISO()}
-                tareasDia={tareasPorDia.get(iso) || []}
-                subtareasDia={subtareasPorDia.get(iso) || []}
                 informesDia={informesPorDia.get(iso) || []}
                 activeId={activeId}
-                pickerAbierto={diaPicker === iso}
-                onAbrirPicker={() => setDiaPicker(iso)}
-                onCerrarPicker={() => setDiaPicker(null)}
-                onNuevaTarea={() => { setDiaPicker(null); onNuevaTarea(iso) }}
-                onNuevaSubtarea={() => { setDiaPicker(null); setModalSubtarea(iso) }}
-                onNuevoInforme={() => { setDiaPicker(null); setModalInforme({ fecha: iso, informe: null }) }}
+                manana={zonaFor(iso, 'manana')}
+                tarde={zonaFor(iso, 'tarde')}
                 onClickTarea={onEditarTarea}
                 onClickSubtarea={s => { const t = tareas.find(x => x.id === s.tarea_id); if (t) onEditarTarea(t) }}
                 onClickInforme={inf => setModalInforme({ fecha: inf.fecha, informe: inf })}
@@ -333,7 +374,8 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
         <ModalSubtarea
           tareas={tareas}
           userId={userId}
-          fechaInicial={modalSubtarea}
+          fechaInicial={modalSubtarea.iso}
+          turnoInicial={modalSubtarea.turno}
           onCerrar={() => setModalSubtarea(null)}
           onCreada={sub => { setSubtareas(prev => [...prev, sub]); setModalSubtarea(null) }}
         />

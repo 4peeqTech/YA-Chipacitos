@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PRIORIDAD_META, nombrePerfil, notificarTarea } from './helpers'
-import type { Tarea, TareaComentario, TareaSubtarea, TareaHistorial, TareaAdjunto, PrioridadTarea } from '@/lib/types'
+import type { Tarea, TareaComentario, TareaSubtarea, TareaHistorial, TareaAdjunto, PrioridadTarea, Turno } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
@@ -378,11 +378,12 @@ interface ModalTareaProps {
   userId: string
   userNombre: string
   fechaInicial?: string
+  turnoInicial?: Turno
   onCerrar: () => void
   onGuardado: (t: Tarea, tipo: 'nueva' | 'editada') => void
 }
 
-export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaInicial, onCerrar, onGuardado }: ModalTareaProps) {
+export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaInicial, turnoInicial, onCerrar, onGuardado }: ModalTareaProps) {
   const supabase = createClient()
   const esNueva = !tarea?.id
   const esCreador = esNueva || tarea?.creado_por === userId
@@ -393,13 +394,14 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
     prioridad: tarea?.prioridad || 'media' as PrioridadTarea,
     estado: tarea?.estado || 'pendiente',
     fecha_limite: tarea?.fecha_limite || fechaInicial || '',
+    turno: tarea?.turno || turnoInicial || 'manana' as Turno,
     asignado_a: tarea?.asignado_a?.length ? tarea.asignado_a : [userId],
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   async function registrarCambios(original: Tarea, nuevo: Tarea) {
-    const campos: (keyof Tarea)[] = ['estado', 'prioridad', 'fecha_limite', 'titulo']
+    const campos: (keyof Tarea)[] = ['estado', 'prioridad', 'fecha_limite', 'turno', 'titulo']
     const entradas = campos
       .filter(c => original[c] !== nuevo[c])
       .map(c => ({
@@ -433,6 +435,7 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
           prioridad: form.prioridad,
           estado: form.estado,
           fecha_limite: form.fecha_limite || null,
+          turno: form.turno,
           asignado_a: form.asignado_a?.length ? form.asignado_a : null,
         }
       } else {
@@ -564,6 +567,16 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
                 <label className="text-[11px] font-semibold text-[#888] block mb-1">FECHA LÍMITE</label>
                 <input type="date" value={form.fecha_limite} onChange={e => setForm(f => ({ ...f, fecha_limite: e.target.value }))} />
               </div>
+
+              {esCreador && (
+                <div>
+                  <label className="text-[11px] font-semibold text-[#888] block mb-1">TURNO</label>
+                  <select value={form.turno} onChange={e => setForm(f => ({ ...f, turno: e.target.value as Turno }))}>
+                    <option value="manana">🌅 Mañana</option>
+                    <option value="tarde">🌇 Tarde</option>
+                  </select>
+                </div>
+              )}
 
               {esCreador && (
                 <div>

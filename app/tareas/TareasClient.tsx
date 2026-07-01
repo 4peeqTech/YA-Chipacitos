@@ -15,7 +15,7 @@ import {
 import ModalTarea from './ModalTarea'
 import VistaCalendario from './VistaCalendario'
 import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, isVencida, esMiaTarea, nombrePerfil, notificarTarea } from './helpers'
-import type { Tarea, Profile, PrioridadTarea, EstadoTarea } from '@/lib/types'
+import type { Tarea, Profile, PrioridadTarea, EstadoTarea, Turno } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
@@ -286,6 +286,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
   const [vista, setVista] = useState<'board' | 'lista' | 'calendario'>('board')
   const [modal, setModal] = useState<Tarea | 'nueva' | null>(null)
   const [fechaNuevaTarea, setFechaNuevaTarea] = useState<string | undefined>(undefined)
+  const [turnoNuevaTarea, setTurnoNuevaTarea] = useState<Turno | undefined>(undefined)
   const [confirmEliminar, setConfirmEliminar] = useState<Tarea | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -642,7 +643,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
           userId={userId}
           userNombre={userNombre}
           onEditarTarea={t => setModal(t)}
-          onNuevaTarea={fecha => { setFechaNuevaTarea(fecha); setModal('nueva') }}
+          onNuevaTarea={(fecha, turno) => { setFechaNuevaTarea(fecha); setTurnoNuevaTarea(turno); setModal('nueva') }}
         />
       )}
 
@@ -700,7 +701,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
 
           {!grabando && (
             <button
-              onClick={() => { setFechaNuevaTarea(undefined); setModal('nueva') }}
+              onClick={() => { setFechaNuevaTarea(undefined); setTurnoNuevaTarea(undefined); setModal('nueva') }}
               className="w-14 h-14 rounded-full bg-[#e8c547] text-black border-none text-3xl cursor-pointer flex items-center justify-center shadow-[0_4px_16px_rgba(232,197,71,.45)]"
             >+</button>
           )}
@@ -754,7 +755,8 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
           userId={userId}
           userNombre={userNombre}
           fechaInicial={fechaNuevaTarea}
-          onCerrar={() => { setModal(null); setFechaNuevaTarea(undefined) }}
+          turnoInicial={turnoNuevaTarea}
+          onCerrar={() => { setModal(null); setFechaNuevaTarea(undefined); setTurnoNuevaTarea(undefined) }}
           onGuardado={onGuardado}
         />
       )}

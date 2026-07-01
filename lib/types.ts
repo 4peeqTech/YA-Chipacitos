@@ -4,6 +4,7 @@ export type DestinoProducto = 'fabrica' | 'deposito'
 export type EstadoPedido = 'pendiente' | 'preparando' | 'enviado' | 'recibido'
 export type PrioridadTarea = 'alta' | 'media' | 'baja'
 export type EstadoTarea = 'pendiente' | 'en_progreso' | 'completada'
+export type Turno = 'manana' | 'tarde'
 
 export interface Profile {
   id: string
@@ -24,6 +25,7 @@ export interface Tarea {
   prioridad: PrioridadTarea
   estado: EstadoTarea
   fecha_limite: string | null
+  turno: Turno
   asignado_a: string[]
   creado_por: string
   created_at: string
@@ -45,6 +47,7 @@ export interface TareaSubtarea {
   completada: boolean
   orden: number
   fecha: string | null
+  turno: Turno
   created_at: string
 }
 
