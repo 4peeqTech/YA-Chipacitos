@@ -52,6 +52,46 @@ export function nombrePerfil(id: string, perfiles: PerfilLite[]) {
   return p.local_nombre ? `${p.nombre} (${p.local_nombre})` : p.nombre
 }
 
+export const COLABORA_META: Record<'area' | 'persona', { label: string; icon: string }> = {
+  area:    { label: 'Área',    icon: '🤝' },
+  persona: { label: 'Persona', icon: '👤' },
+}
+
+export function minutosDesdeHora(hhmm: string | null | undefined): number | null {
+  if (!hhmm) return null
+  const [h, m] = hhmm.split(':').map(Number)
+  if (Number.isNaN(h) || Number.isNaN(m)) return null
+  return h * 60 + m
+}
+
+export function duracionMin(inicio: string | null | undefined, fin: string | null | undefined): number | null {
+  const i = minutosDesdeHora(inicio)
+  const f = minutosDesdeHora(fin)
+  if (i === null || f === null || f < i) return null
+  return f - i
+}
+
+export function fmtHoras(mins: number): string {
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return `${h}:${String(m).padStart(2, '0')} hs`
+}
+
+export function insertarVineta(textarea: HTMLTextAreaElement | null, value: string, setValue: (v: string) => void) {
+  const pos = textarea ? textarea.selectionStart : value.length
+  const before = value.slice(0, pos)
+  const after = value.slice(pos)
+  const necesitaSalto = before.length > 0 && !before.endsWith('\n')
+  const inserto = `${necesitaSalto ? '\n' : ''}• `
+  setValue(before + inserto + after)
+  requestAnimationFrame(() => {
+    if (!textarea) return
+    textarea.focus()
+    const p = before.length + inserto.length
+    textarea.setSelectionRange(p, p)
+  })
+}
+
 export async function notificarTarea({ userIds, title, body, url }: { userIds: string[]; title: string; body: string; url?: string }) {
   if (!userIds?.length) return
   try {

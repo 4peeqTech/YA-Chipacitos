@@ -28,6 +28,8 @@ export interface Profile {
   created_at: string
 }
 
+export type ColaboraTipo = 'area' | 'persona'
+
 export interface Tarea {
   id: string
   titulo: string
@@ -38,6 +40,9 @@ export interface Tarea {
   turno: Turno
   asignado_a: string[]
   creado_por: string
+  colabora_tipo: ColaboraTipo | null
+  colabora_area: string | null
+  colabora_persona_id: string | null
   created_at: string
   updated_at: string
 }
@@ -61,6 +66,14 @@ export interface TareaSubtarea {
   created_at: string
 }
 
+export interface InformeActividad {
+  id: string
+  titulo: string
+  detalle: string | null
+  hora_inicio: string | null
+  hora_fin: string | null
+}
+
 export interface InformeDiario {
   id: string
   autor_id: string
@@ -68,6 +81,9 @@ export interface InformeDiario {
   fecha: string
   tareas_completadas: { id: string; titulo: string }[]
   comentario: string | null
+  horario_inicio: string | null
+  horario_fin: string | null
+  actividades: InformeActividad[]
   created_at: string
 }
 

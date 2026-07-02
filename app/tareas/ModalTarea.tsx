@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { PRIORIDAD_META, nombrePerfil, notificarTarea } from './helpers'
-import type { Tarea, TareaComentario, TareaSubtarea, TareaHistorial, TareaAdjunto, PrioridadTarea, Turno } from '@/lib/types'
+import { PRIORIDAD_META, COLABORA_META, nombrePerfil, notificarTarea, insertarVineta } from './helpers'
+import type { Tarea, TareaComentario, TareaSubtarea, TareaHistorial, TareaAdjunto, PrioridadTarea, Turno, ColaboraTipo } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
@@ -70,6 +70,42 @@ export function BuscadorUsuario({ perfiles, value = [], onChange }: { perfiles: 
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ── Selector de una única persona (colaboración) ───────────────────────
+export function SelectorPersonaUnica({ perfiles, value, onChange }: { perfiles: PerfilLite[]; value: string | null; onChange: (v: string | null) => void }) {
+  const [query, setQuery] = useState('')
+  const elegido = value ? perfiles.find(p => p.id === value) : null
+  const filtrados = perfiles.filter(p => {
+    const q = query.toLowerCase()
+    return !q || `${p.nombre} ${p.local_nombre || ''}`.toLowerCase().includes(q)
+  })
+
+  if (elegido) {
+    return (
+      <div className="flex items-center justify-between bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2">
+        <span className="text-sm text-[#f0f0f0]">{nombrePerfil(elegido.id, perfiles)}</span>
+        <button onClick={() => onChange(null)} className="bg-transparent border-none text-[#888] cursor-pointer text-xs">Cambiar</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="border border-[#2a2a2a] rounded-xl overflow-hidden bg-[#1a1a1a]">
+      <div className="px-2.5 py-1.5 border-b border-[#2a2a2a]">
+        <input placeholder="Buscar…" value={query} onChange={e => setQuery(e.target.value)} className="!py-1.5" autoFocus />
+      </div>
+      <div className="max-h-[150px] overflow-y-auto">
+        {filtrados.map(p => (
+          <div key={p.id} onClick={() => onChange(p.id)}
+            className="px-3.5 py-2 text-[13px] cursor-pointer flex items-center gap-2.5 border-b border-[#2a2a2a]/40 hover:bg-[rgba(232,197,71,.06)]">
+            <span className="text-[#f0f0f0]">{p.nombre}{p.local_nombre ? ` (${p.local_nombre})` : ''}</span>
+          </div>
+        ))}
+        {filtrados.length === 0 && <div className="px-3.5 py-3 text-xs text-[#444] text-center">Sin resultados</div>}
       </div>
     </div>
   )
@@ -396,9 +432,13 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
     fecha_limite: tarea?.fecha_limite || fechaInicial || '',
     turno: tarea?.turno || turnoInicial || 'manana' as Turno,
     asignado_a: tarea?.asignado_a?.length ? tarea.asignado_a : [userId],
+    colabora_tipo: tarea?.colabora_tipo || null as ColaboraTipo | null,
+    colabora_area: tarea?.colabora_area || '',
+    colabora_persona_id: tarea?.colabora_persona_id || null as string | null,
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const descripcionRef = useRef<HTMLTextAreaElement>(null)
 
   async function registrarCambios(original: Tarea, nuevo: Tarea) {
     const campos: (keyof Tarea)[] = ['estado', 'prioridad', 'fecha_limite', 'turno', 'titulo']
@@ -425,6 +465,9 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
 
   async function guardar() {
     if (esCreador && !form.titulo.trim()) { setError('El título es obligatorio'); return }
+    if (esCreador && !form.descripcion.trim()) { setError('La descripción es obligatoria'); return }
+    if (esCreador && form.colabora_tipo === 'area' && !form.colabora_area.trim()) { setError('Escribí el nombre del área que colabora'); return }
+    if (esCreador && form.colabora_tipo === 'persona' && !form.colabora_persona_id) { setError('Elegí la persona que colabora'); return }
     setLoading(true); setError('')
     try {
       let payload: Record<string, unknown>
@@ -437,6 +480,9 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
           fecha_limite: form.fecha_limite || null,
           turno: form.turno,
           asignado_a: form.asignado_a?.length ? form.asignado_a : null,
+          colabora_tipo: form.colabora_tipo,
+          colabora_area: form.colabora_tipo === 'area' ? form.colabora_area.trim() : null,
+          colabora_persona_id: form.colabora_tipo === 'persona' ? form.colabora_persona_id : null,
         }
       } else {
         payload = { fecha_limite: form.fecha_limite || null }
@@ -526,11 +572,26 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
 
             {(tab === 'info' || esNueva) && <>
               {!esCreador && tarea && (
-                <div className="bg-[rgba(232,197,71,.06)] rounded-xl px-3.5 py-2.5">
-                  <div className="text-[11px] font-semibold text-[#e8c547] mb-1">DESCRIPCIÓN</div>
-                  {tarea.descripcion
-                    ? <div className="text-[13px] text-[#ccc]">{tarea.descripcion}</div>
-                    : <div className="text-[13px] text-[#555]">Sin descripción</div>}
+                <div className="bg-[rgba(232,197,71,.06)] rounded-xl px-3.5 py-2.5 flex flex-col gap-2.5">
+                  <div>
+                    <div className="text-[11px] font-semibold text-[#e8c547] mb-1">ASIGNADA POR</div>
+                    <div className="text-[13px] text-[#ccc]">{nombrePerfil(tarea.creado_por, perfiles)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold text-[#e8c547] mb-1">DESCRIPCIÓN</div>
+                    {tarea.descripcion
+                      ? <div className="text-[13px] text-[#ccc] whitespace-pre-wrap">{tarea.descripcion}</div>
+                      : <div className="text-[13px] text-[#555]">Sin descripción</div>}
+                  </div>
+                  {tarea.colabora_tipo && (
+                    <div>
+                      <div className="text-[11px] font-semibold text-[#e8c547] mb-1">COLABORACIÓN</div>
+                      <div className="text-[13px] text-[#ccc]">
+                        {COLABORA_META[tarea.colabora_tipo].icon}{' '}
+                        {tarea.colabora_tipo === 'area' ? tarea.colabora_area : nombrePerfil(tarea.colabora_persona_id || '', perfiles)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -540,8 +601,13 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
                   <input placeholder="¿Qué hay que hacer?" value={form.titulo} onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))} autoFocus />
                 </div>
                 <div>
-                  <label className="text-[11px] font-semibold text-[#888] block mb-1">DESCRIPCIÓN</label>
-                  <textarea className="!resize-y min-h-[56px]" placeholder="Descripción opcional…" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-semibold text-[#888]">DESCRIPCIÓN *</label>
+                    <button type="button"
+                      onClick={() => insertarVineta(descripcionRef.current, form.descripcion, v => setForm(f => ({ ...f, descripcion: v })))}
+                      className="bg-transparent border-none text-[11px] text-[#e8c547] cursor-pointer font-semibold">+ viñeta</button>
+                  </div>
+                  <textarea ref={descripcionRef} className="!resize-y min-h-[56px]" placeholder="¿De qué se trata la tarea?" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} />
                 </div>
                 <div>
                   <label className="text-[11px] font-semibold text-[#888] block mb-1">PRIORIDAD</label>
@@ -564,8 +630,16 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
               </>}
 
               <div>
-                <label className="text-[11px] font-semibold text-[#888] block mb-1">FECHA LÍMITE</label>
-                <input type="date" value={form.fecha_limite} onChange={e => setForm(f => ({ ...f, fecha_limite: e.target.value }))} />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-semibold text-[#888]">FECHA LÍMITE</label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-[#888] cursor-pointer select-none">
+                    <input type="checkbox" checked={!form.fecha_limite} className="!w-auto"
+                      onChange={e => setForm(f => ({ ...f, fecha_limite: e.target.checked ? '' : f.fecha_limite }))} />
+                    Sin fecha límite
+                  </label>
+                </div>
+                <input type="date" value={form.fecha_limite} disabled={!form.fecha_limite}
+                  onChange={e => setForm(f => ({ ...f, fecha_limite: e.target.value }))} />
               </div>
 
               {esCreador && (
@@ -582,6 +656,32 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
                 <div>
                   <label className="text-[11px] font-semibold text-[#888] block mb-1">ASIGNAR A</label>
                   <BuscadorUsuario perfiles={perfiles} value={form.asignado_a} onChange={val => setForm(f => ({ ...f, asignado_a: val }))} />
+                </div>
+              )}
+
+              {esCreador && (
+                <div>
+                  <label className="text-[11px] font-semibold text-[#888] block mb-1">COLABORACIÓN (opcional)</label>
+                  <div className="flex gap-1.5 mb-2">
+                    {(['ninguna', 'persona', 'area'] as const).map(opt => (
+                      <button key={opt} type="button"
+                        onClick={() => setForm(f => ({
+                          ...f,
+                          colabora_tipo: opt === 'ninguna' ? null : opt,
+                          colabora_area: opt === 'area' ? f.colabora_area : '',
+                          colabora_persona_id: opt === 'persona' ? f.colabora_persona_id : null,
+                        }))}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer border-none ${(form.colabora_tipo ?? 'ninguna') === opt ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] border border-[#2a2a2a]'}`}>
+                        {opt === 'ninguna' ? 'Ninguna' : opt === 'persona' ? `${COLABORA_META.persona.icon} Persona` : `${COLABORA_META.area.icon} Área`}
+                      </button>
+                    ))}
+                  </div>
+                  {form.colabora_tipo === 'persona' && (
+                    <SelectorPersonaUnica perfiles={perfiles} value={form.colabora_persona_id} onChange={id => setForm(f => ({ ...f, colabora_persona_id: id }))} />
+                  )}
+                  {form.colabora_tipo === 'area' && (
+                    <input placeholder="Nombre del área (ej. Marketing)" value={form.colabora_area} onChange={e => setForm(f => ({ ...f, colabora_area: e.target.value }))} />
+                  )}
                 </div>
               )}
 
