@@ -1,10 +1,20 @@
-export type Rol = 'local' | 'deposito' | 'fabrica' | 'admin' | 'squad'
+// Los roles son dinámicos (ver tabla `roles`); local/deposito/fabrica/admin
+// son valores conocidos con rutas propias, pero puede haber roles custom.
+export type Rol = string
 export type TipoProducto = 'producto' | 'insumo'
 export type DestinoProducto = 'fabrica' | 'deposito'
 export type EstadoPedido = 'pendiente' | 'preparando' | 'enviado' | 'recibido'
 export type PrioridadTarea = 'alta' | 'media' | 'baja'
 export type EstadoTarea = 'pendiente' | 'en_progreso' | 'completada'
 export type Turno = 'manana' | 'tarde'
+
+export interface RoleDef {
+  key: string
+  nombre: string
+  color: string
+  es_sistema: boolean
+  created_at: string
+}
 
 export interface Profile {
   id: string

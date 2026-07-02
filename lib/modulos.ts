@@ -1,5 +1,3 @@
-import { Rol } from './types'
-
 export interface Modulo {
   key: string
   label: string
@@ -27,6 +25,7 @@ export const MODULOS: Modulo[] = [
   { key: 'catalogo',     label: 'Catálogo',        icon: '📦', href: '/admin/catalogo',     section: 'Parámetros' },
   { key: 'mapeos',       label: 'Mapeo productos', icon: '🔗', href: '/admin/mapeos',       section: 'Parámetros' },
   { key: 'usuarios',     label: 'Usuarios',        icon: '👥', href: '/admin/usuarios',     section: 'Parámetros' },
+  { key: 'roles',        label: 'Roles',           icon: '🎭', href: '/admin/roles',        section: 'Parámetros' },
   { key: 'plan_cuentas', label: 'Plan de cuentas', icon: '📋', href: '/admin/plan-cuentas', section: 'Parámetros' },
   { key: 'proveedores',  label: 'Proveedores',     icon: '🚚', href: '/admin/proveedores',  section: 'Parámetros' },
   { key: 'locales',      label: 'APIs',            icon: '🔌', href: '/admin/locales',      section: 'Parámetros' },
@@ -45,10 +44,20 @@ export function getModuloPorPath(pathname: string): Modulo | undefined {
     .sort((a, b) => b.href.length - a.href.length)[0]
 }
 
-export const ROLE_HOME: Record<Rol, string> = {
-  local:    '/local/pedidos',
-  deposito: '/deposito/pedidos',
-  fabrica:  '/fabrica/pedidos',
-  admin:    '/admin/dashboard',
-  squad:    '/admin/dashboard',
+// Roles operativos: tienen su propio árbol de rutas (/local, /deposito,
+// /fabrica) y no pueden borrarse ni cambiar de key (ver tabla `roles`,
+// columna es_sistema). Cualquier otro rol —squad o uno creado a mano—
+// entra al panel /admin/* y su acceso a módulos depende de
+// profiles.modulos_permitidos, igual que ya funciona para squad hoy.
+export const ROLES_OPERATIVOS = ['local', 'deposito', 'fabrica'] as const
+
+export function esRolConModulos(rol: string | null | undefined): boolean {
+  return !!rol && rol !== 'admin' && !ROLES_OPERATIVOS.includes(rol as typeof ROLES_OPERATIVOS[number])
+}
+
+export function getRoleHome(rol: string | null | undefined): string {
+  if (rol === 'local') return '/local/pedidos'
+  if (rol === 'deposito') return '/deposito/pedidos'
+  if (rol === 'fabrica') return '/fabrica/pedidos'
+  return '/admin/dashboard' // admin, squad, o cualquier rol personalizado
 }

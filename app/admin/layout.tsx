@@ -3,23 +3,25 @@ import { redirect } from 'next/navigation'
 import Header from '@/components/ui/Header'
 import BottomNav from '@/components/ui/BottomNav'
 import Sidebar from '@/components/ui/Sidebar'
+import { esRolConModulos } from '@/lib/modulos'
 
-const ROL_LABEL: Record<string, string> = { admin: 'Admin', squad: 'Squad' }
-
-// El control fino de qué rutas /admin/* puede pisar un usuario squad
-// (según modulos_permitidos) vive en proxy.ts, que es el único lugar
-// del árbol de Server Components con acceso al pathname de la request.
+// El control fino de qué rutas /admin/* puede pisar un usuario squad o de
+// rol personalizado (según modulos_permitidos) vive en proxy.ts, que es
+// el único lugar del árbol de Server Components con acceso al pathname
+// de la request.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('nombre, rol, modulos_permitidos').eq('id', user.id).single()
+    .from('profiles').select('nombre, rol, modulos_permitidos, roles(nombre)').eq('id', user.id).single()
 
-  if (profile?.rol !== 'admin' && profile?.rol !== 'squad') redirect('/login')
+  if (!profile) redirect('/login')
+  if (profile.rol !== 'admin' && !esRolConModulos(profile.rol)) redirect('/login')
 
-  const esSquad = profile.rol === 'squad'
+  const rolLabel = (profile.roles as unknown as { nombre: string } | null)?.nombre || 'Admin'
+  const esSquad = esRolConModulos(profile.rol)
   const modulosPermitidos: string[] = profile.modulos_permitidos || []
 
   const tieneTareas = !esSquad || modulosPermitidos.includes('tareas')
@@ -38,7 +40,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* Sidebar solo desktop */}
       <Sidebar
         nombre={profile?.nombre || 'Admin'}
-        rolLabel={ROL_LABEL[profile?.rol || 'admin']}
+        rolLabel={rolLabel}
         modulosPermitidos={esSquad ? modulosPermitidos : undefined}
       />
 
@@ -54,7 +56,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <div />
           <div className="flex items-center gap-3">
             <span className="text-sm text-[#888]">{profile?.nombre}</span>
-            <span className="text-xs bg-[#e8c547]/10 text-[#e8c547] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">{ROL_LABEL[profile?.rol || 'admin']}</span>
+            <span className="text-xs bg-[#e8c547]/10 text-[#e8c547] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">{rolLabel}</span>
           </div>
         </header>
 

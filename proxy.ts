@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { ROLE_HOME, getModuloPorPath, MODULOS } from '@/lib/modulos'
+import { getRoleHome, getModuloPorPath, MODULOS, esRolConModulos } from '@/lib/modulos'
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -49,10 +49,11 @@ export async function proxy(request: NextRequest) {
           .eq('id', user.id)
           .single()
 
-        let dest = profile?.rol ? ROLE_HOME[profile.rol as keyof typeof ROLE_HOME] : '/login'
-        // Squad no tiene un home fijo: depende de qué módulos tiene asignados.
-        if (profile?.rol === 'squad') {
-          const modulosPermitidos: string[] = profile.modulos_permitidos || []
+        let dest = profile?.rol ? getRoleHome(profile.rol) : '/login'
+        // Squad y roles personalizados no tienen un home fijo: depende de
+        // qué módulos tienen asignados.
+        if (esRolConModulos(profile?.rol)) {
+          const modulosPermitidos: string[] = profile?.modulos_permitidos || []
           const primerModulo = MODULOS.find(m => modulosPermitidos.includes(m.key))
           dest = primerModulo?.href || '/ayuda'
         }
@@ -85,7 +86,7 @@ export async function proxy(request: NextRequest) {
     // modulos_permitidos (o ser admin), no el rol en sí.
     if (pathname.startsWith('/tareas')) {
       if (rol !== 'admin' && !modulosPermitidos.includes('tareas')) {
-        return NextResponse.redirect(new URL(rol ? ROLE_HOME[rol as keyof typeof ROLE_HOME] : '/login', request.url))
+        return NextResponse.redirect(new URL(rol ? getRoleHome(rol) : '/login', request.url))
       }
       return supabaseResponse
     }
@@ -95,25 +96,26 @@ export async function proxy(request: NextRequest) {
       deposito: ['/deposito', '/ayuda'],
       fabrica: ['/fabrica', '/ayuda'],
       admin: ['/admin', '/local', '/deposito', '/fabrica', '/ayuda'],
-      squad: ['/admin', '/ayuda'],
     }
 
     if (rol) {
-      const allowed = rolRoutes[rol] || []
+      // Squad y roles personalizados: mismo árbol de rutas que admin
+      // dentro de /admin, pero sin acceso a los portales operativos.
+      const allowed = rolRoutes[rol] || (esRolConModulos(rol) ? ['/admin', '/ayuda'] : [])
       const hasAccess = allowed.some((r) => pathname.startsWith(r))
       if (!hasAccess) {
-        return NextResponse.redirect(new URL(ROLE_HOME[rol as keyof typeof ROLE_HOME], request.url))
+        return NextResponse.redirect(new URL(getRoleHome(rol), request.url))
       }
 
-      // Squad: dentro de /admin/*, solo puede entrar a los módulos que
-      // tiene asignados en modulos_permitidos.
-      if (rol === 'squad' && pathname.startsWith('/admin')) {
+      // Squad y roles personalizados: dentro de /admin/*, solo pueden
+      // entrar a los módulos que tienen asignados en modulos_permitidos.
+      if (esRolConModulos(rol) && pathname.startsWith('/admin')) {
         const modulo = getModuloPorPath(pathname)
         const tieneAcceso = modulo && modulosPermitidos.includes(modulo.key)
         if (!tieneAcceso) {
           const primerModulo = MODULOS.find(m => modulosPermitidos.includes(m.key))
-          // Si no tiene NINGÚN módulo asignado, '/ayuda' es la única ruta que
-          // rolRoutes.squad permite sin permisos — evita un loop con /login.
+          // Si no tiene NINGÚN módulo asignado, '/ayuda' es la única ruta
+          // permitida sin permisos — evita un loop con /login.
           return NextResponse.redirect(new URL(primerModulo?.href || '/ayuda', request.url))
         }
       }

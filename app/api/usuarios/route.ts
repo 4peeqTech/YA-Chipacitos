@@ -7,7 +7,7 @@ const CreateUserSchema = z.object({
   email:        z.string().email('Email inválido'),
   password:     z.string().min(6, 'Mínimo 6 caracteres'),
   nombre:       z.string().min(2, 'Nombre muy corto'),
-  rol:          z.enum(['local', 'deposito', 'fabrica', 'admin', 'squad']),
+  rol:          z.string().min(1, 'Rol requerido'),
   local_nombre: z.string().optional(),
 })
 
@@ -19,7 +19,7 @@ const CreateUserSchema = z.object({
 // no satisface z.undefined(), así que esa key se reporta como inválida
 // en TODAS las variantes y el union entero falla con "Invalid input".
 const PatchSchema = z.union([
-  z.object({ id: z.string().uuid(), rol: z.enum(['local', 'deposito', 'fabrica', 'admin', 'squad']) }),
+  z.object({ id: z.string().uuid(), rol: z.string().min(1) }),
   z.object({ id: z.string().uuid(), password: z.string().min(6) }),
   z.object({ id: z.string().uuid(), whatsapp_phone: z.string().nullable(), whatsapp_apikey: z.string().nullable() }),
   z.object({ id: z.string().uuid(), nombre_posberry: z.string().nullable() }),

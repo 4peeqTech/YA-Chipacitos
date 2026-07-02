@@ -12,6 +12,8 @@ export default async function UsuariosPage() {
     .order('created_at', { ascending: false })
     .limit(500)
 
+  const { data: roles } = await supabase.from('roles').select('*').order('created_at')
+
   const adminClient = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -23,5 +25,5 @@ export default async function UsuariosPage() {
     if (u.email) emailsById[u.id] = u.email
   }
 
-  return <UsuariosClient usuariosIniciales={usuarios || []} emailsById={emailsById} />
+  return <UsuariosClient usuariosIniciales={usuarios || []} emailsById={emailsById} roles={roles || []} />
 }

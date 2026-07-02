@@ -19,7 +19,9 @@ const secciones: { id: SeccionId; label: string; icon: string; roles: string[] }
 
 export default function AyudaClient({ rol, modulosPermitidos = [] }: Props) {
   const visibles = secciones.filter(s => s.roles.includes(rol))
-  const [activa, setActiva] = useState<SeccionId>(visibles[0]?.id ?? 'local')
+  // Un rol personalizado (creado desde Parámetros) no matchea ninguna
+  // sección fija — cae en "Colaborador", igual que squad.
+  const [activa, setActiva] = useState<SeccionId>(visibles[0]?.id ?? 'squad')
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">

@@ -1,20 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Profile, Rol } from '@/lib/types'
+import { Profile, Rol, RoleDef } from '@/lib/types'
 import Card from '@/components/ui/Card'
 import { MODULOS } from '@/lib/modulos'
-
-const ROL_LABELS: Record<Rol, string> = {
-  local: 'Local', deposito: 'Depósito', fabrica: 'Fábrica', admin: 'Admin', squad: 'Squad',
-}
-const ROL_COLORS: Record<Rol, string> = {
-  local:    'bg-[rgba(140,100,255,.2)] text-[#a78bfa]',
-  deposito: 'bg-[rgba(56,189,248,.2)] text-[#38bdf8]',
-  fabrica:  'bg-[rgba(240,168,73,.2)] text-[#f0a849]',
-  admin:    'bg-[rgba(232,197,71,.2)] text-[#e8c547]',
-  squad:    'bg-[rgba(232,66,16,.2)] text-[#e84210]',
-}
 
 const MODULOS_POR_SECCION = MODULOS.reduce((acc, m) => {
   const seccion = m.section || 'General'
@@ -23,12 +12,13 @@ const MODULOS_POR_SECCION = MODULOS.reduce((acc, m) => {
   return acc
 }, {} as Record<string, typeof MODULOS>)
 
-interface Props { usuariosIniciales: Profile[]; emailsById: Record<string, string> }
+interface Props { usuariosIniciales: Profile[]; emailsById: Record<string, string>; roles: RoleDef[] }
 
-export default function UsuariosClient({ usuariosIniciales, emailsById }: Props) {
+export default function UsuariosClient({ usuariosIniciales, emailsById, roles }: Props) {
   const [usuarios, setUsuarios] = useState(usuariosIniciales)
+  const rolMap = Object.fromEntries(roles.map(r => [r.key, r]))
   const [modalNuevo, setModalNuevo] = useState(false)
-  const [form, setForm] = useState({ email: '', password: '', nombre: '', rol: 'local' as Rol, local_nombre: '' })
+  const [form, setForm] = useState({ email: '', password: '', nombre: '', rol: (roles[0]?.key || 'local') as Rol, local_nombre: '' })
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
@@ -239,9 +229,10 @@ export default function UsuariosClient({ usuariosIniciales, emailsById }: Props)
                   </td>
                   <td className="px-4 py-3">
                     <select value={u.rol} onChange={e => cambiarRol(u.id, e.target.value as Rol)}
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-full border-0 cursor-pointer w-auto ${ROL_COLORS[u.rol]}`}>
-                      {(Object.keys(ROL_LABELS) as Rol[]).map(r => (
-                        <option key={r} value={r}>{ROL_LABELS[r]}</option>
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full border-0 cursor-pointer w-auto"
+                      style={{ background: `${rolMap[u.rol]?.color || '#888888'}33`, color: rolMap[u.rol]?.color || '#888888' }}>
+                      {roles.map(r => (
+                        <option key={r.key} value={r.key}>{r.nombre}</option>
                       ))}
                     </select>
                   </td>
@@ -296,9 +287,10 @@ export default function UsuariosClient({ usuariosIniciales, emailsById }: Props)
                 {u.local_nombre && <p className="text-xs text-[#888]">{u.local_nombre}</p>}
               </div>
               <select value={u.rol} onChange={e => cambiarRol(u.id, e.target.value as Rol)}
-                className={`text-xs font-semibold px-2 py-0.5 rounded-full border-0 cursor-pointer w-auto ${ROL_COLORS[u.rol]}`}>
-                {(Object.keys(ROL_LABELS) as Rol[]).map(r => (
-                  <option key={r} value={r}>{ROL_LABELS[r]}</option>
+                className="text-xs font-semibold px-2 py-0.5 rounded-full border-0 cursor-pointer w-auto"
+                style={{ background: `${rolMap[u.rol]?.color || '#888888'}33`, color: rolMap[u.rol]?.color || '#888888' }}>
+                {roles.map(r => (
+                  <option key={r.key} value={r.key}>{r.nombre}</option>
                 ))}
               </select>
             </div>
@@ -494,8 +486,8 @@ export default function UsuariosClient({ usuariosIniciales, emailsById }: Props)
             <div>
               <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Rol *</label>
               <select value={form.rol} onChange={e => setForm(f => ({ ...f, rol: e.target.value as Rol }))}>
-                {(Object.keys(ROL_LABELS) as Rol[]).map(r => (
-                  <option key={r} value={r}>{ROL_LABELS[r]}</option>
+                {roles.map(r => (
+                  <option key={r.key} value={r.key}>{r.nombre}</option>
                 ))}
               </select>
             </div>
