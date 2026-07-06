@@ -86,7 +86,7 @@ export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos 
   }
 
   return (
-    <aside className="hidden lg:flex flex-col w-60 bg-[#111111] border-r border-[#2a2a2a] min-h-screen fixed left-0 top-0 z-40">
+    <aside className="hidden lg:flex flex-col w-60 bg-[#111111] border-r border-[#2a2a2a] h-screen fixed left-0 top-0 z-40">
       {/* Logo */}
       <div className="px-5 py-4 border-b border-[#2a2a2a] flex items-center gap-3">
         <Image src="/chipacitos-logo.png" alt="YA! Chipacitos" width={48} height={48} className="rounded-lg shrink-0" />
