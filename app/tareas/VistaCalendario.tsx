@@ -19,6 +19,8 @@ import type { Tarea, TareaSubtarea, InformeDiario, Turno } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
+type ModoVista = 'dia' | 'semana' | 'mes'
+
 const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const TURNOS: Turno[] = ['manana', 'tarde']
 
@@ -28,15 +30,25 @@ function toISODate(d: Date) {
 
 function hoyISO() { return toISODate(new Date()) }
 
+function cap(s: string) { return s.charAt(0).toUpperCase() + s.slice(1) }
+
 function inicioSemana(d: Date) {
   const offset = (d.getDay() + 6) % 7 // lunes = 0
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - offset)
 }
 
-function generarSemana(semanaActual: Date) {
-  const inicio = inicioSemana(semanaActual)
+function generarSemana(fecha: Date) {
+  const inicio = inicioSemana(fecha)
   const dias: Date[] = []
   for (let i = 0; i < 7; i++) dias.push(new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i))
+  return dias
+}
+
+function generarMes(fecha: Date) {
+  const primerDia = new Date(fecha.getFullYear(), fecha.getMonth(), 1)
+  const inicio = inicioSemana(primerDia)
+  const dias: Date[] = []
+  for (let i = 0; i < 42; i++) dias.push(new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i))
   return dias
 }
 
@@ -49,6 +61,14 @@ function fmtRangoSemana(dias: Date[]) {
   const iniStr = ini.toLocaleDateString('es-AR', opts)
   const finStr = fin.toLocaleDateString('es-AR', opts)
   return `${iniStr} – ${finStr} de ${fin.getFullYear()}`
+}
+
+function fmtDia(fecha: Date) {
+  return cap(fecha.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
+}
+
+function fmtMes(fecha: Date) {
+  return cap(fecha.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }))
 }
 
 // ── Chips draggables ───────────────────────────────────────────────────
@@ -152,16 +172,17 @@ function TurnoZona({
 
 // ── Celda de día (header + 2 turnos) ─────────────────────────────────────
 function DiaCelda({
-  iso, numero, esHoy, informesDia, activeId, manana, tarde, onClickTarea, onClickSubtarea, onClickInforme,
+  iso, numero, esHoy, informesDia, activeId, manana, tarde, alto, onClickTarea, onClickSubtarea, onClickInforme,
 }: {
   iso: string; numero: number; esHoy: boolean
   informesDia: InformeDiario[]
   activeId: string | null
   manana: ZonaData; tarde: ZonaData
+  alto?: string
   onClickTarea: (t: Tarea) => void; onClickSubtarea: (s: TareaSubtarea) => void; onClickInforme: (i: InformeDiario) => void
 }) {
   return (
-    <div className="h-[460px] rounded-lg border border-[#2a2a2a] flex flex-col overflow-hidden">
+    <div className={`${alto || 'h-[460px]'} rounded-lg border border-[#2a2a2a] flex flex-col overflow-hidden`}>
       <div className="flex flex-col items-center gap-1 py-1.5 bg-[#111111] shrink-0">
         <span className={`text-[11px] font-bold leading-none ${esHoy ? 'bg-[#e8c547] text-black rounded-full w-5 h-5 flex items-center justify-center' : 'text-[#888] px-0.5'}`}>{numero}</span>
         {informesDia.length > 0 && (
@@ -173,6 +194,64 @@ function DiaCelda({
       <TurnoZona iso={iso} turno="manana" activeId={activeId} onClickTarea={onClickTarea} onClickSubtarea={onClickSubtarea} {...manana} />
       <div className="h-px bg-[#2a2a2a] shrink-0" />
       <TurnoZona iso={iso} turno="tarde" activeId={activeId} onClickTarea={onClickTarea} onClickSubtarea={onClickSubtarea} {...tarde} />
+    </div>
+  )
+}
+
+// ── Chips compactos para la vista mes (sin drag) ─────────────────────────
+function MesChipTarea({ tarea }: { tarea: Tarea }) {
+  const prioM = PRIORIDAD_META[tarea.prioridad]
+  return (
+    <div
+      className={`text-[9px] px-1 py-0.5 rounded truncate ${tarea.estado === 'completada' ? 'line-through opacity-60' : ''}`}
+      style={{ background: prioM.bg, color: prioM.color, borderLeft: `2px solid ${prioM.color}` }}
+      title={tarea.titulo}
+    >
+      {tarea.titulo}
+    </div>
+  )
+}
+
+function MesChipSubtarea({ sub }: { sub: TareaSubtarea }) {
+  return (
+    <div
+      className={`text-[9px] px-1 py-0.5 rounded truncate bg-[#1a1a1a] border border-[#2a2a2a] text-[#ccc] ${sub.completada ? 'line-through opacity-60' : ''}`}
+      title={sub.texto}
+    >
+      ☑ {sub.texto}
+    </div>
+  )
+}
+
+// ── Celda de día dentro de la vista mes ──────────────────────────────────
+function MesCelda({
+  dia, esMesActual, esHoy, tareasDia, subtareasDia, informesDia, onClick,
+}: {
+  dia: Date; esMesActual: boolean; esHoy: boolean
+  tareasDia: Tarea[]; subtareasDia: TareaSubtarea[]; informesDia: InformeDiario[]
+  onClick: () => void
+}) {
+  const MAX = 3
+  const tareasMostradas = tareasDia.slice(0, MAX)
+  const restantes = MAX - tareasMostradas.length
+  const subtareasMostradas = restantes > 0 ? subtareasDia.slice(0, restantes) : []
+  const totalItems = tareasDia.length + subtareasDia.length
+  const ocultos = totalItems - tareasMostradas.length - subtareasMostradas.length
+
+  return (
+    <div
+      onClick={onClick}
+      className={`h-20 sm:h-24 rounded-lg border border-[#2a2a2a] p-1 flex flex-col cursor-pointer overflow-hidden ${esMesActual ? 'bg-[#111111]' : 'bg-[#0a0a0a] opacity-40'}`}
+    >
+      <div className="flex items-center justify-between shrink-0 mb-0.5">
+        <span className={`text-[11px] font-bold leading-none ${esHoy ? 'bg-[#e8c547] text-black rounded-full w-5 h-5 flex items-center justify-center' : 'text-[#888] px-0.5'}`}>{dia.getDate()}</span>
+        {informesDia.length > 0 && <span className="text-[9px]">📨</span>}
+      </div>
+      <div className="flex-1 min-h-0 flex flex-col gap-0.5 overflow-hidden">
+        {tareasMostradas.map(t => <MesChipTarea key={t.id} tarea={t} />)}
+        {subtareasMostradas.map(s => <MesChipSubtarea key={s.id} sub={s} />)}
+        {ocultos > 0 && <span className="text-[9px] text-[#666]">+{ocultos} más</span>}
+      </div>
     </div>
   )
 }
@@ -189,7 +268,8 @@ interface VistaCalendarioProps {
 
 export default function VistaCalendario({ tareas, perfiles, userId, userNombre, onEditarTarea, onNuevaTarea }: VistaCalendarioProps) {
   const supabase = createClient()
-  const [semanaActual, setSemanaActual] = useState(() => inicioSemana(new Date()))
+  const [modoVista, setModoVista] = useState<ModoVista>('semana')
+  const [fechaActual, setFechaActual] = useState(() => new Date())
   const [subtareas, setSubtareas] = useState<TareaSubtarea[]>([])
   const [informes, setInformes] = useState<InformeDiario[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -198,7 +278,16 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
   const [modalInforme, setModalInforme] = useState<{ fecha: string; informe: InformeDiario | null } | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
-  const dias = useMemo(() => generarSemana(semanaActual), [semanaActual])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 640) setModoVista('dia')
+  }, [])
+
+  const dias = useMemo(() => {
+    if (modoVista === 'dia') return [fechaActual]
+    if (modoVista === 'semana') return generarSemana(fechaActual)
+    return generarMes(fechaActual)
+  }, [fechaActual, modoVista])
 
   useEffect(() => {
     let activo = true
@@ -215,7 +304,7 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
     }
     cargar()
     return () => { activo = false }
-  }, [semanaActual])
+  }, [fechaActual, modoVista])
 
   useEffect(() => {
     const canal = supabase.channel('calendario-tareas-realtime')
@@ -274,6 +363,14 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
     return m
   }, [informes])
 
+  function tareasDelDia(iso: string) {
+    return [...(tareasPorDiaTurno.get(`${iso}|manana`) || []), ...(tareasPorDiaTurno.get(`${iso}|tarde`) || [])]
+  }
+
+  function subtareasDelDia(iso: string) {
+    return [...(subtareasPorDiaTurno.get(`${iso}|manana`) || []), ...(subtareasPorDiaTurno.get(`${iso}|tarde`) || [])]
+  }
+
   async function moverTarea(tareaId: string, nuevaFecha: string, nuevoTurno: Turno) {
     const tarea = tareas.find(t => t.id === tareaId)
     if (!tarea || (tarea.fecha_limite === nuevaFecha && tarea.turno === nuevoTurno)) return
@@ -319,56 +416,116 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
     }
   }
 
+  function irAnterior() {
+    setFechaActual(d => {
+      const n = new Date(d)
+      if (modoVista === 'dia') n.setDate(n.getDate() - 1)
+      else if (modoVista === 'semana') n.setDate(n.getDate() - 7)
+      else n.setMonth(n.getMonth() - 1)
+      return n
+    })
+  }
+
+  function irSiguiente() {
+    setFechaActual(d => {
+      const n = new Date(d)
+      if (modoVista === 'dia') n.setDate(n.getDate() + 1)
+      else if (modoVista === 'semana') n.setDate(n.getDate() + 7)
+      else n.setMonth(n.getMonth() + 1)
+      return n
+    })
+  }
+
+  const tituloRango = modoVista === 'dia' ? fmtDia(fechaActual)
+    : modoVista === 'semana' ? fmtRangoSemana(dias)
+    : fmtMes(fechaActual)
+
   return (
     <div className="pt-3 pb-6">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <button onClick={() => setSemanaActual(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })}
+          <button onClick={irAnterior}
             className="w-8 h-8 rounded-full bg-[#111111] border border-[#2a2a2a] text-[#888] cursor-pointer">‹</button>
-          <div className="text-sm font-bold text-[#f0f0f0] font-['Syne'] capitalize min-w-[180px] text-center">
-            {fmtRangoSemana(dias)}
+          <div className="text-sm font-bold text-[#f0f0f0] font-['Syne'] capitalize min-w-[140px] text-center">
+            {tituloRango}
           </div>
-          <button onClick={() => setSemanaActual(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })}
+          <button onClick={irSiguiente}
             className="w-8 h-8 rounded-full bg-[#111111] border border-[#2a2a2a] text-[#888] cursor-pointer">›</button>
-        </div>
-        <button onClick={() => setSemanaActual(inicioSemana(new Date()))}
-          className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#111111] text-[#888] border border-[#2a2a2a] cursor-pointer">Hoy</button>
-      </div>
-
-      <div className="grid grid-cols-7 gap-1 mb-1">
-        {DIAS_SEMANA.map(d => <div key={d} className="text-center text-[11px] font-bold text-[#666] py-1">{d}</div>)}
-      </div>
-
-      <DndContext sensors={sensors} onDragStart={({ active }) => setActiveId(String(active.id))} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
-        <div className="grid grid-cols-7 gap-1">
-          {dias.map(dia => {
-            const iso = toISODate(dia)
-            return (
-              <DiaCelda
-                key={iso}
-                iso={iso}
-                numero={dia.getDate()}
-                esHoy={iso === hoyISO()}
-                informesDia={informesPorDia.get(iso) || []}
-                activeId={activeId}
-                manana={zonaFor(iso, 'manana')}
-                tarde={zonaFor(iso, 'tarde')}
-                onClickTarea={onEditarTarea}
-                onClickSubtarea={s => { const t = tareas.find(x => x.id === s.tarea_id); if (t) onEditarTarea(t) }}
-                onClickInforme={inf => setModalInforme({ fecha: inf.fecha, informe: inf })}
-              />
-            )
-          })}
+          <button onClick={() => setFechaActual(new Date())}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#111111] text-[#888] border border-[#2a2a2a] cursor-pointer">Hoy</button>
         </div>
 
-        <DragOverlay>
-          {activeId && (
-            <div className="opacity-90 rotate-1 pointer-events-none rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-2 py-1 text-[11px] text-[#f0f0f0] shadow-lg">
-              Moviendo…
+        <div className="flex bg-[#111111] border border-[#2a2a2a] rounded-full overflow-hidden">
+          <button onClick={() => setModoVista('dia')} className={`px-3 py-1.5 text-xs font-semibold border-none cursor-pointer ${modoVista === 'dia' ? 'bg-[#e8c547] text-black' : 'bg-transparent text-[#888]'}`}>Día</button>
+          <button onClick={() => setModoVista('semana')} className={`px-3 py-1.5 text-xs font-semibold border-none cursor-pointer ${modoVista === 'semana' ? 'bg-[#e8c547] text-black' : 'bg-transparent text-[#888]'}`}>Semana</button>
+          <button onClick={() => setModoVista('mes')} className={`px-3 py-1.5 text-xs font-semibold border-none cursor-pointer ${modoVista === 'mes' ? 'bg-[#e8c547] text-black' : 'bg-transparent text-[#888]'}`}>Mes</button>
+        </div>
+      </div>
+
+      {modoVista === 'mes' ? (
+        <div>
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {DIAS_SEMANA.map(d => <div key={d} className="text-center text-[11px] font-bold text-[#666] py-1">{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {dias.map(dia => {
+              const iso = toISODate(dia)
+              return (
+                <MesCelda
+                  key={iso}
+                  dia={dia}
+                  esMesActual={dia.getMonth() === fechaActual.getMonth()}
+                  esHoy={iso === hoyISO()}
+                  tareasDia={tareasDelDia(iso)}
+                  subtareasDia={subtareasDelDia(iso)}
+                  informesDia={informesPorDia.get(iso) || []}
+                  onClick={() => { setFechaActual(dia); setModoVista('dia') }}
+                />
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <>
+          {modoVista === 'semana' && (
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {DIAS_SEMANA.map(d => <div key={d} className="text-center text-[11px] font-bold text-[#666] py-1">{d}</div>)}
             </div>
           )}
-        </DragOverlay>
-      </DndContext>
+
+          <DndContext sensors={sensors} onDragStart={({ active }) => setActiveId(String(active.id))} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
+            <div className={modoVista === 'dia' ? 'max-w-sm mx-auto' : 'grid grid-cols-7 gap-1'}>
+              {dias.map(dia => {
+                const iso = toISODate(dia)
+                return (
+                  <DiaCelda
+                    key={iso}
+                    iso={iso}
+                    numero={dia.getDate()}
+                    esHoy={iso === hoyISO()}
+                    informesDia={informesPorDia.get(iso) || []}
+                    activeId={activeId}
+                    alto={modoVista === 'dia' ? 'h-[600px]' : undefined}
+                    manana={zonaFor(iso, 'manana')}
+                    tarde={zonaFor(iso, 'tarde')}
+                    onClickTarea={onEditarTarea}
+                    onClickSubtarea={s => { const t = tareas.find(x => x.id === s.tarea_id); if (t) onEditarTarea(t) }}
+                    onClickInforme={inf => setModalInforme({ fecha: inf.fecha, informe: inf })}
+                  />
+                )
+              })}
+            </div>
+
+            <DragOverlay>
+              {activeId && (
+                <div className="opacity-90 rotate-1 pointer-events-none rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-2 py-1 text-[11px] text-[#f0f0f0] shadow-lg">
+                  Moviendo…
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
+        </>
+      )}
 
       {modalSubtarea && (
         <ModalSubtarea

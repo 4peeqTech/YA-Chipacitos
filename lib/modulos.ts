@@ -22,6 +22,9 @@ export const MODULOS: Modulo[] = [
   { key: 'posberry',     label: 'Ventas Posberry', icon: '📈', href: '/admin/posberry',     section: 'Mayorista' },
   { key: 'conciliacion', label: 'Conciliación',   icon: '📊', href: '/admin/conciliacion', section: 'Mayorista' },
 
+  { key: 'integraciones_ventas', label: 'Ventas',     icon: '🧾', href: '/admin/integraciones/ventas', section: 'Integraciones' },
+  { key: 'integraciones_cajas',  label: 'Cajas Fudo', icon: '🏦', href: '/admin/integraciones/cajas',  section: 'Integraciones' },
+
   { key: 'catalogo',     label: 'Catálogo',        icon: '📦', href: '/admin/catalogo',     section: 'Parámetros' },
   { key: 'mapeos',       label: 'Mapeo productos', icon: '🔗', href: '/admin/mapeos',       section: 'Parámetros' },
   { key: 'usuarios',     label: 'Usuarios',        icon: '👥', href: '/admin/usuarios',     section: 'Parámetros' },
