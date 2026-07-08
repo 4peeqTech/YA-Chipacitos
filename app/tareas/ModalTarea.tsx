@@ -436,6 +436,7 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
     colabora_area: tarea?.colabora_area || '',
     colabora_persona_id: tarea?.colabora_persona_id || null as string | null,
   })
+  const [sinFecha, setSinFecha] = useState(!(tarea?.fecha_limite || fechaInicial))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const descripcionRef = useRef<HTMLTextAreaElement>(null)
@@ -633,12 +634,16 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[11px] font-semibold text-[#888]">FECHA LÍMITE</label>
                   <label className="flex items-center gap-1.5 text-[11px] text-[#888] cursor-pointer select-none">
-                    <input type="checkbox" checked={!form.fecha_limite} className="!w-auto"
-                      onChange={e => setForm(f => ({ ...f, fecha_limite: e.target.checked ? '' : f.fecha_limite }))} />
+                    <input type="checkbox" checked={sinFecha} className="!w-auto"
+                      onChange={e => {
+                        const checked = e.target.checked
+                        setSinFecha(checked)
+                        setForm(f => ({ ...f, fecha_limite: checked ? '' : f.fecha_limite }))
+                      }} />
                     Sin fecha límite
                   </label>
                 </div>
-                <input type="date" value={form.fecha_limite} disabled={!form.fecha_limite}
+                <input type="date" value={form.fecha_limite} disabled={sinFecha}
                   onChange={e => setForm(f => ({ ...f, fecha_limite: e.target.value }))} />
               </div>
 
