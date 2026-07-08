@@ -38,3 +38,25 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ ok: true })
 }
+
+// DELETE /api/push/subscribe
+// Body: { endpoint: string }
+// Borra la suscripción de ESTE dispositivo para el usuario logueado (no
+// afecta otros dispositivos que tenga, ni cuentas que compartan el mismo).
+export async function DELETE(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const { endpoint } = await request.json()
+  if (!endpoint) return NextResponse.json({ error: 'Falta endpoint' }, { status: 400 })
+
+  const { error } = await getAdminClient()
+    .from('push_subscriptions')
+    .delete()
+    .eq('endpoint', endpoint)
+    .eq('user_id', user.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ ok: true })
+}

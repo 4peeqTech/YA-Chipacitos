@@ -220,6 +220,26 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
     } catch { /* best-effort */ }
   }
 
+  // Desuscribe este dispositivo (no toca el permiso de notificaciones del
+  // browser, solo deja de recibir push de pedidos).
+  async function desactivarNotificaciones() {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/sw.js')
+      const sub = await reg?.pushManager.getSubscription()
+      if (sub) {
+        const endpoint = sub.endpoint
+        await sub.unsubscribe()
+        await fetch('/api/push/subscribe', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint }),
+        }).catch(() => {})
+      }
+    } finally {
+      setPushActivo(false)
+    }
+  }
+
   const [busqueda, setBusqueda] = useState('')
 
   const sucursales = Array.from(new Set(pedidos.map(p => p.local_nombre))).sort()
@@ -296,18 +316,26 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
         </div>
       )}
 
-      {/* Ya dio permiso (quizás antes de que existiera push real) pero falta la suscripción */}
-      {notifPermiso === 'granted' && !pushActivo && (
-        <div className="bg-[rgba(232,197,71,.08)] border border-[#e8c547]/30 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+      {/* Control persistente: dejá prender/apagar el aviso persistente en cualquier momento */}
+      {notifPermiso === 'granted' && (
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1">
-            <p className="text-sm font-semibold text-[#e8c547]">🔔 Falta activar el aviso persistente</p>
-            <p className="text-xs text-[#888] mt-0.5">Hoy solo avisa si tenés la pestaña abierta. Activalo para recibir el aviso aunque la cierres.</p>
+            <p className="text-sm font-semibold text-[#f0f0f0]">
+              {pushActivo ? '🔔 Aviso persistente activado' : '🔕 Aviso persistente desactivado'}
+            </p>
+            <p className="text-xs text-[#888] mt-0.5">
+              {pushActivo
+                ? 'Este dispositivo recibe el aviso de pedidos nuevos aunque cierres la pestaña.'
+                : 'Hoy solo avisa si tenés la pestaña abierta. Activalo para recibir el aviso aunque la cierres.'}
+            </p>
           </div>
           <button
-            onClick={activarNotificaciones}
-            className="shrink-0 bg-[#e8c547] text-black text-xs font-['Syne'] font-bold px-4 py-2 rounded-lg whitespace-nowrap"
+            onClick={pushActivo ? desactivarNotificaciones : activarNotificaciones}
+            className={`shrink-0 text-xs font-['Syne'] font-bold px-4 py-2 rounded-lg whitespace-nowrap ${
+              pushActivo ? 'bg-[#2a2a2a] text-[#f0f0f0]' : 'bg-[#e8c547] text-black'
+            }`}
           >
-            Activar
+            {pushActivo ? 'Desactivar' : 'Activar'}
           </button>
         </div>
       )}
