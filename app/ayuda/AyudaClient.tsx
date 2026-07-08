@@ -1,10 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { TicketWidget } from '@4peeqtech/ticket-widget'
+import { TICKET_WIDGET_CONFIG } from '@/lib/ticketWidget'
 
 interface Props {
   rol: string
   modulosPermitidos?: string[]
+  usuarioEmail?: string
+  usuarioNombre?: string
 }
 
 type SeccionId = 'local' | 'deposito' | 'fabrica' | 'admin' | 'squad'
@@ -17,11 +21,12 @@ const secciones: { id: SeccionId; label: string; icon: string; roles: string[] }
   { id: 'squad',    label: 'Colaborador',  icon: '👤', roles: ['squad'] },
 ]
 
-export default function AyudaClient({ rol, modulosPermitidos = [] }: Props) {
+export default function AyudaClient({ rol, modulosPermitidos = [], usuarioEmail, usuarioNombre }: Props) {
   const visibles = secciones.filter(s => s.roles.includes(rol))
   // Un rol personalizado (creado desde Parámetros) no matchea ninguna
   // sección fija — cae en "Colaborador", igual que squad.
   const [activa, setActiva] = useState<SeccionId>(visibles[0]?.id ?? 'squad')
+  const [ticketAbierto, setTicketAbierto] = useState(false)
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -29,6 +34,29 @@ export default function AyudaClient({ rol, modulosPermitidos = [] }: Props) {
         <h1 className="text-2xl font-bold text-[#f0f0f0]">Manual de usuario</h1>
         <p className="text-sm text-[#888] mt-1">Guía completa del sistema YA! Chipacitos</p>
       </div>
+
+      <button
+        onClick={() => setTicketAbierto(true)}
+        className="w-full mb-6 bg-[#111111] border border-[#2a2a2a] hover:border-[#e8c547]/50 rounded-2xl px-5 py-4 flex items-center gap-4 text-left transition-colors cursor-pointer"
+      >
+        <span className="text-2xl shrink-0">🛟</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-[#f0f0f0] text-sm">¿Encontraste un error o te falta algo?</p>
+          <p className="text-xs text-[#888] mt-0.5">Reportá un problema o pedí un cambio directamente al equipo.</p>
+        </div>
+        <span className="text-[#e8c547] text-sm font-medium shrink-0">Reportar →</span>
+      </button>
+
+      <TicketWidget
+        isOpen={ticketAbierto}
+        onClose={() => setTicketAbierto(false)}
+        endpoint={TICKET_WIDGET_CONFIG.endpoint}
+        appOrigen={TICKET_WIDGET_CONFIG.appOrigen}
+        empresaNombre={TICKET_WIDGET_CONFIG.empresaNombre}
+        usuarioEmail={usuarioEmail}
+        usuarioNombre={usuarioNombre}
+        logoUrl={TICKET_WIDGET_CONFIG.logoUrl}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-6 items-start">
 

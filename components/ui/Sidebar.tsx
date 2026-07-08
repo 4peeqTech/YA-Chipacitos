@@ -7,12 +7,15 @@ import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect } from 'react'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { MODULOS } from '@/lib/modulos'
+import { TicketWidget } from '@4peeqtech/ticket-widget'
+import { TICKET_WIDGET_CONFIG } from '@/lib/ticketWidget'
 
 interface SidebarProps {
   nombre: string
   rolLabel?: string
   /** Si se omite, el usuario ve todos los módulos (admin). Si se pasa, solo ve los incluidos. */
   modulosPermitidos?: string[]
+  usuarioEmail?: string
 }
 
 interface NavItem {
@@ -30,11 +33,12 @@ const bottomStandaloneItems: NavItem[] = [
   { href: '/ayuda', label: 'Ayuda', icon: '❓' },
 ]
 
-export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos }: SidebarProps) {
+export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos, usuarioEmail }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+  const [ticketAbierto, setTicketAbierto] = useState(false)
 
   const modulosVisibles = modulosPermitidos
     ? MODULOS.filter(m => modulosPermitidos.includes(m.key))
@@ -163,7 +167,26 @@ export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos 
             {item.label}
           </Link>
         ))}
+
+        <button
+          onClick={() => setTicketAbierto(true)}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] hover:bg-[#1a1a1a] transition-all cursor-pointer"
+        >
+          <span className="text-base">🛟</span>
+          Reportar un problema
+        </button>
       </nav>
+
+      <TicketWidget
+        isOpen={ticketAbierto}
+        onClose={() => setTicketAbierto(false)}
+        endpoint={TICKET_WIDGET_CONFIG.endpoint}
+        appOrigen={TICKET_WIDGET_CONFIG.appOrigen}
+        empresaNombre={TICKET_WIDGET_CONFIG.empresaNombre}
+        usuarioEmail={usuarioEmail}
+        usuarioNombre={nombre}
+        logoUrl={TICKET_WIDGET_CONFIG.logoUrl}
+      />
 
       {/* User footer */}
       <div className="px-4 py-4 border-t border-[#2a2a2a]">

@@ -42,6 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         nombre={profile?.nombre || 'Admin'}
         rolLabel={rolLabel}
         modulosPermitidos={esSquad ? modulosPermitidos : undefined}
+        usuarioEmail={user.email}
       />
 
       {/* Contenido principal — empuja a la derecha en desktop */}

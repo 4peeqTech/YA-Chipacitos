@@ -44,6 +44,7 @@ export default async function TareasLayout({ children }: { children: React.React
           nombre={profile.nombre || 'Admin'}
           rolLabel={rolLabel}
           modulosPermitidos={esRolConModulos(profile.rol) ? modulosPermitidos : undefined}
+          usuarioEmail={user.email}
         />
         <div className="lg:ml-60 flex flex-col min-h-screen">
           <div className="lg:hidden">
