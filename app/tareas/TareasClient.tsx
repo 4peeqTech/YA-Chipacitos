@@ -15,6 +15,7 @@ import {
 import ModalTarea from './ModalTarea'
 import VistaCalendario from './VistaCalendario'
 import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, isVencida, esMiaTarea, nombrePerfil, notificarTarea } from './helpers'
+import { urlBase64ToUint8Array } from '@/lib/push'
 import type { Tarea, Profile, PrioridadTarea, EstadoTarea, Turno } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
@@ -29,13 +30,6 @@ const COLUMNAS = [
 function fmtCreated(isoStr: string) {
   if (!isoStr) return ''
   return new Date(isoStr).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = atob(base64)
-  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
 }
 
 // ── Métricas del header ───────────────────────────────────────────────

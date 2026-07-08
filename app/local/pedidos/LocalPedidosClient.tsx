@@ -106,6 +106,15 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
         pedido_id: pedido.id, producto_id: i.producto.id, producto_nombre: i.producto.nombre, cantidad: i.cantidad,
       })))
       nums.push(pedido.numero)
+      fetch('/api/notificaciones/pedidos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destino,
+          title: `📦 Nuevo pedido #${pedido.numero}`,
+          body: profile.local_nombre || profile.nombre,
+        }),
+      }).catch(() => { /* notificación best-effort */ })
     }
     setExitoNums(nums)
     setCarrito([])

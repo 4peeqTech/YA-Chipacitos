@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { urlBase64ToUint8Array } from '@/lib/push'
 import { Producto, Pedido, TipoProducto, DestinoProducto } from '@/lib/types'
 import { BadgeEstado } from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
@@ -65,49 +66,92 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   const [flashEnviado, setFlashEnviado] = useState<string | null>(null)
   const [nuevosIds, setNuevosIds] = useState<string[]>([])
   const [notifPermiso, setNotifPermiso] = useState<NotificationPermission | 'unsupported'>('unsupported')
+  const [pushActivo, setPushActivo] = useState(false)
   const supabase = createClient()
-  const titleRef = useRef(document.title)
+  const titleRef = useRef(typeof document !== 'undefined' ? document.title : '')
+  const pedidosRef = useRef(pedidos)
+  const actualizarRef = useRef<() => void>(() => {})
+
+  useEffect(() => { pedidosRef.current = pedidos }, [pedidos])
+  useEffect(() => { actualizarRef.current = actualizar })
 
   // Detectar soporte y permiso actual
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotifPermiso(Notification.permission)
     }
+    navigator.serviceWorker?.getRegistration('/sw.js').then(reg => {
+      reg?.pushManager.getSubscription().then(sub => setPushActivo(!!sub))
+    }).catch(() => {})
   }, [])
 
   // Realtime: nuevos pedidos y cambios de estado
   useEffect(() => {
-    const ch = supabase.channel(`operador-${destino}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'pedidos',
-        filter: `destino=eq.${destino}`,
-      }, async (payload) => {
-        // Cargar el pedido completo con items
-        const { data } = await supabase
-          .from('pedidos')
-          .select('*, pedido_items(*), pedido_mensajes(*)')
-          .eq('id', payload.new.id)
-          .single()
-        if (!data) return
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
 
-        setPedidos(prev => [data, ...prev])
-        setNuevosIds(prev => [...prev, data.id])
-        playBeep()
-        showBrowserNotification(data)
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'pedidos',
-        filter: `destino=eq.${destino}`,
-      }, (payload) => {
-        setPedidos(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
-      })
-      .subscribe()
+    function conectar() {
+      // Topic único por intento: si se reconecta antes de que el `leave`
+      // del canal anterior termine del lado del servidor, supabase-js
+      // devuelve ese mismo canal (ya suscripto) en vez de uno nuevo al
+      // pedir el mismo topic, y `.on()` explota con "after subscribe()".
+      const topic = `operador-${destino}-${Math.random().toString(36).slice(2)}`
+      channel = supabase.channel(topic)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'pedidos',
+          filter: `destino=eq.${destino}`,
+        }, async (payload) => {
+          // Cargar el pedido completo con items
+          const { data } = await supabase
+            .from('pedidos')
+            .select('*, pedido_items(*), pedido_mensajes(*)')
+            .eq('id', payload.new.id)
+            .single()
+          if (!data) return
 
-    return () => { supabase.removeChannel(ch) }
+          setPedidos(prev => prev.some(p => p.id === data.id) ? prev : [data, ...prev])
+          setNuevosIds(prev => prev.includes(data.id) ? prev : [...prev, data.id])
+          playBeep()
+          showBrowserNotification(data)
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'pedidos',
+          filter: `destino=eq.${destino}`,
+        }, (payload) => {
+          setPedidos(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
+        })
+        .subscribe((status) => {
+          // El socket puede caerse en silencio (suspensión de la laptop,
+          // cambio de red) sin pasar por acá como error visible — cuando
+          // sí lo reporta, reconectamos.
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            if (channel) supabase.removeChannel(channel)
+            retryTimer = setTimeout(conectar, 3000)
+          }
+        })
+    }
+    conectar()
+
+    // Red de seguridad para cuando el socket muere sin avisar: resincroniza
+    // por polling al volver a la pestaña y cada 2 min mientras esté visible.
+    function alVolver() {
+      if (document.visibilityState === 'visible') actualizarRef.current?.()
+    }
+    document.addEventListener('visibilitychange', alVolver)
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') actualizarRef.current?.()
+    }, 120000)
+
+    return () => {
+      document.removeEventListener('visibilitychange', alVolver)
+      clearInterval(poll)
+      if (retryTimer) clearTimeout(retryTimer)
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [destino]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Título parpadeante cuando hay pedidos nuevos
@@ -130,10 +174,38 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
     }
   }, [nuevosIds])
 
-  async function pedirPermiso() {
+  // Pide permiso y, si está disponible, suscribe el dispositivo a push real
+  // (vía service worker + VAPID) — así llega notificación de Windows aunque
+  // la pestaña esté cerrada o el realtime se haya caído.
+  async function activarNotificaciones() {
     if (!('Notification' in window)) return
-    const result = await Notification.requestPermission()
-    setNotifPermiso(result)
+    const permiso = await Notification.requestPermission()
+    setNotifPermiso(permiso)
+    if (permiso !== 'granted') return
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js')
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidKey) return
+
+      // Forzar suscripción nueva: una vieja (de otra cuenta en el mismo
+      // dispositivo) puede devolverse "viva" del lado del browser aunque
+      // el servicio de push ya no la reconozca.
+      const existente = await reg.pushManager.getSubscription()
+      if (existente) await existente.unsubscribe()
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      })
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub),
+      })
+      if (res.ok) setPushActivo(true)
+    } catch { /* best-effort */ }
   }
 
   const [busqueda, setBusqueda] = useState('')
@@ -157,7 +229,17 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
     setActualizando(true)
     const { data } = await supabase.from('pedidos').select('*, pedido_items(*), pedido_mensajes(*)')
       .eq('destino', destino).order('created_at', { ascending: false }).limit(100)
-    if (data) setPedidos(data)
+    if (data) {
+      // Si el realtime venía muerto en silencio, esto es lo que detecta
+      // pedidos que llegaron sin avisar y los marca como nuevos recién ahora.
+      const idsPrevios = new Set(pedidosRef.current.map(p => p.id))
+      const nuevos = data.filter(p => !idsPrevios.has(p.id))
+      setPedidos(data)
+      if (nuevos.length > 0) {
+        setNuevosIds(prev => [...new Set([...prev, ...nuevos.map(p => p.id)])])
+        playBeep()
+      }
+    }
     setActualizando(false)
   }
 
@@ -185,10 +267,10 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
         <div className="bg-[rgba(232,197,71,.08)] border border-[#e8c547]/30 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1">
             <p className="text-sm font-semibold text-[#e8c547]">🔔 Activar notificaciones</p>
-            <p className="text-xs text-[#888] mt-0.5">Te avisamos cuando llegue un pedido nuevo, aunque estés en otra pestaña.</p>
+            <p className="text-xs text-[#888] mt-0.5">Te avisamos cuando llegue un pedido nuevo, aunque cierres la pestaña.</p>
           </div>
           <button
-            onClick={pedirPermiso}
+            onClick={activarNotificaciones}
             className="shrink-0 bg-[#e8c547] text-black text-xs font-['Syne'] font-bold px-4 py-2 rounded-lg whitespace-nowrap"
           >
             Activar
@@ -199,6 +281,22 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
       {notifPermiso === 'denied' && (
         <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3 text-xs text-[#555]">
           🔕 Notificaciones bloqueadas en este browser. Para activarlas, hacé clic en el candado de la barra de dirección.
+        </div>
+      )}
+
+      {/* Ya dio permiso (quizás antes de que existiera push real) pero falta la suscripción */}
+      {notifPermiso === 'granted' && !pushActivo && (
+        <div className="bg-[rgba(232,197,71,.08)] border border-[#e8c547]/30 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-[#e8c547]">🔔 Falta activar el aviso persistente</p>
+            <p className="text-xs text-[#888] mt-0.5">Hoy solo avisa si tenés la pestaña abierta. Activalo para recibir el aviso aunque la cierres.</p>
+          </div>
+          <button
+            onClick={activarNotificaciones}
+            className="shrink-0 bg-[#e8c547] text-black text-xs font-['Syne'] font-bold px-4 py-2 rounded-lg whitespace-nowrap"
+          >
+            Activar
+          </button>
         </div>
       )}
 
