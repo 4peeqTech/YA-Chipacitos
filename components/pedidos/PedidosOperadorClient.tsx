@@ -75,13 +75,25 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   useEffect(() => { pedidosRef.current = pedidos }, [pedidos])
   useEffect(() => { actualizarRef.current = actualizar })
 
-  // Detectar soporte y permiso actual
+  // Detectar soporte y permiso actual. Si el navegador ya tiene una
+  // suscripción push (puede ser de OTRA cuenta que usó este mismo
+  // dispositivo antes, ej. un admin probando Tareas), la reclamamos para
+  // el usuario logueado ahora — si no, queda "activada" en la UI pero el
+  // registro server-side sigue apuntando a la cuenta vieja y nunca llega
+  // el push a este operador.
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotifPermiso(Notification.permission)
     }
-    navigator.serviceWorker?.getRegistration('/sw.js').then(reg => {
-      reg?.pushManager.getSubscription().then(sub => setPushActivo(!!sub))
+    navigator.serviceWorker?.getRegistration('/sw.js').then(async reg => {
+      const sub = await reg?.pushManager.getSubscription()
+      if (!sub) return
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub),
+      }).catch(() => null)
+      setPushActivo(!!res?.ok)
     }).catch(() => {})
   }, [])
 
