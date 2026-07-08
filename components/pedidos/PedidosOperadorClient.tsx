@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { urlBase64ToUint8Array } from '@/lib/push'
 import { Producto, Pedido, TipoProducto, DestinoProducto } from '@/lib/types'
 import { BadgeEstado } from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
+import PushToggle from '@/components/ui/PushToggle'
 import PedidoMensajes from '@/components/pedidos/PedidoMensajes'
 
 interface Props {
@@ -65,8 +65,6 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   const [actualizando, setActualizando] = useState(false)
   const [flashEnviado, setFlashEnviado] = useState<string | null>(null)
   const [nuevosIds, setNuevosIds] = useState<string[]>([])
-  const [notifPermiso, setNotifPermiso] = useState<NotificationPermission | 'unsupported'>('unsupported')
-  const [pushActivo, setPushActivo] = useState(false)
   const supabase = createClient()
   const titleRef = useRef(typeof document !== 'undefined' ? document.title : '')
   const pedidosRef = useRef(pedidos)
@@ -74,28 +72,6 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
 
   useEffect(() => { pedidosRef.current = pedidos }, [pedidos])
   useEffect(() => { actualizarRef.current = actualizar })
-
-  // Detectar soporte y permiso actual. Si el navegador ya tiene una
-  // suscripción push (puede ser de OTRA cuenta que usó este mismo
-  // dispositivo antes, ej. un admin probando Tareas), la reclamamos para
-  // el usuario logueado ahora — si no, queda "activada" en la UI pero el
-  // registro server-side sigue apuntando a la cuenta vieja y nunca llega
-  // el push a este operador.
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotifPermiso(Notification.permission)
-    }
-    navigator.serviceWorker?.getRegistration('/sw.js').then(async reg => {
-      const sub = await reg?.pushManager.getSubscription()
-      if (!sub) return
-      const res = await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sub),
-      }).catch(() => null)
-      setPushActivo(!!res?.ok)
-    }).catch(() => {})
-  }, [])
 
   // Realtime: nuevos pedidos y cambios de estado
   useEffect(() => {
@@ -186,60 +162,6 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
     }
   }, [nuevosIds])
 
-  // Pide permiso y, si está disponible, suscribe el dispositivo a push real
-  // (vía service worker + VAPID) — así llega notificación de Windows aunque
-  // la pestaña esté cerrada o el realtime se haya caído.
-  async function activarNotificaciones() {
-    if (!('Notification' in window)) return
-    const permiso = await Notification.requestPermission()
-    setNotifPermiso(permiso)
-    if (permiso !== 'granted') return
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
-
-    try {
-      const reg = await navigator.serviceWorker.register('/sw.js')
-      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-      if (!vapidKey) return
-
-      // Forzar suscripción nueva: una vieja (de otra cuenta en el mismo
-      // dispositivo) puede devolverse "viva" del lado del browser aunque
-      // el servicio de push ya no la reconozca.
-      const existente = await reg.pushManager.getSubscription()
-      if (existente) await existente.unsubscribe()
-
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      })
-      const res = await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sub),
-      })
-      if (res.ok) setPushActivo(true)
-    } catch { /* best-effort */ }
-  }
-
-  // Desuscribe este dispositivo (no toca el permiso de notificaciones del
-  // browser, solo deja de recibir push de pedidos).
-  async function desactivarNotificaciones() {
-    try {
-      const reg = await navigator.serviceWorker.getRegistration('/sw.js')
-      const sub = await reg?.pushManager.getSubscription()
-      if (sub) {
-        const endpoint = sub.endpoint
-        await sub.unsubscribe()
-        await fetch('/api/push/subscribe', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint }),
-        }).catch(() => {})
-      }
-    } finally {
-      setPushActivo(false)
-    }
-  }
-
   const [busqueda, setBusqueda] = useState('')
 
   const sucursales = Array.from(new Set(pedidos.map(p => p.local_nombre))).sort()
@@ -287,58 +209,29 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
     const { data } = await supabase.from('pedidos').update(update).eq('id', pedidoId).select().single()
     if (data) {
       setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, ...data } : p))
-      if (nuevoEstado === 'enviado') { setFlashEnviado(pedidoId); setTimeout(() => setFlashEnviado(null), 3000) }
+      if (nuevoEstado === 'enviado') {
+        setFlashEnviado(pedidoId); setTimeout(() => setFlashEnviado(null), 3000)
+        fetch('/api/notificaciones/pedidos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pedidoId: data.id,
+            title: `🚚 Pedido #${data.numero} enviado`,
+            body: `Tu pedido de ${destino} está en camino`,
+            url: '/local/historial',
+          }),
+        }).catch(() => { /* notificación best-effort */ })
+      }
     }
   }
 
   return (
     <div className="w-full px-4 py-4 lg:px-8 lg:py-6 space-y-4">
 
-      {/* Banner: pedir permiso de notificaciones */}
-      {notifPermiso === 'default' && (
-        <div className="bg-[rgba(232,197,71,.08)] border border-[#e8c547]/30 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-[#e8c547]">🔔 Activar notificaciones</p>
-            <p className="text-xs text-[#888] mt-0.5">Te avisamos cuando llegue un pedido nuevo, aunque cierres la pestaña.</p>
-          </div>
-          <button
-            onClick={activarNotificaciones}
-            className="shrink-0 bg-[#e8c547] text-black text-xs font-['Syne'] font-bold px-4 py-2 rounded-lg whitespace-nowrap"
-          >
-            Activar
-          </button>
-        </div>
-      )}
-
-      {notifPermiso === 'denied' && (
-        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3 text-xs text-[#555]">
-          🔕 Notificaciones bloqueadas en este browser. Para activarlas, hacé clic en el candado de la barra de dirección.
-        </div>
-      )}
-
-      {/* Control persistente: dejá prender/apagar el aviso persistente en cualquier momento */}
-      {notifPermiso === 'granted' && (
-        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-[#f0f0f0]">
-              {pushActivo ? '🔔 Aviso persistente activado' : '🔕 Aviso persistente desactivado'}
-            </p>
-            <p className="text-xs text-[#888] mt-0.5">
-              {pushActivo
-                ? 'Este dispositivo recibe el aviso de pedidos nuevos aunque cierres la pestaña.'
-                : 'Hoy solo avisa si tenés la pestaña abierta. Activalo para recibir el aviso aunque la cierres.'}
-            </p>
-          </div>
-          <button
-            onClick={pushActivo ? desactivarNotificaciones : activarNotificaciones}
-            className={`shrink-0 text-xs font-['Syne'] font-bold px-4 py-2 rounded-lg whitespace-nowrap ${
-              pushActivo ? 'bg-[#2a2a2a] text-[#f0f0f0]' : 'bg-[#e8c547] text-black'
-            }`}
-          >
-            {pushActivo ? 'Desactivar' : 'Activar'}
-          </button>
-        </div>
-      )}
+      <PushToggle
+        descripcionActivar="Te avisamos cuando llegue un pedido nuevo, aunque cierres la pestaña."
+        descripcionActiva="Este dispositivo recibe el aviso de pedidos nuevos aunque cierres la pestaña."
+      />
 
       {/* Banner de pedidos nuevos (persiste hasta cerrar) */}
       {nuevosIds.length > 0 && (

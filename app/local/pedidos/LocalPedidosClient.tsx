@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Profile, Producto, Pedido, CarritoItem } from '@/lib/types'
 import { BadgeEstado, BadgeDestino } from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
+import PushToggle from '@/components/ui/PushToggle'
 import PedidoMensajes from '@/components/pedidos/PedidoMensajes'
 
 interface Props {
@@ -221,6 +222,11 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
 
   return (
     <div className="w-full px-4 py-4 lg:px-8 lg:py-6 space-y-6">
+
+      <PushToggle
+        descripcionActivar="Te avisamos cuando tu pedido salga en camino, aunque cierres la pestaña."
+        descripcionActiva="Este dispositivo recibe el aviso cuando tu pedido sale en camino."
+      />
 
       {exitoNums.length > 0 && (
         <div className="bg-[rgba(86,214,138,.08)] border-l-4 border-[#56d68a] rounded-r-lg px-4 py-3 flex items-center justify-between">

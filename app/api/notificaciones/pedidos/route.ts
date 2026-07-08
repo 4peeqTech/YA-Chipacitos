@@ -12,9 +12,13 @@ function getAdminClient() {
 }
 
 // POST /api/notificaciones/pedidos
-// Body: { destino: 'deposito' | 'fabrica', title: string, body: string, url?: string }
-// Notifica a todos los operadores con rol = destino (no recibe userIds: el
-// cliente que crea el pedido no tiene por qué poder leer perfiles ajenos).
+// Body: { destino: 'deposito' | 'fabrica', title, body, url? }
+//   → notifica a todos los operadores con rol = destino.
+// Body: { pedidoId: string, title, body, url? }
+//   → notifica al local dueño de ESE pedido (resuelto server-side).
+// No se acepta un userIds arbitrario: el llamador nunca elige a quién
+// avisar directamente, solo "el destino de este pedido" o "el dueño de
+// este pedido puntual", ambos resueltos acá con service role.
 export async function POST(request: NextRequest) {
   try {
     if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
@@ -31,20 +35,26 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const { destino, title, body, url } = await request.json()
-    if (destino !== 'deposito' && destino !== 'fabrica') {
-      return NextResponse.json({ error: 'Destino inválido' }, { status: 400 })
-    }
-
+    const { destino, pedidoId, title, body, url } = await request.json()
     const admin = getAdminClient()
-    const { data: operadores } = await admin.from('profiles').select('id').eq('rol', destino)
-    const userIds = (operadores || []).map(p => p.id)
+
+    let userIds: string[]
+    if (destino === 'deposito' || destino === 'fabrica') {
+      const { data: operadores } = await admin.from('profiles').select('id').eq('rol', destino)
+      userIds = (operadores || []).map(p => p.id)
+    } else if (pedidoId) {
+      const { data: pedido } = await admin.from('pedidos').select('local_id').eq('id', pedidoId).single()
+      userIds = pedido?.local_id ? [pedido.local_id] : []
+    } else {
+      return NextResponse.json({ error: 'Falta destino o pedidoId' }, { status: 400 })
+    }
     if (!userIds.length) return NextResponse.json({ sent: 0, failed: 0 })
 
     const { data: subs } = await admin.from('push_subscriptions').select('*').in('user_id', userIds)
     if (!subs?.length) return NextResponse.json({ sent: 0, failed: 0 })
 
-    const payload = JSON.stringify({ title, body, url: url || `/${destino}/pedidos`, tag: 'pedido' })
+    const urlDefault = destino ? `/${destino}/pedidos` : '/local/historial'
+    const payload = JSON.stringify({ title, body, url: url || urlDefault, tag: 'pedido' })
 
     const results = await Promise.allSettled(
       subs.map(sub =>
