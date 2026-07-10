@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { BuscadorUsuario } from './ModalTarea'
-import { nombrePerfil, notificarTarea, duracionMin, fmtHoras, insertarVineta } from './helpers'
+import { nombrePerfil, notificarTarea, duracionMin, fmtHoras, insertarVineta, DESTINATARIO_DEFAULT_INFORME_ID } from './helpers'
 import type { InformeDiario, InformeActividad } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
@@ -77,10 +77,10 @@ interface ModalInformeProps {
 }
 
 export default function ModalInforme({ informe, fecha, perfiles, userId, userNombre, onCerrar, onCreado, onEliminado }: ModalInformeProps) {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const esNuevo = !informe
   const esAutor = esNuevo || informe?.autor_id === userId
-  const [destinatarios, setDestinatarios] = useState<string[]>([])
+  const [destinatarios, setDestinatarios] = useState<string[]>(() => esNuevo ? [DESTINATARIO_DEFAULT_INFORME_ID] : [])
   const [comentario, setComentario] = useState('')
   const [completadas, setCompletadas] = useState<{ id: string; titulo: string; incluida: boolean }[]>([])
   const [cargando, setCargando] = useState(esNuevo)
@@ -106,14 +106,14 @@ export default function ModalInforme({ informe, fecha, perfiles, userId, userNom
 
   const horaInicioMostrada = (esNuevo ? horarioInicio : informe?.horario_inicio)?.slice(0, 5) || null
   const horaFinMostrada = (esNuevo ? horarioFin : informe?.horario_fin)?.slice(0, 5) || null
-  const actividadesMostradas = esNuevo ? actividades : (informe?.actividades || [])
 
   const totalMin = useMemo(() => {
+    const actividadesParaTotal = esNuevo ? actividades : (informe?.actividades || [])
     const rango = duracionMin(horaInicioMostrada, horaFinMostrada)
     if (rango !== null) return rango
-    const suma = actividadesMostradas.reduce((acc, a) => acc + (duracionMin(a.hora_inicio, a.hora_fin) ?? 0), 0)
+    const suma = actividadesParaTotal.reduce((acc, a) => acc + (duracionMin(a.hora_inicio, a.hora_fin) ?? 0), 0)
     return suma > 0 ? suma : null
-  }, [horaInicioMostrada, horaFinMostrada, actividadesMostradas])
+  }, [horaInicioMostrada, horaFinMostrada, esNuevo, actividades, informe])
 
   useEffect(() => {
     if (!esNuevo) return
@@ -132,14 +132,14 @@ export default function ModalInforme({ informe, fecha, perfiles, userId, userNom
       for (const row of data || []) {
         if (vistos.has(row.tarea_id)) continue
         vistos.add(row.tarea_id)
-        lista.push({ id: row.tarea_id, titulo: (row as any).tareas?.titulo || 'Tarea', incluida: true })
+        lista.push({ id: row.tarea_id, titulo: row.tareas?.[0]?.titulo || 'Tarea', incluida: true })
       }
       setCompletadas(lista)
       setCargando(false)
     }
     cargarCompletadas()
     return () => { activo = false }
-  }, [esNuevo, fecha, userId])
+  }, [esNuevo, fecha, userId, supabase])
 
   function toggleIncluida(id: string) {
     setCompletadas(prev => prev.map(c => c.id === id ? { ...c, incluida: !c.incluida } : c))
@@ -147,6 +147,7 @@ export default function ModalInforme({ informe, fecha, perfiles, userId, userNom
 
   async function guardar() {
     if (!destinatarios.length) { setError('Elegí al menos un destinatario'); return }
+    if (!comentario.trim()) { setError('El comentario es obligatorio'); return }
     setGuardando(true); setError('')
     try {
       const tareasIncluidas = completadas.filter(c => c.incluida).map(c => ({ id: c.id, titulo: c.titulo }))
@@ -168,7 +169,7 @@ export default function ModalInforme({ informe, fecha, perfiles, userId, userNom
       if (err) throw err
       notificarTarea({ userIds: destinatarios, title: '📨 Informe del día', body: `${userNombre} envió su informe del ${fmtFecha(fecha)}`, url: '/tareas' })
       onCreado(data)
-    } catch (e: any) { setError(e.message) }
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo enviar el informe') }
     finally { setGuardando(false) }
   }
 
@@ -288,9 +289,9 @@ export default function ModalInforme({ informe, fecha, perfiles, userId, userNom
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-[#888] block mb-1">COMENTARIO</label>
+            <label className="text-[11px] font-semibold text-[#888] block mb-1">COMENTARIO {esNuevo && '*'}</label>
             {esNuevo ? (
-              <textarea className="!resize-y min-h-[56px]" placeholder="Comentario opcional…" value={comentario} onChange={e => setComentario(e.target.value)} />
+              <textarea className="!resize-y min-h-[56px]" placeholder="Contá cómo estuvo el turno…" value={comentario} onChange={e => setComentario(e.target.value)} />
             ) : informe!.comentario ? (
               <div className="text-[13px] text-[#ccc] whitespace-pre-wrap">{informe!.comentario}</div>
             ) : (

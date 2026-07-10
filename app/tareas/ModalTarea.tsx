@@ -116,7 +116,7 @@ function HiloComentarios({ tarea, userId, userNombre, perfiles, onNuevoComentari
   tarea: Tarea; userId: string; userNombre: string; perfiles: PerfilLite[]
   onNuevoComentario: (p: { tarea: Tarea; texto: string; autorNombre: string }) => void
 }) {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [comentarios, setComentarios] = useState<(TareaComentario & { _opt?: boolean })[]>([])
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -135,7 +135,7 @@ function HiloComentarios({ tarea, userId, userNombre, perfiles, onNuevoComentari
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [tarea?.id])
+  }, [tarea?.id, supabase])
 
   function scrollAbajo() {
     setTimeout(() => { if (hiloRef.current) hiloRef.current.scrollTop = hiloRef.current.scrollHeight }, 50)
@@ -194,7 +194,7 @@ function HiloComentarios({ tarea, userId, userNombre, perfiles, onNuevoComentari
 
 // ── Subtareas / checklist ─────────────────────────────────────────────
 function Subtareas({ tarea, userId }: { tarea: Tarea; userId: string }) {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [subtareas, setSubtareas] = useState<TareaSubtarea[]>([])
   const [nueva, setNueva] = useState('')
   const [agregando, setAgregando] = useState(false)
@@ -202,7 +202,7 @@ function Subtareas({ tarea, userId }: { tarea: Tarea; userId: string }) {
   useEffect(() => {
     if (!tarea?.id) return
     supabase.from('tarea_subtareas').select('*').eq('tarea_id', tarea.id).order('orden').then(({ data }) => setSubtareas(data || []))
-  }, [tarea?.id])
+  }, [tarea?.id, supabase])
 
   const completadas = subtareas.filter(s => s.completada).length
   const pct = subtareas.length ? Math.round((completadas / subtareas.length) * 100) : 0
@@ -273,13 +273,13 @@ function Subtareas({ tarea, userId }: { tarea: Tarea; userId: string }) {
 
 // ── Historial de cambios ──────────────────────────────────────────────
 function Historial({ tarea, perfiles }: { tarea: Tarea; perfiles: PerfilLite[] }) {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [historial, setHistorial] = useState<TareaHistorial[]>([])
 
   useEffect(() => {
     if (!tarea?.id) return
     supabase.from('tarea_historial').select('*').eq('tarea_id', tarea.id).order('created_at', { ascending: false }).then(({ data }) => setHistorial(data || []))
-  }, [tarea?.id])
+  }, [tarea?.id, supabase])
 
   if (historial.length === 0) {
     return <div className="text-xs text-[#444] text-center py-4">Sin cambios registrados</div>
@@ -296,8 +296,8 @@ function Historial({ tarea, perfiles }: { tarea: Tarea; perfiles: PerfilLite[] }
               <strong className="text-[#f0f0f0]">{nombrePerfil(h.autor_id, perfiles)}</strong>
               {' cambió '}
               <strong>{CAMPO_LABELS[h.campo] || h.campo}</strong>
-              {h.valor_anterior && <> de <em>"{h.valor_anterior}"</em></>}
-              {h.valor_nuevo && <> a <em>"{h.valor_nuevo}"</em></>}
+              {h.valor_anterior && <> de <em>&quot;{h.valor_anterior}&quot;</em></>}
+              {h.valor_nuevo && <> a <em>&quot;{h.valor_nuevo}&quot;</em></>}
             </div>
             <div className="text-[11px] text-[#555] mt-0.5">{fmtRelativo(h.created_at)}</div>
           </div>
@@ -309,7 +309,7 @@ function Historial({ tarea, perfiles }: { tarea: Tarea; perfiles: PerfilLite[] }
 
 // ── Adjuntos ──────────────────────────────────────────────────────────
 function Adjuntos({ tarea, userId }: { tarea: Tarea; userId: string }) {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [adjuntos, setAdjuntos] = useState<TareaAdjunto[]>([])
   const [subiendo, setSubiendo] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -317,7 +317,7 @@ function Adjuntos({ tarea, userId }: { tarea: Tarea; userId: string }) {
   useEffect(() => {
     if (!tarea?.id) return
     supabase.from('tarea_adjuntos').select('*').eq('tarea_id', tarea.id).order('created_at').then(({ data }) => setAdjuntos(data || []))
-  }, [tarea?.id])
+  }, [tarea?.id, supabase])
 
   const esParticipante = tarea.creado_por === userId || (Array.isArray(tarea.asignado_a) && tarea.asignado_a.includes(userId))
 
@@ -335,8 +335,8 @@ function Adjuntos({ tarea, userId }: { tarea: Tarea; userId: string }) {
         .select().single()
       if (dbErr) throw dbErr
       setAdjuntos(prev => [...prev, data])
-    } catch (err: any) {
-      alert('Error al subir: ' + err.message)
+    } catch (err) {
+      alert('Error al subir: ' + (err instanceof Error ? err.message : 'error desconocido'))
     } finally {
       setSubiendo(false)
       if (inputRef.current) inputRef.current.value = ''
@@ -420,7 +420,7 @@ interface ModalTareaProps {
 }
 
 export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaInicial, turnoInicial, onCerrar, onGuardado }: ModalTareaProps) {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const esNueva = !tarea?.id
   const esCreador = esNueva || tarea?.creado_por === userId
   const [tab, setTab] = useState<'info' | 'checklist' | 'adjuntos' | 'historial' | 'comentarios'>('info')
@@ -516,7 +516,7 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
 
         onGuardado({ ...tarea, ...payload } as Tarea, 'editada')
       }
-    } catch (e: any) { setError(e.message) }
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar la tarea') }
     finally { setLoading(false) }
   }
 

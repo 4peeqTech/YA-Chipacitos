@@ -14,7 +14,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import ModalSubtarea from './ModalSubtarea'
 import ModalInforme from './ModalInforme'
-import { PRIORIDAD_META, TURNO_META, notificarTarea } from './helpers'
+import { PRIORIDAD_META, TURNO_META, notificarTarea, truncarTexto } from './helpers'
 import type { Tarea, TareaSubtarea, InformeDiario, Turno } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
@@ -22,7 +22,6 @@ interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: st
 type ModoVista = 'dia' | 'semana' | 'mes'
 
 const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-const TURNOS: Turno[] = ['manana', 'tarde']
 
 function toISODate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -108,13 +107,15 @@ function SubtareaChip({ sub, isDragging, onClick }: { sub: TareaSubtarea; isDrag
 }
 
 function InformeChip({ informe, onClick }: { informe: InformeDiario; onClick: () => void }) {
+  const preview = informe.comentario ? truncarTexto(informe.comentario, 35) : 'Informe'
   return (
     <div
       onClick={e => { e.stopPropagation(); onClick() }}
+      title={informe.comentario || undefined}
       className="text-[10px] px-1.5 py-0.5 rounded-md truncate cursor-pointer bg-[rgba(167,139,250,.12)] text-[#a78bfa]"
       style={{ borderLeft: '3px solid #a78bfa' }}
     >
-      📨 Informe
+      📨 {preview}
     </div>
   )
 }
@@ -159,7 +160,7 @@ function TurnoZona({
       {pickerAbierto && (
         <>
           <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); onCerrarPicker() }} />
-          <div onClick={e => e.stopPropagation()} className="absolute left-0 top-full mt-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl shadow-lg z-20 min-w-[170px] overflow-hidden">
+          <div onClick={e => e.stopPropagation()} className={`absolute left-0 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl shadow-lg z-20 min-w-[170px] overflow-hidden ${turno === 'tarde' ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
             <button onClick={onNuevaTarea} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">+ Tarea</button>
             <button onClick={onNuevaSubtarea} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">+ Subtarea</button>
             <button onClick={onNuevoInforme} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">📨 Informe del día</button>
@@ -245,7 +246,9 @@ function MesCelda({
     >
       <div className="flex items-center justify-between shrink-0 mb-0.5">
         <span className={`text-[11px] font-bold leading-none ${esHoy ? 'bg-[#e8c547] text-black rounded-full w-5 h-5 flex items-center justify-center' : 'text-[#888] px-0.5'}`}>{dia.getDate()}</span>
-        {informesDia.length > 0 && <span className="text-[9px]">📨</span>}
+        {informesDia.length > 0 && (
+          <span className="text-[9px]" title={informesDia.map(i => i.comentario || 'Informe').join(' · ')}>📨</span>
+        )}
       </div>
       <div className="flex-1 min-h-0 flex flex-col gap-0.5 overflow-hidden">
         {tareasMostradas.map(t => <MesChipTarea key={t.id} tarea={t} />)}
@@ -267,7 +270,7 @@ interface VistaCalendarioProps {
 }
 
 export default function VistaCalendario({ tareas, perfiles, userId, userNombre, onEditarTarea, onNuevaTarea }: VistaCalendarioProps) {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [modoVista, setModoVista] = useState<ModoVista>('semana')
   const [fechaActual, setFechaActual] = useState(() => new Date())
   const [subtareas, setSubtareas] = useState<TareaSubtarea[]>([])
@@ -280,6 +283,10 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   useEffect(() => {
+    // Ajusta la vista inicial en mobile recién después de montar: el
+    // render inicial debe coincidir con el del server (sin `window`) para
+    // no generar un mismatch de hidratación.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (typeof window !== 'undefined' && window.innerWidth < 640) setModoVista('dia')
   }, [])
 
@@ -304,7 +311,7 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
     }
     cargar()
     return () => { activo = false }
-  }, [fechaActual, modoVista])
+  }, [dias, supabase])
 
   useEffect(() => {
     const canal = supabase.channel('calendario-tareas-realtime')
@@ -327,7 +334,7 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
       })
       .subscribe()
     return () => { supabase.removeChannel(canal) }
-  }, [])
+  }, [supabase])
 
   const tareasPorDiaTurno = useMemo(() => {
     const m = new Map<string, Tarea[]>()

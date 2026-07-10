@@ -181,7 +181,7 @@ function SeccionLocal() {
       <Bloque titulo="Confirmar recepción">
         <Paso n={1}>Cuando el pedido pase a <strong className="text-[#f0f0f0]">Enviado</strong>, te aparece un botón <strong className="text-[#f0f0f0]">✓ Confirmar recepción</strong>.</Paso>
         <Paso n={2}>Se abre el remito con los productos del pedido. Para cada uno podés corregir la <strong className="text-[#f0f0f0]">cantidad recibida</strong> y cargar el <strong className="text-[#f0f0f0]">valor ($ total)</strong> — por ejemplo, si llegó menos cantidad de la pedida o el precio final fue distinto.</Paso>
-        <Paso n={3}>Si llegó algún producto que <strong className="text-[#f0f0f0]">no estaba en el pedido original</strong>, buscalo en <em>"+ Agregar producto no pedido..."</em>, seleccionalo de la lista y cargale cantidad y valor. Podés agregar más de uno.</Paso>
+        <Paso n={3}>Si llegó algún producto que <strong className="text-[#f0f0f0]">no estaba en el pedido original</strong>, buscalo en <em>&quot;+ Agregar producto no pedido...&quot;</em>, seleccionalo de la lista y cargale cantidad y valor. Podés agregar más de uno.</Paso>
         <Paso n={4}>Tocá <strong className="text-[#f0f0f0]">Confirmar recepción</strong>. El pedido pasa a <strong className="text-[#f0f0f0]">Recibido</strong> con todos los ítems (los originales editados y los que agregaste) guardados en el remito.</Paso>
         <Alerta>Confirmá la recepción solo cuando el pedido efectivamente llegó y revisaste las cantidades. Una vez confirmado no se puede reabrir el remito.</Alerta>
       </Bloque>
@@ -222,7 +222,7 @@ function SeccionDeposito() {
         <Paso n={1}>Abrí el pedido tocando sobre la tarjeta.</Paso>
         <Paso n={2}>Avanzá entre estados: <strong className="text-[#f0f0f0]">Pendiente → En preparación → Enviado</strong>.</Paso>
         <Paso n={3}>El local ve el cambio de estado al instante.</Paso>
-        <Tip>Cambiá a "En preparación" cuando empieces a armar el pedido para que el local sepa que está siendo atendido.</Tip>
+        <Tip>Cambiá a &quot;En preparación&quot; cuando empieces a armar el pedido para que el local sepa que está siendo atendido.</Tip>
       </Bloque>
 
       <Bloque titulo="Mensajes dentro del pedido">
@@ -255,7 +255,7 @@ function SeccionFabrica() {
         <Paso n={1}>Abrí el pedido tocando sobre la tarjeta.</Paso>
         <Paso n={2}>Avanzá entre estados: <strong className="text-[#f0f0f0]">Pendiente → En preparación → Enviado</strong>.</Paso>
         <Paso n={3}>El local ve el cambio de estado al instante.</Paso>
-        <Tip>Cambiá a "En preparación" cuando empieces a preparar el pedido para que el local sepa que está siendo atendido.</Tip>
+        <Tip>Cambiá a &quot;En preparación&quot; cuando empieces a preparar el pedido para que el local sepa que está siendo atendido.</Tip>
       </Bloque>
 
       <Bloque titulo="Mensajes dentro del pedido">
@@ -301,7 +301,7 @@ function SeccionAdmin() {
         <Paso n={3}>Tocá <strong className="text-[#f0f0f0]">Sincronizar desde Sheets</strong>. El sistema lee la hoja <em>BD</em> de Google Sheets y guarda las ventas en la base de datos.</Paso>
         <Paso n={4}>Al terminar ves cuántas ventas se importaron y si hay locales sin mapear.</Paso>
         <Tip>También podés cargar un archivo CSV exportado desde Posberry usando la sección de carga manual.</Tip>
-        <Alerta>Si aparecen locales "sin mapear", el nombre en Posberry no coincide con ningún local del sistema. Solucionalo en Mapeo de productos.</Alerta>
+        <Alerta>Si aparecen locales &quot;sin mapear&quot;, el nombre en Posberry no coincide con ningún local del sistema. Solucionalo en Mapeo de productos.</Alerta>
       </Bloque>
 
       <Bloque titulo="Ventas Posberry 📈">
@@ -338,7 +338,7 @@ function SeccionAdmin() {
         <Paso n={1}>Ves la lista de nombres del sheet de Posberry sin mapear.</Paso>
         <Paso n={2}>Para cada uno elegís el producto equivalente desde el selector.</Paso>
         <Paso n={3}>Guardás. Desde ahí la conciliación puede cruzar los datos.</Paso>
-        <Alerta>Si en la conciliación aparece "sin mapear", el producto de Posberry no tiene mapeo. Crealo acá.</Alerta>
+        <Alerta>Si en la conciliación aparece &quot;sin mapear&quot;, el producto de Posberry no tiene mapeo. Crealo acá.</Alerta>
       </Bloque>
 
       <Bloque titulo="Gestión de usuarios 👥">
@@ -369,8 +369,62 @@ function SeccionAdmin() {
       </Bloque>
 
       <Bloque titulo="Tareas 📋">
-        <p>Tablero kanban compartido entre todos los usuarios con acceso. Podés crear tareas, asignarlas a un usuario, definir prioridad (Alta / Media / Baja) y moverlas entre columnas: <strong className="text-[#f0f0f0]">Pendiente → En progreso → Completada</strong>.</p>
-        <Tip>Las tareas se actualizan en tiempo real para todos los usuarios que tengan el módulo habilitado.</Tip>
+        <p>Tablero compartido entre todos los usuarios con acceso al módulo. Tiene tres vistas intercambiables: <strong className="text-[#f0f0f0]">Board</strong> (columnas por estado), <strong className="text-[#f0f0f0]">Lista</strong> (tabla ordenable por cualquier columna) y <strong className="text-[#f0f0f0]">Calendario</strong> (por día, semana o mes).</p>
+        <div className="pt-1 space-y-2">
+          <p className="text-[#888] text-xs font-semibold uppercase tracking-wider">Estados</p>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <BadgeEstado label="Pendiente" color="#f0a849" bg="rgba(240,168,73,.1)" />
+              <p>Recién creada, todavía no se empezó.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <BadgeEstado label="En progreso" color="#f0a030" bg="rgba(240,160,48,.12)" />
+              <p>Alguien la está trabajando.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <BadgeEstado label="Completada" color="#56d68a" bg="rgba(86,214,138,.12)" />
+              <p>Terminada.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <BadgeEstado label="Vencida" color="#e84210" bg="rgba(232,66,16,.12)" />
+              <p>Pasó la fecha límite y no está completada — se muestra en su propia columna para no perderla de vista.</p>
+            </div>
+          </div>
+        </div>
+        <Paso n={1}>Tocá <strong className="text-[#f0f0f0]">＋</strong> para crear una tarea: título, descripción, prioridad (Alta / Media / Baja), fecha límite (opcional), turno (Mañana / Tarde) y a quién se la asignás (podés elegir más de una persona).</Paso>
+        <Paso n={2}>Si además querés sumar a una persona puntual o a un área que colabore sin ser responsable principal, activalo en <strong className="text-[#f0f0f0]">Colaboración</strong>.</Paso>
+        <Paso n={3}>En el Board, arrastrá la tarjeta a otra columna para cambiar el estado, o usá el menú <strong className="text-[#f0f0f0]">⋯</strong> de la tarjeta.</Paso>
+        <Tip>Las tareas se actualizan en tiempo real para todos los usuarios con acceso — no hace falta recargar la página.</Tip>
+      </Bloque>
+
+      <Bloque titulo="Detalle de una tarea">
+        <p>Al abrir una tarea existente tenés 5 pestañas:</p>
+        <div className="grid grid-cols-1 gap-1.5 text-xs pt-1">
+          <p><strong className="text-[#f0f0f0]">Info</strong> — datos de la tarea y edición.</p>
+          <p><strong className="text-[#f0f0f0]">Checklist</strong> — subtareas con barra de progreso.</p>
+          <p><strong className="text-[#f0f0f0]">Adjuntos</strong> — subir y descargar archivos.</p>
+          <p><strong className="text-[#f0f0f0]">Historial</strong> — quién cambió qué campo y cuándo.</p>
+          <p><strong className="text-[#f0f0f0]">Comentarios</strong> — hilo de conversación sobre la tarea, con notificación a los participantes.</p>
+        </div>
+      </Bloque>
+
+      <Bloque titulo="Crear tareas por voz 🎙">
+        <Paso n={1}>Mantené presionado el botón 🎙 y contá la tarea en voz alta (título, prioridad, fecha, a quién asignarla).</Paso>
+        <Paso n={2}>Soltá para enviarla, o deslizá el dedo hacia la izquierda mientras la mantenés presionada para cancelar la grabación.</Paso>
+        <Paso n={3}>La IA transcribe el audio y completa los campos automáticamente, y la tarea queda creada.</Paso>
+        <Tip>También podés agregar un acceso directo a la pantalla de inicio del celular que arranca la grabación apenas se abre.</Tip>
+      </Bloque>
+
+      <Bloque titulo="Calendario e informes diarios 📅">
+        <p>La vista Calendario organiza tareas y subtareas por fecha y turno (Mañana / Tarde). Tocá el <strong className="text-[#f0f0f0]">＋</strong> de cada turno para crear una tarea, una subtarea o un informe del día en esa fecha puntual. También podés arrastrar tarjetas entre días o turnos para reprogramarlas.</p>
+        <Paso n={1}>Al crear un informe, elegí a quién enviarlo en <strong className="text-[#f0f0f0]">Enviar a</strong> — Ricardo (Gerencia) viene precargado por defecto, pero podés sacarlo o sumar más gente.</Paso>
+        <Paso n={2}>Marcá qué tareas completadas ese día querés incluir y completá el <strong className="text-[#f0f0f0]">Comentario</strong> (obligatorio) contando cómo estuvo el turno.</Paso>
+        <Paso n={3}>Si querés, sumá actividades puntuales con horario de inicio/fin y detalle.</Paso>
+        <Tip>En las vistas Semana y Día vas a ver un fragmento del comentario en la tarjeta del informe (📨); abrila para leerlo completo.</Tip>
+      </Bloque>
+
+      <Bloque titulo="Notificaciones">
+        <p>Activá las notificaciones push (🔔) para recibir avisos cuando te asignen una tarea, cambie de estado, se actualice la fecha límite o te comenten algo.</p>
       </Bloque>
     </>
   )
@@ -395,7 +449,7 @@ const MODULO_AYUDA: Record<string, { titulo: string; desc: string }> = {
   locales:          { titulo: 'APIs 🔌',                  desc: 'Configuración de claves y conexiones externas.' },
   cajas:            { titulo: 'Cajas 🏦',                 desc: 'Administración de cajas disponibles.' },
   formas_pago:      { titulo: 'Formas de pago 💳',        desc: 'Alta y edición de medios de pago.' },
-  tareas:           { titulo: 'Tareas 📋',                desc: 'Tablero kanban compartido para gestionar tareas del equipo.' },
+  tareas:           { titulo: 'Tareas 📋',                desc: 'Tablero compartido (Board / Lista / Calendario) para gestionar tareas del equipo, con checklist, adjuntos, creación por voz e informes diarios.' },
 }
 
 function SeccionSquad({ modulosPermitidos }: { modulosPermitidos: string[] }) {

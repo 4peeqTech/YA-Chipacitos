@@ -57,6 +57,11 @@ export const COLABORA_META: Record<'area' | 'persona', { label: string; icon: st
   persona: { label: 'Persona', icon: '👤' },
 }
 
+// Los informes diarios siempre le interesan a Ricardo (Gerencia), así que
+// viene precargado como destinatario por defecto — se puede sacar o sumar
+// más gente igual desde el buscador.
+export const DESTINATARIO_DEFAULT_INFORME_ID = '2957d327-77af-4116-a991-adac12a43c92'
+
 export function minutosDesdeHora(hhmm: string | null | undefined): number | null {
   if (!hhmm) return null
   const [h, m] = hhmm.split(':').map(Number)
@@ -75,6 +80,10 @@ export function fmtHoras(mins: number): string {
   const h = Math.floor(mins / 60)
   const m = mins % 60
   return `${h}:${String(m).padStart(2, '0')} hs`
+}
+
+export function truncarTexto(texto: string, max: number): string {
+  return texto.length > max ? `${texto.slice(0, max).trimEnd()}…` : texto
 }
 
 export function insertarVineta(textarea: HTMLTextAreaElement | null, value: string, setValue: (v: string) => void) {

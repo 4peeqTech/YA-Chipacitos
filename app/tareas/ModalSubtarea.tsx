@@ -46,7 +46,7 @@ export default function ModalSubtarea({ tareas, userId, fechaInicial, turnoInici
         .select().single()
       if (err) throw err
       onCreada(data)
-    } catch (e: any) { setError(e.message) }
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar la subtarea') }
     finally { setLoading(false) }
   }
 

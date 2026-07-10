@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   DndContext,
@@ -16,7 +16,7 @@ import ModalTarea from './ModalTarea'
 import VistaCalendario from './VistaCalendario'
 import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, isVencida, esMiaTarea, nombrePerfil, notificarTarea } from './helpers'
 import { urlBase64ToUint8Array } from '@/lib/push'
-import type { Tarea, Profile, PrioridadTarea, EstadoTarea, Turno } from '@/lib/types'
+import type { Tarea, PrioridadTarea, EstadoTarea, Turno } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
@@ -80,7 +80,7 @@ function VistaTabla({ tareas, userId, perfiles, puedeCrear, onEditar, onCambiarE
   }
 
   const sorted = [...tareas].sort((a, b) => {
-    let va: any = a[sortCol] ?? ''; let vb: any = b[sortCol] ?? ''
+    let va: string | number = (a[sortCol] as string) ?? ''; let vb: string | number = (b[sortCol] as string) ?? ''
     if (sortCol === 'prioridad') { const o = { alta: 0, media: 1, baja: 2 }; va = o[va as PrioridadTarea] ?? 1; vb = o[vb as PrioridadTarea] ?? 1 }
     if (sortCol === 'estado') { const o = { pendiente: 0, en_progreso: 1, completada: 2 }; va = o[va as EstadoTarea] ?? 0; vb = o[vb as EstadoTarea] ?? 0 }
     const cmp = va < vb ? -1 : va > vb ? 1 : 0
@@ -273,7 +273,7 @@ interface TareasClientProps {
 }
 
 export default function TareasClient({ userId, userNombre, tareas: initial, perfiles }: TareasClientProps) {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [tareas, setTareas] = useState<Tarea[]>(initial)
   const [filtroPrioridad, setFiltroPrioridad] = useState<'todas' | PrioridadTarea>('todas')
   const [busqueda, setBusqueda] = useState('')
@@ -304,17 +304,6 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
     }).catch(() => {})
   }, [])
 
-  // Acceso directo a grabar: shortcut del manifest en Android (mantener
-  // presionado el ícono) o un ícono de iOS agregado a mano apuntando a esta
-  // URL (Safari → Compartir → Agregar a pantalla de inicio). No limpiamos
-  // el query param de la barra de direcciones a propósito: en iOS hace
-  // falta que la URL se mantenga tal cual para poder guardarla como acceso
-  // directo — cada vez que se abra, vuelve a arrancar la grabación.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('accion') === 'grabar') iniciarGrabacion()
-  }, [])
-
   // ── Realtime ──────────────────────────────────────────────────────
   useEffect(() => {
     const channel = supabase.channel('tareas-realtime')
@@ -335,7 +324,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [userId])
+  }, [userId, supabase])
 
   // En mobile, el navegador suele cortar el websocket cuando la pestaña
   // pasa a segundo plano (pantalla apagada, cambio de app), y al volver
@@ -358,10 +347,10 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
       document.removeEventListener('visibilitychange', refetch)
       window.removeEventListener('focus', refetch)
     }
-  }, [userId])
+  }, [userId, supabase])
 
   // ── Filtros ────────────────────────────────────────────────────────
-  function ordenar(lista: Tarea[]) {
+  const ordenar = useCallback((lista: Tarea[]) => {
     return [...lista].sort((a, b) => {
       const aMia = esMiaTarea(a, userId) ? 0 : 1
       const bMia = esMiaTarea(b, userId) ? 0 : 1
@@ -369,7 +358,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
       const prio = { alta: 0, media: 1, baja: 2 }
       return (prio[a.prioridad] ?? 1) - (prio[b.prioridad] ?? 1)
     })
-  }
+  }, [userId])
 
   const filtradas = useMemo(() => {
     const q = busqueda.toLowerCase()
@@ -379,10 +368,10 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
     )
   }, [tareas, filtroPrioridad, busqueda])
 
-  const vencidas    = useMemo(() => ordenar(filtradas.filter(t => isVencida(t.fecha_limite, t.estado))), [filtradas])
-  const pendientes  = useMemo(() => ordenar(filtradas.filter(t => t.estado === 'pendiente' && !isVencida(t.fecha_limite, t.estado))), [filtradas])
-  const enProgreso  = useMemo(() => ordenar(filtradas.filter(t => t.estado === 'en_progreso' && !isVencida(t.fecha_limite, t.estado))), [filtradas])
-  const completadas = useMemo(() => ordenar(filtradas.filter(t => t.estado === 'completada')), [filtradas])
+  const vencidas    = useMemo(() => ordenar(filtradas.filter(t => isVencida(t.fecha_limite, t.estado))), [filtradas, ordenar])
+  const pendientes  = useMemo(() => ordenar(filtradas.filter(t => t.estado === 'pendiente' && !isVencida(t.fecha_limite, t.estado))), [filtradas, ordenar])
+  const enProgreso  = useMemo(() => ordenar(filtradas.filter(t => t.estado === 'en_progreso' && !isVencida(t.fecha_limite, t.estado))), [filtradas, ordenar])
+  const completadas = useMemo(() => ordenar(filtradas.filter(t => t.estado === 'completada')), [filtradas, ordenar])
 
   const totalActivas = vencidas.length + pendientes.length + enProgreso.length
 
@@ -438,6 +427,45 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
   const activeTarea = activeId ? tareas.find(t => t.id === activeId) : null
 
   // ── Grabación de audio ──────────────────────────────────────────────
+  async function crearTareaDesdeAudio(campos: { titulo?: string; descripcion?: string | null; prioridad?: PrioridadTarea; fecha_limite?: string | null; asignado_a?: string[] }) {
+    const asignados = campos.asignado_a?.length ? campos.asignado_a : [userId]
+    const nueva = {
+      titulo: campos.titulo || 'Nueva tarea',
+      descripcion: campos.descripcion || null,
+      prioridad: campos.prioridad || 'media',
+      estado: 'pendiente' as EstadoTarea,
+      fecha_limite: campos.fecha_limite || null,
+      asignado_a: asignados,
+      creado_por: userId,
+    }
+    const { data, error } = await supabase.from('tareas').insert(nueva).select().single()
+    if (error) throw new Error('No se pudo crear la tarea')
+    setTareas(prev => [data, ...prev])
+    setToastAudio(`✅ Tarea creada: "${nueva.titulo}"`)
+    setTimeout(() => setToastAudio(''), 4000)
+
+    const destinatarios = asignados.filter(id => id !== userId)
+    if (destinatarios.length) {
+      notificarTarea({ userIds: destinatarios, title: '📋 Nueva tarea asignada', body: nueva.titulo, url: '/tareas' })
+    }
+  }
+
+  async function procesarAudio(blob: Blob) {
+    try {
+      const fd = new FormData()
+      fd.append('audio', blob, 'audio.webm')
+      fd.append('perfiles', JSON.stringify(perfiles))
+      const res = await fetch('/api/tareas/audio', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al procesar audio')
+      await crearTareaDesdeAudio(data.campos)
+    } catch (e) {
+      setErrorAudio(e instanceof Error ? e.message : 'Error al procesar audio')
+    } finally {
+      setProcesandoAudio(false)
+    }
+  }
+
   async function iniciarGrabacion() {
     setErrorAudio('')
     cancelarRef.current = false
@@ -461,6 +489,22 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
       setErrorAudio('No se pudo acceder al micrófono')
     }
   }
+
+  // Acceso directo a grabar: shortcut del manifest en Android (mantener
+  // presionado el ícono) o un ícono de iOS agregado a mano apuntando a esta
+  // URL (Safari → Compartir → Agregar a pantalla de inicio). No limpiamos
+  // el query param de la barra de direcciones a propósito: en iOS hace
+  // falta que la URL se mantenga tal cual para poder guardarla como acceso
+  // directo — cada vez que se abra, vuelve a arrancar la grabación.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    // Iniciar la grabación es un efecto secundario legítimo (pide el
+    // micrófono) que no puede resolverse durante el render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (params.get('accion') === 'grabar') iniciarGrabacion()
+    // Debe correr solo al montar; iniciarGrabacion no es estable entre renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function detenerGrabacion(cancelar = false) {
     cancelarRef.current = cancelar
@@ -488,45 +532,6 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
     if (!grabando) return
     const dx = e.clientX - startXRef.current
     detenerGrabacion(dx < -60)
-  }
-
-  async function procesarAudio(blob: Blob) {
-    try {
-      const fd = new FormData()
-      fd.append('audio', blob, 'audio.webm')
-      fd.append('perfiles', JSON.stringify(perfiles))
-      const res = await fetch('/api/tareas/audio', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Error al procesar audio')
-      await crearTareaDesdeAudio(data.campos)
-    } catch (e: any) {
-      setErrorAudio(e.message)
-    } finally {
-      setProcesandoAudio(false)
-    }
-  }
-
-  async function crearTareaDesdeAudio(campos: { titulo?: string; descripcion?: string | null; prioridad?: PrioridadTarea; fecha_limite?: string | null; asignado_a?: string[] }) {
-    const asignados = campos.asignado_a?.length ? campos.asignado_a : [userId]
-    const nueva = {
-      titulo: campos.titulo || 'Nueva tarea',
-      descripcion: campos.descripcion || null,
-      prioridad: campos.prioridad || 'media',
-      estado: 'pendiente' as EstadoTarea,
-      fecha_limite: campos.fecha_limite || null,
-      asignado_a: asignados,
-      creado_por: userId,
-    }
-    const { data, error } = await supabase.from('tareas').insert(nueva).select().single()
-    if (error) throw new Error('No se pudo crear la tarea')
-    setTareas(prev => [data, ...prev])
-    setToastAudio(`✅ Tarea creada: "${nueva.titulo}"`)
-    setTimeout(() => setToastAudio(''), 4000)
-
-    const destinatarios = asignados.filter(id => id !== userId)
-    if (destinatarios.length) {
-      notificarTarea({ userIds: destinatarios, title: '📋 Nueva tarea asignada', body: nueva.titulo, url: '/tareas' })
-    }
   }
 
   // ── Notificaciones push ──────────────────────────────────────────────
@@ -717,9 +722,9 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
       {grabando && (
         <div className="fixed inset-0 z-[200] bg-[rgba(10,10,10,.92)] flex flex-col items-center justify-center gap-8">
           <div className="flex flex-col items-center gap-3.5">
-            <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse" style={{ background: '#e84210', boxShadow: '0 0 0 18px rgba(232,66,16,.18)' }}>🎙</div>
-            <div className="text-xl font-bold text-[#f0f0f0]">Grabando…</div>
-            <div className="text-sm text-[#888]">Hablá la tarea</div>
+            <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse" style={{ background: cancelando ? '#555' : '#e84210', boxShadow: cancelando ? '0 0 0 18px rgba(85,85,85,.18)' : '0 0 0 18px rgba(232,66,16,.18)' }}>🎙</div>
+            <div className="text-xl font-bold text-[#f0f0f0]">{cancelando ? 'Soltá para cancelar' : 'Grabando…'}</div>
+            <div className="text-sm text-[#888]">{cancelando ? '' : 'Hablá la tarea'}</div>
           </div>
           <div className="flex gap-4">
             <button onClick={() => detenerGrabacion(true)} className="px-8 py-4 rounded-2xl border-2 border-[#2a2a2a] bg-transparent text-[#f0f0f0] text-base font-semibold cursor-pointer">✕ Cancelar</button>
@@ -772,7 +777,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
           <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e84210] rounded-2xl p-6 max-w-[340px] w-full">
             <h3 className="m-0 mb-2 text-base font-['Syne'] font-bold text-[#f0f0f0]">Eliminar tarea</h3>
             <p className="m-0 mb-5 text-[13px] text-[#888]">
-              ¿Eliminás "<strong className="text-[#f0f0f0]">{confirmEliminar.titulo}</strong>"? Esta acción no se puede deshacer.
+              ¿Eliminás &quot;<strong className="text-[#f0f0f0]">{confirmEliminar.titulo}</strong>&quot;? Esta acción no se puede deshacer.
             </p>
             <div className="flex gap-2.5">
               <button onClick={() => setConfirmEliminar(null)}

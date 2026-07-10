@@ -56,7 +56,8 @@ export async function POST(request: NextRequest) {
 
     const failed = results.filter(r => r.status === 'rejected').length
     return NextResponse.json({ sent: subs.length - failed, failed })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error desconocido'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
