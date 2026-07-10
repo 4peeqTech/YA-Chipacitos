@@ -25,6 +25,7 @@ export interface Profile {
   whatsapp_phone: string | null
   whatsapp_apikey: string | null
   modulos_permitidos: string[]
+  estado: 'activo' | 'eliminado'
   created_at: string
 }
 

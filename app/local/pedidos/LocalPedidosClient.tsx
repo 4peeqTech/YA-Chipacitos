@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Profile, Producto, Pedido, CarritoItem } from '@/lib/types'
+import { Profile, Producto, Pedido, PedidoItem, CarritoItem } from '@/lib/types'
 import { BadgeEstado, BadgeDestino } from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
 import PushToggle from '@/components/ui/PushToggle'
@@ -20,8 +20,11 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
   const [enviando, setEnviando] = useState(false)
   const [exitoNums, setExitoNums] = useState<number[]>([])
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
   const [remitoPedidoId, setRemitoPedidoId] = useState<string | null>(null)
   const [remitoItems, setRemitoItems] = useState<Record<string, { cantidad_recibida: string; valor_total: string }>>({})
+  const [remitoNuevos, setRemitoNuevos] = useState<Array<{ tempId: string; producto: Producto; cantidad_recibida: string; valor_total: string }>>([])
+  const [remitoBusquedaProducto, setRemitoBusquedaProducto] = useState('')
   const [confirmando, setConfirmando] = useState(false)
   const [tabActiva, setTabActiva] = useState<'fabrica' | 'deposito'>('fabrica')
   const [cantidadesInput, setCantidadesInput] = useState<Record<string, string>>({})
@@ -93,8 +96,10 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
   async function enviarPedido() {
     if (carrito.length === 0) return
     setEnviando(true)
+    setErrorEnvio(null)
     const grupoId = crypto.randomUUID()
     const nums: number[] = []
+    const destinosFallidos: Array<'fabrica' | 'deposito'> = []
     const destinos: Array<{ destino: 'fabrica' | 'deposito'; items: CarritoItem[] }> = []
     if (itemsFabrica.length > 0) destinos.push({ destino: 'fabrica', items: itemsFabrica })
     if (itemsDeposito.length > 0) destinos.push({ destino: 'deposito', items: itemsDeposito })
@@ -102,10 +107,11 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
       const { data: pedido, error } = await supabase.from('pedidos')
         .insert({ local_id: profile.id, local_nombre: profile.local_nombre || profile.nombre, destino, notas: notas || null, grupo_id: grupoId })
         .select().single()
-      if (error || !pedido) continue
-      await supabase.from('pedido_items').insert(items.map(i => ({
+      if (error || !pedido) { destinosFallidos.push(destino); continue }
+      const { error: itemsError } = await supabase.from('pedido_items').insert(items.map(i => ({
         pedido_id: pedido.id, producto_id: i.producto.id, producto_nombre: i.producto.nombre, cantidad: i.cantidad,
       })))
+      if (itemsError) { destinosFallidos.push(destino); continue }
       nums.push(pedido.numero)
       fetch('/api/notificaciones/pedidos', {
         method: 'POST',
@@ -118,8 +124,14 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
       }).catch(() => { /* notificación best-effort */ })
     }
     setExitoNums(nums)
-    setCarrito([])
-    setNotas('')
+    if (destinosFallidos.length > 0) {
+      // Dejamos en el carrito solo lo que no se pudo enviar, para no perderlo.
+      setCarrito(c => c.filter(i => destinosFallidos.includes(i.producto.destino)))
+      setErrorEnvio(`No pudimos enviar el pedido de ${destinosFallidos.join(' y ')}. Los productos quedaron en tu carrito, probá de nuevo.`)
+    } else {
+      setCarrito([])
+      setNotas('')
+    }
     setEnviando(false)
     const { data } = await supabase.from('pedidos').select('*, pedido_items(*), pedido_mensajes(*)')
       .eq('local_id', profile.id).order('created_at', { ascending: false }).limit(50)
@@ -143,7 +155,14 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
       }
     }
     setRemitoItems(inicial)
+    setRemitoNuevos([])
+    setRemitoBusquedaProducto('')
     setRemitoPedidoId(pedido.id)
+  }
+
+  function agregarProductoARemito(producto: Producto) {
+    setRemitoNuevos(prev => [...prev, { tempId: crypto.randomUUID(), producto, cantidad_recibida: '1', valor_total: '' }])
+    setRemitoBusquedaProducto('')
   }
 
   async function confirmarRecepcion(pedido: Pedido) {
@@ -156,20 +175,44 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
         valor_total: vals?.valor_total ? parseFloat(vals.valor_total.replace(',', '.')) : null,
       }).eq('id', item.id)
     }))
+
+    let itemsNuevos: PedidoItem[] = []
+    if (remitoNuevos.length > 0) {
+      const { data } = await supabase.from('pedido_items').insert(
+        remitoNuevos.map(n => {
+          const cantidad = parseInt(n.cantidad_recibida) || 1
+          return {
+            pedido_id: pedido.id,
+            producto_id: n.producto.id,
+            producto_nombre: n.producto.nombre,
+            cantidad,
+            cantidad_recibida: cantidad,
+            valor_total: n.valor_total ? parseFloat(n.valor_total.replace(',', '.')) : null,
+          }
+        })
+      ).select()
+      if (data) itemsNuevos = data
+    }
+
     await supabase.from('pedidos').update({ estado: 'recibido', recibido_at: new Date().toISOString() }).eq('id', pedido.id)
     setPedidos(prev => prev.map(p => p.id === pedido.id
       ? {
           ...p, estado: 'recibido',
-          pedido_items: p.pedido_items?.map(item => ({
-            ...item,
-            cantidad_recibida: remitoItems[item.id]?.cantidad_recibida ? parseInt(remitoItems[item.id].cantidad_recibida) : null,
-            valor_total: remitoItems[item.id]?.valor_total ? parseFloat(remitoItems[item.id].valor_total.replace(',', '.')) : null,
-          }))
+          pedido_items: [
+            ...(p.pedido_items || []).map(item => ({
+              ...item,
+              cantidad_recibida: remitoItems[item.id]?.cantidad_recibida ? parseInt(remitoItems[item.id].cantidad_recibida) : null,
+              valor_total: remitoItems[item.id]?.valor_total ? parseFloat(remitoItems[item.id].valor_total.replace(',', '.')) : null,
+            })),
+            ...itemsNuevos,
+          ]
         }
       : p
     ))
     setRemitoPedidoId(null)
     setRemitoItems({})
+    setRemitoNuevos([])
+    setRemitoBusquedaProducto('')
     setConfirmando(false)
   }
 
@@ -237,6 +280,13 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
         </div>
       )}
 
+      {errorEnvio && (
+        <div className="bg-[rgba(232,66,16,.08)] border-l-4 border-[#e84210] rounded-r-lg px-4 py-3 flex items-center justify-between">
+          <p className="text-sm font-medium text-[#e84210]">⚠ {errorEnvio}</p>
+          <button onClick={() => setErrorEnvio(null)} className="text-[#e84210] text-xl leading-none ml-3">×</button>
+        </div>
+      )}
+
       {/* Pedidos activos */}
       {pedidosActivos.length > 0 && (
         <div className="space-y-3">
@@ -292,8 +342,67 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
                       />
                     </div>
                   ))}
+                  {remitoNuevos.length > 0 && (
+                    <div className="space-y-1.5 pt-1 border-t border-[#2a2a2a]">
+                      {remitoNuevos.map(n => (
+                        <div key={n.tempId} className="grid grid-cols-[1fr_90px_90px_16px] gap-x-2 items-center">
+                          <span className="text-xs text-[#56d68a] leading-tight">+ {n.producto.nombre}</span>
+                          <input
+                            type="number" min="0" step="1"
+                            value={n.cantidad_recibida}
+                            onChange={e => setRemitoNuevos(prev => prev.map(x => x.tempId === n.tempId ? { ...x, cantidad_recibida: e.target.value } : x))}
+                            className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-[#56d68a]"
+                          />
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={n.valor_total}
+                            onChange={e => setRemitoNuevos(prev => prev.map(x => x.tempId === n.tempId ? { ...x, valor_total: e.target.value } : x))}
+                            placeholder="$0"
+                            className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-1 text-xs text-right focus:outline-none focus:border-[#56d68a]"
+                          />
+                          <button onClick={() => setRemitoNuevos(prev => prev.filter(x => x.tempId !== n.tempId))}
+                            className="text-[#444] hover:text-[#e84210] text-xs" title="Quitar">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="pt-1 border-t border-[#2a2a2a] space-y-1.5 relative">
+                    <input
+                      type="text"
+                      value={remitoBusquedaProducto}
+                      onChange={e => setRemitoBusquedaProducto(e.target.value)}
+                      placeholder="+ Agregar producto no pedido..."
+                      className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#56d68a] placeholder:text-[#666]"
+                    />
+                    {remitoBusquedaProducto.trim() && (() => {
+                      const q = remitoBusquedaProducto.trim().toLowerCase()
+                      const yaCargados = new Set([
+                        ...(pedido.pedido_items || []).map(i => i.producto_id),
+                        ...remitoNuevos.map(n => n.producto.id),
+                      ])
+                      const opciones = productos.filter(p =>
+                        p.destino === pedido.destino &&
+                        !yaCargados.has(p.id) &&
+                        (p.nombre.toLowerCase().includes(q) || (p.codigo != null && String(p.codigo) === q))
+                      ).slice(0, 8)
+                      return (
+                        <div className="max-h-32 overflow-y-auto space-y-0.5 bg-[#111] border border-[#2a2a2a] rounded-lg p-1">
+                          {opciones.length === 0
+                            ? <p className="text-[11px] text-[#555] px-2 py-1">Sin resultados</p>
+                            : opciones.map(p => (
+                              <button key={p.id} onClick={() => agregarProductoARemito(p)}
+                                className="w-full text-left text-xs text-[#f0f0f0] hover:bg-[#1a1a1a] rounded px-2 py-1">
+                                {p.codigo != null ? <span className="text-[#e8c547]">{p.codigo} - </span> : null}{p.nombre}
+                              </button>
+                            ))}
+                        </div>
+                      )
+                    })()}
+                  </div>
+
                   <div className="flex gap-2 pt-1">
-                    <button onClick={() => { setRemitoPedidoId(null); setRemitoItems({}) }}
+                    <button onClick={() => { setRemitoPedidoId(null); setRemitoItems({}); setRemitoNuevos([]); setRemitoBusquedaProducto('') }}
                       className="flex-1 py-2 border border-[#2a2a2a] rounded-xl text-xs font-medium text-[#888] hover:text-[#f0f0f0]">
                       Cancelar
                     </button>

@@ -154,6 +154,7 @@ function SeccionLocal() {
         <Paso n={4}>Si tenés alguna aclaración, escribila en <strong className="text-[#f0f0f0]">Nota para el pedido</strong>.</Paso>
         <Paso n={5}>Tocá <strong className="text-[#f0f0f0]">Enviar pedido</strong>. Si el pedido tiene productos de los dos destinos, se crean automáticamente dos órdenes separadas.</Paso>
         <Tip>El pedido llega al instante. No hace falta llamar para confirmar.</Tip>
+        <Alerta>Si algún destino no se pudo enviar (por ejemplo, por un problema de conexión), te avisamos con un mensaje y esos productos quedan en tu carrito para que reintentes — no se pierden.</Alerta>
       </Bloque>
 
       <Bloque titulo="Estados del pedido">
@@ -178,10 +179,11 @@ function SeccionLocal() {
       </Bloque>
 
       <Bloque titulo="Confirmar recepción">
-        <Paso n={1}>Cuando el pedido pase a <strong className="text-[#f0f0f0]">Enviado</strong>, te aparece un botón para confirmar recepción.</Paso>
-        <Paso n={2}>Al confirmarlo, podés ingresar la cantidad y el valor recibido por cada ítem (remito).</Paso>
-        <Paso n={3}>Una vez completado, el pedido queda como <strong className="text-[#f0f0f0]">Recibido</strong>.</Paso>
-        <Alerta>Confirmá la recepción solo cuando el pedido efectivamente llegó y revisaste las cantidades.</Alerta>
+        <Paso n={1}>Cuando el pedido pase a <strong className="text-[#f0f0f0]">Enviado</strong>, te aparece un botón <strong className="text-[#f0f0f0]">✓ Confirmar recepción</strong>.</Paso>
+        <Paso n={2}>Se abre el remito con los productos del pedido. Para cada uno podés corregir la <strong className="text-[#f0f0f0]">cantidad recibida</strong> y cargar el <strong className="text-[#f0f0f0]">valor ($ total)</strong> — por ejemplo, si llegó menos cantidad de la pedida o el precio final fue distinto.</Paso>
+        <Paso n={3}>Si llegó algún producto que <strong className="text-[#f0f0f0]">no estaba en el pedido original</strong>, buscalo en <em>"+ Agregar producto no pedido..."</em>, seleccionalo de la lista y cargale cantidad y valor. Podés agregar más de uno.</Paso>
+        <Paso n={4}>Tocá <strong className="text-[#f0f0f0]">Confirmar recepción</strong>. El pedido pasa a <strong className="text-[#f0f0f0]">Recibido</strong> con todos los ítems (los originales editados y los que agregaste) guardados en el remito.</Paso>
+        <Alerta>Confirmá la recepción solo cuando el pedido efectivamente llegó y revisaste las cantidades. Una vez confirmado no se puede reabrir el remito.</Alerta>
       </Bloque>
 
       <Bloque titulo="Mensajes dentro del pedido">
