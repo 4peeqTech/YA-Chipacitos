@@ -174,7 +174,14 @@ export async function DELETE(req: NextRequest) {
   if (id === user.id) return NextResponse.json({ error: 'No podés eliminarte a vos mismo' }, { status: 403 })
 
   const adminClient = getAdminClient()
-  const { error } = await adminClient.auth.admin.deleteUser(id)
+
+  // Soft delete: se banea el acceso y se marca el perfil como eliminado,
+  // pero no se borra nada — así se conserva el historial que referencia
+  // a este usuario (pedidos, ventas, gastos, tareas, etc.)
+  const { error: banError } = await adminClient.auth.admin.updateUserById(id, { ban_duration: '876000h' })
+  if (banError) return NextResponse.json({ error: banError.message }, { status: 400 })
+
+  const { error } = await adminClient.from('profiles').update({ estado: 'eliminado' }).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   return NextResponse.json({ ok: true })

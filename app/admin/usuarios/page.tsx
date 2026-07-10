@@ -9,6 +9,7 @@ export default async function UsuariosPage() {
   const { data: usuarios } = await supabase
     .from('profiles')
     .select('*')
+    .eq('estado', 'activo')
     .order('created_at', { ascending: false })
     .limit(500)
 

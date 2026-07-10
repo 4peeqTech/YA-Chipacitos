@@ -447,7 +447,7 @@ export default function UsuariosClient({ usuariosIniciales, emailsById, roles }:
           <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-red-500 rounded-2xl w-full max-w-sm p-6 space-y-4">
             <h3 className="font-['Syne'] font-bold text-lg text-[#f0f0f0]">Eliminar usuario</h3>
             {error && <div className="bg-[rgba(232,66,16,.1)] border border-[#e84210]/30 rounded-lg p-3 text-[#e84210] text-sm">{error}</div>}
-            <p className="text-sm text-[#888]">¿Eliminar a <span className="text-[#f0f0f0] font-medium">{eliminando.nombre}</span>? Esta acción no se puede deshacer.</p>
+            <p className="text-sm text-[#888]">¿Eliminar a <span className="text-[#f0f0f0] font-medium">{eliminando.nombre}</span>? Perderá el acceso y dejará de aparecer en esta lista.</p>
             <div className="flex gap-2 pt-1">
               <button onClick={() => { setEliminando(null); setError('') }}
                 className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0]">
