@@ -12,13 +12,14 @@ import {
   useDraggable,
   type DragEndEvent,
 } from '@dnd-kit/core'
+import Link from 'next/link'
 import ModalTarea from './ModalTarea'
 import VistaCalendario from './VistaCalendario'
-import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, isVencida, esMiaTarea, nombrePerfil, notificarTarea } from './helpers'
+import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, isVencida, esMiaTarea, esCompletadaVieja, nombrePerfil, notificarTarea, DESTINATARIO_DEFAULT_INFORME_ID } from './helpers'
 import { urlBase64ToUint8Array } from '@/lib/push'
 import type { Tarea, PrioridadTarea, EstadoTarea, Turno } from '@/lib/types'
 
-interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
+export interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
 const COLUMNAS = [
   { id: 'vencidas',    label: 'Vencidas',    border: '#e84210', bg: 'rgba(232,66,16,.07)',   text: '#e84210' },
@@ -67,7 +68,7 @@ function Metricas({ tareas, userId }: { tareas: Tarea[]; userId: string }) {
 }
 
 // ── Vista tabla ───────────────────────────────────────────────────────
-function VistaTabla({ tareas, userId, perfiles, puedeCrear, onEditar, onCambiarEstado, onEliminar }: {
+export function VistaTabla({ tareas, userId, perfiles, puedeCrear, onEditar, onCambiarEstado, onEliminar }: {
   tareas: Tarea[]; userId: string; perfiles: PerfilLite[]; puedeCrear: boolean
   onEditar: (t: Tarea) => void; onCambiarEstado: (t: Tarea, e: EstadoTarea) => void; onEliminar: (t: Tarea) => void
 }) {
@@ -163,6 +164,7 @@ function TareaCard({ tarea, userId, perfiles, puedeCrear, onEditar, onCambiarEst
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging: dragging } = useDraggable({ id: tarea.id, data: { tarea } })
   const [menuOpen, setMenuOpen] = useState(false)
+  const [expandida, setExpandida] = useState(false)
 
   const esMia = esMiaTarea(tarea, userId)
   const esPropia = tarea.creado_por === userId
@@ -187,50 +189,60 @@ function TareaCard({ tarea, userId, perfiles, puedeCrear, onEditar, onCambiarEst
       onClick={() => !menuOpen && !dragging && onEditar(tarea)}
     >
       <div className="flex justify-between items-start gap-1.5">
-        <div className={`text-sm leading-snug flex-1 text-[#f0f0f0] ${esMia ? 'font-bold' : 'font-medium'} ${tarea.estado === 'completada' ? 'line-through text-[#888]' : ''}`}>
+        <div className={`text-sm leading-snug flex-1 text-[#f0f0f0] ${!expandida ? 'truncate' : ''} ${esMia ? 'font-bold' : 'font-medium'} ${tarea.estado === 'completada' ? 'line-through text-[#888]' : ''}`}>
           {tarea.titulo}
         </div>
 
-        {puedeCrear && (esPropia || esMia) && (
-          <div className="relative shrink-0" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setMenuOpen(o => !o)} className="bg-transparent border-none text-lg cursor-pointer text-[#666] px-0.5 leading-none">⋯</button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl shadow-lg z-20 min-w-[160px] overflow-hidden">
-                  {tarea.estado !== 'pendiente' && <button onClick={() => { onCambiarEstado(tarea, 'pendiente'); setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">↩ Pendiente</button>}
-                  {tarea.estado !== 'en_progreso' && <button onClick={() => { onCambiarEstado(tarea, 'en_progreso'); setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">▶ En progreso</button>}
-                  {tarea.estado !== 'completada' && <button onClick={() => { onCambiarEstado(tarea, 'completada'); setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">✓ Completar</button>}
-                  <div className="h-px bg-[#2a2a2a]" />
-                  <button onClick={() => { onEditar(tarea); setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">✏️ Editar</button>
-                  {esPropia && <button onClick={() => { onEliminar(tarea); setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#e84210] hover:bg-[#2a2a2a]">🗑 Eliminar</button>}
-                </div>
-              </>
+        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+          <button onClick={() => setExpandida(v => !v)} title={expandida ? 'Ver menos' : 'Ver más'} className="bg-transparent border-none text-sm cursor-pointer text-[#666] px-0.5 leading-none">
+            {expandida ? '🙈' : '👁'}
+          </button>
+
+          {puedeCrear && (esPropia || esMia) && (
+            <div className="relative">
+              <button onClick={() => setMenuOpen(o => !o)} className="bg-transparent border-none text-lg cursor-pointer text-[#666] px-0.5 leading-none">⋯</button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                  <div className="absolute right-0 top-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl shadow-lg z-20 min-w-[160px] overflow-hidden">
+                    {tarea.estado !== 'pendiente' && <button onClick={() => { onCambiarEstado(tarea, 'pendiente'); setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">↩ Pendiente</button>}
+                    {tarea.estado !== 'en_progreso' && <button onClick={() => { onCambiarEstado(tarea, 'en_progreso'); setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">▶ En progreso</button>}
+                    {tarea.estado !== 'completada' && <button onClick={() => { onCambiarEstado(tarea, 'completada'); setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">✓ Completar</button>}
+                    <div className="h-px bg-[#2a2a2a]" />
+                    <button onClick={() => { onEditar(tarea); setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#f0f0f0] hover:bg-[#2a2a2a]">✏️ Editar</button>
+                    {esPropia && <button onClick={() => { onEliminar(tarea); setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 bg-transparent border-none text-sm cursor-pointer text-[#e84210] hover:bg-[#2a2a2a]">🗑 Eliminar</button>}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {expandida && (
+        <>
+          <div className="mt-1.5">
+            <span className="text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded-full" style={{ color: prioMeta.color, background: prioMeta.bg }}>
+              {prioMeta.label.toUpperCase()}
+            </span>
+          </div>
+
+          <div className="mt-2 flex flex-col gap-1">
+            {asignados && (
+              <div className="text-xs text-[#888] flex items-center gap-1">
+                <span className="text-[11px]">👤</span> {asignados}
+              </div>
             )}
+            {tarea.fecha_limite && (
+              <div className="text-xs flex items-center gap-1" style={{ color: vencida ? '#e84210' : '#888', fontWeight: vencida ? 700 : 400 }}>
+                <span className="text-[11px]">📅</span> {fmtRelativoFecha(tarea.fecha_limite)}
+                {vencida && <span className="text-[10px] bg-[rgba(232,66,16,.12)] text-[#e84210] px-1.5 py-0.5 rounded-lg font-bold">VENCIDA</span>}
+              </div>
+            )}
+            <div className="text-[11px] text-[#555] mt-0.5">{fmtCreated(tarea.created_at)}</div>
           </div>
-        )}
-      </div>
-
-      <div className="mt-1.5">
-        <span className="text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded-full" style={{ color: prioMeta.color, background: prioMeta.bg }}>
-          {prioMeta.label.toUpperCase()}
-        </span>
-      </div>
-
-      <div className="mt-2 flex flex-col gap-1">
-        {asignados && (
-          <div className="text-xs text-[#888] flex items-center gap-1">
-            <span className="text-[11px]">👤</span> {asignados}
-          </div>
-        )}
-        {tarea.fecha_limite && (
-          <div className="text-xs flex items-center gap-1" style={{ color: vencida ? '#e84210' : '#888', fontWeight: vencida ? 700 : 400 }}>
-            <span className="text-[11px]">📅</span> {fmtRelativoFecha(tarea.fecha_limite)}
-            {vencida && <span className="text-[10px] bg-[rgba(232,66,16,.12)] text-[#e84210] px-1.5 py-0.5 rounded-lg font-bold">VENCIDA</span>}
-          </div>
-        )}
-        <div className="text-[11px] text-[#555] mt-0.5">{fmtCreated(tarea.created_at)}</div>
-      </div>
+        </>
+      )}
     </div>
   )
 }
@@ -276,6 +288,9 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
   const [supabase] = useState(() => createClient())
   const [tareas, setTareas] = useState<Tarea[]>(initial)
   const [filtroPrioridad, setFiltroPrioridad] = useState<'todas' | PrioridadTarea>('todas')
+  // '' = todos, 'yo' = yo mismo, 'otros' = cualquiera que no sea yo (solo aplica a "asignado a"), o el id de un perfil puntual
+  const [filtroAsignadoA, setFiltroAsignadoA] = useState('')
+  const [filtroAsignadoPor, setFiltroAsignadoPor] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [vista, setVista] = useState<'board' | 'lista' | 'calendario'>('board')
   const [modal, setModal] = useState<Tarea | 'nueva' | null>(null)
@@ -362,16 +377,37 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
 
   const filtradas = useMemo(() => {
     const q = busqueda.toLowerCase()
-    return tareas.filter(t =>
-      (filtroPrioridad === 'todas' || t.prioridad === filtroPrioridad) &&
-      (!q || t.titulo.toLowerCase().includes(q) || (t.descripcion || '').toLowerCase().includes(q))
-    )
-  }, [tareas, filtroPrioridad, busqueda])
+    return tareas.filter(t => {
+      // La RLS ya limita lo visible a tareas donde participo como creador o
+      // asignado, así que "asignado por" != yo solo aparece en tareas donde
+      // participo como asignado (nunca puedo ver una tarea ajena de punta a punta).
+      const asignadaAMi = Array.isArray(t.asignado_a) && t.asignado_a.includes(userId)
+      const pasaAsignadoA =
+        filtroAsignadoA === '' ? true :
+        filtroAsignadoA === 'yo' ? asignadaAMi :
+        filtroAsignadoA === 'otros' ? !asignadaAMi :
+        Array.isArray(t.asignado_a) && t.asignado_a.includes(filtroAsignadoA)
+      const pasaAsignadoPor =
+        filtroAsignadoPor === '' ? true :
+        filtroAsignadoPor === 'yo' ? t.creado_por === userId :
+        t.creado_por === filtroAsignadoPor
+      return (
+        (filtroPrioridad === 'todas' || t.prioridad === filtroPrioridad) &&
+        pasaAsignadoA && pasaAsignadoPor &&
+        (!q || t.titulo.toLowerCase().includes(q) || (t.descripcion || '').toLowerCase().includes(q))
+      )
+    })
+  }, [tareas, filtroPrioridad, filtroAsignadoA, filtroAsignadoPor, busqueda, userId])
 
-  const vencidas    = useMemo(() => ordenar(filtradas.filter(t => isVencida(t.fecha_limite, t.estado))), [filtradas, ordenar])
-  const pendientes  = useMemo(() => ordenar(filtradas.filter(t => t.estado === 'pendiente' && !isVencida(t.fecha_limite, t.estado))), [filtradas, ordenar])
-  const enProgreso  = useMemo(() => ordenar(filtradas.filter(t => t.estado === 'en_progreso' && !isVencida(t.fecha_limite, t.estado))), [filtradas, ordenar])
-  const completadas = useMemo(() => ordenar(filtradas.filter(t => t.estado === 'completada')), [filtradas, ordenar])
+  // Para Board y Calendario: las completadas viejas quedan afuera para no
+  // acumular una lista infinita. La vista Lista usa `filtradas` sin este
+  // recorte, para conservar el historial completo.
+  const filtradasVigentes = useMemo(() => filtradas.filter(t => !esCompletadaVieja(t)), [filtradas])
+
+  const vencidas    = useMemo(() => ordenar(filtradasVigentes.filter(t => isVencida(t.fecha_limite, t.estado))), [filtradasVigentes, ordenar])
+  const pendientes  = useMemo(() => ordenar(filtradasVigentes.filter(t => t.estado === 'pendiente' && !isVencida(t.fecha_limite, t.estado))), [filtradasVigentes, ordenar])
+  const enProgreso  = useMemo(() => ordenar(filtradasVigentes.filter(t => t.estado === 'en_progreso' && !isVencida(t.fecha_limite, t.estado))), [filtradasVigentes, ordenar])
+  const completadas = useMemo(() => ordenar(filtradasVigentes.filter(t => t.estado === 'completada')), [filtradasVigentes, ordenar])
 
   const totalActivas = vencidas.length + pendientes.length + enProgreso.length
 
@@ -599,6 +635,16 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
               {totalActivas} {totalActivas === 1 ? 'tarea activa' : 'tareas activas'}
             </p>
           )}
+          <div className="flex gap-2 ml-auto">
+            {userId === DESTINATARIO_DEFAULT_INFORME_ID && (
+              <Link href="/tareas/todas" className="text-xs text-[#888] hover:text-[#e8c547] transition-colors no-underline bg-[#111111] border border-[#2a2a2a] rounded-full px-3 py-1.5">
+                📋 Todas las tareas
+              </Link>
+            )}
+            <Link href="/tareas/agente" className="text-xs text-[#888] hover:text-[#e8c547] transition-colors no-underline bg-[#111111] border border-[#2a2a2a] rounded-full px-3 py-1.5">
+              🤖 Agente
+            </Link>
+          </div>
         </div>
 
         <Metricas tareas={tareas} userId={userId} />
@@ -625,6 +671,21 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
             ))}
           </div>
 
+          <div className="flex gap-1.5">
+            <select value={filtroAsignadoPor} onChange={e => setFiltroAsignadoPor(e.target.value)} className="bg-[#111111] border border-[#2a2a2a] rounded-lg px-2.5 py-1.5 text-xs text-[#f0f0f0]">
+              <option value="">Asignado por: todos</option>
+              <option value="yo">Yo mismo</option>
+              {perfiles.filter(p => p.id !== userId).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+
+            <select value={filtroAsignadoA} onChange={e => setFiltroAsignadoA(e.target.value)} className="bg-[#111111] border border-[#2a2a2a] rounded-lg px-2.5 py-1.5 text-xs text-[#f0f0f0]">
+              <option value="">Asignado a: todos</option>
+              <option value="yo">Mis tareas</option>
+              <option value="otros">De otros</option>
+              {perfiles.filter(p => p.id !== userId).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+          </div>
+
           <div className="flex bg-[#111111] border border-[#2a2a2a] rounded-full overflow-hidden">
             <button onClick={() => setVista('board')} className={`px-3 py-1.5 text-xs font-semibold border-none cursor-pointer ${vista === 'board' ? 'bg-[#e8c547] text-black' : 'bg-transparent text-[#888]'}`}>⊞ Board</button>
             <button onClick={() => setVista('lista')} className={`px-3 py-1.5 text-xs font-semibold border-none cursor-pointer ${vista === 'lista' ? 'bg-[#e8c547] text-black' : 'bg-transparent text-[#888]'}`}>☰ Lista</button>
@@ -648,7 +709,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
       {/* Vista calendario */}
       {vista === 'calendario' && (
         <VistaCalendario
-          tareas={tareas}
+          tareas={filtradasVigentes}
           perfiles={perfiles}
           userId={userId}
           userNombre={userNombre}

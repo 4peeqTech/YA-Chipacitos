@@ -46,6 +46,18 @@ export function esMiaTarea(tarea: Tarea, userId: string) {
   return tarea.creado_por === userId || (Array.isArray(tarea.asignado_a) && tarea.asignado_a.includes(userId))
 }
 
+const DOS_DIAS_MS = 2 * 24 * 60 * 60 * 1000
+
+// Una tarea completada hace más de 2 días se considera "vieja": se saca del
+// Board y del Calendario para que esas vistas no acumulen una lista infinita,
+// pero sigue disponible en la vista Lista (historial completo).
+export function esCompletadaVieja(tarea: Tarea) {
+  if (tarea.estado !== 'completada') return false
+  const referencia = tarea.updated_at || tarea.created_at
+  if (!referencia) return false
+  return Date.now() - new Date(referencia).getTime() > DOS_DIAS_MS
+}
+
 export function nombrePerfil(id: string, perfiles: PerfilLite[]) {
   const p = perfiles.find(x => x.id === id)
   if (!p) return '—'
