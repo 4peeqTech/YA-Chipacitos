@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { BuscadorUsuario } from './ModalTarea'
+import GrabadorTexto from './GrabadorTexto'
 import { nombrePerfil, notificarTarea, duracionMin, fmtHoras, insertarVineta, DESTINATARIO_DEFAULT_INFORME_ID } from './helpers'
 import type { InformeDiario, InformeActividad } from '@/lib/types'
 
@@ -289,7 +290,12 @@ export default function ModalInforme({ informe, fecha, perfiles, userId, userNom
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-[#888] block mb-1">COMENTARIO {esNuevo && '*'}</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-semibold text-[#888]">COMENTARIO {esNuevo && '*'}</label>
+              {esNuevo && (
+                <GrabadorTexto onTranscripcion={texto => setComentario(prev => prev.trim() ? `${prev.trim()} ${texto}` : texto)} />
+              )}
+            </div>
             {esNuevo ? (
               <textarea className="!resize-y min-h-[56px]" placeholder="Contá cómo estuvo el turno…" value={comentario} onChange={e => setComentario(e.target.value)} />
             ) : informe!.comentario ? (

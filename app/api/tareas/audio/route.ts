@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { transcribirAudio } from '@/lib/groq/transcribir'
 import { NextRequest, NextResponse } from 'next/server'
 
 const GROQ_API = 'https://api.groq.com/openai/v1'
@@ -21,26 +22,9 @@ export async function POST(request: NextRequest) {
     if (!audioBlob) return NextResponse.json({ error: 'Sin audio' }, { status: 400 })
 
     // 1. Transcribir con Whisper via Groq
-    const whisperForm = new FormData()
-    whisperForm.append('file', audioBlob, 'audio.webm')
-    whisperForm.append('model', 'whisper-large-v3-turbo')
-    whisperForm.append('language', 'es')
-    whisperForm.append('response_format', 'json')
+    const transcripcion = await transcribirAudio(audioBlob)
 
-    const whisperRes = await fetch(`${GROQ_API}/audio/transcriptions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-      body: whisperForm,
-    })
-
-    if (!whisperRes.ok) {
-      const err = await whisperRes.text()
-      throw new Error(`Whisper error: ${err}`)
-    }
-
-    const { text: transcripcion } = await whisperRes.json()
-
-    if (!transcripcion?.trim()) {
+    if (!transcripcion) {
       return NextResponse.json({ error: 'No se detectó voz' }, { status: 400 })
     }
 
