@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { userIds, title, body, url } = await request.json()
-    const resultado = await enviarPush({ userIds, title, body, url })
+    const resultado = await enviarPush({ userIds, title, body, url, tipo: 'tarea' })
     return NextResponse.json(resultado)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error desconocido'

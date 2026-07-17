@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Header from '@/components/ui/Header'
 import Sidebar from '@/components/ui/Sidebar'
 import BottomNav from '@/components/ui/BottomNav'
+import NotificationBell from '@/components/ui/NotificationBell'
 import { getRoleHome, esRolConModulos } from '@/lib/modulos'
 
 export default async function TareasLayout({ children }: { children: React.ReactNode }) {
@@ -52,9 +53,12 @@ export default async function TareasLayout({ children }: { children: React.React
           </div>
           <header className="hidden lg:flex items-center justify-between px-6 py-4 bg-[#111111] border-b border-[#2a2a2a] sticky top-0 z-30">
             <div />
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-[#888]">{profile.nombre}</span>
-              <span className="text-xs bg-[#e8c547]/10 text-[#e8c547] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">{rolLabel}</span>
+            <div className="flex items-center gap-4">
+              <NotificationBell />
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[#888]">{profile.nombre}</span>
+                <span className="text-xs bg-[#e8c547]/10 text-[#e8c547] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">{rolLabel}</span>
+              </div>
             </div>
           </header>
           <main className="flex-1 pb-20 lg:pb-0">

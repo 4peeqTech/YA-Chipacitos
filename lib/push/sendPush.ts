@@ -11,9 +11,18 @@ function getAdminClient() {
 
 // Envía una notificación push a un conjunto de usuarios, en proceso (sin pasar
 // por HTTP), para poder llamarla tanto desde rutas con sesión de usuario como
-// desde el cron (que no tiene cookies).
-export async function enviarPush({ userIds, title, body, url }: { userIds: string[]; title: string; body: string; url?: string }) {
+// desde el cron (que no tiene cookies). También deja el registro en
+// `notificaciones` para el panel in-app, independientemente de si el
+// destinatario tiene push activado o no.
+export async function enviarPush({ userIds, title, body, url, tipo = 'general' }: { userIds: string[]; title: string; body: string; url?: string; tipo?: string }) {
   if (!userIds?.length) return { sent: 0, failed: 0 }
+
+  const admin = getAdminClient()
+
+  await admin.from('notificaciones').insert(
+    userIds.map(user_id => ({ user_id, titulo: title, cuerpo: body, url: url || null, tipo }))
+  )
+
   if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
     return { sent: 0, failed: 0 }
   }
@@ -27,7 +36,7 @@ export async function enviarPush({ userIds, title, body, url }: { userIds: strin
   // RLS de push_subscriptions solo deja a cada usuario leer la suya —
   // acá necesitamos leer la de los destinatarios, así que va con el
   // cliente de service role.
-  const { data: subs } = await getAdminClient()
+  const { data: subs } = await admin
     .from('push_subscriptions')
     .select('*')
     .in('user_id', userIds)

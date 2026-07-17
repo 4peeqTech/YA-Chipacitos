@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import NotificationBell from '@/components/ui/NotificationBell'
 
 interface HeaderProps {
   titulo: string
@@ -62,6 +63,7 @@ export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
           </span>
         </div>
       )}
+      <NotificationBell />
       <button
         onClick={toggleTheme}
         className="text-[#888] hover:text-[#e8c547] transition-colors shrink-0 flex items-center"

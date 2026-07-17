@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Header from '@/components/ui/Header'
 import BottomNav from '@/components/ui/BottomNav'
 import Sidebar from '@/components/ui/Sidebar'
+import NotificationBell from '@/components/ui/NotificationBell'
 import { esRolConModulos } from '@/lib/modulos'
 
 // El control fino de qué rutas /admin/* puede pisar un usuario squad o de
@@ -55,9 +56,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         {/* Header desktop */}
         <header className="hidden lg:flex items-center justify-between px-6 py-4 bg-[#111111] border-b border-[#2a2a2a] sticky top-0 z-30">
           <div />
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-[#888]">{profile?.nombre}</span>
-            <span className="text-xs bg-[#e8c547]/10 text-[#e8c547] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">{rolLabel}</span>
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-[#888]">{profile?.nombre}</span>
+              <span className="text-xs bg-[#e8c547]/10 text-[#e8c547] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">{rolLabel}</span>
+            </div>
           </div>
         </header>
 
