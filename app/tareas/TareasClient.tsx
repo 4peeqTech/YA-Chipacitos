@@ -157,11 +157,12 @@ export function VistaTabla({ tareas, userId, perfiles, puedeCrear, onEditar, onC
 }
 
 // ── Card draggable ────────────────────────────────────────────────────
-function TareaCard({ tarea, userId, perfiles, puedeCrear, onEditar, onCambiarEstado, onEliminar, isDragging = false }: {
-  tarea: Tarea; userId: string; perfiles: PerfilLite[]; puedeCrear: boolean
+function TareaCard({ tarea, userId, perfiles, puedeCrear, comentariosCount, onEditar, onCambiarEstado, onEliminar, isDragging = false }: {
+  tarea: Tarea; userId: string; perfiles: PerfilLite[]; puedeCrear: boolean; comentariosCount: Record<string, number>
   onEditar: (t: Tarea) => void; onCambiarEstado: (t: Tarea, e: EstadoTarea) => void; onEliminar: (t: Tarea) => void
   isDragging?: boolean
 }) {
+  const cantComentarios = comentariosCount[tarea.id] || 0
   const { attributes, listeners, setNodeRef, transform, isDragging: dragging } = useDraggable({ id: tarea.id, data: { tarea } })
   const [menuOpen, setMenuOpen] = useState(false)
   const [expandida, setExpandida] = useState(false)
@@ -194,6 +195,12 @@ function TareaCard({ tarea, userId, perfiles, puedeCrear, onEditar, onCambiarEst
         </div>
 
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+          {cantComentarios > 0 && (
+            <span title={`${cantComentarios} comentario${cantComentarios === 1 ? '' : 's'}`} className="flex items-center gap-0.5 text-[10px] text-[#e8c547] font-semibold">
+              💬 {cantComentarios}
+            </span>
+          )}
+
           <button onClick={() => setExpandida(v => !v)} title={expandida ? 'Ver menos' : 'Ver más'} className="bg-transparent border-none text-sm cursor-pointer text-[#666] px-0.5 leading-none">
             {expandida ? '🙈' : '👁'}
           </button>
@@ -250,7 +257,7 @@ function TareaCard({ tarea, userId, perfiles, puedeCrear, onEditar, onCambiarEst
 // ── Columna droppable ─────────────────────────────────────────────────
 function Columna({ colId, titulo, color, tareas, activeId, ...accionesProps }: {
   colId: string; titulo: string; color: { bg: string; border: string; text: string }; tareas: Tarea[]; activeId: string | null
-  userId: string; perfiles: PerfilLite[]; puedeCrear: boolean
+  userId: string; perfiles: PerfilLite[]; puedeCrear: boolean; comentariosCount: Record<string, number>
   onEditar: (t: Tarea) => void; onCambiarEstado: (t: Tarea, e: EstadoTarea) => void; onEliminar: (t: Tarea) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: colId })
@@ -287,6 +294,7 @@ interface TareasClientProps {
 export default function TareasClient({ userId, userNombre, tareas: initial, perfiles }: TareasClientProps) {
   const [supabase] = useState(() => createClient())
   const [tareas, setTareas] = useState<Tarea[]>(initial)
+  const [comentariosCount, setComentariosCount] = useState<Record<string, number>>({})
   const [filtroPrioridad, setFiltroPrioridad] = useState<'todas' | PrioridadTarea>('todas')
   // '' = todos, 'yo' = yo mismo, 'otros' = cualquiera que no sea yo (solo aplica a "asignado a"), o el id de un perfil puntual
   const [filtroAsignadoA, setFiltroAsignadoA] = useState('')
@@ -340,6 +348,27 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [userId, supabase])
+
+  // ── Contador de comentarios (badge en la tarjeta) ────────────────────
+  const idsTareas = tareas.map(t => t.id).join(',')
+  useEffect(() => {
+    if (!idsTareas) return
+    supabase.from('tarea_comentarios').select('tarea_id').in('tarea_id', idsTareas.split(',')).then(({ data }) => {
+      const counts: Record<string, number> = {}
+      for (const row of data || []) counts[row.tarea_id] = (counts[row.tarea_id] || 0) + 1
+      setComentariosCount(counts)
+    })
+  }, [idsTareas, supabase])
+
+  useEffect(() => {
+    const channel = supabase.channel('comentarios-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tarea_comentarios' }, payload => {
+        const tareaId = (payload.new as { tarea_id: string }).tarea_id
+        setComentariosCount(prev => ({ ...prev, [tareaId]: (prev[tareaId] || 0) + 1 }))
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [supabase])
 
   // En mobile, el navegador suele cortar el websocket cuando la pestaña
   // pasa a segundo plano (pantalla apagada, cambio de app), y al volver
@@ -613,7 +642,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
   }
 
   const accionesProps = {
-    userId, perfiles, puedeCrear,
+    userId, perfiles, puedeCrear, comentariosCount,
     onEditar: (t: Tarea) => setModal(t),
     onCambiarEstado: cambiarEstado,
     onEliminar: (t: Tarea) => setConfirmEliminar(t),
