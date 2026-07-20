@@ -45,7 +45,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8 gap-3">
-          <Image src="/chipacitos-logo.png" alt="YA! Chipacitos" width={100} height={100} className="rounded-2xl shadow-lg" />
+          <Image src="/chipacitos-logo.png" alt="YA! Chipacitos" width={100} height={100} className="rounded-2xl shadow-lg" preload />
           <p className="font-['Syne'] font-bold text-[#e8c547] text-xl tracking-tight">YA! Chipacitos</p>
           <p className="text-[#888] text-sm">Sistema de gestión interna</p>
         </div>
