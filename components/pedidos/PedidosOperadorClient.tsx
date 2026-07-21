@@ -69,7 +69,7 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   const [actualizando, setActualizando] = useState(false)
   const [flashEnviado, setFlashEnviado] = useState<string | null>(null)
   const [nuevosIds, setNuevosIds] = useState<string[]>([])
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const titleRef = useRef(typeof document !== 'undefined' ? document.title : '')
   const pedidosRef = useRef(pedidos)
   const actualizarRef = useRef<() => void>(() => {})
