@@ -314,9 +314,17 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
   const [toastAudio, setToastAudio] = useState('')
   const [pushActivo, setPushActivo] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const startXRef = useRef(0)
   const cancelarRef = useRef(false)
+
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
+      streamRef.current?.getTracks().forEach(t => t.stop())
+    }
+  }, [])
 
   const puedeCrear = true
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -537,6 +545,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
     setCancelando(false)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
       chunksRef.current = []
       const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg'
       const mr = new MediaRecorder(stream, { mimeType })
