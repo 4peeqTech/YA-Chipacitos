@@ -17,6 +17,7 @@ type Grouped = Record<string, Cuenta[]>
 export default function PlanCuentasClient() {
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   // Inline edit state
@@ -53,13 +54,20 @@ export default function PlanCuentasClient() {
 
   async function load() {
     setLoading(true)
-    const res = await fetch('/api/plan-cuentas')
-    const data = await res.json()
-    setCuentas(Array.isArray(data) ? data : [])
-    setLoading(false)
-    // Expand all rubros by default
-    const rubros = [...new Set((Array.isArray(data) ? data : []).map((c: Cuenta) => c.rubro))]
-    setExpanded(new Set(rubros))
+    setError('')
+    try {
+      const res = await fetch('/api/plan-cuentas')
+      if (!res.ok) throw new Error('No se pudo cargar el plan de cuentas')
+      const data = await res.json()
+      setCuentas(Array.isArray(data) ? data : [])
+      // Expand all rubros by default
+      const rubros = [...new Set((Array.isArray(data) ? data : []).map((c: Cuenta) => c.rubro))]
+      setExpanded(new Set(rubros))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo cargar el plan de cuentas')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const grouped: Grouped = cuentas.reduce<Grouped>((acc, c) => {
@@ -165,6 +173,10 @@ export default function PlanCuentasClient() {
         <h1 className="text-2xl font-bold text-[#f0f0f0]">Plan de cuentas</h1>
         <p className="text-[#888] text-sm mt-0.5">Rubros y categorías para clasificar gastos</p>
       </div>
+
+      {error && (
+        <div className="bg-red-900/30 border border-red-800 rounded-xl p-3 text-red-300 text-sm">{error}</div>
+      )}
 
       <div className="space-y-3">
         {rubros.map(rubro => (

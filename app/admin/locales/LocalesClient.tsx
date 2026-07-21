@@ -29,10 +29,16 @@ export default function LocalesClient() {
 
   async function fetchLocales() {
     setLoading(true)
-    const res = await fetch('/api/locales')
-    const data = await res.json()
-    setLocales(Array.isArray(data) ? data : [])
-    setLoading(false)
+    try {
+      const res = await fetch('/api/locales')
+      if (!res.ok) throw new Error('No se pudieron cargar los locales')
+      const data = await res.json()
+      setLocales(Array.isArray(data) ? data : [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudieron cargar los locales')
+    } finally {
+      setLoading(false)
+    }
   }
 
   function startEdit(local: LocalConfig) {

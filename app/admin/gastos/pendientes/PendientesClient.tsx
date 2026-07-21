@@ -84,10 +84,10 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
   useEffect(() => {
     fetch('/api/cajas').then(r => r.json()).then((d: Array<{ nombre: string; activo: boolean }>) => {
       setCajas(Array.isArray(d) ? d.filter(x => x.activo).map(x => x.nombre) : [])
-    })
+    }).catch(() => {})
     fetch('/api/formas-pago').then(r => r.json()).then((d: Array<{ nombre: string; activo: boolean }>) => {
       setFormasPago(Array.isArray(d) ? d.filter(x => x.activo).map(x => x.nombre) : [])
-    })
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
