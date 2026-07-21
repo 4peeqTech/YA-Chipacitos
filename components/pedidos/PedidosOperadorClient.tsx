@@ -23,9 +23,13 @@ const estadoBorderTop: Record<string, string> = {
   recibido:   'border-t-[#56d68a]',
 }
 
+let beepCtx: AudioContext | null = null
+
 function playBeep() {
   try {
-    const ctx = new AudioContext()
+    if (!beepCtx) beepCtx = new AudioContext()
+    if (beepCtx.state === 'suspended') beepCtx.resume()
+    const ctx = beepCtx
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain)
