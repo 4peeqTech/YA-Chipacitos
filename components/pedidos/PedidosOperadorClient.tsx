@@ -202,15 +202,17 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   }
 
   async function toggleActivo(producto: Producto) {
-    const { data } = await supabase.from('productos').update({ activo: !producto.activo }).eq('id', producto.id).select().single()
+    const { data, error } = await supabase.from('productos').update({ activo: !producto.activo }).eq('id', producto.id).select().single()
     if (data) setProductos(prev => prev.map(p => p.id === data.id ? data : p))
+    else if (error) console.error('No se pudo actualizar el producto', error)
   }
 
   async function cambiarEstado(pedidoId: string, nuevoEstado: 'preparando' | 'enviado') {
     const update: Record<string, string> = { estado: nuevoEstado }
     if (nuevoEstado === 'preparando') update.preparando_at = new Date().toISOString()
     if (nuevoEstado === 'enviado') update.enviado_at = new Date().toISOString()
-    const { data } = await supabase.from('pedidos').update(update).eq('id', pedidoId).select().single()
+    const { data, error } = await supabase.from('pedidos').update(update).eq('id', pedidoId).select().single()
+    if (error) console.error('No se pudo actualizar el estado del pedido', error)
     if (data) {
       setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, ...data } : p))
       if (nuevoEstado === 'enviado') {
