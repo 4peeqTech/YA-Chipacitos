@@ -108,14 +108,14 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
       .eq('id', p.id)
       .select()
       .single()
-    if (err) return
+    if (err) { setError(err.message); return }
     setProveedores(prev => prev.map(x => x.id === p.id ? data : x))
   }
 
   async function eliminar(p: Proveedor) {
     if (!confirm(`¿Eliminar "${p.nombre}"? Esta acción no se puede deshacer.`)) return
     const { error: err } = await supabase.from('proveedores').delete().eq('id', p.id)
-    if (err) return
+    if (err) { setError(err.message); return }
     setProveedores(prev => prev.filter(x => x.id !== p.id))
   }
 

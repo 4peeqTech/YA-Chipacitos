@@ -314,7 +314,7 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
   }, [dias, supabase])
 
   useEffect(() => {
-    const canal = supabase.channel('calendario-tareas-realtime')
+    const canal = supabase.channel(`calendario-tareas-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tarea_subtareas' }, payload => {
         if (payload.eventType === 'DELETE') {
           setSubtareas(prev => prev.filter(s => s.id !== (payload.old as { id: string }).id))

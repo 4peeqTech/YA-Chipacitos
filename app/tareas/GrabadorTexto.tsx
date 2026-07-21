@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface GrabadorTextoProps {
   onTranscripcion: (texto: string) => void
@@ -15,12 +15,21 @@ export default function GrabadorTexto({ onTranscripcion }: GrabadorTextoProps) {
   const [procesando, setProcesando] = useState(false)
   const [error, setError] = useState('')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
+
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
+      streamRef.current?.getTracks().forEach(t => t.stop())
+    }
+  }, [])
 
   async function iniciar() {
     setError('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
       chunksRef.current = []
       const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg'
       const mr = new MediaRecorder(stream, { mimeType })

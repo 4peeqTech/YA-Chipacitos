@@ -19,9 +19,10 @@ export async function enviarPush({ userIds, title, body, url, tipo = 'general' }
 
   const admin = getAdminClient()
 
-  await admin.from('notificaciones').insert(
+  const { error: notifError } = await admin.from('notificaciones').insert(
     userIds.map(user_id => ({ user_id, titulo: title, cuerpo: body, url: url || null, tipo }))
   )
+  if (notifError) console.error('No se pudo insertar la notificación in-app', notifError)
 
   if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
     return { sent: 0, failed: 0 }

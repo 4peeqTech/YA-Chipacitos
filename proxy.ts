@@ -43,11 +43,15 @@ export async function proxy(request: NextRequest) {
 
     if (pathname === '/') {
       if (user) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('rol, modulos_permitidos')
           .eq('id', user.id)
           .single()
+
+        if (profileError) {
+          return NextResponse.redirect(new URL('/login', request.url))
+        }
 
         let dest = profile?.rol ? getRoleHome(profile.rol) : '/login'
         // Squad y roles personalizados no tienen un home fijo: depende de
@@ -73,11 +77,15 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('rol, modulos_permitidos')
       .eq('id', user.id)
       .single()
+
+    if (profileError) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
 
     const rol = profile?.rol
     const modulosPermitidos: string[] = profile?.modulos_permitidos || []

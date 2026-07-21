@@ -23,9 +23,13 @@ const estadoBorderTop: Record<string, string> = {
   recibido:   'border-t-[#56d68a]',
 }
 
+let beepCtx: AudioContext | null = null
+
 function playBeep() {
   try {
-    const ctx = new AudioContext()
+    if (!beepCtx) beepCtx = new AudioContext()
+    if (beepCtx.state === 'suspended') beepCtx.resume()
+    const ctx = beepCtx
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain)
@@ -65,7 +69,7 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   const [actualizando, setActualizando] = useState(false)
   const [flashEnviado, setFlashEnviado] = useState<string | null>(null)
   const [nuevosIds, setNuevosIds] = useState<string[]>([])
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const titleRef = useRef(typeof document !== 'undefined' ? document.title : '')
   const pedidosRef = useRef(pedidos)
   const actualizarRef = useRef<() => void>(() => {})
@@ -198,15 +202,17 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   }
 
   async function toggleActivo(producto: Producto) {
-    const { data } = await supabase.from('productos').update({ activo: !producto.activo }).eq('id', producto.id).select().single()
+    const { data, error } = await supabase.from('productos').update({ activo: !producto.activo }).eq('id', producto.id).select().single()
     if (data) setProductos(prev => prev.map(p => p.id === data.id ? data : p))
+    else if (error) console.error('No se pudo actualizar el producto', error)
   }
 
   async function cambiarEstado(pedidoId: string, nuevoEstado: 'preparando' | 'enviado') {
     const update: Record<string, string> = { estado: nuevoEstado }
     if (nuevoEstado === 'preparando') update.preparando_at = new Date().toISOString()
     if (nuevoEstado === 'enviado') update.enviado_at = new Date().toISOString()
-    const { data } = await supabase.from('pedidos').update(update).eq('id', pedidoId).select().single()
+    const { data, error } = await supabase.from('pedidos').update(update).eq('id', pedidoId).select().single()
+    if (error) console.error('No se pudo actualizar el estado del pedido', error)
     if (data) {
       setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, ...data } : p))
       if (nuevoEstado === 'enviado') {

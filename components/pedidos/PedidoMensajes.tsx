@@ -28,7 +28,7 @@ export default function PedidoMensajes({ pedidoId, mensajesIniciales, autorRol, 
   )
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   async function enviar() {
     const t = texto.trim()

@@ -25,7 +25,7 @@ function formatearFecha(iso: string) {
 
 export default function NotificationBell() {
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notificacion[]>([])
   const [userId, setUserId] = useState<string | null>(null)

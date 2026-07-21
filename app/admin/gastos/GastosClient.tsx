@@ -40,7 +40,7 @@ const estadoBadge = (estado: string) => {
 }
 
 export default function GastosClient() {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [gastos, setGastos] = useState<Gasto[]>([])
   const [proveedores, setProveedores] = useState<Proveedor[]>([])
   const [form, setForm] = useState(emptyForm())

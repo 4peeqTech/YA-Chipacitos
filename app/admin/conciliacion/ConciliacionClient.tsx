@@ -29,7 +29,7 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
   const [soloSinConfirmar, setSoloSinConfirmar] = useState(false)
   const [confirmando, setConfirmando] = useState<string | null>(null)
   const [recalculando, setRecalculando] = useState(false)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   async function cargarPeriodo(d: string, h: string) {
     setCargando(true)

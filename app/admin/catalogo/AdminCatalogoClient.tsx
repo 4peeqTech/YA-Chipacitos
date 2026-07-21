@@ -146,17 +146,19 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
   const activos = filtrados.filter(p => p.activo).length
 
   async function toggleActivo(producto: Producto) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('productos').update({ activo: !producto.activo }).eq('id', producto.id).select().single()
     if (data) setProductos(prev => prev.map(p => p.id === data.id ? data : p))
+    else if (error) console.error('No se pudo actualizar el producto', error)
   }
 
   async function agregar() {
     if (!form.nombre) return
     setGuardando(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('productos').insert({ ...form, precio: form.precio ? parseFloat(form.precio.replace(',', '.')) : null, codigo: form.codigo ? parseInt(form.codigo) : null, activo: true }).select().single()
     if (data) { setProductos(prev => [...prev, data]); setModalNuevo(false); setForm({ ...FORM_VACIO, destino: tab, tipo: tab === 'fabrica' ? 'producto' : 'insumo' }) }
+    else if (error) console.error('No se pudo crear el producto', error)
     setGuardando(false)
   }
 
@@ -168,11 +170,12 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
   async function guardarEdicion() {
     if (!editando || !formEdit.nombre) return
     setGuardando(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('productos')
       .update({ nombre: formEdit.nombre, descripcion: formEdit.descripcion, unidad: formEdit.unidad, categoria: formEdit.categoria || null, precio: formEdit.precio ? parseFloat(formEdit.precio.replace(',', '.')) : null, codigo: formEdit.codigo ? parseInt(formEdit.codigo) : null })
       .eq('id', editando.id).select().single()
     if (data) { setProductos(prev => prev.map(p => p.id === data.id ? data : p)); setEditando(null) }
+    else if (error) console.error('No se pudo guardar la edición del producto', error)
     setGuardando(false)
   }
 

@@ -139,7 +139,7 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
   }
 
   useEffect(() => {
-    const ch = supabase.channel('pedidos-local')
+    const ch = supabase.channel(`pedidos-local-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: `local_id=eq.${profile.id}` },
         p => setPedidos(prev => prev.map(x => x.id === p.new.id ? { ...x, ...p.new } : x)))
       .subscribe()
@@ -178,7 +178,7 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
 
     let itemsNuevos: PedidoItem[] = []
     if (remitoNuevos.length > 0) {
-      const { data } = await supabase.from('pedido_items').insert(
+      const { data, error } = await supabase.from('pedido_items').insert(
         remitoNuevos.map(n => {
           const cantidad = parseInt(n.cantidad_recibida) || 1
           return {
@@ -192,6 +192,7 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
         })
       ).select()
       if (data) itemsNuevos = data
+      else if (error) console.error('No se pudieron agregar los ítems nuevos al remito', error)
     }
 
     await supabase.from('pedidos').update({ estado: 'recibido', recibido_at: new Date().toISOString() }).eq('id', pedido.id)
