@@ -337,7 +337,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
 
   // ── Realtime ──────────────────────────────────────────────────────
   useEffect(() => {
-    const channel = supabase.channel('tareas-realtime')
+    const channel = supabase.channel(`tareas-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tareas' }, payload => {
         const t = payload.new as Tarea
         const relevante = t.creado_por === userId || (Array.isArray(t.asignado_a) && t.asignado_a.includes(userId))
@@ -369,7 +369,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
   }, [idsTareas, supabase])
 
   useEffect(() => {
-    const channel = supabase.channel('comentarios-realtime')
+    const channel = supabase.channel(`comentarios-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tarea_comentarios' }, payload => {
         const tareaId = (payload.new as { tarea_id: string }).tarea_id
         setComentariosCount(prev => ({ ...prev, [tareaId]: (prev[tareaId] || 0) + 1 }))

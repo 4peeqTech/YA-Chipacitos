@@ -139,7 +139,7 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
   }
 
   useEffect(() => {
-    const ch = supabase.channel('pedidos-local')
+    const ch = supabase.channel(`pedidos-local-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: `local_id=eq.${profile.id}` },
         p => setPedidos(prev => prev.map(x => x.id === p.new.id ? { ...x, ...p.new } : x)))
       .subscribe()
