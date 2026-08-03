@@ -35,6 +35,9 @@ export const MODULOS: Modulo[] = [
   { key: 'cajas',        label: 'Cajas',           icon: '🏦', href: '/admin/cajas',        section: 'Parámetros' },
   { key: 'formas_pago',  label: 'Formas de pago',  icon: '💳', href: '/admin/formas-pago',  section: 'Parámetros' },
 
+  { key: 'compras-insumos', label: 'Insumos', icon: '🧺', href: '/admin/compras/insumos', section: 'Compras' },
+  { key: 'compras-stock',   label: 'Stock',   icon: '📦', href: '/admin/compras/stock',   section: 'Compras' },
+
   { key: 'tareas', label: 'Tareas', icon: '📋', href: '/tareas' },
 ]
 
