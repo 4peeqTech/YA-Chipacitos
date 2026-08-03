@@ -18,6 +18,7 @@ interface Proveedor {
   notas: string | null
   estado: 'activo' | 'archivado'
   maneja_stock: boolean
+  local: string | null
 }
 
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
@@ -36,6 +37,7 @@ const emptyForm = (): Partial<Proveedor> => ({
   notas: '',
   estado: 'activo',
   maneja_stock: false,
+  local: null,
 })
 
 export default function ProveedoresClient({ proveedoresIniciales }: { proveedoresIniciales: Proveedor[] }) {
@@ -223,6 +225,15 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
               <label htmlFor="maneja_stock" className="text-sm text-[#f0f0f0]">
                 Maneja stock (aparece como proveedor de insumos en Compras)
               </label>
+            </div>
+
+            <div>
+              <label className={labelClass}>Local (facturación/entrega)</label>
+              <select className={inputClass} value={form.local ?? ''} onChange={e => setForm(f => ({...f, local: e.target.value || null}))}>
+                <option value="">Sin asignar</option>
+                <option value="paraguay">Paraguay 388</option>
+                <option value="lagrana">Gdor. Lagraña 388</option>
+              </select>
             </div>
           </div>
 
