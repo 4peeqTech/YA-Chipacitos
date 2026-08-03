@@ -131,7 +131,7 @@ export default function RemitosPedido({
     setLineas(prev => prev.map((l, i) => i === idx ? { ...l, ...cambios } : l))
   }
 
-  async function sumarStock(itemId: string, delta: number) {
+  async function sumarStock(itemId: string, delta: number, remitoId: string) {
     const { data: actual } = await supabase
       .from('compras_stock_actual')
       .select('cantidad')
@@ -143,13 +143,16 @@ export default function RemitosPedido({
       { item_id: itemId, cantidad: nuevaCantidad, actualizado_en: new Date().toISOString(), actualizado_por: usuarioId },
       { onConflict: 'item_id' }
     )
+    await supabase.from('compras_stock_movimientos').insert(
+      { item_id: itemId, delta, tipo: 'entrada_remito', remito_id: remitoId, creado_por: usuarioId }
+    )
   }
 
   async function revertirYBorrar(remitoId: string) {
     const remito = pedido.compras_remitos.find(r => r.id === remitoId)
     if (!remito) return
     for (const item of remito.compras_remito_items) {
-      if (item.item_id) await sumarStock(item.item_id, -item.cantidad)
+      if (item.item_id) await sumarStock(item.item_id, -item.cantidad, remitoId)
     }
     await supabase.from('compras_remitos').delete().eq('id', remitoId)
   }
@@ -195,7 +198,7 @@ export default function RemitosPedido({
       if (errItems) { setError(errItems.message); return }
 
       for (const item of itemsGuardados) {
-        if (item.item_id) await sumarStock(item.item_id, item.cantidad)
+        if (item.item_id) await sumarStock(item.item_id, item.cantidad, remito.id)
       }
 
       const remitoCompleto: Remito = { ...remito, compras_remito_items: itemsGuardados }
