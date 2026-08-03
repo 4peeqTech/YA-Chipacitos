@@ -47,6 +47,9 @@ export default function StockClient({
     setError('')
     setGuardandoId(itemId)
 
+    const cantidadAnterior = stockPorItem[itemId]?.cantidad ?? 0
+    const delta = cantidad - cantidadAnterior
+
     startTransition(async () => {
       const { data, error: err } = await supabase
         .from('compras_stock_actual')
@@ -60,6 +63,12 @@ export default function StockClient({
       setGuardandoId(null)
       if (err) { setError(err.message); return }
       setStockPorItem(prev => ({ ...prev, [itemId]: data }))
+
+      if (delta !== 0) {
+        await supabase.from('compras_stock_movimientos').insert(
+          { item_id: itemId, delta, tipo: 'ajuste_manual', creado_por: usuarioId }
+        )
+      }
     })
   }
 
