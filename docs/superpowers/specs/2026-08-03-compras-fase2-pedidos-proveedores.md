@@ -133,13 +133,13 @@ Mismo esquema de acceso que Fase 1: gateado por `app/admin/layout.tsx`, y para q
   - **Edición de ítems del borrador:** lista editable (cantidad, descripción, unidad), agregar línea libre, quitar línea. Autosave con `useTransition`, igual que Stock.
   - **Generar mensaje:** construye el texto (título con sigla del proveedor + fecha del día, sección de facturación/entrega según `proveedores.local` — mapeo hardcodeado igual que el legacy para los 2 locales existentes —, detalle de ítems) y lo guarda en `compras_pedidos.mensaje`. Se puede regenerar mientras no esté cerrado.
   - **Enviar:** botón que abre `https://wa.me/{contacto_telefono}?text=...` si el proveedor tiene teléfono, o `https://api.whatsapp.com/send?text=...` si no; marca `estado = 'enviado'` y `enviado_en = now()`.
-  - **Listado de pedidos:** toggle **Activos** (`borrador` + `enviado`) / **Todos**, con paginación — mismo patrón ya usado en la vista global de remitos. Columnas: proveedor, estado (badge), fecha, cantidad de ítems. Acciones por fila: ver/editar ítems, regenerar y reenviar mensaje, **cerrar pedido** (confirmación → `estado = 'cerrado'`, `cerrado_en = now()`).
+  - **Listado de pedidos:** toggle **Activos** (`borrador` + `enviado`) / **Todos**, mismo patrón de botones de filtro ya usado en `InsumosClient.tsx`/`ProveedoresClient.tsx` de Fase 1 (sin paginación — el volumen de pedidos es chico, se listan todos igual que insumos/proveedores). Columnas: proveedor, estado (badge), fecha, cantidad de ítems. Acciones por fila: ver/editar ítems, regenerar y reenviar mensaje, **cerrar pedido** (confirmación → `estado = 'cerrado'`, `cerrado_en = now()`).
 
 ## Checklist de cobertura para el plan de implementación
 
 - [ ] Migración SQL (columna `local` + tablas + RLS) aplicada localmente y verificada con `supabase db diff` / migration dry-run.
 - [ ] `lib/modulos.ts` actualizado con la entrada `compras-pedidos`.
-- [ ] `/admin/compras/pedidos` + `PedidosClient.tsx`: alta de pedido con autosugerencia, edición de ítems (catálogo + líneas libres), generación de mensaje, envío por WhatsApp, listado Activos/Todos con paginación, cierre de pedido.
+- [ ] `/admin/compras/pedidos` + `PedidosClient.tsx`: alta de pedido con autosugerencia, edición de ítems (catálogo + líneas libres), generación de mensaje, envío por WhatsApp, listado con filtro Activos/Todos, cierre de pedido.
 - [ ] Probado manualmente con un usuario `admin` y un usuario `squad` con el módulo asignado vía `modulos_permitidos`.
 - [ ] Confirmar que un usuario sin `compras-pedidos` en `modulos_permitidos` (y no admin) no puede acceder ni por URL directa ni por RLS.
 - [ ] Verificar que cerrar/reenviar un pedido no modifica `compras_stock_actual`.
