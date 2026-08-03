@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { construirMensajePedido, linkWhatsApp } from '@/lib/compras/pedidoMensaje'
+import RemitosPedido, { type Remito } from './RemitosPedido'
 
 interface Proveedor {
   id: string
@@ -45,6 +46,7 @@ interface Pedido {
   cerrado_en: string | null
   proveedores: Proveedor
   compras_pedido_items: PedidoItem[]
+  compras_remitos: Remito[]
 }
 
 type FiltroPedidos = 'activos' | 'todos'
@@ -122,7 +124,7 @@ export default function PedidosClient({
           .filter(i => i.cantidad > 0)
       }
 
-      const nuevoPedido: Pedido = { ...pedido, proveedores: proveedor, compras_pedido_items: [] }
+      const nuevoPedido: Pedido = { ...pedido, proveedores: proveedor, compras_pedido_items: [], compras_remitos: [] }
       setPedidos(prev => [nuevoPedido, ...prev])
       setProveedorNuevo('')
       abrirEditor(nuevoPedido)
@@ -227,6 +229,11 @@ export default function PedidosClient({
     if (pedidoEditando?.id === pedido.id) setPedidoEditando(prev => prev ? { ...prev, ...data } : prev)
   }
 
+  function actualizarRemitos(pedidoId: string, remitos: Remito[]) {
+    setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, compras_remitos: remitos } : p))
+    setPedidoEditando(prev => prev && prev.id === pedidoId ? { ...prev, compras_remitos: remitos } : prev)
+  }
+
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
   const labelClass = "block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
 
@@ -328,6 +335,14 @@ export default function PedidosClient({
                 </button>
               </div>
             </div>
+          )}
+
+          {pedidoEditando.estado !== 'borrador' && (
+            <RemitosPedido
+              pedido={pedidoEditando}
+              usuarioId={usuarioId}
+              onRemitosChange={remitos => actualizarRemitos(pedidoEditando.id, remitos)}
+            />
           )}
         </div>
       )}

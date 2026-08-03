@@ -24,7 +24,7 @@ export default async function PedidosPage() {
     supabase.from('compras_stock_actual').select('*'),
     supabase
       .from('compras_pedidos')
-      .select('*, proveedores(id, nombre, local, contacto_telefono, maneja_stock), compras_pedido_items(*)')
+      .select('*, proveedores(id, nombre, local, contacto_telefono, maneja_stock), compras_pedido_items(*), compras_remitos(*, compras_remito_items(*))')
       .order('created_at', { ascending: false }),
   ])
 
