@@ -17,6 +17,7 @@ interface Proveedor {
   condiciones_pago: string | null
   notas: string | null
   estado: 'activo' | 'archivado'
+  maneja_stock: boolean
 }
 
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
@@ -34,6 +35,7 @@ const emptyForm = (): Partial<Proveedor> => ({
   condiciones_pago: '',
   notas: '',
   estado: 'activo',
+  maneja_stock: false,
 })
 
 export default function ProveedoresClient({ proveedoresIniciales }: { proveedoresIniciales: Proveedor[] }) {
@@ -208,6 +210,19 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
             <div className="md:col-span-2 lg:col-span-3">
               <label className={labelClass}>Notas</label>
               <textarea className={`${inputClass} resize-none`} rows={2} value={form.notas ?? ''} onChange={e => setForm(f => ({...f, notas: e.target.value}))} />
+            </div>
+
+            <div className="md:col-span-2 lg:col-span-3 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="maneja_stock"
+                checked={form.maneja_stock ?? false}
+                onChange={e => setForm(f => ({...f, maneja_stock: e.target.checked}))}
+                className="w-4 h-4 accent-[#e8c547]"
+              />
+              <label htmlFor="maneja_stock" className="text-sm text-[#f0f0f0]">
+                Maneja stock (aparece como proveedor de insumos en Compras)
+              </label>
             </div>
           </div>
 
