@@ -1,59 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
-async function requireAdmin() {
+// Solo lectura: lista las sucursales activas para el selector de
+// /admin/fudo. El alta/baja/edición de sucursales y sus credenciales
+// (variables de entorno FUDO_API_KEY_<SLUG> / FUDO_API_SECRET_<SLUG>,
+// ver lib/fudo.ts) ya no tienen UI — se gestionan directo en la base y en Vercel.
+export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { supabase, error: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) }
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') return { supabase, error: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
-  return { supabase, error: null }
-}
+  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-export async function GET() {
-  const { supabase, error } = await requireAdmin()
-  if (error) return error
   const { data, error: dbError } = await supabase
     .from('locales_config')
-    .select('id, sucursal, fudo_api_key, fudo_api_secret, activo, updated_at')
+    .select('sucursal, activo')
     .order('sucursal')
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
   return NextResponse.json(data)
-}
-
-export async function POST(req: NextRequest) {
-  const { supabase, error } = await requireAdmin()
-  if (error) return error
-  const body = await req.json()
-  const { data, error: dbError } = await supabase
-    .from('locales_config')
-    .insert({ sucursal: body.sucursal, fudo_api_key: body.fudo_api_key, fudo_api_secret: body.fudo_api_secret, activo: true })
-    .select()
-    .single()
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
-  return NextResponse.json(data)
-}
-
-export async function PATCH(req: NextRequest) {
-  const { supabase, error } = await requireAdmin()
-  if (error) return error
-  const body = await req.json()
-  const { id, ...fields } = body
-  const { data, error: dbError } = await supabase
-    .from('locales_config')
-    .update({ ...fields, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
-  return NextResponse.json(data)
-}
-
-export async function DELETE(req: NextRequest) {
-  const { supabase, error } = await requireAdmin()
-  if (error) return error
-  const { id } = await req.json()
-  const { error: dbError } = await supabase.from('locales_config').delete().eq('id', id)
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
 }

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { getFudoToken, fudoGet, normalizeJsonApi } from '@/lib/fudo'
+import { getFudoToken, fudoGet, normalizeJsonApi, getFudoCredentials } from '@/lib/fudo'
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -15,20 +15,24 @@ export async function GET(req: NextRequest) {
   const desde = searchParams.get('desde') ?? new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
   const hasta = searchParams.get('hasta') ?? new Date().toISOString().split('T')[0]
 
-  // Leer credenciales desde Supabase
   const { data: localConfig, error: configError } = await supabase
     .from('locales_config')
-    .select('fudo_api_key, fudo_api_secret')
+    .select('sucursal')
     .eq('sucursal', sucursal)
     .eq('activo', true)
     .single()
 
-  if (configError || !localConfig?.fudo_api_key || !localConfig?.fudo_api_secret) {
+  if (configError || !localConfig) {
+    return NextResponse.json({ error: `Sucursal "${sucursal}" no encontrada o inactiva` }, { status: 400 })
+  }
+
+  const credenciales = getFudoCredentials(sucursal)
+  if (!credenciales) {
     return NextResponse.json({ error: `Sucursal "${sucursal}" sin credenciales Fudo configuradas` }, { status: 400 })
   }
 
   try {
-    const token = await getFudoToken(localConfig.fudo_api_key, localConfig.fudo_api_secret)
+    const token = await getFudoToken(credenciales.apiKey, credenciales.apiSecret)
 
     let path = ''
     if (tipo === 'expenses') {

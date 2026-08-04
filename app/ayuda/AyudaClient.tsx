@@ -446,7 +446,6 @@ const MODULO_AYUDA: Record<string, { titulo: string; desc: string }> = {
   usuarios:         { titulo: 'Usuarios 👥',              desc: 'Alta, edición de roles y reseteo de contraseñas de cuentas.' },
   plan_cuentas:     { titulo: 'Plan de cuentas 📋',       desc: 'Categorías contables para clasificar gastos.' },
   proveedores:      { titulo: 'Proveedores 🚚',           desc: 'Alta y edición de proveedores vinculables a gastos.' },
-  locales:          { titulo: 'APIs 🔌',                  desc: 'Configuración de claves y conexiones externas.' },
   cajas:            { titulo: 'Cajas 🏦',                 desc: 'Administración de cajas disponibles.' },
   formas_pago:      { titulo: 'Formas de pago 💳',        desc: 'Alta y edición de medios de pago.' },
   tareas:           { titulo: 'Tareas 📋',                desc: 'Tablero compartido (Board / Lista / Calendario) para gestionar tareas del equipo, con checklist, adjuntos, creación por voz e informes diarios.' },

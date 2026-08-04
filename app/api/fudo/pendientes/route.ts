@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getFudoToken, fudoGet, normalizeJsonApi } from '@/lib/fudo'
+import { getFudoToken, fudoGet, normalizeJsonApi, getFudoCredentials } from '@/lib/fudo'
 
 export async function GET() {
   const supabase = await createClient()
@@ -12,7 +12,7 @@ export async function GET() {
   // Traer locales configurados
   const { data: locales } = await supabase
     .from('locales_config')
-    .select('sucursal, fudo_api_key, fudo_api_secret')
+    .select('sucursal')
     .eq('activo', true)
 
   if (!locales?.length) return NextResponse.json([])
@@ -29,7 +29,9 @@ export async function GET() {
   // Fetch paralelo a cada local
   const resultados = await Promise.allSettled(
     locales.map(async (local) => {
-      const token = await getFudoToken(local.fudo_api_key!, local.fudo_api_secret!)
+      const credenciales = getFudoCredentials(local.sucursal)
+      if (!credenciales) throw new Error(`Sucursal "${local.sucursal}" sin credenciales Fudo configuradas`)
+      const token = await getFudoToken(credenciales.apiKey, credenciales.apiSecret)
       const path = `/expenses?fields[expense]=amount,date,description,status,canceled`
         + `&fields[expenseCategory]=name&fields[provider]=name&fields[paymentMethod]=name`
         + `&include=expenseCategory,provider,payments.paymentMethod`

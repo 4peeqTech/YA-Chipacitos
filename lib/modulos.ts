@@ -31,7 +31,6 @@ export const MODULOS: Modulo[] = [
   { key: 'roles',        label: 'Roles',           icon: '🎭', href: '/admin/roles',        section: 'Parámetros' },
   { key: 'plan_cuentas', label: 'Plan de cuentas', icon: '📋', href: '/admin/plan-cuentas', section: 'Parámetros' },
   { key: 'proveedores',  label: 'Proveedores',     icon: '🚚', href: '/admin/proveedores',  section: 'Parámetros' },
-  { key: 'locales',      label: 'APIs',            icon: '🔌', href: '/admin/locales',      section: 'Parámetros' },
   { key: 'cajas',        label: 'Cajas',           icon: '🏦', href: '/admin/cajas',        section: 'Parámetros' },
   { key: 'formas_pago',  label: 'Formas de pago',  icon: '💳', href: '/admin/formas-pago',  section: 'Parámetros' },
 

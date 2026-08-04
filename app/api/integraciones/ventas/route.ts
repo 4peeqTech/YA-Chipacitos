@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { getFudoToken, fudoGet, normalizeJsonApi } from '@/lib/fudo'
+import { getFudoToken, fudoGet, normalizeJsonApi, getFudoCredentials } from '@/lib/fudo'
 
 interface FilaDetalle {
   fuente: 'Posberry' | 'Fudo'
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   const hasta = searchParams.get('hasta') ?? hoy
 
   const [{ data: locales }, { data: ventasPosberry, error: posberryError }] = await Promise.all([
-    supabase.from('locales_config').select('sucursal, fudo_api_key, fudo_api_secret').eq('activo', true),
+    supabase.from('locales_config').select('sucursal').eq('activo', true),
     supabase
       .from('ventas_posberry')
       .select('local_id, local_nombre, fecha, producto_nombre, cantidad, importe, profiles(local_nombre)')
@@ -72,11 +72,12 @@ export async function GET(req: NextRequest) {
   // ── Fudo: una consulta por sucursal activa, en paralelo ──────────────────
   const resultadosFudo = await Promise.all(
     (locales ?? []).map(async (local) => {
-      if (!local.fudo_api_key || !local.fudo_api_secret) {
+      const credenciales = getFudoCredentials(local.sucursal)
+      if (!credenciales) {
         return { sucursal: local.sucursal, error: 'Sin credenciales Fudo configuradas' as string | null, monto: 0, ventas: 0, detalle: [] as FilaDetalle[] }
       }
       try {
-        const token = await getFudoToken(local.fudo_api_key, local.fudo_api_secret)
+        const token = await getFudoToken(credenciales.apiKey, credenciales.apiSecret)
         const path = `/sales?fields[sale]=total,createdAt,saleType,saleState`
           + `&fields[cashRegister]=name&include=cashRegister`
           + `&filter[saleState]=in.(CLOSED)`

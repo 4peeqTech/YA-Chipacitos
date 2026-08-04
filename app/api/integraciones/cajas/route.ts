@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { getFudoToken, fudoGet, normalizeJsonApi } from '@/lib/fudo'
+import { getFudoToken, fudoGet, normalizeJsonApi, getFudoCredentials } from '@/lib/fudo'
 
 interface FilaCaja {
   sucursal: string
@@ -55,18 +55,19 @@ export async function GET(req: NextRequest) {
 
   const { data: locales } = await supabase
     .from('locales_config')
-    .select('sucursal, fudo_api_key, fudo_api_secret')
+    .select('sucursal')
     .eq('activo', true)
 
   let cajasInfoDisponible = false
 
   const porSucursal = await Promise.all(
     (locales ?? []).map(async (local) => {
-      if (!local.fudo_api_key || !local.fudo_api_secret) {
+      const credenciales = getFudoCredentials(local.sucursal)
+      if (!credenciales) {
         return { sucursal: local.sucursal, error: 'Sin credenciales Fudo configuradas', filas: [] as FilaCaja[] }
       }
       try {
-        const token = await getFudoToken(local.fudo_api_key, local.fudo_api_secret)
+        const token = await getFudoToken(credenciales.apiKey, credenciales.apiSecret)
 
         const [infoCajas, rawVentas] = await Promise.all([
           fetchCashRegistersInfo(token),
