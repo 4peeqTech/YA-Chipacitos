@@ -15,7 +15,7 @@ export default async function ConciliacionPage() {
       .order('tiene_alerta', { ascending: false }),
     supabase.from('profiles').select('id, nombre, local_nombre').eq('rol', 'local').ilike('local_nombre', 'Suc.%'),
     supabase.from('ventas_posberry').select('importe').eq('fecha', hoy),
-    supabase.from('mapeos').select('nombre_posberry, productos(nombre)'),
+    supabase.from('producto_mapeos').select('nombre_posberry, productos(nombre)'),
   ])
 
   const ventasHoy = ventas?.reduce((s, v) => s + (v.importe || 0), 0) || 0
