@@ -9,7 +9,7 @@ export default async function InsumosPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: items }, { data: proveedores }] = await Promise.all([
+  const [{ data: items }, { data: proveedores }, { data: categorias }] = await Promise.all([
     supabase.from('compras_items').select('*').order('orden'),
     supabase
       .from('proveedores')
@@ -17,7 +17,8 @@ export default async function InsumosPage() {
       .eq('maneja_stock', true)
       .eq('estado', 'activo')
       .order('nombre'),
+    supabase.from('compras_categorias').select('id, nombre').order('orden'),
   ])
 
-  return <InsumosClient itemsIniciales={items ?? []} proveedores={proveedores ?? []} />
+  return <InsumosClient itemsIniciales={items ?? []} proveedores={proveedores ?? []} categorias={categorias ?? []} />
 }

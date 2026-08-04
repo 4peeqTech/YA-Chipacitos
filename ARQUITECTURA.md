@@ -1597,15 +1597,8 @@ función) y **elimina el round-trip** por ítem.
 El problema de fondo (B3): hay **tres definiciones paralelas** de "quién puede qué"
 — `MODULOS[]` en TS, el guard de `proxy.ts`, y las policies RLS que hardcodean roles.
 
-> ✅ **Las 7 tablas `compras_*` ya se resolvieron** ([20260804150000_compras_rls_modulos.sql](supabase/migrations/20260804150000_compras_rls_modulos.sql))
-> con `tiene_acceso_compras()` — mismo enfoque que se describe acá, pero de alcance
-> amplio (acceso a las 7 tablas con cualquiera de los 5 módulos `compras-*`) en vez de
-> uno por tabla, porque insumos/stock se leen desde pantallas cruzadas. Queda pendiente
-> aplicar el mismo patrón al resto de tablas B/C.
-
 ```sql
--- Helper genérico para las tablas que sí mapean 1:1 a un solo módulo.
--- STABLE para que Postgres lo cachee por statement.
+-- Helper único, STABLE para que Postgres lo cachee
 CREATE OR REPLACE FUNCTION tiene_modulo(p_modulo text)
 RETURNS boolean LANGUAGE sql SECURITY DEFINER STABLE AS $$
   SELECT EXISTS (
@@ -1620,15 +1613,15 @@ $$;
 Y reescribir las policies del patrón B/C para que usen esto en vez de nombrar roles:
 
 ```sql
--- Antes: (SELECT rol FROM profiles WHERE id = auth.uid()) = 'admin'   ← ignora modulos_permitidos
+-- Antes: rol IN ('admin','squad')   ← rompe con roles personalizados
 -- Después:
-DROP POLICY "admin maneja proveedores" ON proveedores;
-CREATE POLICY proveedores_acceso ON proveedores
-  FOR ALL USING (tiene_modulo('proveedores'));
+DROP POLICY "admin y squad manejan compras_items" ON compras_items;
+CREATE POLICY compras_items_acceso ON compras_items
+  FOR ALL USING (tiene_modulo('compras-insumos'));
 ```
 
-Aplicar a `gastos`, `proveedores`, `plan_cuentas`, `locales_config`, `formas_pago`,
-`cajas`. Además:
+Aplicar a las 7 tablas `compras_*`, `gastos`, `proveedores`, `plan_cuentas`,
+`locales_config`, `formas_pago`, `cajas`. Además:
 
 - Cerrar `pedido_mensajes` y `producto_mapeos` (S5) con policies reales.
 - Acotar `pedido_items` SELECT al dueño del pedido o los operadores del destino (S6).
