@@ -39,6 +39,8 @@ export const MODULOS: Modulo[] = [
   { key: 'compras-stock',   label: 'Stock',   icon: '📦', href: '/admin/compras/stock',   section: 'Compras' },
   { key: 'compras-pedidos', label: 'Pedidos', icon: '📋', href: '/admin/compras/pedidos', section: 'Compras' },
   { key: 'compras-remitos', label: 'Remitos', icon: '📥', href: '/admin/compras/remitos', section: 'Compras' },
+  { key: 'compras-solicitudes', label: 'Solicitudes', icon: '📨', href: '/admin/compras/solicitudes', section: 'Compras' },
+  { key: 'compras-pedido-base', label: 'Pedido base', icon: '🗂️', href: '/admin/compras/pedido-base', section: 'Compras' },
   { key: 'compras-reportes', label: 'Reportes', icon: '📊', href: '/admin/compras/reportes', section: 'Compras' },
 
   { key: 'tareas', label: 'Tareas', icon: '📋', href: '/tareas' },

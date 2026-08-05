@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { Archive, ArchiveRestore, Pencil, Plus, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 interface ProveedorOption {
@@ -142,8 +143,7 @@ export default function InsumosClient({
   }
 
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
-  const labelClass = "block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
-  const helpClass = "text-[11px] text-[#666] mt-1 leading-snug"
+  const labelClass = "flex items-center text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
 
   return (
     <div className="space-y-6">
@@ -239,7 +239,7 @@ export default function InsumosClient({
         )}
       </div>
 
-      <Modal open={creando || !!editando} onClose={cerrarForm} title={creando ? 'Nuevo insumo' : `Editar — ${editando?.nombre}`}>
+      <Modal open={creando || !!editando} onClose={cerrarForm} title={creando ? 'Nuevo insumo' : `Editar — ${editando?.nombre}`} size="xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <label className={labelClass}>Nombre *</label>
@@ -269,43 +269,44 @@ export default function InsumosClient({
           </div>
 
           <div className="md:col-span-2">
-            <label className={labelClass}>Base de cálculo</label>
+            <label className={labelClass}>
+              Base de cálculo
+              <HelpTooltip text="Cómo se calcula cuánto sugerir comprar de este insumo al cerrar el conteo semanal: proporcional a los kg de masa proyectados, a los kg embolsados, o una meta semanal fija que no depende de cuánto se produce esa semana (útil para insumos como bolsas o artículos de limpieza, que se reponen a un ritmo propio)." />
+            </label>
             <select className={inputClass} value={form.base_calculo ?? 'meta_semanal'} onChange={e => setForm(f => ({...f, base_calculo: e.target.value as BaseCalculo}))}>
               {Object.entries(BASE_CALCULO_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
-            <p className={helpClass}>
-              Define cómo se calcula cuánto sugerir comprar de este insumo al cerrar el conteo semanal:
-              proporcional a los <strong className="text-[#888]">kg de masa</strong> proyectados, a los{' '}
-              <strong className="text-[#888]">kg embolsados</strong>, o una <strong className="text-[#888]">meta semanal</strong> fija
-              — un monto objetivo que no depende de cuánto se produce esa semana (útil para insumos como bolsas o
-              artículos de limpieza, que se reponen a un ritmo propio y no escalan con la producción).
-            </p>
           </div>
 
           {form.base_calculo !== 'meta_semanal' ? (
             <div>
-              <label className={labelClass}>Coeficiente (por kg)</label>
+              <label className={labelClass}>
+                Coeficiente (por kg)
+                <HelpTooltip text="Cuánto de este insumo se consume por cada kg proyectado. La necesidad sugerida = coeficiente × kg proyectados." />
+              </label>
               <input type="number" step="0.01" className={inputClass} value={form.coeficiente ?? ''} onChange={e => setForm(f => ({...f, coeficiente: e.target.value === '' ? null : Number(e.target.value)}))} />
-              <p className={helpClass}>Cuánto de este insumo se consume por cada kg proyectado. La necesidad sugerida = coeficiente × kg proyectados.</p>
             </div>
           ) : (
             <div>
-              <label className={labelClass}>Meta semanal</label>
+              <label className={labelClass}>
+                Meta semanal
+                <HelpTooltip text="Cantidad fija que querés tener disponible cada semana, sin importar cuánto se produzca." />
+              </label>
               <input type="number" step="0.01" className={inputClass} value={form.meta_semanal ?? 0} onChange={e => setForm(f => ({...f, meta_semanal: Number(e.target.value)}))} />
-              <p className={helpClass}>Cantidad fija que querés tener disponible cada semana, sin importar cuánto se produzca.</p>
             </div>
           )}
 
           <div className="md:col-span-2 pt-1">
-            <label className="flex items-center gap-2 text-sm text-[#f0f0f0]">
-              <input type="checkbox" checked={form.incluir_en_conteo ?? true} onChange={e => setForm(f => ({...f, incluir_en_conteo: e.target.checked}))} />
+            <label className="inline-flex items-center gap-2 text-sm text-[#f0f0f0] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.incluir_en_conteo ?? true}
+                onChange={e => setForm(f => ({...f, incluir_en_conteo: e.target.checked}))}
+                className="w-4 h-4 shrink-0 p-0 accent-[#e8c547] cursor-pointer"
+              />
               Incluir en conteo semanal
+              <HelpTooltip text="Con esto tildado, el insumo aparece en la pantalla de conteo semanal de fábrica para que lo cuenten a mano y el sistema calcule cuánto falta pedir. Destildalo para insumos que no se controlan semana a semana (por ejemplo, algo que se compra ocasionalmente)." />
             </label>
-            <p className={helpClass}>
-              Con esto tildado, el insumo aparece en la pantalla de conteo semanal de fábrica para que lo cuenten a mano
-              y el sistema calcule cuánto falta pedir. Destildalo para insumos que no se controlan semana a semana
-              (por ejemplo, algo que se compra ocasionalmente y no vale la pena contar cada vez).
-            </p>
           </div>
         </div>
 
