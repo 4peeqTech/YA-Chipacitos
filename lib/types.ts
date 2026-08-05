@@ -119,6 +119,9 @@ export interface Producto {
   categoria: string | null
   precio: number | null
   codigo: number | null
+  presentacion_id: string | null
+  sabor_id: string | null
+  tamanio_id: string | null
   created_at: string
 }
 

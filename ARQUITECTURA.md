@@ -974,7 +974,7 @@ BORRAR   DELETE /api/usuarios   ← SOFT DELETE
 
 ### 5.9 Módulo Fábrica
 
-Construido en 4 fases (agosto 2026), plan escrito en
+Construido en 5 fases (agosto 2026), plan escrito en
 `docs/superpowers/planifiquemos-el-modulo-de-fabrica.md`. Digitaliza dos procesos que
 Fábrica llevaba en planillas de Google Sheets: el **conteo semanal de insumos +
 proyección de masa** (con recomendación de compra automática) y la **carga de
@@ -1059,6 +1059,33 @@ de duplicarlo.
 │  Aviso NO bloqueante si Σ kg embolsados ≠ masa_kg — los datos      │
 │  históricos muestran que difiere seguido, no debe frenar la carga │
 └──────────────────────────────────────────────────────────────────┘
+                              │
+┌─── Fase 5: stock de producto terminado ──────────────────────────┐
+│                                                                  │
+│  productos + presentacion_id · sabor_id · tamanio_id (nullable)  │
+│  unique(presentacion_id, sabor_id, tamanio_id) where presentacion│
+│  _id is not null — un producto sin terna nunca toca este stock,  │
+│  sigue siendo "masa a granel". Se asigna en /admin/catalogo.      │
+│         │                                                        │
+│         ▼  motor único: mover_stock_terminado() (no expuesto      │
+│            directo — ver permisos) hace el upsert atómico          │
+│            insert ... on conflict do update set cantidad_kg =      │
+│            cantidad_kg + delta, para no reproducir la carrera      │
+│            read-then-write de compras_stock_actual                 │
+│         │                                                        │
+│         ├─ guardar_produccion_fabrica() (redefinida): cada línea   │
+│         │  de embolsado resuelve su producto por la terna y suma   │
+│         │  stock ('produccion_embolsado'). Al editar, primero      │
+│         │  revierte el stock de los embolsados viejos              │
+│         ├─ fabrica_marcar_pedido_enviado(): pedido interno          │
+│         │  destino='fabrica' → 'enviado' resta cantidad×peso_kg     │
+│         │  de cada línea con terna ('salida_pedido')                │
+│         ├─ fabrica_confirmar_recepcion_pedido(): remito recibido    │
+│         │  ajusta por la diferencia pedido vs. recibido, incluidos  │
+│         │  ítems agregados en el momento ('ajuste_pedido')          │
+│         └─ ajustar_stock_terminado_manual(): corrección a mano      │
+│            desde /fabrica/stock-terminado ('ajuste_manual')         │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 #### Permisos
@@ -1076,6 +1103,15 @@ necesita leer `fabrica_rendimiento_masa`.
 directa** — solo SELECT. Toda escritura pasa por `guardar_produccion_fabrica()` /
 `eliminar_produccion_fabrica()` (`SECURITY DEFINER`), a propósito: una carga es
 producción + N líneas de embolsado, y debe ser atómica.
+
+`fabrica_stock_terminado` y `fabrica_stock_terminado_mov` (Fase 5) tampoco tienen policy
+de escritura: todo pasa por `mover_stock_terminado()`. Esa función **no se expone
+directo** (`revoke execute ... from public, anon, authenticated`) porque la llaman
+funciones con contextos de permiso distintos — fábrica al producir o marcar un pedido
+enviado, el local al confirmar su propia recepción — y cada una ya valida lo que
+corresponde a su contexto antes de llamarla. El único movimiento expuesto directo es
+`ajuste_manual`, a través de `ajustar_stock_terminado_manual()` (exige
+`tiene_acceso_fabrica()`).
 
 #### La lógica pura
 

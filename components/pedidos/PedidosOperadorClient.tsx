@@ -208,27 +208,36 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   }
 
   async function cambiarEstado(pedidoId: string, nuevoEstado: 'preparando' | 'enviado') {
-    const update: Record<string, string> = { estado: nuevoEstado }
-    if (nuevoEstado === 'preparando') update.preparando_at = new Date().toISOString()
-    if (nuevoEstado === 'enviado') update.enviado_at = new Date().toISOString()
-    const { data, error } = await supabase.from('pedidos').update(update).eq('id', pedidoId).select().single()
-    if (error) console.error('No se pudo actualizar el estado del pedido', error)
-    if (data) {
-      setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, ...data } : p))
-      if (nuevoEstado === 'enviado') {
-        setFlashEnviado(pedidoId); setTimeout(() => setFlashEnviado(null), 3000)
-        fetch('/api/notificaciones/pedidos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pedidoId: data.id,
-            title: `🚚 Pedido #${data.numero} enviado`,
-            body: `Tu pedido de ${destino} está en camino`,
-            url: '/local/historial',
-          }),
-        }).catch(() => { /* notificación best-effort */ })
-      }
+    if (nuevoEstado === 'preparando') {
+      const { data, error } = await supabase.from('pedidos')
+        .update({ estado: 'preparando', preparando_at: new Date().toISOString() })
+        .eq('id', pedidoId).select().single()
+      if (error) console.error('No se pudo actualizar el estado del pedido', error)
+      if (data) setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, ...data } : p))
+      return
     }
+
+    // Vía RPC: si el pedido es destino='fabrica', descuenta el stock de
+    // producto terminado de cada línea con terna resuelta (Fase 5).
+    const { error } = await supabase.rpc('fabrica_marcar_pedido_enviado', { p_pedido_id: pedidoId })
+    if (error) {
+      console.error('No se pudo marcar el pedido como enviado', error)
+      return
+    }
+    const numero = pedidos.find(p => p.id === pedidoId)?.numero
+    const enviadoAt = new Date().toISOString()
+    setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, estado: 'enviado', enviado_at: enviadoAt } : p))
+    setFlashEnviado(pedidoId); setTimeout(() => setFlashEnviado(null), 3000)
+    fetch('/api/notificaciones/pedidos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pedidoId,
+        title: `🚚 Pedido #${numero} enviado`,
+        body: `Tu pedido de ${destino} está en camino`,
+        url: '/local/historial',
+      }),
+    }).catch(() => { /* notificación best-effort */ })
   }
 
   return (

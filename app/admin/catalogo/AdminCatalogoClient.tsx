@@ -1,13 +1,21 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { Layers3, Palette, Ruler } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Producto, TipoProducto, DestinoProducto } from '@/lib/types'
 import Card from '@/components/ui/Card'
+import HelpTooltip from '@/components/ui/HelpTooltip'
+
+interface Parametro { id: string; nombre: string }
+interface PresentacionParametro extends Parametro { pesoKg: number }
 
 interface Props {
   productosIniciales: Producto[]
   mapeos: { nombre_posberry: string; producto_id: string | null }[]
+  sabores: Parametro[]
+  presentaciones: PresentacionParametro[]
+  tamanios: Parametro[]
 }
 
 const CATEGORIAS = [
@@ -23,9 +31,14 @@ const CATEGORIAS = [
   'Vasos Café Ya!',
 ]
 
-const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto, categoria: '', precio: '', codigo: '' }
+const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto, categoria: '', precio: '', codigo: '', presentacion_id: '', sabor_id: '', tamanio_id: '' }
 
-export default function AdminCatalogoClient({ productosIniciales, mapeos }: Props) {
+function mensajeErrorProducto(error: { code?: string; message: string }) {
+  if (error.code === '23505') return 'Ya existe un producto con esa combinación de presentación, sabor y tamaño.'
+  return error.message || 'No se pudo guardar el producto.'
+}
+
+export default function AdminCatalogoClient({ productosIniciales, mapeos, sabores, presentaciones, tamanios }: Props) {
   const mapeosPorProductoId = mapeos.reduce<Record<string, string[]>>((acc, m) => {
     if (m.producto_id) {
       if (!acc[m.producto_id]) acc[m.producto_id] = []
@@ -38,8 +51,9 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
   const [modalNuevo, setModalNuevo] = useState(false)
   const [editando, setEditando] = useState<Producto | null>(null)
   const [form, setForm] = useState(FORM_VACIO)
-  const [formEdit, setFormEdit] = useState({ nombre: '', descripcion: '', unidad: '', categoria: '', precio: '', codigo: '' })
+  const [formEdit, setFormEdit] = useState({ nombre: '', descripcion: '', unidad: '', categoria: '', precio: '', codigo: '', presentacion_id: '', sabor_id: '', tamanio_id: '' })
   const [guardando, setGuardando] = useState(false)
+  const [errorForm, setErrorForm] = useState<string | null>(null)
   const [eliminando, setEliminando] = useState<Producto | null>(null)
   const [importando, setImportando] = useState(false)
   const [importMsg, setImportMsg] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
@@ -155,27 +169,50 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
   async function agregar() {
     if (!form.nombre) return
     setGuardando(true)
+    setErrorForm(null)
     const { data, error } = await supabase
-      .from('productos').insert({ ...form, precio: form.precio ? parseFloat(form.precio.replace(',', '.')) : null, codigo: form.codigo ? parseInt(form.codigo) : null, activo: true }).select().single()
+      .from('productos').insert({
+        ...form,
+        precio: form.precio ? parseFloat(form.precio.replace(',', '.')) : null,
+        codigo: form.codigo ? parseInt(form.codigo) : null,
+        presentacion_id: form.presentacion_id || null,
+        sabor_id: form.sabor_id || null,
+        tamanio_id: form.tamanio_id || null,
+        activo: true,
+      }).select().single()
     if (data) { setProductos(prev => [...prev, data]); setModalNuevo(false); setForm({ ...FORM_VACIO, destino: tab, tipo: tab === 'fabrica' ? 'producto' : 'insumo' }) }
-    else if (error) console.error('No se pudo crear el producto', error)
+    else if (error) setErrorForm(mensajeErrorProducto(error))
     setGuardando(false)
   }
 
   function abrirEdicion(p: Producto) {
     setEditando(p)
-    setFormEdit({ nombre: p.nombre, descripcion: p.descripcion ?? '', unidad: p.unidad, categoria: p.categoria ?? '', precio: p.precio != null ? String(p.precio) : '', codigo: p.codigo != null ? String(p.codigo) : '' })
+    setErrorForm(null)
+    setFormEdit({
+      nombre: p.nombre, descripcion: p.descripcion ?? '', unidad: p.unidad, categoria: p.categoria ?? '',
+      precio: p.precio != null ? String(p.precio) : '', codigo: p.codigo != null ? String(p.codigo) : '',
+      presentacion_id: p.presentacion_id ?? '', sabor_id: p.sabor_id ?? '', tamanio_id: p.tamanio_id ?? '',
+    })
   }
 
   async function guardarEdicion() {
     if (!editando || !formEdit.nombre) return
     setGuardando(true)
+    setErrorForm(null)
     const { data, error } = await supabase
       .from('productos')
-      .update({ nombre: formEdit.nombre, descripcion: formEdit.descripcion, unidad: formEdit.unidad, categoria: formEdit.categoria || null, precio: formEdit.precio ? parseFloat(formEdit.precio.replace(',', '.')) : null, codigo: formEdit.codigo ? parseInt(formEdit.codigo) : null })
+      .update({
+        nombre: formEdit.nombre, descripcion: formEdit.descripcion, unidad: formEdit.unidad,
+        categoria: formEdit.categoria || null,
+        precio: formEdit.precio ? parseFloat(formEdit.precio.replace(',', '.')) : null,
+        codigo: formEdit.codigo ? parseInt(formEdit.codigo) : null,
+        presentacion_id: formEdit.presentacion_id || null,
+        sabor_id: formEdit.sabor_id || null,
+        tamanio_id: formEdit.tamanio_id || null,
+      })
       .eq('id', editando.id).select().single()
     if (data) { setProductos(prev => prev.map(p => p.id === data.id ? data : p)); setEditando(null) }
-    else if (error) console.error('No se pudo guardar la edición del producto', error)
+    else if (error) setErrorForm(mensajeErrorProducto(error))
     setGuardando(false)
   }
 
@@ -190,7 +227,49 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
 
   function abrirNuevo() {
     setForm({ ...FORM_VACIO, destino: tab, tipo: tab === 'fabrica' ? 'producto' : 'insumo' })
+    setErrorForm(null)
     setModalNuevo(true)
+  }
+
+  function nombreParametro(lista: Parametro[], id: string | null) {
+    return lista.find(x => x.id === id)?.nombre ?? null
+  }
+
+  function TernaSelects({ value, onChange }: { value: { presentacion_id: string; sabor_id: string; tamanio_id: string }; onChange: (v: Partial<typeof value>) => void }) {
+    return (
+      <div className="rounded-xl bg-[#161616] border border-[#2a2a2a] p-3 space-y-2.5">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">
+          <Layers3 size={13} /> Terna de producto terminado
+          <HelpTooltip text="Solo para productos que salen del embolsado de Fábrica (Fase 4/5). Al asignar la misma combinación que carga una línea de embolsado, ese producto empieza a sumar stock terminado automáticamente." />
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="flex items-center gap-1 text-[10px] text-[#888] mb-1"><Layers3 size={11} /> Presentación</label>
+            <select value={value.presentacion_id} onChange={e => onChange({ presentacion_id: e.target.value })}
+              className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-2 text-xs text-[#f0f0f0] focus:outline-none focus:border-[#e8c547]">
+              <option value="">Sin asignar</option>
+              {presentaciones.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="flex items-center gap-1 text-[10px] text-[#888] mb-1"><Palette size={11} /> Sabor</label>
+            <select value={value.sabor_id} onChange={e => onChange({ sabor_id: e.target.value })}
+              className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-2 text-xs text-[#f0f0f0] focus:outline-none focus:border-[#e8c547]">
+              <option value="">Sin asignar</option>
+              {sabores.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="flex items-center gap-1 text-[10px] text-[#888] mb-1"><Ruler size={11} /> Tamaño</label>
+            <select value={value.tamanio_id} onChange={e => onChange({ tamanio_id: e.target.value })}
+              className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-2 text-xs text-[#f0f0f0] focus:outline-none focus:border-[#e8c547]">
+              <option value="">Sin asignar</option>
+              {tamanios.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -254,6 +333,12 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
                     {p.precio != null ? <span className="text-[#56d68a]">${p.precio.toLocaleString('es-AR')}</span> : null}
                     {p.descripcion ? <span>· {p.descripcion}</span> : null}
                   </p>
+                  {p.presentacion_id && (
+                    <p className="mt-1 flex items-center gap-1 text-[10px] text-[#888]">
+                      <Layers3 size={10} className="text-[#e8c547]" />
+                      {[nombreParametro(presentaciones, p.presentacion_id), nombreParametro(sabores, p.sabor_id), nombreParametro(tamanios, p.tamanio_id)].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
                   {(mapeosPorProductoId[p.id] || []).length > 0 && (
                     <p className="text-[10px] text-[#555] mt-0.5 flex flex-wrap gap-1">
                       <span className="text-[#444]">Posberry:</span>
@@ -324,6 +409,10 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
                 {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+            {tab === 'fabrica' && (
+              <TernaSelects value={form} onChange={v => setForm(f => ({ ...f, ...v }))} />
+            )}
+            {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
             <div className="flex gap-2 pt-1">
               <button onClick={() => setModalNuevo(false)}
                 className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-xs font-medium text-[#888] hover:text-[#f0f0f0]">
@@ -385,6 +474,10 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
                 {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+            {editando.destino === 'fabrica' && (
+              <TernaSelects value={formEdit} onChange={v => setFormEdit(f => ({ ...f, ...v }))} />
+            )}
+            {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
             <div className="flex gap-2 pt-1">
               <button onClick={() => setEditando(null)}
                 className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-xs font-medium text-[#888] hover:text-[#f0f0f0]">

@@ -168,43 +168,52 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
   async function confirmarRecepcion(pedido: Pedido) {
     setConfirmando(true)
     const items = pedido.pedido_items || []
-    await Promise.all(items.map(item => {
+    const payloadItems = items.map(item => {
       const vals = remitoItems[item.id]
-      return supabase.from('pedido_items').update({
+      return {
+        id: item.id,
         cantidad_recibida: vals?.cantidad_recibida ? parseInt(vals.cantidad_recibida) : null,
         valor_total: vals?.valor_total ? parseFloat(vals.valor_total.replace(',', '.')) : null,
-      }).eq('id', item.id)
+      }
+    })
+    const payloadNuevos = remitoNuevos.map(n => ({
+      producto_id: n.producto.id,
+      producto_nombre: n.producto.nombre,
+      cantidad_recibida: parseInt(n.cantidad_recibida) || 1,
+      valor_total: n.valor_total ? parseFloat(n.valor_total.replace(',', '.')) : null,
     }))
 
-    let itemsNuevos: PedidoItem[] = []
-    if (remitoNuevos.length > 0) {
-      const { data, error } = await supabase.from('pedido_items').insert(
-        remitoNuevos.map(n => {
-          const cantidad = parseInt(n.cantidad_recibida) || 1
-          return {
-            pedido_id: pedido.id,
-            producto_id: n.producto.id,
-            producto_nombre: n.producto.nombre,
-            cantidad,
-            cantidad_recibida: cantidad,
-            valor_total: n.valor_total ? parseFloat(n.valor_total.replace(',', '.')) : null,
-          }
-        })
-      ).select()
-      if (data) itemsNuevos = data
-      else if (error) console.error('No se pudieron agregar los ítems nuevos al remito', error)
+    // Vía RPC: si el pedido es destino='fabrica', ajusta el stock de
+    // producto terminado por la diferencia pedido vs. recibido, incluyendo
+    // los ítems agregados en el momento (Fase 5).
+    const { error } = await supabase.rpc('fabrica_confirmar_recepcion_pedido', {
+      p_pedido_id: pedido.id, p_items: payloadItems, p_items_nuevos: payloadNuevos,
+    })
+    if (error) {
+      console.error('No se pudo confirmar la recepción', error)
+      setConfirmando(false)
+      return
     }
 
-    await supabase.from('pedidos').update({ estado: 'recibido', recibido_at: new Date().toISOString() }).eq('id', pedido.id)
+    const itemsNuevos: PedidoItem[] = payloadNuevos.map(n => ({
+      id: crypto.randomUUID(),
+      pedido_id: pedido.id,
+      producto_id: n.producto_id,
+      producto_nombre: n.producto_nombre,
+      cantidad: n.cantidad_recibida,
+      cantidad_recibida: n.cantidad_recibida,
+      valor_total: n.valor_total,
+      created_at: new Date().toISOString(),
+    }))
+
     setPedidos(prev => prev.map(p => p.id === pedido.id
       ? {
           ...p, estado: 'recibido',
           pedido_items: [
-            ...(p.pedido_items || []).map(item => ({
-              ...item,
-              cantidad_recibida: remitoItems[item.id]?.cantidad_recibida ? parseInt(remitoItems[item.id].cantidad_recibida) : null,
-              valor_total: remitoItems[item.id]?.valor_total ? parseFloat(remitoItems[item.id].valor_total.replace(',', '.')) : null,
-            })),
+            ...(p.pedido_items || []).map(item => {
+              const vals = payloadItems.find(pi => pi.id === item.id)
+              return { ...item, cantidad_recibida: vals?.cantidad_recibida ?? null, valor_total: vals?.valor_total ?? null }
+            }),
             ...itemsNuevos,
           ]
         }

@@ -64,22 +64,33 @@ export default function HistorialClient({ pedidos: init, localNombre }: Props) {
   async function confirmarRecepcion(pedido: Pedido) {
     setConfirmando(true)
     const items = pedido.pedido_items || []
-    await Promise.all(items.map(item => {
+    const payloadItems = items.map(item => {
       const vals = remitoItems[item.id]
-      return supabase.from('pedido_items').update({
+      return {
+        id: item.id,
         cantidad_recibida: vals?.cantidad_recibida ? parseInt(vals.cantidad_recibida) : null,
         valor_total: vals?.valor_total ? parseFloat(vals.valor_total.replace(',', '.')) : null,
-      }).eq('id', item.id)
-    }))
-    await supabase.from('pedidos').update({ estado: 'recibido', recibido_at: new Date().toISOString() }).eq('id', pedido.id)
+      }
+    })
+
+    // Vía RPC: si el pedido es destino='fabrica', ajusta el stock de
+    // producto terminado por la diferencia pedido vs. recibido (Fase 5).
+    const { error } = await supabase.rpc('fabrica_confirmar_recepcion_pedido', {
+      p_pedido_id: pedido.id, p_items: payloadItems,
+    })
+    if (error) {
+      console.error('No se pudo confirmar la recepción', error)
+      setConfirmando(false)
+      return
+    }
+
     setPedidos(prev => prev.map(p => p.id === pedido.id
       ? {
           ...p, estado: 'recibido' as const,
-          pedido_items: p.pedido_items?.map(item => ({
-            ...item,
-            cantidad_recibida: remitoItems[item.id]?.cantidad_recibida ? parseInt(remitoItems[item.id].cantidad_recibida) : null,
-            valor_total: remitoItems[item.id]?.valor_total ? parseFloat(remitoItems[item.id].valor_total.replace(',', '.')) : null,
-          }))
+          pedido_items: p.pedido_items?.map(item => {
+            const vals = payloadItems.find(pi => pi.id === item.id)
+            return { ...item, cantidad_recibida: vals?.cantidad_recibida ?? null, valor_total: vals?.valor_total ?? null }
+          })
         }
       : p
     ))
