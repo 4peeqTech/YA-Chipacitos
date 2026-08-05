@@ -117,3 +117,14 @@ No cuelga de un proveedor específico en el HTML (aunque en la sección 2, MP Di
 | Categoría materia prima vs insumo | Resuelto — no se traslada como campo del modelo de datos en el ERP; queda solo como referencia de origen (ver Contexto). |
 | Huevo Campo con poco detalle | Resuelto — es todo lo que hay, no existe otra fuente con más información. |
 | Proveedores sin unidad/meta (todos salvo Global y Bolsaplast) | Resuelto — se tratan como categoría aparte y más liviana; unidad/meta/consumo por masa no van a ser obligatorios para ellos ni para sus insumos (ver sección 3, incluye nota de esquema a ajustar en Chipacitos). |
+
+## Import ejecutado (2026-08-05)
+
+Se ejecutó contra la base real de Chipacitos:
+
+1. **Limpieza de `proveedores`:** de 183 proveedores existentes, se conservaron solo los 18 del legacy (incluyendo Caprice, pendiente de confirmar) y se borraron los otros 169 — la gran mayoría eran proveedores de Gastos sin relación con insumos, decisión explícita del usuario con los números de impacto ya vistos (169 borrados, 2 gastos históricos perdieron el vínculo a proveedor vía `ON DELETE SET NULL`, 0 uso en Compras). Backup de los 169 registros guardado en el scratchpad de la sesión (`backup-proveedores-borrados-2026-08-05.json`) antes de borrar.
+2. Los 3 casos de nombre dudoso (AL SA/AL S.A, Huevo Campo/HUEVOS DE CAMPO, American Midwise/AMERICAN MEDWISE) se confirmaron como el mismo proveedor real — se renombraron al nombre del legacy en vez de duplicarse.
+3. Los 18 proveedores quedaron con `maneja_stock = true`, `local` asignado (Paraguay 388 / Gdor. Lagraña 388, según `config.asignacion` del legacy — Caprice sin local, pendiente) y una nota en `notas` con la categoría de origen (materia prima / insumo).
+4. Migración `20260805130000_import_insumos_legacy.sql`: relaja `compras_items.unidad` a nullable (durante la ejecución se detectó que otra sesión en paralelo ya había renombrado `consumo_por_masa` a `coeficiente` vía el módulo de Fábrica — la migración usa el nombre de columna actual) y carga 57 insumos: 8 de Global y 7 de Bolsaplast con unidad/meta/coeficiente reales, y 42 del resto de proveedores solo con nombre.
+
+Pendiente real: confirmar "Caprice" con el cliente (no tiene insumos ni local cargado todavía).
