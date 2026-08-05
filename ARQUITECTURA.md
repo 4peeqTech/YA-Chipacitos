@@ -23,6 +23,7 @@
    - [5.6 Tareas / Squad](#56-tareas--squad)
    - [5.7 Notificaciones y PWA](#57-notificaciones-y-pwa)
    - [5.8 Parámetros y maestros](#58-parámetros-y-maestros)
+   - [5.9 Módulo Fábrica](#59-módulo-fábrica)
 6. [Base de datos — inventario completo](#6-base-de-datos--inventario-completo)
 7. [Funciones, RLS, Realtime y Storage](#7-funciones-rls-realtime-y-storage)
 8. [API interna](#8-api-interna)
@@ -968,6 +969,144 @@ BORRAR   DELETE /api/usuarios   ← SOFT DELETE
 > en todas las variantes y el union entero falla con "Invalid input". La solución fue
 > que cada variante declare **solo** su campo discriminante y confíe en que `z.object`
 > no es estricto por default.
+
+---
+
+### 5.9 Módulo Fábrica
+
+Construido en 4 fases (agosto 2026), plan escrito en
+`docs/superpowers/planifiquemos-el-modulo-de-fabrica.md`. Digitaliza dos procesos que
+Fábrica llevaba en planillas de Google Sheets: el **conteo semanal de insumos +
+proyección de masa** (con recomendación de compra automática) y la **carga de
+producción por turno**. Reusa por completo el módulo Compras existente (`compras_items`,
+`compras_stock_actual`, el flujo `compras_pedidos → WhatsApp → compras_remitos`) en vez
+de duplicarlo.
+
+#### El flujo completo
+
+```
+┌─── Fase 1: parámetros ──────────────────────────────────────────┐
+│                                                                  │
+│  fabrica_sabores · fabrica_presentaciones · fabrica_tamanios     │
+│  compras_categorias                                              │
+│         │                                                        │
+│         ▼                                                        │
+│  compras_items + categoria_id, base_calculo, coeficiente,        │
+│                  incluir_en_conteo                                │
+│         · coeficiente = ex "consumo_por_masa" (por batch),       │
+│           renombrada porque ahora es "por kg", no por batch      │
+│         · base_calculo ∈ (kg_masa | kg_embolsado | meta_semanal) │
+│         · config.fabrica_rendimiento_masa ≈ 2,5 (kg masa/fécula) │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+┌─── Fase 2: conteo semanal + cierre ─────────────────────────────┐
+│                                                                  │
+│  Martes AM: fabrica_conteos (borrador) — un input por insumo,    │
+│  agrupado por categoría, + proyección de kg masa/embolsado       │
+│  hasta el viernes.                                                │
+│         │                                                        │
+│         │  Vivo en el cliente: calcularNecesidadYSugerido()      │
+│         │    necesidad = coeficiente × proyección (según base)   │
+│         │               o meta_semanal si base = meta_semanal    │
+│         │    sugerido  = max(0, necesidad − cantidad contada)    │
+│         ▼                                                        │
+│  "Cerrar conteo" → RPC cerrar_conteo_fabrica() (transaccional):  │
+│    · snapshotea base_calculo/coeficiente/meta_semanal por línea  │
+│      (si Compras edita el coeficiente después, el conteo cerrado │
+│      no cambia de número)                                        │
+│    · calcula necesidad/sugerido, marca estado='cerrado'           │
+│    · crea compras_solicitudes (tipo='complementario') + líneas   │
+│         ▼                                                        │
+│  POST /api/fabrica/solicitudes/notificar (service role) →        │
+│  enviarPush() a los destinatarios de compras-solicitudes          │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+┌─── Fase 3: bandeja de Compras + pedido base ────────────────────┐
+│                                                                  │
+│  /admin/compras/solicitudes — solicitudes abiertas (del conteo   │
+│  o del pedido base), líneas editables (cantidad, incluir,        │
+│  proveedor) → "Generar pedidos"                                  │
+│         │                                                        │
+│         ▼  RPC convertir_solicitud_a_pedidos() (transaccional)   │
+│  Un compras_pedidos en borrador por proveedor + sus               │
+│  compras_pedido_items → sigue el flujo de WhatsApp ya existente  │
+│                                                                  │
+│  /admin/compras/pedido-base — CRUD de compras_plantilla_base      │
+│  → "Generar pedido base" → RPC generar_solicitud_base() crea      │
+│  una solicitud tipo='base' que pasa por la misma bandeja          │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+┌─── Fase 4: producción por turno ─────────────────────────────────┐
+│                                                                  │
+│  /fabrica/produccion — un registro por turno: fécula → masa      │
+│  precargada (fecula_kg × config.fabrica_rendimiento_masa,        │
+│  editable — lib/fabrica/rendimiento.ts) · sabor · destino         │
+│         │                                                        │
+│         ├─ destino='masa_locales'      → no hay sección anidada  │
+│         └─ destino='congelado_embolsado' → se abre: tamaño        │
+│              (una sola vez, vive en fabrica_producciones —        │
+│              se hereda por FK) + N líneas presentación×sabor×kg  │
+│         ▼                                                        │
+│  "Guardar" → RPC guardar_produccion_fabrica() (transaccional):   │
+│    alta o edición de fabrica_producciones + reemplazo completo    │
+│    de sus fabrica_embolsados en la misma transacción             │
+│         │                                                        │
+│  "Repetir última carga" duplica el registro más reciente del      │
+│  turno en el formulario (sin guardar) — en la planilla la misma   │
+│  fila se repite 3-4 veces seguidas, es donde está la mayor parte   │
+│  del tipeo manual                                                 │
+│                                                                  │
+│  Aviso NO bloqueante si Σ kg embolsados ≠ masa_kg — los datos      │
+│  históricos muestran que difiere seguido, no debe frenar la carga │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+#### Permisos
+
+`tiene_acceso_fabrica()` (rol `fabrica` + `admin`) gobierna `fabrica_conteos`,
+`fabrica_conteo_items`, `fabrica_producciones` y `fabrica_embolsados`.
+`tiene_acceso_compras()` sigue gobernando `compras_solicitudes`,
+`compras_solicitud_items` y `compras_plantilla_base` — Compras revisa y ajusta,
+pero nunca escribe un conteo ni una producción. Ambos helpers conviven en la
+tabla `config`, que hasta este módulo solo leía `admin` (ver §6.1): se agregó una
+policy de SELECT para `tiene_acceso_fabrica()` porque el formulario de producción
+necesita leer `fabrica_rendimiento_masa`.
+
+`fabrica_producciones` y `fabrica_embolsados` **no tienen policy de INSERT/UPDATE/DELETE
+directa** — solo SELECT. Toda escritura pasa por `guardar_produccion_fabrica()` /
+`eliminar_produccion_fabrica()` (`SECURITY DEFINER`), a propósito: una carga es
+producción + N líneas de embolsado, y debe ser atómica.
+
+#### La lógica pura
+
+| Archivo | Responsabilidad |
+|---|---|
+| [calculoSugerido.ts](lib/fabrica/calculoSugerido.ts) | `calcularNecesidadYSugerido()` — misma fórmula que `cerrar_conteo_fabrica()`, duplicada a propósito para la previsualización en vivo del cliente |
+| [semanaConteo.ts](lib/fabrica/semanaConteo.ts) | `calcularSemanaConteo()` — fecha del conteo y ventana hasta el viernes, determinístico (recibe `ahora`) |
+| [rendimiento.ts](lib/fabrica/rendimiento.ts) | `masaDesdeFecula()` precarga masa desde fécula; `rendimientoFeculaMasa()` para reportes de Fase 6 |
+
+#### Snapshot deliberado
+
+Igual que `compras_solicitud_items` (Fase 2), `fabrica_conteo_items` guarda
+`base_calculo`/`coeficiente`/`meta_semanal` **al momento del cierre**, no una
+referencia viva a `compras_items`. Es la misma decisión de diseño que evita que
+editar un coeficiente hoy reescriba la historia de conteos ya cerrados.
+
+#### Pendiente (fuera de esta fase)
+
+- **Fase 5 — Stock de producto terminado:** terna `presentacion × sabor × tamaño`
+  sobre `productos`, `fabrica_stock_terminado` (+movimientos), descuento al enviar
+  un pedido interno de fábrica y ajuste al recibir el remito con diferencia.
+  `fabrica_embolsados.producto_id` ya existe (nullable) esperando esta fase.
+- **Fase 6 — Reportes:** `lib/fabrica/reportes.ts` (kg por turno/operario/sabor,
+  rendimiento fécula→masa real por operario) + reporte en Compras de sugerido vs.
+  comprado para calibrar coeficientes.
+
+#### Tablas involucradas
+
+`fabrica_sabores` · `fabrica_presentaciones` · `fabrica_tamanios` · `compras_categorias` ·
+`fabrica_conteos` · `fabrica_conteo_items` · `compras_solicitudes` · `compras_solicitud_items` ·
+`compras_plantilla_base` · `fabrica_producciones` · `fabrica_embolsados`
 
 ---
 
