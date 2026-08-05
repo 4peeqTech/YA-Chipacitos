@@ -244,7 +244,8 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
             step="0.5"
             value={inputVal}
             onChange={e => setCantidadesInput(prev => ({ ...prev, [producto.id]: e.target.value }))}
-            className="w-16 bg-[#111] border border-[#2a2a2a] text-[#f0f0f0] rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:border-[#e8c547]"
+            style={{ padding: '8px 4px' }}
+            className="w-16 bg-[#111] border border-[#2a2a2a] text-[#f0f0f0] rounded-xl text-sm text-center focus:outline-none focus:border-[#e8c547]"
           />
           <button
             onClick={() => agregarAlCarrito(producto)}
@@ -485,7 +486,7 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
             ) : (
               <div className="space-y-1.5">
                 {carrito.map(item => (
-                  <div key={item.producto.id} style={{display:'grid', gridTemplateColumns:'1fr 36px 18px', gap:'6px', alignItems:'center'}}>
+                  <div key={item.producto.id} style={{display:'grid', gridTemplateColumns:'1fr 46px 18px', gap:'6px', alignItems:'center'}}>
                     <span className="text-[#c0c0c0] text-xs truncate">{item.producto.nombre}</span>
                     <input
                       type="text"
@@ -495,7 +496,8 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
                         const v = parseFloat(e.target.value.replace(',', '.'))
                         setCantidad(item.producto, isNaN(v) ? 0 : v)
                       }}
-                      className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#e8c547] font-semibold rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:border-[#e8c547] w-full"
+                      style={{ padding: '2px' }}
+                      className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#e8c547] font-semibold rounded text-xs text-center focus:outline-none focus:border-[#e8c547] w-full"
                     />
                     <button onClick={() => setCantidad(item.producto, 0)} className="text-[#444] hover:text-[#e84210] transition-colors text-xs text-center" title="Quitar">✕</button>
                   </div>
