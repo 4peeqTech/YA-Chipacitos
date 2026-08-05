@@ -22,7 +22,7 @@ export default function FabricaParametrosClient() {
         <p className="text-[#888] text-sm mt-0.5">Sabores, presentaciones y tamaños usados en producción</p>
       </div>
 
-      <div className="flex gap-1 border-b border-[#2a2a2a] overflow-x-auto">
+      <div className="flex gap-1 border-b border-[#2a2a2a]">
         {TABS.map(t => (
           <button
             key={t.key}

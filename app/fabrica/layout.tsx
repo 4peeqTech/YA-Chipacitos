@@ -15,6 +15,7 @@ export default async function FabricaLayout({ children }: { children: React.Reac
 
   const navItems = [
     { href: '/fabrica/pedidos',   label: 'Pedidos',  icon: '🚚' },
+    { href: '/fabrica/stock',     label: 'Stock',    icon: '📦' },
     { href: '/fabrica/catalogo',  label: 'Catálogo', icon: '🔀' },
     ...(profile?.modulos_permitidos?.includes('tareas') ? [{ href: '/tareas', label: 'Tareas', icon: '📋' }] : []),
     { href: '/ayuda',             label: 'Ayuda',    icon: '❓' },

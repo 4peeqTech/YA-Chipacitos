@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Notificacion {
@@ -97,10 +98,11 @@ export default function NotificationBell() {
     <div className="relative shrink-0" ref={panelRef}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative text-[#888] hover:text-[#e8c547] transition-colors shrink-0 flex items-center"
+        className="relative text-[#888] hover:text-[#e8c547] transition-colors shrink-0 w-8 h-8 flex items-center justify-center"
         title="Notificaciones"
+        aria-label="Notificaciones"
       >
-        🔔
+        <Bell size={18} />
         {noLeidas > 0 && (
           <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[#e84210] text-white text-[9px] font-bold flex items-center justify-center leading-none">
             {noLeidas > 9 ? '9+' : noLeidas}

@@ -8,10 +8,18 @@ interface Props {
   onClose: () => void
   title: string
   accent?: 'gold' | 'red'
+  /** Ancho máximo del modal. 'lg'/'xl' para formularios con varios campos. */
+  size?: 'md' | 'lg' | 'xl'
   children: React.ReactNode
 }
 
-export default function Modal({ open, onClose, title, accent = 'gold', children }: Props) {
+const MAX_WIDTH: Record<NonNullable<Props['size']>, string> = {
+  md: 'max-w-md',
+  lg: 'max-w-2xl',
+  xl: 'max-w-3xl',
+}
+
+export default function Modal({ open, onClose, title, accent = 'gold', size = 'md', children }: Props) {
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -29,7 +37,7 @@ export default function Modal({ open, onClose, title, accent = 'gold', children 
       onClick={onClose}
     >
       <div
-        className={`bg-[#111111] border border-[#2a2a2a] border-t-2 ${accentBorder} rounded-2xl w-full max-w-md p-6 space-y-4`}
+        className={`bg-[#111111] border border-[#2a2a2a] border-t-2 ${accentBorder} rounded-2xl w-full ${MAX_WIDTH[size]} max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden p-6 space-y-4`}
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
