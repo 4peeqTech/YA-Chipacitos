@@ -95,6 +95,7 @@ export default function StockClient({
   const [detalle, setDetalle] = useState<ConteoHistorial | null>(null)
   const [detalleLineas, setDetalleLineas] = useState<DetalleLinea[] | null>(null)
   const [busqueda, setBusqueda] = useState('')
+  const [seccion, setSeccion] = useState<'todos' | 'bolsaplast' | 'global' | 'huevos'>('todos')
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   function marcarGuardado() {
@@ -163,8 +164,13 @@ export default function StockClient({
   )
 
   const q = busqueda.trim().toLowerCase()
-  const bolsaplastFiltrado = bolsaplast.filter(i => !q || i.nombre.toLowerCase().includes(q))
-  const materiaPrimaFiltrada = materiaPrima.filter(i => !q || i.nombre.toLowerCase().includes(q))
+  const bolsaplastFiltrado = seccion === 'todos' || seccion === 'bolsaplast'
+    ? bolsaplast.filter(i => !q || i.nombre.toLowerCase().includes(q))
+    : []
+  const materiaPrimaFiltrada = seccion === 'todos' || seccion === 'global'
+    ? materiaPrima.filter(i => !q || i.nombre.toLowerCase().includes(q))
+    : []
+  const mostrarHuevos = (seccion === 'todos' || seccion === 'huevos') && !q
 
   const faltantesBolsaplast = bolsaplast.filter(i => faltanteBolsaplast(i.metaSemanal, i.cantidad) > 0).length
   const faltantesMateriaPrima = materiaPrima.filter(i => (previewMateriaPrima.get(i.materiaPrimaId)?.sugeridoUnidades ?? 0) > 0).length
@@ -250,7 +256,7 @@ export default function StockClient({
         </div>
       </Card>
 
-      <div className="sticky top-0 z-10 bg-[#0a0a0a] py-2 -mx-4 px-4 lg:-mx-8 lg:px-8">
+      <div className="sticky top-0 z-10 bg-[#0a0a0a] py-2 -mx-4 px-4 lg:-mx-8 lg:px-8 space-y-2">
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666] pointer-events-none" />
           <input
@@ -260,6 +266,33 @@ export default function StockClient({
             onChange={e => setBusqueda(e.target.value)}
             className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
           />
+        </div>
+        <div className="flex gap-2 overflow-x-auto">
+          {([
+            { key: 'todos' as const, label: 'Todos', icono: null },
+            { key: 'bolsaplast' as const, label: 'Bolsaplast', icono: Package, count: bolsaplast.length },
+            { key: 'global' as const, label: 'Global', icono: Wheat, count: materiaPrima.length },
+            { key: 'huevos' as const, label: 'Huevos', icono: Egg },
+          ]).map(f => {
+            const Icono = f.icono
+            return (
+              <button
+                key={f.key}
+                onClick={() => setSeccion(f.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
+                  seccion === f.key ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] border border-[#2a2a2a] hover:text-[#f0f0f0]'
+                }`}
+              >
+                {Icono && <Icono size={12} />}
+                {f.label}
+                {f.count != null && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${seccion === f.key ? 'bg-black/20 text-black' : 'bg-[#2a2a2a] text-[#666]'}`}>
+                    {f.count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -332,7 +365,7 @@ export default function StockClient({
       )}
 
       {/* Huevos */}
-      {!q && (
+      {mostrarHuevos && (
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-xs font-semibold text-[#888] uppercase tracking-wider px-1">
             <Egg size={13} /> Huevos — Huevo Campo
