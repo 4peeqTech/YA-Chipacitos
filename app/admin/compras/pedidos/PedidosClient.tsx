@@ -94,6 +94,7 @@ export default function PedidosClient({
   const [creandoPedido, setCreandoPedido] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<Pedido | null>(null)
   const [itemsEditor, setItemsEditor] = useState<ItemEditor[]>([])
+  const [mensajeCopiado, setMensajeCopiado] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -159,11 +160,13 @@ export default function PedidosClient({
         .map(i => ({ item_id: i.item_id, materia_prima_id: i.materia_prima_id, descripcion: i.descripcion, unidad: i.unidad, cantidad: i.cantidad }))
     )
     setError('')
+    setMensajeCopiado(false)
   }
 
   function cerrarEditor() {
     setPedidoEditando(null)
     setItemsEditor([])
+    setMensajeCopiado(false)
   }
 
   async function guardarItems(pedidoOverride?: Pedido, itemsOverride?: ItemEditor[]): Promise<PedidoItem[] | null> {
@@ -249,14 +252,18 @@ export default function PedidosClient({
 
       setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, mensaje: data.mensaje } : p))
       setPedidoEditando(prev => prev ? { ...prev, mensaje: data.mensaje } : prev)
+      setMensajeCopiado(false)
     })
   }
 
-  async function enviarWhatsApp() {
+  function copiarMensaje() {
     if (!pedidoEditando?.mensaje) return
-    const url = linkWhatsApp(pedidoEditando.proveedores.contacto_telefono, pedidoEditando.mensaje)
-    window.open(url, '_blank')
+    navigator.clipboard.writeText(pedidoEditando.mensaje)
+    setMensajeCopiado(true)
+  }
 
+  async function marcarComoEnviado() {
+    if (!pedidoEditando) return
     const { data, error: err } = await supabase
       .from('compras_pedidos')
       .update({ estado: 'enviado', enviado_en: new Date().toISOString() })
@@ -267,6 +274,13 @@ export default function PedidosClient({
 
     setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, ...data } : p))
     setPedidoEditando(prev => prev ? { ...prev, ...data } : prev)
+  }
+
+  async function enviarWhatsApp() {
+    if (!pedidoEditando?.mensaje) return
+    const url = linkWhatsApp(pedidoEditando.proveedores.contacto_telefono, pedidoEditando.mensaje)
+    window.open(url, '_blank')
+    await marcarComoEnviado()
   }
 
   async function cerrarPedido(pedido: Pedido) {
@@ -362,12 +376,12 @@ export default function PedidosClient({
           {pedidoEditando.mensaje && (
             <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
               <pre className="text-[#e0e0e0] text-sm whitespace-pre-wrap font-sans">{pedidoEditando.mensaje}</pre>
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 <button
-                  onClick={() => navigator.clipboard.writeText(pedidoEditando.mensaje ?? '')}
+                  onClick={copiarMensaje}
                   className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all"
                 >
-                  Copiar mensaje
+                  {mensajeCopiado ? '✓ Copiado' : 'Copiar mensaje'}
                 </button>
                 <button
                   onClick={enviarWhatsApp}
@@ -376,6 +390,15 @@ export default function PedidosClient({
                 >
                   Enviar por WhatsApp
                 </button>
+                {mensajeCopiado && (
+                  <button
+                    onClick={marcarComoEnviado}
+                    disabled={pedidoEditando.estado === 'cerrado'}
+                    className="bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all"
+                  >
+                    Marcar como enviado
+                  </button>
+                )}
               </div>
             </div>
           )}
