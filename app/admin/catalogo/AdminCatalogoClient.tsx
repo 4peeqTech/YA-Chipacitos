@@ -333,12 +333,14 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
                     {p.precio != null ? <span className="text-[#56d68a]">${p.precio.toLocaleString('es-AR')}</span> : null}
                     {p.descripcion ? <span>· {p.descripcion}</span> : null}
                   </p>
+                  {/* Terna presentación/sabor/tamaño — oculta junto con Fase 5/6 de Fábrica, no entregadas todavía.
                   {p.presentacion_id && (
                     <p className="mt-1 flex items-center gap-1 text-[10px] text-[#888]">
                       <Layers3 size={10} className="text-[#e8c547]" />
                       {[nombreParametro(presentaciones, p.presentacion_id), nombreParametro(sabores, p.sabor_id), nombreParametro(tamanios, p.tamanio_id)].filter(Boolean).join(' · ')}
                     </p>
                   )}
+                  */}
                   {(mapeosPorProductoId[p.id] || []).length > 0 && (
                     <p className="text-[10px] text-[#555] mt-0.5 flex flex-wrap gap-1">
                       <span className="text-[#444]">Posberry:</span>
@@ -409,9 +411,11 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
                 {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+            {/* Terna presentación/sabor/tamaño — oculta junto con Fase 5/6 de Fábrica, no entregadas todavía.
             {tab === 'fabrica' && (
               <TernaSelects value={form} onChange={v => setForm(f => ({ ...f, ...v }))} />
             )}
+            */}
             {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
             <div className="flex gap-2 pt-1">
               <button onClick={() => setModalNuevo(false)}
@@ -474,9 +478,11 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
                 {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+            {/* Terna presentación/sabor/tamaño — oculta junto con Fase 5/6 de Fábrica, no entregadas todavía.
             {editando.destino === 'fabrica' && (
               <TernaSelects value={formEdit} onChange={v => setFormEdit(f => ({ ...f, ...v }))} />
             )}
+            */}
             {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
             <div className="flex gap-2 pt-1">
               <button onClick={() => setEditando(null)}
