@@ -12,7 +12,7 @@ export default async function SolicitudesPage() {
   const [{ data: solicitudes }, { data: proveedores }] = await Promise.all([
     supabase
       .from('compras_solicitudes')
-      .select('*, fabrica_conteos(semana_desde, semana_hasta), compras_solicitud_items(*)')
+      .select('*, fabrica_conteos(semana_desde, semana_hasta, proyeccion_masa_kg), compras_solicitud_items(*)')
       .order('created_at', { ascending: false }),
     supabase.from('proveedores').select('id, nombre').eq('estado', 'activo').order('nombre'),
   ])

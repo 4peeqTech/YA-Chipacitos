@@ -23,6 +23,7 @@ interface CatalogoItem {
 interface PlantillaLinea {
   id: string
   item_id: string | null
+  materia_prima_id: string | null
   descripcion: string
   proveedor_id: string
   unidad: string | null
@@ -33,6 +34,7 @@ interface PlantillaLinea {
 
 const emptyForm = (): Partial<PlantillaLinea> => ({
   item_id: null,
+  materia_prima_id: null,
   descripcion: '',
   proveedor_id: '',
   unidad: '',
@@ -45,10 +47,12 @@ export default function PedidoBaseClient({
   plantillaInicial,
   proveedores,
   itemsCatalogo,
+  materiaPrimaCatalogo,
 }: {
   plantillaInicial: PlantillaLinea[]
   proveedores: ProveedorOption[]
   itemsCatalogo: CatalogoItem[]
+  materiaPrimaCatalogo: CatalogoItem[]
 }) {
   const supabase = createClient()
   const router = useRouter()
@@ -82,17 +86,32 @@ export default function PedidoBaseClient({
     setEditando(null)
   }
 
-  function elegirItem(itemId: string) {
-    if (!itemId) { setForm(f => ({ ...f, item_id: null })); return }
-    const item = itemsCatalogo.find(i => i.id === itemId)
-    if (!item) return
-    setForm(f => ({
-      ...f,
-      item_id: item.id,
-      descripcion: f.descripcion?.trim() ? f.descripcion : item.nombre,
-      unidad: f.unidad?.trim() ? f.unidad : item.unidad,
-      proveedor_id: f.proveedor_id || item.proveedor_id,
-    }))
+  function elegirItem(valor: string) {
+    if (!valor) { setForm(f => ({ ...f, item_id: null, materia_prima_id: null })); return }
+    const [tipo, id] = valor.split(':')
+    if (tipo === 'mp') {
+      const item = materiaPrimaCatalogo.find(i => i.id === id)
+      if (!item) return
+      setForm(f => ({
+        ...f,
+        item_id: null,
+        materia_prima_id: item.id,
+        descripcion: f.descripcion?.trim() ? f.descripcion : item.nombre,
+        unidad: f.unidad?.trim() ? f.unidad : item.unidad,
+        proveedor_id: f.proveedor_id || item.proveedor_id,
+      }))
+    } else {
+      const item = itemsCatalogo.find(i => i.id === id)
+      if (!item) return
+      setForm(f => ({
+        ...f,
+        item_id: item.id,
+        materia_prima_id: null,
+        descripcion: f.descripcion?.trim() ? f.descripcion : item.nombre,
+        unidad: f.unidad?.trim() ? f.unidad : item.unidad,
+        proveedor_id: f.proveedor_id || item.proveedor_id,
+      }))
+    }
   }
 
   async function guardar() {
@@ -102,6 +121,7 @@ export default function PedidoBaseClient({
     startTransition(async () => {
       const body = {
         item_id: form.item_id ?? null,
+        materia_prima_id: form.materia_prima_id ?? null,
         descripcion: form.descripcion!.trim(),
         proveedor_id: form.proveedor_id,
         unidad: form.unidad?.trim() || null,
@@ -154,6 +174,8 @@ export default function PedidoBaseClient({
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
   const labelClass = "flex items-center text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
 
+  const valorSeleccionado = form.materia_prima_id ? `mp:${form.materia_prima_id}` : form.item_id ? `item:${form.item_id}` : ''
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -163,7 +185,7 @@ export default function PedidoBaseClient({
         </div>
         <div className="flex gap-2">
           <button onClick={abrirCrear} className="flex items-center gap-1.5 border border-[#2a2a2a] hover:border-[#e8c547] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-            <Plus size={16} /> Agregar línea
+            <Plus size={16} /> Agregar materia prima/insumo
           </button>
           <button
             onClick={generarPedidoBase}
@@ -176,13 +198,13 @@ export default function PedidoBaseClient({
       </div>
 
       <p className="flex items-center text-xs text-[#666]">
-        Generar crea una solicitud en la bandeja de <span className="text-[#f0f0f0] mx-1">Solicitudes</span>, con las mismas cantidades de acá — la ajustás y la convertís en pedidos desde ahí, igual que el pedido complementario de Fábrica.
+        Esto es una plantilla: lo que está acá se pide todas las semanas, sin importar el conteo. Generar crea una solicitud en la bandeja de <span className="text-[#f0f0f0] mx-1">Solicitudes</span>, con las mismas cantidades de acá — la ajustás y la convertís en pedidos desde ahí, igual que el pedido complementario de Fábrica.
         <HelpTooltip text="Si ya hay un pedido base pendiente de revisión sin convertir, no se puede generar otro hasta resolver ese." />
       </p>
 
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
         {lineas.length === 0 ? (
-          <p className="p-8 text-center text-[#888] text-sm">Todavía no hay líneas. Usá &quot;+ Agregar línea&quot; para armar la plantilla.</p>
+          <p className="p-8 text-center text-[#888] text-sm">Todavía no hay líneas. Usá &quot;+ Agregar materia prima/insumo&quot; para armar la plantilla.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -248,11 +270,16 @@ export default function PedidoBaseClient({
           <div className="md:col-span-2">
             <label className={labelClass}>
               Ítem del catálogo
-              <HelpTooltip text="Opcional. Elegilo para autocompletar descripción, unidad y proveedor desde Insumos — igual podés editarlos después. Dejalo vacío para una línea libre (por ejemplo, algo que no está en el catálogo de insumos)." />
+              <HelpTooltip text="Opcional. Elegilo para autocompletar descripción, unidad y proveedor desde Materia prima o Insumos — igual podés editarlos después. Dejalo vacío para una línea libre (por ejemplo, algo que no está en ningún catálogo)." />
             </label>
-            <select className={inputClass} value={form.item_id ?? ''} onChange={e => elegirItem(e.target.value)}>
+            <select className={inputClass} value={valorSeleccionado} onChange={e => elegirItem(e.target.value)}>
               <option value="">Línea libre (sin ítem)</option>
-              {itemsCatalogo.map(i => <option key={i.id} value={i.id}>{i.nombre}</option>)}
+              <optgroup label="Materia prima">
+                {materiaPrimaCatalogo.map(i => <option key={`mp:${i.id}`} value={`mp:${i.id}`}>{i.nombre}</option>)}
+              </optgroup>
+              <optgroup label="Insumos">
+                {itemsCatalogo.map(i => <option key={`item:${i.id}`} value={`item:${i.id}`}>{i.nombre}</option>)}
+              </optgroup>
             </select>
           </div>
           <div className="md:col-span-2">

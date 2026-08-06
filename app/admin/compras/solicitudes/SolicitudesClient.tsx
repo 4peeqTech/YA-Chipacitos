@@ -3,8 +3,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Inbox, ClipboardList, TrendingUp, Truck, ChevronLeft, ChevronRight,
-  Ban, Send, History,
+  Inbox, ClipboardList, TrendingUp, Truck, ChevronRight,
+  Ban, Send, History, Scale,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
@@ -14,12 +14,14 @@ import { useToasts, ToastStack } from '@/components/ui/Toast'
 interface ConteoRef {
   semana_desde: string
   semana_hasta: string
+  proyeccion_masa_kg: number
 }
 
 interface SolicitudItem {
   id: string
   solicitud_id: string
   item_id: string | null
+  materia_prima_id: string | null
   proveedor_id: string
   descripcion: string
   unidad: string | null
@@ -180,110 +182,6 @@ export default function SolicitudesClient({
         </div>
       </div>
 
-      {abierta && (
-        <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-xl p-5 space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <button onClick={cerrar} className="flex items-center gap-1 text-xs text-[#888] hover:text-[#f0f0f0] transition-colors mb-2">
-                <ChevronLeft size={14} /> Volver a la bandeja
-              </button>
-              <h2 className="flex items-center gap-2 text-lg font-bold text-[#f0f0f0]">
-                {abierta.tipo === 'base' ? <ClipboardList size={16} className="text-[#e8c547]" /> : <TrendingUp size={16} className="text-[#e8c547]" />}
-                {origenSolicitud(abierta)}
-              </h2>
-              <p className="text-xs text-[#666] mt-0.5">Creada el {new Date(abierta.created_at).toLocaleDateString('es-AR')}</p>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span className={`text-[11px] transition-opacity ${guardado === 'idle' ? 'opacity-0' : 'text-[#56d68a]'}`}>
-                {guardado === 'guardando' ? 'Guardando...' : '✓ Guardado'}
-              </span>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${ESTADO_BADGE[abierta.estado]}`}>{ESTADO_LABEL[abierta.estado]}</span>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
-            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-2.5 bg-[#1a1a1a] text-[11px] font-semibold text-[#888] uppercase tracking-wider">
-              <span>Insumo</span>
-              <span className="flex items-center gap-1">Ajustada<HelpTooltip text="Arrancó con el sugerido calculado al cerrar el conteo (o la cantidad de la plantilla, si es pedido base). Podés cambiarlo antes de generar los pedidos." /></span>
-              <span className="hidden sm:block">Proveedor</span>
-              <span>Incluir</span>
-            </div>
-            <div className="divide-y divide-[#1a1a1a]">
-              {items.length === 0 ? (
-                <p className="p-6 text-center text-sm text-[#666]">Esta solicitud no tiene líneas.</p>
-              ) : items.map(i => (
-                <div key={i.id} className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 px-4 py-2.5 ${!i.incluir ? 'opacity-40' : ''}`}>
-                  <div className="min-w-0">
-                    <p className="text-sm text-[#f0f0f0] truncate">{i.descripcion}</p>
-                    <p className="text-xs text-[#666]">sugerido {i.cantidad_sugerida} {i.unidad}</p>
-                  </div>
-                  <input
-                    type="number" inputMode="decimal" step="0.01"
-                    value={i.cantidad_ajustada}
-                    disabled={abierta.estado !== 'abierta'}
-                    onChange={e => actualizarCantidad(i.id, Number(e.target.value))}
-                    className={inputClass}
-                  />
-                  <select
-                    value={i.proveedor_id}
-                    disabled={abierta.estado !== 'abierta'}
-                    onChange={e => cambiarProveedor(i.id, e.target.value)}
-                    className={`hidden sm:block ${selectClass}`}
-                  >
-                    {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                  </select>
-                  <input
-                    type="checkbox"
-                    checked={i.incluir}
-                    disabled={abierta.estado !== 'abierta'}
-                    onChange={() => toggleIncluir(i.id)}
-                    className="w-4 h-4 accent-[#e8c547] cursor-pointer disabled:cursor-not-allowed justify-self-center"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {abierta.estado === 'abierta' && (
-            <>
-              <div className="rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] p-3 space-y-1.5">
-                <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">Al generar se crean {grupos.length} pedido{grupos.length === 1 ? '' : 's'}</p>
-                {grupos.length === 0 ? (
-                  <p className="text-sm text-[#666]">Ninguna línea incluida todavía.</p>
-                ) : grupos.map(([proveedorId, lineas]) => (
-                  <p key={proveedorId} className="flex items-center gap-1.5 text-sm text-[#ccc]">
-                    <Truck size={13} className="text-[#666] shrink-0" /> {nombreProveedor(proveedorId)} <span className="text-[#666]">· {lineas.length} ítem{lineas.length === 1 ? '' : 's'}</span>
-                  </p>
-                ))}
-              </div>
-
-              <div className="flex gap-2 flex-wrap">
-                <button
-                  onClick={() => setConfirmando('generar')}
-                  disabled={grupos.length === 0}
-                  className="flex-1 min-w-[200px] flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-['Syne'] font-bold text-sm py-3 rounded-xl transition-all"
-                >
-                  <Send size={16} /> Generar pedidos
-                </button>
-                <button
-                  onClick={() => setConfirmando('descartar')}
-                  className="flex items-center justify-center gap-2 border border-[#2a2a2a] hover:border-red-800 hover:text-red-400 text-[#888] font-semibold text-sm py-3 px-4 rounded-xl transition-all"
-                >
-                  <Ban size={16} /> Descartar
-                </button>
-              </div>
-            </>
-          )}
-
-          {abierta.estado === 'convertida' && (
-            <p className="text-sm text-[#56d68a]">Convertida el {abierta.convertida_en ? new Date(abierta.convertida_en).toLocaleDateString('es-AR') : '—'}. Los pedidos ya están en la bandeja de Pedidos.</p>
-          )}
-          {abierta.estado === 'descartada' && (
-            <p className="text-sm text-[#888]">Descartada el {abierta.convertida_en ? new Date(abierta.convertida_en).toLocaleDateString('es-AR') : '—'}.</p>
-          )}
-        </div>
-      )}
-
       <div className="flex gap-2">
         {([
           { key: 'abiertas' as const, label: 'Pendientes', count: pendientes },
@@ -314,7 +212,7 @@ export default function SolicitudesClient({
               <button
                 key={s.id}
                 onClick={() => abrir(s)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[#1a1a1a] transition-colors ${abiertaId === s.id ? 'bg-[#1a1a1a]' : ''}`}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[#1a1a1a] transition-colors"
               >
                 <span className="text-[#e8c547] shrink-0">
                   {s.tipo === 'base' ? <ClipboardList size={18} /> : <TrendingUp size={18} />}
@@ -330,6 +228,112 @@ export default function SolicitudesClient({
           </div>
         )}
       </div>
+
+      <Modal open={!!abierta} onClose={cerrar} title={abierta ? origenSolicitud(abierta) : ''} size="xl">
+        {abierta && (
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-xs text-[#666]">Creada el {new Date(abierta.created_at).toLocaleDateString('es-AR')}</p>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className={`text-[11px] transition-opacity ${guardado === 'idle' ? 'opacity-0' : 'text-[#56d68a]'}`}>
+                  {guardado === 'guardando' ? 'Guardando...' : '✓ Guardado'}
+                </span>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${ESTADO_BADGE[abierta.estado]}`}>{ESTADO_LABEL[abierta.estado]}</span>
+              </div>
+            </div>
+
+            {abierta.tipo === 'complementario' && abierta.fabrica_conteos && (
+              <div className="flex items-center gap-2 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-4 py-3">
+                <Scale size={16} className="text-[#e8c547] shrink-0" />
+                <p className="text-sm text-[#ccc]">
+                  Kg de masa a producir (martes a viernes): <span className="text-[#f0f0f0] font-bold">{abierta.fabrica_conteos.proyeccion_masa_kg} kg</span>
+                </p>
+              </div>
+            )}
+
+            <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-2.5 bg-[#1a1a1a] text-[11px] font-semibold text-[#888] uppercase tracking-wider">
+                <span>Materia prima</span>
+                <span className="flex items-center gap-1">Ajustada<HelpTooltip text="Arrancó con el sugerido calculado al cerrar el conteo (o la cantidad de la plantilla, si es pedido base). Podés cambiarlo antes de generar los pedidos." /></span>
+                <span className="hidden sm:block">Proveedor</span>
+                <span>Incluir</span>
+              </div>
+              <div className="divide-y divide-[#1a1a1a]">
+                {items.length === 0 ? (
+                  <p className="p-6 text-center text-sm text-[#666]">Esta solicitud no tiene líneas.</p>
+                ) : items.map(i => (
+                  <div key={i.id} className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 px-4 py-2.5 ${!i.incluir ? 'opacity-40' : ''}`}>
+                    <div className="min-w-0">
+                      <p className="text-sm text-[#f0f0f0] truncate">{i.descripcion}</p>
+                      <p className="text-xs text-[#666]">sugerido {i.cantidad_sugerida} {i.unidad}</p>
+                    </div>
+                    <input
+                      type="number" inputMode="decimal" step="0.01"
+                      value={i.cantidad_ajustada}
+                      disabled={abierta.estado !== 'abierta'}
+                      onChange={e => actualizarCantidad(i.id, Number(e.target.value))}
+                      className={inputClass}
+                    />
+                    <select
+                      value={i.proveedor_id}
+                      disabled={abierta.estado !== 'abierta'}
+                      onChange={e => cambiarProveedor(i.id, e.target.value)}
+                      className={`hidden sm:block ${selectClass}`}
+                    >
+                      {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    </select>
+                    <input
+                      type="checkbox"
+                      checked={i.incluir}
+                      disabled={abierta.estado !== 'abierta'}
+                      onChange={() => toggleIncluir(i.id)}
+                      className="w-4 h-4 accent-[#e8c547] cursor-pointer disabled:cursor-not-allowed justify-self-center"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {abierta.estado === 'abierta' && (
+              <>
+                <div className="rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] p-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">Al generar se crean {grupos.length} pedido{grupos.length === 1 ? '' : 's'}</p>
+                  {grupos.length === 0 ? (
+                    <p className="text-sm text-[#666]">Ninguna línea incluida todavía.</p>
+                  ) : grupos.map(([proveedorId, lineas]) => (
+                    <p key={proveedorId} className="flex items-center gap-1.5 text-sm text-[#ccc]">
+                      <Truck size={13} className="text-[#666] shrink-0" /> {nombreProveedor(proveedorId)} <span className="text-[#666]">· {lineas.length} ítem{lineas.length === 1 ? '' : 's'}</span>
+                    </p>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => setConfirmando('generar')}
+                    disabled={grupos.length === 0}
+                    className="flex-1 min-w-[200px] flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-['Syne'] font-bold text-sm py-3 rounded-xl transition-all"
+                  >
+                    <Send size={16} /> Generar pedidos
+                  </button>
+                  <button
+                    onClick={() => setConfirmando('descartar')}
+                    className="flex items-center justify-center gap-2 border border-[#2a2a2a] hover:border-red-800 hover:text-red-400 text-[#888] font-semibold text-sm py-3 px-4 rounded-xl transition-all"
+                  >
+                    <Ban size={16} /> Descartar
+                  </button>
+                </div>
+              </>
+            )}
+
+            {abierta.estado === 'convertida' && (
+              <p className="text-sm text-[#56d68a]">Convertida el {abierta.convertida_en ? new Date(abierta.convertida_en).toLocaleDateString('es-AR') : '—'}. Los pedidos ya están en la bandeja de Pedidos.</p>
+            )}
+            {abierta.estado === 'descartada' && (
+              <p className="text-sm text-[#888]">Descartada el {abierta.convertida_en ? new Date(abierta.convertida_en).toLocaleDateString('es-AR') : '—'}.</p>
+            )}
+          </div>
+        )}
+      </Modal>
 
       <Modal open={confirmando === 'generar'} onClose={() => !procesando && setConfirmando(null)} title="Generar pedidos">
         <p className="text-sm text-[#888]">
