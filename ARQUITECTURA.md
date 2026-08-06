@@ -995,19 +995,27 @@ producción por turno**. Reusa por completo el módulo Compras existente
 (`compras_stock_actual`, el flujo `compras_pedidos → WhatsApp → compras_remitos`) en vez
 de duplicarlo.
 
-> **Corrección de agosto 2026:** el cliente probó el flujo real y surgió que los
-> "insumos" del conteo (`compras_items`) eran en realidad insumos de **depósito**
-> (Bolsaplast) — la **materia prima real** de producción es otro proveedor (Global),
-> con su propia lógica de cálculo tomada de la mini-app legacy del cliente (ver
-> [docs/analisis-motor-calculo-legacy.md](docs/analisis-motor-calculo-legacy.md)). Esta
-> pasada: (1) separó la materia prima en su propio catálogo, `fabrica_materia_prima`;
-> (2) reescribió el motor de cálculo con la fórmula real (conteo en **unidades de
-> compra**, no en kg); (3) arregló el bug de duplicate key en `fabrica_conteos` (dos
-> borradores simultáneos violaban el índice único de conteo cerrado); y (4) **ocultó
-> de la navegación** las Fases 5 y 6 (stock terminado y reportes) porque todavía no
-> fueron pedidas — el código y las migraciones siguen ahí, accesibles solo por URL
-> directa. El foco actual del módulo es exclusivamente Fases 1-3: conteo semanal →
-> solicitud → pedido.
+> **Correcciones de agosto 2026** (dos pasadas seguidas, sobre el mismo hallazgo):
+> el cliente adjuntó [docs/analisis-motor-calculo-legacy.md](docs/analisis-motor-calculo-legacy.md),
+> extraído de la mini-app legacy, con los **5 "calculadores" reales** que corren sobre
+> 3 grupos de ítems — no solo materia prima, como asumió la primera pasada:
+>
+> - **Bolsaplast** (depósito, 7 ítems): `faltante = max(0, meta_semanal − stock)`.
+> - **Global** (materia prima, proveedor real de fécula/quesos/margarina/leche/sal/
+>   polvo de hornear — separado de `compras_items`, que quedó como catálogo de
+>   depósito puro, en su propio catálogo `fabrica_materia_prima`): la proyección real
+>   es **número de masas** (batches de producción), no kg continuos, y no todos los
+>   8 ítems redondean igual al calcular cuánto pedir.
+> - **Huevos** (Huevo Campo): sin catálogo propio, 2 campos de planificación.
+>
+> La primera pasada separó materia prima de insumos pero asumió mal la unidad de
+> proyección (kg continuos en vez de masas) y dejó Bolsaplast/Huevos afuera del
+> conteo; la segunda alineó todo al documento real. De paso se arregló el bug de
+> duplicate key en `fabrica_conteos` (dos borradores simultáneos violaban el índice
+> único de conteo cerrado) y se **ocultaron de la navegación** las Fases 5 y 6 (stock
+> terminado y reportes), todavía no pedidas — el código y las migraciones siguen ahí,
+> accesibles solo por URL directa. El foco actual del módulo es Fases 1-3: conteo
+> semanal → solicitud → pedido.
 
 #### El flujo completo
 
@@ -1019,35 +1027,50 @@ de duplicarlo.
 │         │                                                        │
 │         ▼                                                        │
 │  fabrica_materia_prima (proveedor_id → Global, unidad_compra,    │
-│                          kg_por_unidad, coeficiente, precio)      │
-│         · coeficiente = kg de esta materia prima por kg de MASA  │
-│           producida (no por batch de 30kg fécula, como el        │
-│           legacy — se convierte dividiendo por el rendimiento)   │
+│                          kg_por_unidad, kg_por_masa, redondeo,    │
+│                          precio)                                  │
+│         · kg_por_masa = kg de esta materia prima por MASA        │
+│           (batch de producción) — valor crudo del legacy, sin    │
+│           convertir a kg continuos                                │
+│         · redondeo ∈ (estandar | siempre_arriba | sin_calculo) — │
+│           no todos los 8 ítems calculan igual cuánto pedir        │
+│         · compras_items (Bolsaplast, depósito) recuperó           │
+│           `incluir_en_conteo` — son los 7 ítems reales del         │
+│           calculador Bolsaplast del legacy                        │
 │         · /admin/compras/materia-prima — mismo patrón que        │
 │           Insumos, con Archivar/Reactivar y Eliminar real         │
-│         · config.fabrica_rendimiento_masa ≈ 2,5 (kg masa/fécula) │
 └──────────────────────────────────────────────────────────────────┘
                               │
 ┌─── Fase 2: conteo semanal + cierre ─────────────────────────────┐
 │                                                                  │
-│  Martes AM: fabrica_conteos (borrador) — un input por materia    │
-│  prima, en UNIDADES DE COMPRA (bolsas/cajas/sardos/potes, no kg) │
-│  + proyección de "Kg de masa a producir" hasta el viernes.        │
+│  Martes AM: fabrica_conteos (borrador) — 3 secciones:             │
+│    · Bolsaplast: stock actual por ítem (compras_stock_actual,     │
+│      el rol fabrica ahora también escribe esta tabla)             │
+│    · Global: materia prima en UNIDADES DE COMPRA (no kg)          │
+│    · Huevos: cajones disponibles (fabrica_conteos.                │
+│      huevos_cajones_disponibles, sin catálogo propio)             │
+│  + "Masas proyectadas esta semana" (fabrica_conteos.               │
+│    masas_proyectadas) — batches de producción, compartida por     │
+│    Global y Huevos.                                                │
 │         │                                                        │
-│         │  Vivo en el cliente: calcularNecesidadYSugerido()      │
-│         │    necesidadKg   = coeficiente × proyeccionMasaKg      │
-│         │    kgContado     = cantidadUnidades × kgPorUnidad      │
-│         │    kgFaltante    = max(0, necesidadKg − kgContado)     │
-│         │    sugeridoUnid. = round(kgFaltante / kgPorUnidad)     │
-│         │      (Math.round ya es la regla de redondeo legacy:    │
-│         │      con kgFaltante ≥ 0, half-up == half-away-from-0)  │
+│         │  Vivo en el cliente (lib/fabrica/calculoSugerido.ts):   │
+│         │    Bolsaplast:  faltante = max(0, meta − stock)         │
+│         │    Global:      necesidadKg = kgPorMasa × masas         │
+│         │                 kgFaltante = max(0, necesidadKg −       │
+│         │                              cantidadUnid × kgPorUnid)  │
+│         │                 sugerido = round | ceil | 0 según        │
+│         │                            `redondeo` del ítem           │
+│         │    Huevos:       cajonesNecesarios = ceil(masas×90/360) │
+│         │                 cajonesFaltantes = max(0, necesarios −   │
+│         │                                    disponibles)          │
 │         ▼                                                        │
 │  "Cerrar conteo" → RPC cerrar_conteo_fabrica() (transaccional):  │
-│    · snapshotea coeficiente/kg_por_unidad/unidad_compra por      │
-│      línea (si Compras edita el coeficiente después, el conteo   │
-│      cerrado no cambia de número)                                 │
-│    · calcula necesidad/sugerido, marca estado='cerrado'           │
-│    · crea compras_solicitudes (tipo='complementario') + líneas   │
+│    · snapshotea kg_por_masa/kg_por_unidad/unidad_compra por        │
+│      línea de materia prima (si Compras edita el coeficiente       │
+│      después, el conteo cerrado no cambia de número)               │
+│    · calcula necesidad/sugerido de las 3 fuentes, marca             │
+│      estado='cerrado', crea UNA compras_solicitudes                │
+│      (tipo='complementario') con líneas de las 3                   │
 │         ▼                                                        │
 │  POST /api/fabrica/solicitudes/notificar (service role) →        │
 │  enviarPush() a los destinatarios de compras-solicitudes          │
@@ -1064,9 +1087,9 @@ de duplicarlo.
 ┌─── Fase 3: bandeja de Compras + pedido base ────────────────────┐
 │                                                                  │
 │  /admin/compras/solicitudes — Modal por solicitud (abiertas del  │
-│  conteo o del pedido base), con el kg de masa a producir          │
-│  destacado arriba si es complementaria; líneas editables          │
-│  (cantidad, incluir, proveedor) → "Generar pedidos"                │
+│  conteo o del pedido base), con las masas proyectadas destacadas  │
+│  arriba si es complementaria; líneas editables (cantidad,          │
+│  incluir, proveedor) → "Generar pedidos"                          │
 │         │                                                        │
 │         ▼  RPC convertir_solicitud_a_pedidos() (transaccional)   │
 │  Un compras_pedidos en borrador por proveedor + sus               │
@@ -1080,8 +1103,9 @@ de duplicarlo.
 │                                                                  │
 │  compras_solicitud_items / compras_plantilla_base /               │
 │  compras_pedido_items tienen `materia_prima_id` en paralelo a      │
-│  `item_id` (mutuamente excluyentes) — las tres RPC de arriba lo    │
-│  copian junto con item_id                                          │
+│  `item_id` (mutuamente excluyentes; las líneas de Huevos no        │
+│  tienen ninguno de los dos, solo descripción/unidad/cantidad) —    │
+│  las tres RPC de arriba copian materia_prima_id junto con item_id  │
 └──────────────────────────────────────────────────────────────────┘
                               │
 ┌─── Fase 4: producción por turno ─────────────────────────────────┐
@@ -1172,6 +1196,16 @@ tabla `config`, que hasta este módulo solo leía `admin` (ver §6.1): se agreg�
 policy de SELECT para `tiene_acceso_fabrica()` porque el formulario de producción
 necesita leer `fabrica_rendimiento_masa`.
 
+**Corrección de agosto 2026:** el conteo de Bolsaplast vive en `compras_items` /
+`compras_stock_actual` / `compras_stock_movimientos` — tablas de Compras — pero ahora
+las edita directo el rol `fabrica` desde `/fabrica/stock`. Las tres policies pasan a
+`tiene_acceso_compras() or tiene_acceso_fabrica()`. De paso se corrigió `proveedores`:
+tenía una policy `admin`-only desde su creación, nunca actualizada cuando
+`tiene_acceso_compras()` se introdujo para el resto de Compras — cualquier squad con
+módulos de compras (o ahora fábrica) se quedaba sin filas en los joins a proveedor.
+Se agregó una policy de SELECT adicional con el mismo criterio; alta/edición/baja de
+proveedores sigue siendo admin-only.
+
 `fabrica_producciones` y `fabrica_embolsados` **no tienen policy de INSERT/UPDATE/DELETE
 directa** — solo SELECT. Toda escritura pasa por `guardar_produccion_fabrica()` /
 `eliminar_produccion_fabrica()` (`SECURITY DEFINER`), a propósito: una carga es
@@ -1195,7 +1229,7 @@ SELECT más para `tiene_acceso_fabrica()`, mismo criterio que la de `config` en 
 
 | Archivo | Responsabilidad |
 |---|---|
-| [calculoSugerido.ts](lib/fabrica/calculoSugerido.ts) | `calcularNecesidadYSugerido()` — necesidad en kg de masa, sugerido en unidades de compra; misma fórmula que `cerrar_conteo_fabrica()`, duplicada a propósito para la previsualización en vivo del cliente |
+| [calculoSugerido.ts](lib/fabrica/calculoSugerido.ts) | `calcularNecesidadYSugerido()` (materia prima, redondeo variable por ítem) · `faltanteBolsaplast()` · `calcularHuevos()` — mismas 3 fórmulas que `cerrar_conteo_fabrica()`, duplicadas a propósito para la previsualización en vivo del cliente |
 | [semanaConteo.ts](lib/fabrica/semanaConteo.ts) | `calcularSemanaConteo()` — fecha del conteo y ventana hasta el viernes, determinístico (recibe `ahora`) |
 | [rendimiento.ts](lib/fabrica/rendimiento.ts) | `masaDesdeFecula()` precarga masa desde fécula; `rendimientoFeculaMasa()` para reportes de Fase 6 |
 | [reportes.ts](lib/fabrica/reportes.ts) | `agruparProduccion()`, `agruparEmbolsadoPorPresentacion()`, `calcularRendimientoPorOperario()`, `calcularCumplimientoProyeccion()` — alimentan las 4 pestañas de `/fabrica/reportes` |
@@ -1203,14 +1237,17 @@ SELECT más para `tiene_acceso_fabrica()`, mismo criterio que la de `config` en 
 #### Snapshot deliberado
 
 Igual que `compras_solicitud_items` (Fase 2), `fabrica_conteo_items` guarda
-`coeficiente`/`kg_por_unidad`/`unidad_compra` **al momento del cierre**, no una
+`kg_por_masa`/`kg_por_unidad`/`unidad_compra` **al momento del cierre**, no una
 referencia viva a `fabrica_materia_prima`. Es la misma decisión de diseño que evita que
-editar un coeficiente hoy reescriba la historia de conteos ya cerrados.
+editar un coeficiente hoy reescriba la historia de conteos ya cerrados. Bolsaplast y
+Huevos no tienen un snapshot equivalente — su faltante se calcula y se escribe directo
+en `compras_solicitud_items` al cerrar, sin pasar por una tabla intermedia propia.
 
 #### Tablas involucradas
 
 `fabrica_sabores` · `fabrica_presentaciones` · `fabrica_tamanios` · `compras_categorias` ·
-`fabrica_materia_prima` · `fabrica_conteos` · `fabrica_conteo_items` · `compras_solicitudes` ·
+`fabrica_materia_prima` · `fabrica_conteos` · `fabrica_conteo_items` · `compras_items` ·
+`compras_stock_actual` · `compras_stock_movimientos` · `compras_solicitudes` ·
 `compras_solicitud_items` · `compras_plantilla_base` · `fabrica_producciones` ·
 `fabrica_embolsados`
 
@@ -1370,6 +1407,11 @@ RLS: `read_all` para todo autenticado (SELECT), `admin_all` para escritura.
 `maneja_stock` bool NOT NULL DEFAULT false · `local` text · `created_at`
 
 ~180 filas seedeadas desde la planilla original.
+
+RLS: escritura admin-only (`admin maneja proveedores`) + una policy de SELECT agregada
+en agosto 2026 para `tiene_acceso_compras() or tiene_acceso_fabrica()` — hasta entonces
+la tabla era admin-only también para lectura, y cualquier squad/fábrica se quedaba sin
+filas en los joins a proveedor (ver [§5.9](#59-módulo-fábrica)).
 
 #### `formas_pago` / `cajas`
 
