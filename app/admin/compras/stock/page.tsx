@@ -10,7 +10,7 @@ export default async function StockPage() {
   if (!user) redirect('/login')
 
   const [{ data: items }, { data: stock }] = await Promise.all([
-    supabase.from('compras_items').select('*').eq('estado', 'activo').order('orden'),
+    supabase.from('compras_items').select('*').eq('estado', 'activo').order('nombre'),
     supabase.from('compras_stock_actual').select('*'),
   ])
 

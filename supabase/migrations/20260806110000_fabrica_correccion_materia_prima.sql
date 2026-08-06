@@ -64,6 +64,28 @@ alter table fabrica_materia_prima enable row level security;
 create policy "fabrica_materia_prima_acceso" on fabrica_materia_prima
   for all using (tiene_acceso_compras());
 
+-- Nuevo módulo de la pantalla de Materia prima — se suma al set no granular
+-- que ya gobierna tiene_acceso_compras() (ver 20260804150000_compras_rls_modulos.sql).
+create or replace function public.tiene_acceso_compras()
+returns boolean
+language sql
+security definer
+stable
+as $$
+  select exists (
+    select 1 from profiles
+    where id = auth.uid()
+      and estado = 'activo'
+      and (
+        rol = 'admin'
+        or modulos_permitidos && array[
+          'compras-insumos', 'compras-materia-prima', 'compras-stock', 'compras-pedidos',
+          'compras-remitos', 'compras-reportes', 'compras-solicitudes', 'compras-pedido-base'
+        ]
+      )
+  );
+$$;
+
 -- Coeficientes convertidos de "kg por batch de 30kg de fécula" (legacy) a
 -- "kg de esta materia prima por kg de masa producida", usando el rendimiento
 -- configurado (config.fabrica_rendimiento_masa ≈ 2.5 → 30kg fécula ≈ 75kg masa).

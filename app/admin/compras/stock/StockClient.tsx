@@ -8,8 +8,6 @@ interface CompraItem {
   nombre: string
   unidad: string
   meta_semanal: number
-  consumo_por_masa: number | null
-  orden: number
 }
 
 interface StockActual {
@@ -39,7 +37,7 @@ export default function StockClient({
   const [error, setError] = useState('')
   const [, startTransition] = useTransition()
 
-  const items = useMemo(() => [...itemsIniciales].sort((a, b) => a.orden - b.orden), [itemsIniciales])
+  const items = useMemo(() => [...itemsIniciales].sort((a, b) => a.nombre.localeCompare(b.nombre)), [itemsIniciales])
 
   async function guardarCantidad(itemId: string) {
     const cantidad = Number(cantidadesForm[itemId])
@@ -94,7 +92,6 @@ export default function StockClient({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Insumo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Unidad</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Meta semanal</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Consumo por masa</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Cantidad actual</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
@@ -109,7 +106,6 @@ export default function StockClient({
                       <td className="px-4 py-3 text-[#f0f0f0] font-medium">{i.nombre}</td>
                       <td className="px-4 py-3 text-[#888]">{i.unidad}</td>
                       <td className="px-4 py-3 text-[#888]">{i.meta_semanal}</td>
-                      <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.consumo_por_masa ?? '—'}</td>
                       <td className="px-4 py-3">
                         <input
                           type="number"

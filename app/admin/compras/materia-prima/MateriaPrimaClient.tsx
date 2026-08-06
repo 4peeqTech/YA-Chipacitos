@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { Archive, ArchiveRestore, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 interface ProveedorOption {
@@ -11,56 +12,48 @@ interface ProveedorOption {
   nombre: string
 }
 
-interface CategoriaOption {
-  id: string
-  nombre: string
-}
-
-interface CompraItem {
+interface MateriaPrima {
   id: string
   proveedor_id: string
-  categoria_id: string | null
   nombre: string
-  unidad: string
-  meta_semanal: number
+  unidad_compra: string
+  kg_por_unidad: number
+  coeficiente: number
   precio: number | null
   estado: 'activo' | 'archivado'
 }
 
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
 
-const emptyForm = (): Partial<CompraItem> => ({
+const emptyForm = (): Partial<MateriaPrima> => ({
   proveedor_id: '',
-  categoria_id: null,
   nombre: '',
-  unidad: '',
-  meta_semanal: 0,
+  unidad_compra: '',
+  kg_por_unidad: 0,
+  coeficiente: 0,
   precio: null,
   estado: 'activo',
 })
 
-export default function InsumosClient({
+export default function MateriaPrimaClient({
   itemsIniciales,
   proveedores,
-  categorias,
 }: {
-  itemsIniciales: CompraItem[]
+  itemsIniciales: MateriaPrima[]
   proveedores: ProveedorOption[]
-  categorias: CategoriaOption[]
 }) {
   const supabase = createClient()
-  const [items, setItems] = useState<CompraItem[]>(itemsIniciales)
+  const [items, setItems] = useState<MateriaPrima[]>(itemsIniciales)
   const [filtro, setFiltro] = useState<FiltroEstado>('activo')
   const [busqueda, setBusqueda] = useState('')
-  const [editando, setEditando] = useState<CompraItem | null>(null)
+  const [editando, setEditando] = useState<MateriaPrima | null>(null)
   const [creando, setCreando] = useState(false)
-  const [form, setForm] = useState<Partial<CompraItem>>(emptyForm())
-  const [eliminando, setEliminando] = useState<CompraItem | null>(null)
+  const [form, setForm] = useState<Partial<MateriaPrima>>(emptyForm())
+  const [eliminando, setEliminando] = useState<MateriaPrima | null>(null)
   const [isPending, startTransition] = useTransition()
   const toast = useToasts()
 
   const nombreProveedor = (id: string) => proveedores.find(p => p.id === id)?.nombre ?? '—'
-  const nombreCategoria = (id: string | null) => categorias.find(c => c.id === id)?.nombre ?? '—'
 
   const filtrados = items
     .filter(i => {
@@ -76,7 +69,7 @@ export default function InsumosClient({
     setCreando(true)
   }
 
-  function abrirEditar(i: CompraItem) {
+  function abrirEditar(i: MateriaPrima) {
     setForm({ ...i })
     setEditando(i)
     setCreando(false)
@@ -90,22 +83,32 @@ export default function InsumosClient({
   async function guardar() {
     if (!form.nombre?.trim()) { toast.error('El nombre es requerido'); return }
     if (!form.proveedor_id) { toast.error('El proveedor es requerido'); return }
-    if (!form.unidad?.trim()) { toast.error('La unidad es requerida'); return }
+    if (!form.unidad_compra?.trim()) { toast.error('La unidad de compra es requerida'); return }
+    if (!form.kg_por_unidad || form.kg_por_unidad <= 0) { toast.error('Los kg por unidad deben ser mayores a 0'); return }
 
     startTransition(async () => {
+      const body = {
+        proveedor_id: form.proveedor_id,
+        nombre: form.nombre!.trim(),
+        unidad_compra: form.unidad_compra!.trim(),
+        kg_por_unidad: form.kg_por_unidad,
+        coeficiente: Number(form.coeficiente ?? 0),
+        precio: form.precio ?? null,
+      }
+
       if (creando) {
         const { data, error: err } = await supabase
-          .from('compras_items')
-          .insert([{ ...form, estado: 'activo' }])
+          .from('fabrica_materia_prima')
+          .insert([{ ...body, estado: 'activo' }])
           .select()
           .single()
         if (err) { toast.error(err.message); return }
         setItems(prev => [...prev, data])
-        toast.success('Insumo creado')
+        toast.success('Materia prima creada')
       } else if (editando) {
         const { data, error: err } = await supabase
-          .from('compras_items')
-          .update({ ...form })
+          .from('fabrica_materia_prima')
+          .update(body)
           .eq('id', editando.id)
           .select()
           .single()
@@ -117,26 +120,26 @@ export default function InsumosClient({
     })
   }
 
-  async function archivar(i: CompraItem) {
+  async function archivar(i: MateriaPrima) {
     const nuevoEstado = i.estado === 'activo' ? 'archivado' : 'activo'
     const { data, error: err } = await supabase
-      .from('compras_items')
+      .from('fabrica_materia_prima')
       .update({ estado: nuevoEstado })
       .eq('id', i.id)
       .select()
       .single()
     if (err) { toast.error(err.message); return }
     setItems(prev => prev.map(x => x.id === i.id ? data : x))
-    toast.success(nuevoEstado === 'archivado' ? 'Insumo archivado' : 'Insumo reactivado')
+    toast.success(nuevoEstado === 'archivado' ? 'Materia prima archivada' : 'Materia prima reactivada')
   }
 
   async function confirmarEliminar() {
     if (!eliminando) return
     startTransition(async () => {
-      const { error: err } = await supabase.from('compras_items').delete().eq('id', eliminando.id)
-      if (err) { toast.error('No se pudo eliminar — ya está en uso en algún conteo o pedido. Probá archivarlo en su lugar.'); return }
+      const { error: err } = await supabase.from('fabrica_materia_prima').delete().eq('id', eliminando.id)
+      if (err) { toast.error('No se pudo eliminar — ya está en uso en algún conteo o pedido. Probá archivarla en su lugar.'); return }
       setItems(prev => prev.filter(i => i.id !== eliminando.id))
-      toast.success('Insumo eliminado')
+      toast.success('Materia prima eliminada')
       setEliminando(null)
     })
   }
@@ -148,11 +151,13 @@ export default function InsumosClient({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#f0f0f0]">Insumos</h1>
-          <p className="text-[#888] text-sm mt-0.5">{items.filter(i => i.estado === 'activo').length} activos · {items.filter(i => i.estado === 'archivado').length} archivados</p>
+          <h1 className="text-2xl font-bold text-[#f0f0f0]">Materia prima</h1>
+          <p className="text-[#888] text-sm mt-0.5">
+            {items.filter(i => i.estado === 'activo').length} activas · {items.filter(i => i.estado === 'archivado').length} archivadas
+          </p>
         </div>
         <button onClick={abrirCrear} className="flex items-center gap-1.5 bg-[#e8c547] hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-          <Plus size={16} /> Nuevo insumo
+          <Plus size={16} /> Nueva materia prima
         </button>
       </div>
 
@@ -161,7 +166,7 @@ export default function InsumosClient({
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666] pointer-events-none" />
           <input
             type="text"
-            placeholder="Buscar insumo..."
+            placeholder="Buscar materia prima..."
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
             className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-[#e8c547] w-64"
@@ -181,7 +186,7 @@ export default function InsumosClient({
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
         {filtrados.length === 0 ? (
           <p className="p-8 text-center text-[#888] text-sm">
-            {items.length === 0 ? 'Todavía no hay insumos. Usá "+ Nuevo insumo" para crear el primero.' : 'Ningún resultado para tu búsqueda.'}
+            {items.length === 0 ? 'Todavía no hay materia prima. Usá "+ Nueva materia prima" para crear la primera.' : 'Ningún resultado para tu búsqueda.'}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -189,10 +194,10 @@ export default function InsumosClient({
               <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Nombre</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Categoría</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Proveedor</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Unidad</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Meta semanal</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Unidad de compra</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Kg/unidad</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Coeficiente</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Precio</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
@@ -202,10 +207,10 @@ export default function InsumosClient({
                 {filtrados.map(i => (
                   <tr key={i.id} className="hover:bg-[#1a1a1a] transition-colors">
                     <td className="px-4 py-3 text-[#f0f0f0] font-medium">{i.nombre}</td>
-                    <td className="px-4 py-3 text-[#888] hidden md:table-cell">{nombreCategoria(i.categoria_id)}</td>
                     <td className="px-4 py-3 text-[#888]">{nombreProveedor(i.proveedor_id)}</td>
-                    <td className="px-4 py-3 text-[#888]">{i.unidad}</td>
-                    <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.meta_semanal}</td>
+                    <td className="px-4 py-3 text-[#888]">{i.unidad_compra}</td>
+                    <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.kg_por_unidad}</td>
+                    <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.coeficiente}</td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.precio != null ? `$${i.precio.toLocaleString('es-AR')}` : '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${i.estado === 'activo' ? 'bg-green-900/50 text-green-300' : 'bg-[#2a2a2a] text-[#666]'}`}>
@@ -248,7 +253,7 @@ export default function InsumosClient({
         )}
       </div>
 
-      <Modal open={creando || !!editando} onClose={cerrarForm} title={creando ? 'Nuevo insumo' : `Editar — ${editando?.nombre}`} size="lg">
+      <Modal open={creando || !!editando} onClose={cerrarForm} title={creando ? 'Nueva materia prima' : `Editar — ${editando?.nombre}`} size="lg">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <label className={labelClass}>Nombre *</label>
@@ -262,19 +267,22 @@ export default function InsumosClient({
             </select>
           </div>
           <div>
-            <label className={labelClass}>Unidad *</label>
-            <input className={inputClass} placeholder="Ej: kg, unidad, docena" value={form.unidad ?? ''} onChange={e => setForm(f => ({...f, unidad: e.target.value}))} />
+            <label className={labelClass}>Unidad de compra *</label>
+            <input className={inputClass} placeholder="Ej: Bolsa, Caja, Sardo, Pote" value={form.unidad_compra ?? ''} onChange={e => setForm(f => ({...f, unidad_compra: e.target.value}))} />
           </div>
           <div>
-            <label className={labelClass}>Categoría</label>
-            <select className={inputClass} value={form.categoria_id ?? ''} onChange={e => setForm(f => ({...f, categoria_id: e.target.value || null}))}>
-              <option value="">Sin categoría</option>
-              {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
+            <label className={labelClass}>
+              Kg por unidad *
+              <HelpTooltip text="Cuántos kg trae cada unidad de compra. Por ejemplo, una bolsa de fécula trae 25kg." />
+            </label>
+            <input type="number" step="0.01" className={inputClass} value={form.kg_por_unidad ?? 0} onChange={e => setForm(f => ({...f, kg_por_unidad: Number(e.target.value)}))} />
           </div>
           <div>
-            <label className={labelClass}>Meta semanal</label>
-            <input type="number" step="0.01" className={inputClass} value={form.meta_semanal ?? 0} onChange={e => setForm(f => ({...f, meta_semanal: Number(e.target.value)}))} />
+            <label className={labelClass}>
+              Coeficiente
+              <HelpTooltip text="Kg de esta materia prima que se necesitan por cada kg de masa producida. La necesidad sugerida = coeficiente × kg de masa proyectados. Dejalo en 0 si no entra en la receta (por ejemplo, Pategrás)." />
+            </label>
+            <input type="number" step="0.00001" className={inputClass} value={form.coeficiente ?? 0} onChange={e => setForm(f => ({...f, coeficiente: Number(e.target.value)}))} />
           </div>
           <div>
             <label className={labelClass}>Precio</label>
@@ -292,9 +300,9 @@ export default function InsumosClient({
         </div>
       </Modal>
 
-      <Modal open={!!eliminando} onClose={() => setEliminando(null)} title="Eliminar insumo" accent="red">
+      <Modal open={!!eliminando} onClose={() => setEliminando(null)} title="Eliminar materia prima" accent="red">
         <p className="text-sm text-[#888]">
-          ¿Eliminar <span className="text-[#f0f0f0] font-medium">{eliminando?.nombre}</span>? Esta acción no se puede deshacer. Si ya se usó en algún conteo o pedido, no se va a poder eliminar — archivalo en su lugar.
+          ¿Eliminar <span className="text-[#f0f0f0] font-medium">{eliminando?.nombre}</span>? Esta acción no se puede deshacer. Si ya se usó en algún conteo o pedido, no se va a poder eliminar — archivala en su lugar.
         </p>
         <div className="flex gap-2 pt-4">
           <button onClick={() => setEliminando(null)} disabled={isPending} className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] transition-colors disabled:opacity-40">
