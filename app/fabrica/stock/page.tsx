@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { calcularSemanaConteo } from '@/lib/fabrica/semanaConteo'
-import StockClient, { MateriaPrimaConteo, ConteoHistorial } from './StockClient'
+import StockClient, { BolsaplastItem, MateriaPrimaConteo, ConteoHistorial } from './StockClient'
 
 export default async function FabricaStockPage() {
   const supabase = await createClient()
@@ -41,10 +41,17 @@ export default async function FabricaStockPage() {
     }
   }
 
-  const { data: materiaPrima } = await supabase
-    .from('fabrica_materia_prima')
-    .select('id, nombre, unidad_compra, kg_por_unidad, coeficiente')
-    .eq('estado', 'activo')
+  const [{ data: bolsaplastItems }, { data: stockActual }, { data: materiaPrima }] = await Promise.all([
+    supabase.from('compras_items').select('id, nombre, unidad, meta_semanal').eq('incluir_en_conteo', true).eq('estado', 'activo'),
+    supabase.from('compras_stock_actual').select('item_id, cantidad'),
+    supabase.from('fabrica_materia_prima').select('id, nombre, unidad_compra, kg_por_unidad, kg_por_masa, redondeo').eq('estado', 'activo'),
+  ])
+
+  const stockPorItem = new Map((stockActual || []).map(s => [s.item_id, s.cantidad]))
+
+  const bolsaplast: BolsaplastItem[] = (bolsaplastItems || [])
+    .map(i => ({ itemId: i.id, nombre: i.nombre, unidad: i.unidad, metaSemanal: i.meta_semanal, cantidad: stockPorItem.get(i.id) ?? 0 }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
   if (conteo && materiaPrima?.length) {
     await supabase.from('fabrica_conteo_items').upsert(
@@ -57,18 +64,19 @@ export default async function FabricaStockPage() {
     ? await supabase.from('fabrica_conteo_items').select('id, materia_prima_id, cantidad').eq('conteo_id', conteo.id)
     : { data: [] }
 
-  const cantidadPorItem = new Map((conteoItems || []).map(ci => [ci.materia_prima_id, ci]))
+  const cantidadPorMateriaPrima = new Map((conteoItems || []).map(ci => [ci.materia_prima_id, ci]))
 
-  const items: MateriaPrimaConteo[] = (materiaPrima || [])
+  const materiaPrimaItems: MateriaPrimaConteo[] = (materiaPrima || [])
     .map(m => {
-      const ci = cantidadPorItem.get(m.id)
+      const ci = cantidadPorMateriaPrima.get(m.id)
       return {
         conteoItemId: ci?.id ?? '',
         materiaPrimaId: m.id,
         nombre: m.nombre,
         unidadCompra: m.unidad_compra,
         kgPorUnidad: m.kg_por_unidad,
-        coeficiente: m.coeficiente,
+        kgPorMasa: m.kg_por_masa,
+        redondeo: m.redondeo,
         cantidad: ci?.cantidad ?? 0,
       }
     })
@@ -76,12 +84,20 @@ export default async function FabricaStockPage() {
 
   const { data: historialData } = await supabase
     .from('fabrica_conteos')
-    .select('id, fecha, semana_desde, semana_hasta, proyeccion_masa_kg, cerrado_en')
+    .select('id, fecha, semana_desde, semana_hasta, masas_proyectadas, cerrado_en')
     .eq('estado', 'cerrado')
     .order('fecha', { ascending: false })
     .limit(20)
 
   const historial: ConteoHistorial[] = historialData || []
 
-  return <StockClient conteoInicial={conteo!} itemsIniciales={items} historialInicial={historial} />
+  return (
+    <StockClient
+      conteoInicial={conteo!}
+      bolsaplastIniciales={bolsaplast}
+      materiaPrimaIniciales={materiaPrimaItems}
+      historialInicial={historial}
+      usuarioId={user!.id}
+    />
+  )
 }

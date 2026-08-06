@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { Archive, ArchiveRestore, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 interface ProveedorOption {
@@ -24,6 +25,7 @@ interface CompraItem {
   unidad: string
   meta_semanal: number
   precio: number | null
+  incluir_en_conteo: boolean
   estado: 'activo' | 'archivado'
 }
 
@@ -36,6 +38,7 @@ const emptyForm = (): Partial<CompraItem> => ({
   unidad: '',
   meta_semanal: 0,
   precio: null,
+  incluir_en_conteo: false,
   estado: 'activo',
 })
 
@@ -279,6 +282,18 @@ export default function InsumosClient({
           <div>
             <label className={labelClass}>Precio</label>
             <input type="number" step="0.01" className={inputClass} value={form.precio ?? ''} onChange={e => setForm(f => ({...f, precio: e.target.value === '' ? null : Number(e.target.value)}))} />
+          </div>
+          <div className="md:col-span-2 pt-1">
+            <label className="inline-flex items-center gap-2 text-sm text-[#f0f0f0] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.incluir_en_conteo ?? false}
+                onChange={e => setForm(f => ({...f, incluir_en_conteo: e.target.checked}))}
+                className="w-4 h-4 shrink-0 p-0 accent-[#e8c547] cursor-pointer"
+              />
+              Incluir en conteo semanal
+              <HelpTooltip text="Con esto tildado, el insumo aparece en el conteo semanal de fábrica (pantalla de Stock) junto a la materia prima y los huevos, para que Fábrica cargue su stock y se calcule cuánto falta pedir. Es el caso de los 7 insumos de Bolsaplast; el resto de los proveedores de depósito no participa del conteo." />
+            </label>
           </div>
         </div>
 

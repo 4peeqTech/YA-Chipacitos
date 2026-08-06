@@ -12,25 +12,35 @@ interface ProveedorOption {
   nombre: string
 }
 
+type Redondeo = 'estandar' | 'siempre_arriba' | 'sin_calculo'
+
 interface MateriaPrima {
   id: string
   proveedor_id: string
   nombre: string
   unidad_compra: string
   kg_por_unidad: number
-  coeficiente: number
+  kg_por_masa: number
+  redondeo: Redondeo
   precio: number | null
   estado: 'activo' | 'archivado'
 }
 
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
 
+const REDONDEO_LABEL: Record<Redondeo, string> = {
+  estandar: 'Estándar (redondeo al medio)',
+  siempre_arriba: 'Siempre hacia arriba',
+  sin_calculo: 'Sin cálculo (solo stock)',
+}
+
 const emptyForm = (): Partial<MateriaPrima> => ({
   proveedor_id: '',
   nombre: '',
   unidad_compra: '',
   kg_por_unidad: 0,
-  coeficiente: 0,
+  kg_por_masa: 0,
+  redondeo: 'estandar',
   precio: null,
   estado: 'activo',
 })
@@ -92,7 +102,8 @@ export default function MateriaPrimaClient({
         nombre: form.nombre!.trim(),
         unidad_compra: form.unidad_compra!.trim(),
         kg_por_unidad: form.kg_por_unidad,
-        coeficiente: Number(form.coeficiente ?? 0),
+        kg_por_masa: Number(form.kg_por_masa ?? 0),
+        redondeo: form.redondeo ?? 'estandar',
         precio: form.precio ?? null,
       }
 
@@ -197,7 +208,8 @@ export default function MateriaPrimaClient({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Proveedor</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Unidad de compra</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Kg/unidad</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Coeficiente</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Kg/masa</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Redondeo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Precio</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
@@ -210,7 +222,8 @@ export default function MateriaPrimaClient({
                     <td className="px-4 py-3 text-[#888]">{nombreProveedor(i.proveedor_id)}</td>
                     <td className="px-4 py-3 text-[#888]">{i.unidad_compra}</td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.kg_por_unidad}</td>
-                    <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.coeficiente}</td>
+                    <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.kg_por_masa}</td>
+                    <td className="px-4 py-3 text-[#888] hidden md:table-cell text-xs">{REDONDEO_LABEL[i.redondeo]}</td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.precio != null ? `$${i.precio.toLocaleString('es-AR')}` : '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${i.estado === 'activo' ? 'bg-green-900/50 text-green-300' : 'bg-[#2a2a2a] text-[#666]'}`}>
@@ -279,10 +292,19 @@ export default function MateriaPrimaClient({
           </div>
           <div>
             <label className={labelClass}>
-              Coeficiente
-              <HelpTooltip text="Kg de esta materia prima que se necesitan por cada kg de masa producida. La necesidad sugerida = coeficiente × kg de masa proyectados. Dejalo en 0 si no entra en la receta (por ejemplo, Pategrás)." />
+              Kg por masa
+              <HelpTooltip text="Cuánto de esta materia prima entra en una masa (un batch de producción). La necesidad sugerida = kg por masa × masas proyectadas. Dejalo en 0 si no entra en la receta (por ejemplo, Pategrás)." />
             </label>
-            <input type="number" step="0.00001" className={inputClass} value={form.coeficiente ?? 0} onChange={e => setForm(f => ({...f, coeficiente: Number(e.target.value)}))} />
+            <input type="number" step="0.001" className={inputClass} value={form.kg_por_masa ?? 0} onChange={e => setForm(f => ({...f, kg_por_masa: Number(e.target.value)}))} />
+          </div>
+          <div>
+            <label className={labelClass}>
+              Redondeo
+              <HelpTooltip text="Cómo redondear cuántas unidades pedir al cerrar el conteo. Estándar: si falta menos de media unidad no se pide, si falta media o más se pide una entera. Siempre hacia arriba: cualquier faltante pide una unidad completa (por ejemplo, Polvo de Hornear). Sin cálculo: no participa del pedido complementario — se repone solo vía el Pedido base semanal (por ejemplo, Leche, Sal, Pategrás)." />
+            </label>
+            <select className={inputClass} value={form.redondeo ?? 'estandar'} onChange={e => setForm(f => ({...f, redondeo: e.target.value as Redondeo}))}>
+              {Object.entries(REDONDEO_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
           </div>
           <div>
             <label className={labelClass}>Precio</label>

@@ -14,7 +14,7 @@ import { useToasts, ToastStack } from '@/components/ui/Toast'
 interface ConteoRef {
   semana_desde: string
   semana_hasta: string
-  proyeccion_masa_kg: number
+  masas_proyectadas: number
 }
 
 interface SolicitudItem {
@@ -246,14 +246,14 @@ export default function SolicitudesClient({
               <div className="flex items-center gap-2 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-4 py-3">
                 <Scale size={16} className="text-[#e8c547] shrink-0" />
                 <p className="text-sm text-[#ccc]">
-                  Kg de masa a producir (martes a viernes): <span className="text-[#f0f0f0] font-bold">{abierta.fabrica_conteos.proyeccion_masa_kg} kg</span>
+                  Masas proyectadas (martes a viernes): <span className="text-[#f0f0f0] font-bold">{abierta.fabrica_conteos.masas_proyectadas}</span>
                 </p>
               </div>
             )}
 
             <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
               <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-2.5 bg-[#1a1a1a] text-[11px] font-semibold text-[#888] uppercase tracking-wider">
-                <span>Materia prima</span>
+                <span>Ítem</span>
                 <span className="flex items-center gap-1">Ajustada<HelpTooltip text="Arrancó con el sugerido calculado al cerrar el conteo (o la cantidad de la plantilla, si es pedido base). Podés cambiarlo antes de generar los pedidos." /></span>
                 <span className="hidden sm:block">Proveedor</span>
                 <span>Incluir</span>

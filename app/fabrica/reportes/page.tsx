@@ -24,7 +24,7 @@ export default async function FabricaReportesPage() {
       `),
     supabase
       .from('fabrica_conteos')
-      .select('id, semana_desde, semana_hasta, proyeccion_masa_kg, proyeccion_embolsado_kg')
+      .select('id, semana_desde, semana_hasta, masas_proyectadas, proyeccion_embolsado_kg')
       .eq('estado', 'cerrado')
       .order('semana_desde', { ascending: false }),
   ])
@@ -50,7 +50,10 @@ export default async function FabricaReportesPage() {
     id: c.id,
     semanaDesde: c.semana_desde,
     semanaHasta: c.semana_hasta,
-    proyeccionMasaKg: c.proyeccion_masa_kg,
+    // Fase 6 oculta: la proyección real del legacy es "número de masas" (ver
+    // lib/fabrica/calculoSugerido.ts), no kg — este cruce contra masaRealKg queda
+    // con un desajuste de unidades pendiente de revisar si se retoma esta fase.
+    proyeccionMasaKg: c.masas_proyectadas,
     proyeccionEmbolsadoKg: c.proyeccion_embolsado_kg,
   }))
 
