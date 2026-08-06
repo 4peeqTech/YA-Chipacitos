@@ -653,7 +653,8 @@ escritos en [docs/superpowers/](docs/superpowers/). Reemplaza un HTML legacy
 │  proveedores.maneja_stock = true                                 │
 │         │                                                        │
 │         ▼                                                        │
-│  compras_items   (nombre, unidad, meta_semanal, consumo_por_masa)│
+│  compras_items   (nombre, unidad, categoria_id, meta_semanal,    │
+│                   precio)                                        │
 │         │                                                        │
 │         ▼                                                        │
 │  compras_stock_actual  (item_id → cantidad)                      │
@@ -701,6 +702,18 @@ escritos en [docs/superpowers/](docs/superpowers/). Reemplaza un HTML legacy
 │  Movimiento de stock    entradas vs ajustes vs balance por insumo│
 └──────────────────────────────────────────────────────────────────┘
 ```
+
+> **Corrección de agosto 2026:** `compras_items` pasó a ser exclusivamente el
+> catálogo de **insumos de depósito** (Bolsaplast y el resto de los proveedores
+> importados — bolsas, papel, limpieza). La materia prima real de producción
+> (proveedor Global: fécula, quesos, margarina, leche, sal, polvo de hornear)
+> tiene su propio catálogo, `fabrica_materia_prima` — ver [§5.9](#59-módulo-fábrica).
+> `compras_items` perdió `orden`/`base_calculo`/`coeficiente`/`incluir_en_conteo`
+> (específicos del motor de cálculo genérico que reemplazó `calculoSugerido.ts`) y
+> ganó `precio`. La pantalla `/admin/compras/pedidos` — la más vieja del módulo —
+> también pasó de "+ Agregar ítem" fila por fila a un modal de creación que
+> precarga todo el catálogo del proveedor elegido (insumos + materia prima) con
+> checkbox de inclusión y cantidad por fila.
 
 #### La lógica pura vive en `lib/compras/`
 
@@ -974,66 +987,101 @@ BORRAR   DELETE /api/usuarios   ← SOFT DELETE
 
 ### 5.9 Módulo Fábrica
 
-Construido en 5 fases (agosto 2026), plan escrito en
+Construido en 6 fases (agosto 2026), plan escrito en
 `docs/superpowers/planifiquemos-el-modulo-de-fabrica.md`. Digitaliza dos procesos que
-Fábrica llevaba en planillas de Google Sheets: el **conteo semanal de insumos +
+Fábrica llevaba en planillas de Google Sheets: el **conteo semanal de materia prima +
 proyección de masa** (con recomendación de compra automática) y la **carga de
-producción por turno**. Reusa por completo el módulo Compras existente (`compras_items`,
-`compras_stock_actual`, el flujo `compras_pedidos → WhatsApp → compras_remitos`) en vez
+producción por turno**. Reusa por completo el módulo Compras existente
+(`compras_stock_actual`, el flujo `compras_pedidos → WhatsApp → compras_remitos`) en vez
 de duplicarlo.
+
+> **Corrección de agosto 2026:** el cliente probó el flujo real y surgió que los
+> "insumos" del conteo (`compras_items`) eran en realidad insumos de **depósito**
+> (Bolsaplast) — la **materia prima real** de producción es otro proveedor (Global),
+> con su propia lógica de cálculo tomada de la mini-app legacy del cliente (ver
+> [docs/analisis-motor-calculo-legacy.md](docs/analisis-motor-calculo-legacy.md)). Esta
+> pasada: (1) separó la materia prima en su propio catálogo, `fabrica_materia_prima`;
+> (2) reescribió el motor de cálculo con la fórmula real (conteo en **unidades de
+> compra**, no en kg); (3) arregló el bug de duplicate key en `fabrica_conteos` (dos
+> borradores simultáneos violaban el índice único de conteo cerrado); y (4) **ocultó
+> de la navegación** las Fases 5 y 6 (stock terminado y reportes) porque todavía no
+> fueron pedidas — el código y las migraciones siguen ahí, accesibles solo por URL
+> directa. El foco actual del módulo es exclusivamente Fases 1-3: conteo semanal →
+> solicitud → pedido.
 
 #### El flujo completo
 
 ```
-┌─── Fase 1: parámetros ──────────────────────────────────────────┐
+┌─── Fase 1: parámetros + materia prima ──────────────────────────┐
 │                                                                  │
 │  fabrica_sabores · fabrica_presentaciones · fabrica_tamanios     │
 │  compras_categorias                                              │
 │         │                                                        │
 │         ▼                                                        │
-│  compras_items + categoria_id, base_calculo, coeficiente,        │
-│                  incluir_en_conteo                                │
-│         · coeficiente = ex "consumo_por_masa" (por batch),       │
-│           renombrada porque ahora es "por kg", no por batch      │
-│         · base_calculo ∈ (kg_masa | kg_embolsado | meta_semanal) │
+│  fabrica_materia_prima (proveedor_id → Global, unidad_compra,    │
+│                          kg_por_unidad, coeficiente, precio)      │
+│         · coeficiente = kg de esta materia prima por kg de MASA  │
+│           producida (no por batch de 30kg fécula, como el        │
+│           legacy — se convierte dividiendo por el rendimiento)   │
+│         · /admin/compras/materia-prima — mismo patrón que        │
+│           Insumos, con Archivar/Reactivar y Eliminar real         │
 │         · config.fabrica_rendimiento_masa ≈ 2,5 (kg masa/fécula) │
 └──────────────────────────────────────────────────────────────────┘
                               │
 ┌─── Fase 2: conteo semanal + cierre ─────────────────────────────┐
 │                                                                  │
-│  Martes AM: fabrica_conteos (borrador) — un input por insumo,    │
-│  agrupado por categoría, + proyección de kg masa/embolsado       │
-│  hasta el viernes.                                                │
+│  Martes AM: fabrica_conteos (borrador) — un input por materia    │
+│  prima, en UNIDADES DE COMPRA (bolsas/cajas/sardos/potes, no kg) │
+│  + proyección de "Kg de masa a producir" hasta el viernes.        │
 │         │                                                        │
 │         │  Vivo en el cliente: calcularNecesidadYSugerido()      │
-│         │    necesidad = coeficiente × proyección (según base)   │
-│         │               o meta_semanal si base = meta_semanal    │
-│         │    sugerido  = max(0, necesidad − cantidad contada)    │
+│         │    necesidadKg   = coeficiente × proyeccionMasaKg      │
+│         │    kgContado     = cantidadUnidades × kgPorUnidad      │
+│         │    kgFaltante    = max(0, necesidadKg − kgContado)     │
+│         │    sugeridoUnid. = round(kgFaltante / kgPorUnidad)     │
+│         │      (Math.round ya es la regla de redondeo legacy:    │
+│         │      con kgFaltante ≥ 0, half-up == half-away-from-0)  │
 │         ▼                                                        │
 │  "Cerrar conteo" → RPC cerrar_conteo_fabrica() (transaccional):  │
-│    · snapshotea base_calculo/coeficiente/meta_semanal por línea  │
-│      (si Compras edita el coeficiente después, el conteo cerrado │
-│      no cambia de número)                                        │
+│    · snapshotea coeficiente/kg_por_unidad/unidad_compra por      │
+│      línea (si Compras edita el coeficiente después, el conteo   │
+│      cerrado no cambia de número)                                 │
 │    · calcula necesidad/sugerido, marca estado='cerrado'           │
 │    · crea compras_solicitudes (tipo='complementario') + líneas   │
 │         ▼                                                        │
 │  POST /api/fabrica/solicitudes/notificar (service role) →        │
 │  enviarPush() a los destinatarios de compras-solicitudes          │
+│                                                                  │
+│  Bug fix (ago. 2026): índice único parcial garantiza como mucho   │
+│  UN borrador vivo en todo el sistema — dos borradores simultáneos │
+│  (dos pestañas) eran la causa real del 23505 al cerrar. El        │
+│  insert() ciego del borrador del día se cambió por insert-y-si-   │
+│  -hay-conflicto-recuperar. RPC eliminar_conteo_fabrica() +        │
+│  botón "Eliminar conteo" cubren "cargué mal, quiero borrarlo",    │
+│  solo mientras el conteo sigue en borrador.                        │
 └──────────────────────────────────────────────────────────────────┘
                               │
 ┌─── Fase 3: bandeja de Compras + pedido base ────────────────────┐
 │                                                                  │
-│  /admin/compras/solicitudes — solicitudes abiertas (del conteo   │
-│  o del pedido base), líneas editables (cantidad, incluir,        │
-│  proveedor) → "Generar pedidos"                                  │
+│  /admin/compras/solicitudes — Modal por solicitud (abiertas del  │
+│  conteo o del pedido base), con el kg de masa a producir          │
+│  destacado arriba si es complementaria; líneas editables          │
+│  (cantidad, incluir, proveedor) → "Generar pedidos"                │
 │         │                                                        │
 │         ▼  RPC convertir_solicitud_a_pedidos() (transaccional)   │
 │  Un compras_pedidos en borrador por proveedor + sus               │
 │  compras_pedido_items → sigue el flujo de WhatsApp ya existente  │
 │                                                                  │
-│  /admin/compras/pedido-base — CRUD de compras_plantilla_base      │
-│  → "Generar pedido base" → RPC generar_solicitud_base() crea      │
-│  una solicitud tipo='base' que pasa por la misma bandeja          │
+│  /admin/compras/pedido-base — CRUD de compras_plantilla_base,     │
+│  el selector de catálogo agrupa materia prima e insumos en        │
+│  optgroups separados → "Generar pedido base" → RPC                │
+│  generar_solicitud_base() crea una solicitud tipo='base' que      │
+│  pasa por la misma bandeja                                        │
+│                                                                  │
+│  compras_solicitud_items / compras_plantilla_base /               │
+│  compras_pedido_items tienen `materia_prima_id` en paralelo a      │
+│  `item_id` (mutuamente excluyentes) — las tres RPC de arriba lo    │
+│  copian junto con item_id                                          │
 └──────────────────────────────────────────────────────────────────┘
                               │
 ┌─── Fase 4: producción por turno ─────────────────────────────────┐
@@ -1060,6 +1108,7 @@ de duplicarlo.
 │  históricos muestran que difiere seguido, no debe frenar la carga │
 └──────────────────────────────────────────────────────────────────┘
                               │
+                    ⌄ Fases 5 y 6 — construidas, ocultas de la navegación (ago. 2026) ⌄
 ┌─── Fase 5: stock de producto terminado ──────────────────────────┐
 │                                                                  │
 │  productos + presentacion_id · sabor_id · tamanio_id (nullable)  │
@@ -1113,8 +1162,10 @@ de duplicarlo.
 #### Permisos
 
 `tiene_acceso_fabrica()` (rol `fabrica` + `admin`) gobierna `fabrica_conteos`,
-`fabrica_conteo_items`, `fabrica_producciones` y `fabrica_embolsados`.
-`tiene_acceso_compras()` sigue gobernando `compras_solicitudes`,
+`fabrica_conteo_items`, `fabrica_producciones` y `fabrica_embolsados`, y exige la RPC
+`eliminar_conteo_fabrica()` (solo borra si `estado='borrador'`).
+`tiene_acceso_compras()` gobierna también `fabrica_materia_prima` — mismo criterio no
+granular que las tablas de Compras (ver §5.5) —, `compras_solicitudes`,
 `compras_solicitud_items` y `compras_plantilla_base` — Compras revisa y ajusta,
 pero nunca escribe un conteo ni una producción. Ambos helpers conviven en la
 tabla `config`, que hasta este módulo solo leía `admin` (ver §6.1): se agregó una
@@ -1144,7 +1195,7 @@ SELECT más para `tiene_acceso_fabrica()`, mismo criterio que la de `config` en 
 
 | Archivo | Responsabilidad |
 |---|---|
-| [calculoSugerido.ts](lib/fabrica/calculoSugerido.ts) | `calcularNecesidadYSugerido()` — misma fórmula que `cerrar_conteo_fabrica()`, duplicada a propósito para la previsualización en vivo del cliente |
+| [calculoSugerido.ts](lib/fabrica/calculoSugerido.ts) | `calcularNecesidadYSugerido()` — necesidad en kg de masa, sugerido en unidades de compra; misma fórmula que `cerrar_conteo_fabrica()`, duplicada a propósito para la previsualización en vivo del cliente |
 | [semanaConteo.ts](lib/fabrica/semanaConteo.ts) | `calcularSemanaConteo()` — fecha del conteo y ventana hasta el viernes, determinístico (recibe `ahora`) |
 | [rendimiento.ts](lib/fabrica/rendimiento.ts) | `masaDesdeFecula()` precarga masa desde fécula; `rendimientoFeculaMasa()` para reportes de Fase 6 |
 | [reportes.ts](lib/fabrica/reportes.ts) | `agruparProduccion()`, `agruparEmbolsadoPorPresentacion()`, `calcularRendimientoPorOperario()`, `calcularCumplimientoProyeccion()` — alimentan las 4 pestañas de `/fabrica/reportes` |
@@ -1152,15 +1203,16 @@ SELECT más para `tiene_acceso_fabrica()`, mismo criterio que la de `config` en 
 #### Snapshot deliberado
 
 Igual que `compras_solicitud_items` (Fase 2), `fabrica_conteo_items` guarda
-`base_calculo`/`coeficiente`/`meta_semanal` **al momento del cierre**, no una
-referencia viva a `compras_items`. Es la misma decisión de diseño que evita que
+`coeficiente`/`kg_por_unidad`/`unidad_compra` **al momento del cierre**, no una
+referencia viva a `fabrica_materia_prima`. Es la misma decisión de diseño que evita que
 editar un coeficiente hoy reescriba la historia de conteos ya cerrados.
 
 #### Tablas involucradas
 
 `fabrica_sabores` · `fabrica_presentaciones` · `fabrica_tamanios` · `compras_categorias` ·
-`fabrica_conteos` · `fabrica_conteo_items` · `compras_solicitudes` · `compras_solicitud_items` ·
-`compras_plantilla_base` · `fabrica_producciones` · `fabrica_embolsados`
+`fabrica_materia_prima` · `fabrica_conteos` · `fabrica_conteo_items` · `compras_solicitudes` ·
+`compras_solicitud_items` · `compras_plantilla_base` · `fabrica_producciones` ·
+`fabrica_embolsados`
 
 ---
 
@@ -1334,19 +1386,24 @@ Tarjeta de credito · Mixto
 [20260804140000_fudo_credenciales_a_env.sql](supabase/migrations/20260804140000_fudo_credenciales_a_env.sql).
 Las credenciales viven en variables de entorno (ver §5.4 y §9).
 
-### 6.5 Compras (5 tablas + 3)
+### 6.5 Compras (5 tablas + 3, + `fabrica_materia_prima` de Fábrica)
 
 | Tabla | Columnas clave | Índices |
 |---|---|---|
-| `compras_items` | `proveedor_id` FK · `nombre` · `unidad` · `meta_semanal` numeric · `consumo_por_masa` numeric · `orden` · `estado` (activo\|archivado) | `idx_compras_items_proveedor_id` |
+| `compras_items` | `proveedor_id` FK · `categoria_id` FK · `nombre` · `unidad` · `meta_semanal` numeric · `precio` numeric · `estado` (activo\|archivado) | `idx_compras_items_proveedor_id` |
+| `fabrica_materia_prima` | `proveedor_id` FK (Global) · `nombre` · `unidad_compra` · `kg_por_unidad` numeric > 0 · `coeficiente` numeric (kg/kg masa) · `precio` numeric · `estado` (activo\|archivado) | — |
 | `compras_stock_actual` | `item_id` **PK** FK CASCADE · `cantidad` numeric · `actualizado_en` · `actualizado_por` | PK |
 | `compras_stock_movimientos` | `item_id` FK CASCADE · `delta` numeric NOT NULL · `tipo` (`entrada_remito`\|`ajuste_manual`) · `remito_id` FK SET NULL · `creado_por` · `created_at` | `idx_..._item_id` |
 | `compras_pedidos` | `proveedor_id` FK · `estado` (borrador\|enviado\|cerrado) · `mensaje` · `creado_por` · `created_at`/`enviado_en`/`cerrado_en` | `idx_..._proveedor_id`, `idx_..._estado` |
-| `compras_pedido_items` | `pedido_id` FK CASCADE · `item_id` FK · `descripcion` NOT NULL · `unidad` · `cantidad` numeric · `orden` | `idx_..._pedido_id` |
+| `compras_pedido_items` | `pedido_id` FK CASCADE · `item_id` FK · `materia_prima_id` FK · `descripcion` NOT NULL · `unidad` · `cantidad` numeric · `orden` | `idx_..._pedido_id` |
 | `compras_remitos` | `pedido_id` FK CASCADE · `numero` NOT NULL · `fecha` date NOT NULL · `creado_por` | `idx_..._pedido_id`, **UNIQUE `(pedido_id, numero)`** |
 | `compras_remito_items` | `remito_id` FK CASCADE · `pedido_item_id` FK SET NULL · `item_id` FK · `descripcion` · `cantidad` numeric · `precio` numeric | `idx_..._remito_id`, `idx_..._pedido_item_id` |
 
-RLS uniforme: `FOR ALL USING ((SELECT rol FROM profiles WHERE id = auth.uid()) IN ('admin','squad'))`
+RLS uniforme vía `tiene_acceso_compras()` (rol `admin` o algún módulo `compras-*`
+en `modulos_permitidos` — ver [§5.5](#55-compras-a-proveedores) y
+[20260804150000_compras_rls_modulos.sql](supabase/migrations/20260804150000_compras_rls_modulos.sql)),
+no el rol hardcodeado `admin`/`squad` original. `fabrica_materia_prima` vive en el
+esquema de Fábrica pero comparte el mismo helper, sin granularidad por tabla.
 
 > ⚠️ Esa policy **hardcodea `'squad'`**. Un rol personalizado con el módulo
 > `compras-*` asignado pasa el proxy y ve la pantalla, pero **RLS le devuelve cero
