@@ -14,6 +14,8 @@ export default async function ReportesPage() {
     { data: pedidos },
     { data: movimientos },
     { data: stock },
+    { data: solicitudItems },
+    { data: pedidoItems },
   ] = await Promise.all([
     supabase
       .from('compras_remitos')
@@ -28,6 +30,12 @@ export default async function ReportesPage() {
       .select('*, compras_items(nombre, proveedores(nombre))')
       .order('created_at', { ascending: false }),
     supabase.from('compras_stock_actual').select('item_id, cantidad'),
+    supabase
+      .from('compras_solicitud_items')
+      .select('solicitud_id, item_id, descripcion, cantidad_sugerida, compras_solicitudes(tipo, fabrica_conteos(semana_desde, semana_hasta))'),
+    supabase
+      .from('compras_pedido_items')
+      .select('item_id, cantidad, compras_pedidos(solicitud_id)'),
   ])
 
   return (
@@ -36,6 +44,8 @@ export default async function ReportesPage() {
       pedidosIniciales={pedidos ?? []}
       movimientosIniciales={movimientos ?? []}
       stockInicial={stock ?? []}
+      solicitudItemsIniciales={(solicitudItems ?? []) as any}
+      pedidoItemsIniciales={(pedidoItems ?? []) as any}
     />
   )
 }

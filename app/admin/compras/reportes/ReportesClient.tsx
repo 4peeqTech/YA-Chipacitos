@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from 'react'
 import { calcularRangoPreset, fechaEnRango, type PresetRango, type RangoFechas } from '@/lib/compras/rangoFechas'
-import type { RemitoReporte, PedidoReporte, MovimientoReporte } from '@/lib/compras/reportes'
+import type { RemitoReporte, PedidoReporte, MovimientoReporte, SolicitudItemReporte, PedidoItemCompradoReporte } from '@/lib/compras/reportes'
 import GastoPorProveedor from './GastoPorProveedor'
 import HistorialPedidos from './HistorialPedidos'
 import MovimientoStock from './MovimientoStock'
+import SugeridoVsComprado from './SugeridoVsComprado'
 
-type Tab = 'gasto' | 'historial' | 'stock'
+type Tab = 'gasto' | 'historial' | 'stock' | 'sugerido'
 type PresetUI = PresetRango | 'personalizado'
 
 interface StockActualRow {
@@ -20,11 +21,15 @@ export default function ReportesClient({
   pedidosIniciales,
   movimientosIniciales,
   stockInicial,
+  solicitudItemsIniciales,
+  pedidoItemsIniciales,
 }: {
   remitosIniciales: RemitoReporte[]
   pedidosIniciales: PedidoReporte[]
   movimientosIniciales: MovimientoReporte[]
   stockInicial: StockActualRow[]
+  solicitudItemsIniciales: SolicitudItemReporte[]
+  pedidoItemsIniciales: PedidoItemCompradoReporte[]
 }) {
   const [tab, setTab] = useState<Tab>('gasto')
   const [preset, setPreset] = useState<PresetUI>('mes_actual')
@@ -56,6 +61,7 @@ export default function ReportesClient({
     { key: 'gasto', label: 'Gasto por proveedor' },
     { key: 'historial', label: 'Historial de pedidos y remitos' },
     { key: 'stock', label: 'Movimiento de stock' },
+    { key: 'sugerido', label: 'Sugerido vs. comprado' },
   ]
 
   const presets: { key: PresetUI; label: string }[] = [
@@ -85,6 +91,7 @@ export default function ReportesClient({
         ))}
       </div>
 
+      {tab !== 'sugerido' && (
       <div className="flex flex-wrap items-center gap-3">
         {presets.map(p => (
           <button
@@ -116,10 +123,12 @@ export default function ReportesClient({
 
         <span className="text-xs text-[#888]">Período: {rango.desde} al {rango.hasta}</span>
       </div>
+      )}
 
       {tab === 'gasto' && <GastoPorProveedor remitos={remitosFiltrados} />}
       {tab === 'historial' && <HistorialPedidos pedidos={pedidosFiltrados} />}
       {tab === 'stock' && <MovimientoStock movimientos={movimientosFiltrados} stockActualPorItem={stockActualPorItem} />}
+      {tab === 'sugerido' && <SugeridoVsComprado solicitudItems={solicitudItemsIniciales} pedidoItems={pedidoItemsIniciales} />}
     </div>
   )
 }

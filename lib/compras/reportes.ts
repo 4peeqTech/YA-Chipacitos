@@ -202,3 +202,69 @@ export function calcularMovimientoPorInsumo(
 
   return [...porItem.values()].sort((a, b) => a.itemNombre.localeCompare(b.itemNombre))
 }
+
+export interface SolicitudItemReporte {
+  solicitud_id: string
+  item_id: string | null
+  descripcion: string
+  cantidad_sugerida: number
+  compras_solicitudes: {
+    tipo: 'complementario' | 'base'
+    fabrica_conteos: { semana_desde: string; semana_hasta: string } | null
+  } | null
+}
+
+export interface PedidoItemCompradoReporte {
+  item_id: string | null
+  cantidad: number
+  compras_pedidos: { solicitud_id: string | null } | null
+}
+
+export interface SugeridoVsComprado {
+  clave: string // "semana_desde al semana_hasta" o "Pedido base"
+  itemId: string
+  itemNombre: string
+  sugerido: number
+  comprado: number
+  diferencia: number // comprado - sugerido: positivo = se compró de más frente a lo sugerido
+}
+
+// Compara, por semana (o por el pedido base), cuánto sugirió el cierre del
+// conteo contra cuánto terminó comprándose realmente — la calibración de
+// `compras_items.coeficiente` se hace mirando este desvío, no adivinando.
+// El cruce es por (solicitud_id, item_id): cada línea de compras_pedido_items
+// solo cuenta si su pedido nació de una solicitud (compras_pedidos.solicitud_id),
+// los pedidos armados a mano fuera del circuito de solicitudes no entran acá.
+export function calcularSugeridoVsComprado(
+  solicitudItems: SolicitudItemReporte[],
+  pedidoItems: PedidoItemCompradoReporte[]
+): SugeridoVsComprado[] {
+  const compradoPorSolicitudItem = new Map<string, number>()
+  for (const pi of pedidoItems) {
+    const solicitudId = pi.compras_pedidos?.solicitud_id
+    if (!solicitudId || !pi.item_id) continue
+    const clave = `${solicitudId}|${pi.item_id}`
+    compradoPorSolicitudItem.set(clave, (compradoPorSolicitudItem.get(clave) ?? 0) + pi.cantidad)
+  }
+
+  const porClaveItem = new Map<string, SugeridoVsComprado>()
+  for (const si of solicitudItems) {
+    if (!si.item_id) continue
+    const semana = si.compras_solicitudes?.fabrica_conteos
+    const clave = semana ? `${semana.semana_desde} al ${semana.semana_hasta}` : 'Pedido base'
+    const key = `${clave}|${si.item_id}`
+
+    let grupo = porClaveItem.get(key)
+    if (!grupo) {
+      grupo = { clave, itemId: si.item_id, itemNombre: si.descripcion, sugerido: 0, comprado: 0, diferencia: 0 }
+      porClaveItem.set(key, grupo)
+    }
+    grupo.sugerido += si.cantidad_sugerida
+    grupo.comprado += compradoPorSolicitudItem.get(`${si.solicitud_id}|${si.item_id}`) ?? 0
+  }
+
+  const resultado = [...porClaveItem.values()]
+  for (const grupo of resultado) grupo.diferencia = grupo.comprado - grupo.sugerido
+
+  return resultado.sort((a, b) => b.clave.localeCompare(a.clave) || a.itemNombre.localeCompare(b.itemNombre))
+}

@@ -1086,6 +1086,28 @@ de duplicarlo.
 │         └─ ajustar_stock_terminado_manual(): corrección a mano      │
 │            desde /fabrica/stock-terminado ('ajuste_manual')         │
 └──────────────────────────────────────────────────────────────────┘
+                              │
+┌─── Fase 6: reportes ──────────────────────────────────────────────┐
+│                                                                  │
+│  /fabrica/reportes — solo lectura, sin migración (lee lo que las  │
+│  fases 2-5 ya escriben). lib/fabrica/reportes.ts agrupa            │
+│  fabrica_producciones/fabrica_embolsados por la dimensión elegida: │
+│    · Producción: kg de masa por día/turno/operario/sabor           │
+│    · Embolsado: kg por presentación                                │
+│    · Rendimiento: masa/fécula real por operario — reusa            │
+│      rendimientoFeculaMasa() (Fase 4), sobre el total acumulado     │
+│      del operario, no el promedio de sus cargas individuales       │
+│    · Cumplimiento: cruza cada fabrica_conteos cerrado con lo        │
+│      realmente producido dentro de su ventana semana_desde–hasta   │
+│      (no hay FK, el cruce es por rango de fecha)                    │
+│         │                                                        │
+│  /admin/compras/reportes ganó una pestaña "Sugerido vs. comprado": │
+│  calcularSugeridoVsComprado() (lib/compras/reportes.ts) cruza       │
+│  compras_solicitud_items.cantidad_sugerida contra lo que          │
+│  realmente terminó en compras_pedido_items, por semana (vía         │
+│  compras_solicitudes.conteo_id → fabrica_conteos) o "Pedido base"   │
+│  — para calibrar compras_items.coeficiente con datos reales         │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 #### Permisos
@@ -1113,6 +1135,11 @@ corresponde a su contexto antes de llamarla. El único movimiento expuesto direc
 `ajuste_manual`, a través de `ajustar_stock_terminado_manual()` (exige
 `tiene_acceso_fabrica()`).
 
+`profiles` (Fase 6): el desglose de rendimiento por operario necesita leer el `nombre`
+de operarios que no son el usuario en sesión — hasta esta fase, `profiles` solo se podía
+leer a sí mismo (o siendo admin, o con el módulo `tareas`). Se agregó una policy de
+SELECT más para `tiene_acceso_fabrica()`, mismo criterio que la de `config` en la Fase 4.
+
 #### La lógica pura
 
 | Archivo | Responsabilidad |
@@ -1120,6 +1147,7 @@ corresponde a su contexto antes de llamarla. El único movimiento expuesto direc
 | [calculoSugerido.ts](lib/fabrica/calculoSugerido.ts) | `calcularNecesidadYSugerido()` — misma fórmula que `cerrar_conteo_fabrica()`, duplicada a propósito para la previsualización en vivo del cliente |
 | [semanaConteo.ts](lib/fabrica/semanaConteo.ts) | `calcularSemanaConteo()` — fecha del conteo y ventana hasta el viernes, determinístico (recibe `ahora`) |
 | [rendimiento.ts](lib/fabrica/rendimiento.ts) | `masaDesdeFecula()` precarga masa desde fécula; `rendimientoFeculaMasa()` para reportes de Fase 6 |
+| [reportes.ts](lib/fabrica/reportes.ts) | `agruparProduccion()`, `agruparEmbolsadoPorPresentacion()`, `calcularRendimientoPorOperario()`, `calcularCumplimientoProyeccion()` — alimentan las 4 pestañas de `/fabrica/reportes` |
 
 #### Snapshot deliberado
 
@@ -1127,16 +1155,6 @@ Igual que `compras_solicitud_items` (Fase 2), `fabrica_conteo_items` guarda
 `base_calculo`/`coeficiente`/`meta_semanal` **al momento del cierre**, no una
 referencia viva a `compras_items`. Es la misma decisión de diseño que evita que
 editar un coeficiente hoy reescriba la historia de conteos ya cerrados.
-
-#### Pendiente (fuera de esta fase)
-
-- **Fase 5 — Stock de producto terminado:** terna `presentacion × sabor × tamaño`
-  sobre `productos`, `fabrica_stock_terminado` (+movimientos), descuento al enviar
-  un pedido interno de fábrica y ajuste al recibir el remito con diferencia.
-  `fabrica_embolsados.producto_id` ya existe (nullable) esperando esta fase.
-- **Fase 6 — Reportes:** `lib/fabrica/reportes.ts` (kg por turno/operario/sabor,
-  rendimiento fécula→masa real por operario) + reporte en Compras de sugerido vs.
-  comprado para calibrar coeficientes.
 
 #### Tablas involucradas
 
