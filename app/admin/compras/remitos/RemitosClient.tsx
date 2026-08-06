@@ -1,6 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
+import { ArrowRight, PackageOpen } from 'lucide-react'
 
 interface RemitoItemRow {
   id: string
@@ -21,7 +23,18 @@ interface RemitoRow {
 
 type Columna = 'proveedor' | 'numero' | 'fecha' | 'lineas'
 
-export default function RemitosClient({ remitosIniciales }: { remitosIniciales: RemitoRow[] }) {
+interface PedidoSinRemito {
+  id: string
+  proveedorNombre: string
+}
+
+export default function RemitosClient({
+  remitosIniciales,
+  pedidosSinRemito,
+}: {
+  remitosIniciales: RemitoRow[]
+  pedidosSinRemito: PedidoSinRemito[]
+}) {
   const [filtro, setFiltro] = useState('')
   const [sortCampo, setSortCampo] = useState<Columna>('fecha')
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
@@ -74,6 +87,25 @@ export default function RemitosClient({ remitosIniciales }: { remitosIniciales: 
         <h1 className="text-2xl font-bold text-[#f0f0f0]">Remitos</h1>
         <p className="text-[#888] text-sm mt-0.5">Listado de todos los remitos registrados, de todos los proveedores.</p>
       </div>
+
+      {pedidosSinRemito.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-yellow-800 bg-yellow-900/20 px-4 py-3">
+          <PackageOpen size={18} className="text-yellow-400 shrink-0" />
+          <p className="flex-1 min-w-[200px] text-sm text-yellow-100">
+            <span className="font-semibold">{pedidosSinRemito.length} pedido{pedidosSinRemito.length === 1 ? '' : 's'} enviado{pedidosSinRemito.length === 1 ? '' : 's'}</span>{' '}
+            todavía sin remito registrado
+            {pedidosSinRemito.length <= 4 && (
+              <span className="text-yellow-300/80"> — {pedidosSinRemito.map(p => p.proveedorNombre).join(', ')}</span>
+            )}
+          </p>
+          <Link
+            href="/admin/compras/pedidos"
+            className="shrink-0 flex items-center gap-1.5 text-sm font-semibold text-yellow-300 hover:text-yellow-200 transition-colors"
+          >
+            Ir a Pedidos <ArrowRight size={14} />
+          </Link>
+        </div>
+      )}
 
       <input
         type="text"
