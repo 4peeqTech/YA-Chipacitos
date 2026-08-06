@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Plus } from 'lucide-react'
+import { Lock, Pencil, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { construirMensajePedido, linkWhatsApp } from '@/lib/compras/pedidoMensaje'
 import Modal from '@/components/ui/Modal'
@@ -311,12 +311,10 @@ export default function PedidosClient({
 
       {error && !modalCrear && <p className="text-red-400 text-sm">{error}</p>}
 
-      {pedidoEditando && (
-        <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-xl p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-[#f0f0f0]">Pedido a {pedidoEditando.proveedores.nombre}</h2>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClass[pedidoEditando.estado]}`}>{pedidoEditando.estado}</span>
-          </div>
+      <Modal open={!!pedidoEditando} onClose={cerrarEditor} title={pedidoEditando ? `Pedido a ${pedidoEditando.proveedores.nombre}` : ''} size="xl">
+        {pedidoEditando && (
+          <div className="space-y-4">
+          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClass[pedidoEditando.estado]}`}>{pedidoEditando.estado}</span>
 
           <div className="space-y-2">
             {itemsEditor.map((item, idx) => (
@@ -357,9 +355,6 @@ export default function PedidosClient({
             <button onClick={generarMensaje} disabled={isPending || pedidoEditando.estado === 'cerrado'} className="bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
               Generar mensaje
             </button>
-            <button onClick={cerrarEditor} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-              Cerrar edición
-            </button>
           </div>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
@@ -392,8 +387,9 @@ export default function PedidosClient({
               onRemitosChange={remitos => actualizarRemitos(pedidoEditando.id, remitos)}
             />
           )}
-        </div>
-      )}
+          </div>
+        )}
+      </Modal>
 
       <div className="flex gap-3">
         {(['activos', 'todos'] as FiltroPedidos[]).map(f => (
@@ -432,13 +428,23 @@ export default function PedidosClient({
                     <td className="px-4 py-3 text-[#888]">{new Date(p.created_at).toLocaleDateString('es-AR')}</td>
                     <td className="px-4 py-3 text-[#888]">{p.compras_pedido_items.length}</td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex gap-2 justify-end">
-                        <button onClick={() => abrirEditor(p)} className="text-xs text-[#888] hover:text-[#e8c547] transition-colors px-2 py-1 rounded-lg hover:bg-[#2a2a2a]">
-                          Editar
+                      <div className="flex gap-1 justify-end">
+                        <button
+                          onClick={() => abrirEditor(p)}
+                          title="Editar"
+                          aria-label={`Editar pedido a ${p.proveedores.nombre}`}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#e8c547] hover:bg-[#2a2a2a] transition-colors"
+                        >
+                          <Pencil size={15} />
                         </button>
                         {p.estado !== 'cerrado' && (
-                          <button onClick={() => cerrarPedido(p)} className="text-xs text-[#888] hover:text-[#f0f0f0] transition-colors px-2 py-1 rounded-lg hover:bg-[#2a2a2a]">
-                            Cerrar
+                          <button
+                            onClick={() => cerrarPedido(p)}
+                            title="Cerrar pedido"
+                            aria-label={`Cerrar pedido a ${p.proveedores.nombre}`}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#f0f0f0] hover:bg-[#2a2a2a] transition-colors"
+                          >
+                            <Lock size={15} />
                           </button>
                         )}
                       </div>
