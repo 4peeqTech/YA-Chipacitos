@@ -197,8 +197,8 @@ export default function PedidoBaseClient({
         </div>
       </div>
 
-      <p className="flex items-center text-xs text-[#666]">
-        Esto es una plantilla: lo que está acá se pide todas las semanas, sin importar el conteo. Generar crea una solicitud en la bandeja de <span className="text-[#f0f0f0] mx-1">Solicitudes</span>, con las mismas cantidades de acá — la ajustás y la convertís en pedidos desde ahí, igual que el pedido complementario de Fábrica.
+      <p className="text-xs text-[#666]">
+        Esto es una plantilla: lo que está acá se pide todas las semanas, sin importar el conteo. Generar crea una solicitud en la bandeja de <span className="text-[#f0f0f0]">Solicitudes</span>, con las mismas cantidades de acá — la ajustás y la convertís en pedidos desde ahí, igual que el pedido complementario de Fábrica.
         <HelpTooltip text="Si ya hay un pedido base pendiente de revisión sin convertir, no se puede generar otro hasta resolver ese." />
       </p>
 
