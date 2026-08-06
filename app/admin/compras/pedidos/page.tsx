@@ -12,6 +12,7 @@ export default async function PedidosPage() {
   const [
     { data: proveedores },
     { data: itemsCatalogo },
+    { data: materiaPrimaCatalogo },
     { data: stock },
     { data: pedidos },
   ] = await Promise.all([
@@ -21,6 +22,7 @@ export default async function PedidosPage() {
       .eq('estado', 'activo')
       .order('nombre'),
     supabase.from('compras_items').select('*').eq('estado', 'activo').order('nombre'),
+    supabase.from('fabrica_materia_prima').select('id, proveedor_id, nombre, unidad_compra').eq('estado', 'activo').order('nombre'),
     supabase.from('compras_stock_actual').select('*'),
     supabase
       .from('compras_pedidos')
@@ -32,6 +34,7 @@ export default async function PedidosPage() {
     <PedidosClient
       proveedores={proveedores ?? []}
       itemsCatalogo={itemsCatalogo ?? []}
+      materiaPrimaCatalogo={materiaPrimaCatalogo ?? []}
       stockInicial={stock ?? []}
       pedidosIniciales={pedidos ?? []}
       usuarioId={user.id}

@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { construirMensajePedido, linkWhatsApp } from '@/lib/compras/pedidoMensaje'
+import Modal from '@/components/ui/Modal'
 import RemitosPedido, { type Remito } from './RemitosPedido'
 
 interface Proveedor {
@@ -21,6 +23,13 @@ interface CompraItem {
   meta_semanal: number
 }
 
+interface MateriaPrimaItem {
+  id: string
+  proveedor_id: string
+  nombre: string
+  unidad_compra: string
+}
+
 interface StockActual {
   item_id: string
   cantidad: number
@@ -30,6 +39,7 @@ interface PedidoItem {
   id: string
   pedido_id: string
   item_id: string | null
+  materia_prima_id: string | null
   descripcion: string
   unidad: string | null
   cantidad: number
@@ -52,17 +62,24 @@ interface Pedido {
 type FiltroPedidos = 'activos' | 'todos'
 
 // Fila local del editor de ítems: id/pedido_id quedan sin definir hasta guardar.
-type ItemEditor = Pick<PedidoItem, 'item_id' | 'descripcion' | 'unidad' | 'cantidad'>
+type ItemEditor = Pick<PedidoItem, 'item_id' | 'materia_prima_id' | 'descripcion' | 'unidad' | 'cantidad'>
+
+// Fila del catálogo del proveedor elegido en el modal de creación, con su checkbox de inclusión.
+interface FilaCatalogo extends ItemEditor {
+  incluir: boolean
+}
 
 export default function PedidosClient({
   proveedores,
   itemsCatalogo,
+  materiaPrimaCatalogo,
   stockInicial,
   pedidosIniciales,
   usuarioId,
 }: {
   proveedores: Proveedor[]
   itemsCatalogo: CompraItem[]
+  materiaPrimaCatalogo: MateriaPrimaItem[]
   stockInicial: StockActual[]
   pedidosIniciales: Pedido[]
   usuarioId: string
@@ -70,7 +87,11 @@ export default function PedidosClient({
   const supabase = createClient()
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
   const [filtro, setFiltro] = useState<FiltroPedidos>('activos')
-  const [proveedorNuevo, setProveedorNuevo] = useState('')
+  const [modalCrear, setModalCrear] = useState(false)
+  const [proveedorModal, setProveedorModal] = useState('')
+  const [filasModal, setFilasModal] = useState<FilaCatalogo[]>([])
+  const [lineasLibresModal, setLineasLibresModal] = useState<ItemEditor[]>([])
+  const [creandoPedido, setCreandoPedido] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<Pedido | null>(null)
   const [itemsEditor, setItemsEditor] = useState<ItemEditor[]>([])
   const [error, setError] = useState('')
@@ -82,12 +103,60 @@ export default function PedidosClient({
     filtro === 'todos' ? true : p.estado === 'borrador' || p.estado === 'enviado'
   )
 
+  function filasParaProveedor(proveedorId: string): FilaCatalogo[] {
+    const proveedor = proveedores.find(p => p.id === proveedorId)
+    const filasItems: FilaCatalogo[] = itemsCatalogo
+      .filter(i => i.proveedor_id === proveedorId)
+      .map(i => {
+        const cantidad = proveedor?.maneja_stock ? Math.max(0, i.meta_semanal - (stockPorItem[i.id] ?? 0)) : 0
+        return { item_id: i.id, materia_prima_id: null, descripcion: i.nombre, unidad: i.unidad, cantidad, incluir: cantidad > 0 }
+      })
+    const filasMateriaPrima: FilaCatalogo[] = materiaPrimaCatalogo
+      .filter(m => m.proveedor_id === proveedorId)
+      .map(m => ({ item_id: null, materia_prima_id: m.id, descripcion: m.nombre, unidad: m.unidad_compra, cantidad: 0, incluir: false }))
+    return [...filasItems, ...filasMateriaPrima]
+  }
+
+  function abrirModalCrear() {
+    setProveedorModal('')
+    setFilasModal([])
+    setLineasLibresModal([])
+    setError('')
+    setModalCrear(true)
+  }
+
+  function elegirProveedorModal(proveedorId: string) {
+    setProveedorModal(proveedorId)
+    setFilasModal(filasParaProveedor(proveedorId))
+    setLineasLibresModal([])
+  }
+
+  function toggleFilaModal(index: number) {
+    setFilasModal(prev => prev.map((f, i) => i === index ? { ...f, incluir: !f.incluir } : f))
+  }
+
+  function actualizarCantidadFilaModal(index: number, cantidad: number) {
+    setFilasModal(prev => prev.map((f, i) => i === index ? { ...f, cantidad } : f))
+  }
+
+  function agregarLineaLibreModal() {
+    setLineasLibresModal(prev => [...prev, { item_id: null, materia_prima_id: null, descripcion: '', unidad: '', cantidad: 0 }])
+  }
+
+  function actualizarLineaLibreModal(index: number, cambios: Partial<ItemEditor>) {
+    setLineasLibresModal(prev => prev.map((l, i) => i === index ? { ...l, ...cambios } : l))
+  }
+
+  function quitarLineaLibreModal(index: number) {
+    setLineasLibresModal(prev => prev.filter((_, i) => i !== index))
+  }
+
   function abrirEditor(pedido: Pedido) {
     setPedidoEditando(pedido)
     setItemsEditor(
       [...pedido.compras_pedido_items]
         .sort((a, b) => a.orden - b.orden)
-        .map(i => ({ item_id: i.item_id, descripcion: i.descripcion, unidad: i.unidad, cantidad: i.cantidad }))
+        .map(i => ({ item_id: i.item_id, materia_prima_id: i.materia_prima_id, descripcion: i.descripcion, unidad: i.unidad, cantidad: i.cantidad }))
     )
     setError('')
   }
@@ -97,9 +166,42 @@ export default function PedidosClient({
     setItemsEditor([])
   }
 
-  async function crearPedido() {
-    if (!proveedorNuevo) { setError('Elegí un proveedor'); return }
-    const proveedor = proveedores.find(p => p.id === proveedorNuevo)
+  async function guardarItems(pedidoOverride?: Pedido, itemsOverride?: ItemEditor[]): Promise<PedidoItem[] | null> {
+    const pedido = pedidoOverride ?? pedidoEditando
+    if (!pedido) return null
+    setError('')
+
+    const fuente = itemsOverride ?? itemsEditor
+    const filas = fuente
+      .filter(i => i.descripcion.trim() && i.cantidad > 0)
+      .map((i, idx) => ({
+        pedido_id: pedido.id,
+        item_id: i.item_id,
+        materia_prima_id: i.materia_prima_id,
+        descripcion: i.descripcion.trim(),
+        unidad: i.unidad?.trim() || null,
+        cantidad: i.cantidad,
+        orden: idx,
+      }))
+
+    const { error: errDelete } = await supabase.from('compras_pedido_items').delete().eq('pedido_id', pedido.id)
+    if (errDelete) { setError(errDelete.message); return null }
+
+    let itemsGuardados: PedidoItem[] = []
+    if (filas.length) {
+      const { data, error: errInsert } = await supabase.from('compras_pedido_items').insert(filas).select()
+      if (errInsert) { setError(errInsert.message); return null }
+      itemsGuardados = data
+    }
+
+    setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, compras_pedido_items: itemsGuardados } : p))
+    setPedidoEditando(prev => prev && prev.id === pedido.id ? { ...prev, compras_pedido_items: itemsGuardados } : prev)
+    return itemsGuardados
+  }
+
+  async function confirmarCrearPedido() {
+    if (!proveedorModal) { setError('Elegí un proveedor'); return }
+    const proveedor = proveedores.find(p => p.id === proveedorModal)
     if (!proveedor) return
     setError('')
 
@@ -111,67 +213,19 @@ export default function PedidosClient({
         .single()
       if (errPedido) { setError(errPedido.message); return }
 
-      let itemsSugeridos: ItemEditor[] = []
-      if (proveedor.maneja_stock) {
-        itemsSugeridos = itemsCatalogo
-          .filter(i => i.proveedor_id === proveedor.id)
-          .map(i => ({
-            item_id: i.id,
-            descripcion: i.nombre,
-            unidad: i.unidad,
-            cantidad: Math.max(0, i.meta_semanal - (stockPorItem[i.id] ?? 0)),
-          }))
-          .filter(i => i.cantidad > 0)
-      }
+      const filasFinal: ItemEditor[] = [
+        ...filasModal.filter(f => f.incluir && f.cantidad > 0).map(({ incluir, ...resto }) => resto),
+        ...lineasLibresModal.filter(l => l.descripcion.trim() && l.cantidad > 0),
+      ]
 
       const nuevoPedido: Pedido = { ...pedido, proveedores: proveedor, compras_pedido_items: [], compras_remitos: [] }
-      setPedidos(prev => [nuevoPedido, ...prev])
-      setProveedorNuevo('')
-      abrirEditor(nuevoPedido)
-      setItemsEditor(itemsSugeridos)
+      const itemsGuardados = await guardarItems(nuevoPedido, filasFinal)
+      const pedidoFinal = { ...nuevoPedido, compras_pedido_items: itemsGuardados ?? [] }
+
+      setPedidos(prev => [pedidoFinal, ...prev])
+      setModalCrear(false)
+      abrirEditor(pedidoFinal)
     })
-  }
-
-  function agregarItemLibre() {
-    setItemsEditor(prev => [...prev, { item_id: null, descripcion: '', unidad: '', cantidad: 0 }])
-  }
-
-  function actualizarItemEditor(index: number, cambios: Partial<ItemEditor>) {
-    setItemsEditor(prev => prev.map((it, i) => i === index ? { ...it, ...cambios } : it))
-  }
-
-  function quitarItemEditor(index: number) {
-    setItemsEditor(prev => prev.filter((_, i) => i !== index))
-  }
-
-  async function guardarItems(): Promise<PedidoItem[] | null> {
-    if (!pedidoEditando) return null
-    setError('')
-
-    const filas = itemsEditor
-      .filter(i => i.descripcion.trim() && i.cantidad > 0)
-      .map((i, idx) => ({
-        pedido_id: pedidoEditando.id,
-        item_id: i.item_id,
-        descripcion: i.descripcion.trim(),
-        unidad: i.unidad?.trim() || null,
-        cantidad: i.cantidad,
-        orden: idx,
-      }))
-
-    const { error: errDelete } = await supabase.from('compras_pedido_items').delete().eq('pedido_id', pedidoEditando.id)
-    if (errDelete) { setError(errDelete.message); return null }
-
-    let itemsGuardados: PedidoItem[] = []
-    if (filas.length) {
-      const { data, error: errInsert } = await supabase.from('compras_pedido_items').insert(filas).select()
-      if (errInsert) { setError(errInsert.message); return null }
-      itemsGuardados = data
-    }
-
-    setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, compras_pedido_items: itemsGuardados } : p))
-    setPedidoEditando(prev => prev ? { ...prev, compras_pedido_items: itemsGuardados } : prev)
-    return itemsGuardados
   }
 
   async function generarMensaje() {
@@ -245,25 +299,17 @@ export default function PedidosClient({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#f0f0f0]">Pedidos a proveedores</h1>
-        <p className="text-[#888] text-sm mt-0.5">Armá un pedido, generá el mensaje y envialo por WhatsApp.</p>
-      </div>
-
-      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4 flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px]">
-          <label className={labelClass}>Nuevo pedido a</label>
-          <select className={inputClass} value={proveedorNuevo} onChange={e => setProveedorNuevo(e.target.value)}>
-            <option value="">Seleccionar proveedor...</option>
-            {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </select>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[#f0f0f0]">Pedidos a proveedores</h1>
+          <p className="text-[#888] text-sm mt-0.5">Armá un pedido, generá el mensaje y envialo por WhatsApp.</p>
         </div>
-        <button onClick={crearPedido} disabled={isPending} className="bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-          + Crear pedido
+        <button onClick={abrirModalCrear} className="flex items-center gap-1.5 bg-[#e8c547] hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
+          <Plus size={16} /> Crear pedido
         </button>
       </div>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && !modalCrear && <p className="text-red-400 text-sm">{error}</p>}
 
       {pedidoEditando && (
         <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-xl p-6 space-y-4">
@@ -280,29 +326,29 @@ export default function PedidosClient({
                   step="0.01"
                   className={`${inputClass} w-24`}
                   value={item.cantidad}
-                  onChange={e => actualizarItemEditor(idx, { cantidad: Number(e.target.value) })}
+                  onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, cantidad: Number(e.target.value) } : it))}
                 />
                 <input
                   type="text"
                   className={`${inputClass} w-24`}
                   placeholder="Unidad"
                   value={item.unidad ?? ''}
-                  onChange={e => actualizarItemEditor(idx, { unidad: e.target.value })}
+                  onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, unidad: e.target.value } : it))}
                 />
                 <input
                   type="text"
                   className={inputClass}
                   placeholder="Descripción"
                   value={item.descripcion}
-                  onChange={e => actualizarItemEditor(idx, { descripcion: e.target.value })}
+                  onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, descripcion: e.target.value } : it))}
                 />
-                <button onClick={() => quitarItemEditor(idx)} className="text-[#888] hover:text-red-400 text-lg px-2">✕</button>
+                <button onClick={() => setItemsEditor(prev => prev.filter((_, i) => i !== idx))} className="text-[#888] hover:text-red-400 text-lg px-2">✕</button>
               </div>
             ))}
           </div>
 
           <div className="flex gap-3 flex-wrap">
-            <button onClick={agregarItemLibre} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
+            <button onClick={() => setItemsEditor(prev => [...prev, { item_id: null, materia_prima_id: null, descripcion: '', unidad: '', cantidad: 0 }])} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
               + Agregar ítem
             </button>
             <button onClick={() => guardarItems()} disabled={isPending} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
@@ -315,6 +361,8 @@ export default function PedidosClient({
               Cerrar edición
             </button>
           </div>
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
 
           {pedidoEditando.mensaje && (
             <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
@@ -402,6 +450,93 @@ export default function PedidosClient({
           </div>
         )}
       </div>
+
+      <Modal open={modalCrear} onClose={() => !isPending && setModalCrear(false)} title="Crear pedido" size="lg">
+        <div className="space-y-4">
+          <div>
+            <label className={labelClass}>Proveedor *</label>
+            <select className={inputClass} value={proveedorModal} onChange={e => elegirProveedorModal(e.target.value)}>
+              <option value="">Seleccionar proveedor...</option>
+              {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+          </div>
+
+          {proveedorModal && (
+            <>
+              <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
+                {filasModal.length === 0 ? (
+                  <p className="p-4 text-center text-sm text-[#666]">Este proveedor no tiene ítems en el catálogo. Usá &quot;+ Línea libre&quot; para agregar uno.</p>
+                ) : (
+                  <div className="divide-y divide-[#1a1a1a]">
+                    {filasModal.map((f, idx) => (
+                      <div key={idx} className={`flex items-center gap-3 px-4 py-2.5 ${!f.incluir ? 'opacity-40' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={f.incluir}
+                          onChange={() => toggleFilaModal(idx)}
+                          className="w-4 h-4 accent-[#e8c547] cursor-pointer shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-[#f0f0f0] truncate">{f.descripcion}</p>
+                          <p className="text-xs text-[#666]">{f.unidad}</p>
+                        </div>
+                        <input
+                          type="number" step="0.01"
+                          value={f.cantidad}
+                          onChange={e => actualizarCantidadFilaModal(idx, Number(e.target.value))}
+                          className={`${inputClass} w-24 shrink-0 text-right`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {lineasLibresModal.map((l, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="number" step="0.01"
+                      className={`${inputClass} w-24`}
+                      value={l.cantidad}
+                      onChange={e => actualizarLineaLibreModal(idx, { cantidad: Number(e.target.value) })}
+                    />
+                    <input
+                      type="text"
+                      className={`${inputClass} w-24`}
+                      placeholder="Unidad"
+                      value={l.unidad ?? ''}
+                      onChange={e => actualizarLineaLibreModal(idx, { unidad: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      className={inputClass}
+                      placeholder="Descripción"
+                      value={l.descripcion}
+                      onChange={e => actualizarLineaLibreModal(idx, { descripcion: e.target.value })}
+                    />
+                    <button onClick={() => quitarLineaLibreModal(idx)} className="text-[#888] hover:text-red-400 text-lg px-2">✕</button>
+                  </div>
+                ))}
+                <button onClick={agregarLineaLibreModal} className="text-xs text-[#888] hover:text-[#e8c547] font-semibold py-1.5 px-3 rounded-lg border border-[#2a2a2a] hover:border-[#e8c547] transition-colors">
+                  + Línea libre
+                </button>
+              </div>
+            </>
+          )}
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+
+          <div className="flex gap-3 pt-2">
+            <button onClick={confirmarCrearPedido} disabled={isPending || !proveedorModal} className="flex-1 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2.5 px-6 rounded-xl transition-all">
+              {isPending ? 'Creando...' : 'Guardar'}
+            </button>
+            <button onClick={() => setModalCrear(false)} disabled={isPending} className="flex-1 border border-[#2a2a2a] text-[#888] hover:text-[#f0f0f0] font-semibold text-sm py-2.5 px-6 rounded-xl transition-all disabled:opacity-40">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
