@@ -35,22 +35,21 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  const tone = toast.type === 'success'
-    ? 'bg-green-900/30 border-green-800 text-green-300'
-    : 'bg-red-900/30 border-red-800 text-red-300'
+  const isSuccess = toast.type === 'success'
+  const iconTone = isSuccess ? 'text-green-400' : 'text-red-400'
 
   return (
     <div
       role="status"
-      className={`flex items-start gap-2.5 rounded-xl border px-4 py-3 shadow-lg transition-all duration-200 ease-out ${tone} ${
+      className={`flex items-start gap-2.5 rounded-xl border border-border bg-surface text-text px-4 py-3 shadow-[0_8px_32px_rgba(0,0,0,.6)] transition-all duration-200 ease-out ${
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       }`}
     >
-      <span className="shrink-0 mt-0.5">
-        {toast.type === 'success' ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}
+      <span className={`shrink-0 mt-0.5 ${iconTone}`}>
+        {isSuccess ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}
       </span>
       <p className="text-sm flex-1">{toast.message}</p>
-      <button onClick={onDismiss} aria-label="Cerrar notificación" className="text-current opacity-60 hover:opacity-100 shrink-0">
+      <button onClick={onDismiss} aria-label="Cerrar notificación" className="text-[#888] hover:text-text shrink-0">
         <X size={16} />
       </button>
     </div>
