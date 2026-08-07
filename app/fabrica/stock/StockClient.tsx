@@ -267,7 +267,7 @@ export default function StockClient({
             className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
           />
         </div>
-        <div className="flex gap-2 overflow-x-auto">
+        <div className="flex gap-2 overflow-x-auto scrollbar-none">
           {([
             { key: 'todos' as const, label: 'Todos', icono: null },
             { key: 'bolsaplast' as const, label: 'Bolsaplast', icono: Package, count: bolsaplast.length },

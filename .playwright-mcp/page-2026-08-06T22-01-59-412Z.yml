@@ -1,0 +1,15 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - img "YA! Chipacitos" [ref=e5]
+      - paragraph [ref=e6]: YA! Chipacitos
+      - paragraph [ref=e7]: Sistema de gestión interna
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: Email
+        - textbox "tu@email.com" [ref=e12]
+      - generic [ref=e13]:
+        - generic [ref=e14]: Contraseña
+        - textbox "••••••••" [ref=e15]
+      - button "Ingresar" [ref=e16]
+  - button "Open Next.js Dev Tools" [ref=e22] [cursor=pointer]
