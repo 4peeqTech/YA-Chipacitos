@@ -217,15 +217,15 @@ export default function ProduccionClient({
         )}
       </div>
 
-      <Card className="p-4 space-y-4">
-        <div>
-          <p className="text-xs text-[#888] mb-1.5">Día</p>
-          <div className="flex gap-2">
-            <Chip active={diaSeleccionado === hoy} onClick={() => setDiaSeleccionado(hoy)}>Hoy</Chip>
-            <Chip active={diaSeleccionado === ayer} onClick={() => setDiaSeleccionado(ayer)}>Ayer</Chip>
-          </div>
+      <div className="sticky top-0 z-10 bg-[#0a0a0a] py-2 -mx-4 px-4 lg:-mx-8 lg:px-8">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[#888]">Viendo</span>
+          <Chip active={diaSeleccionado === ayer} onClick={() => setDiaSeleccionado(ayer)}>Ayer</Chip>
+          <Chip active={diaSeleccionado === hoy} onClick={() => setDiaSeleccionado(hoy)}>Hoy</Chip>
         </div>
+      </div>
 
+      <Card className="p-4 space-y-4">
         <div>
           <p className="text-xs text-[#888] mb-1.5">Turno</p>
           <div className="flex gap-2">

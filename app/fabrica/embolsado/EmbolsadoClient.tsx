@@ -80,6 +80,15 @@ export default function EmbolsadoClient({
     }))
   }, [produccionesIniciales, embolsados, dia, nombreTamanio, nombreSabor])
 
+  // Un pool con toda su masa ya repartida en presentaciones guardadas deja
+  // de listarse: sin stock de catálogo no hay nada más que reconciliar
+  // sobre él. Tolerancia de 0.01 kg por redondeo, mismo orden de magnitud
+  // que `difiereMucho` más abajo.
+  const poolsVisibles = useMemo(
+    () => pools.filter(pool => Math.abs(pool.restanteKg) > 0.01),
+    [pools]
+  )
+
   useEffect(() => {
     setBorradores(prev => {
       const siguiente = { ...prev }
@@ -123,7 +132,7 @@ export default function EmbolsadoClient({
     const lineas = borradores[key] ?? []
     setGuardando(prev => ({ ...prev, [key]: true }))
 
-    const { data: sinProducto, error } = await supabase.rpc('guardar_embolsado_fabrica', {
+    const { error } = await supabase.rpc('guardar_embolsado_fabrica', {
       p_fecha: dia,
       p_tamanio_id: pool.tamanioId,
       p_sabor_id: pool.saborId,
@@ -163,11 +172,7 @@ export default function EmbolsadoClient({
       return resto
     })
 
-    if (sinProducto > 0) {
-      toast.error(`${sinProducto} línea${sinProducto > 1 ? 's' : ''} no mueven stock — falta el producto con esa combinación en el catálogo`)
-    } else {
-      toast.success('Embolsado guardado')
-    }
+    toast.success('Embolsado guardado')
   }
 
   return (
@@ -180,17 +185,21 @@ export default function EmbolsadoClient({
       </div>
 
       <div className="flex gap-2">
-        <Chip active={dia === hoy} onClick={() => setDia(hoy)}>Hoy</Chip>
         <Chip active={dia === ayer} onClick={() => setDia(ayer)}>Ayer</Chip>
+        <Chip active={dia === hoy} onClick={() => setDia(hoy)}>Hoy</Chip>
       </div>
 
       {pools.length === 0 ? (
         <Card className="p-8 text-center">
           <p className="text-sm text-[#888]">No hay masa de congelado cargada este día.</p>
         </Card>
+      ) : poolsVisibles.length === 0 ? (
+        <Card className="p-8 text-center">
+          <p className="text-sm text-[#888]">Toda la masa de este día ya fue embolsada.</p>
+        </Card>
       ) : (
         <div className="space-y-3">
-          {pools.map(pool => {
+          {poolsVisibles.map(pool => {
             const key = poolKey(pool.tamanioId, pool.saborId)
             const lineas = lineasDePool(key, pool)
             const sumaLineas = lineas.reduce((acc, l) => acc + (l.cantidadKg || 0), 0)

@@ -60,7 +60,7 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }
 export function ToastStack({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: (id: number) => void }) {
   if (toasts.length === 0) return null
   return (
-    <div className="fixed top-4 inset-x-4 lg:inset-x-auto lg:top-auto lg:right-4 lg:bottom-4 lg:w-auto lg:max-w-sm z-[70] flex flex-col gap-2 w-auto">
+    <div className="fixed top-4 right-4 w-auto max-w-[calc(100vw-2rem)] lg:top-auto lg:bottom-4 lg:max-w-sm z-70 flex flex-col gap-2">
       {toasts.map(t => <Toast key={t.id} toast={t} onDismiss={() => onDismiss(t.id)} />)}
     </div>
   )
