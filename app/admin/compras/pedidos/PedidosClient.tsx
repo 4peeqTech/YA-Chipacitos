@@ -336,8 +336,9 @@ export default function PedidosClient({
                 <input
                   type="number"
                   step="0.01"
+                  placeholder="0"
                   className={`${inputClass} w-24`}
-                  value={item.cantidad}
+                  value={item.cantidad === 0 ? '' : item.cantidad}
                   onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, cantidad: Number(e.target.value) } : it))}
                 />
                 <input
@@ -511,7 +512,8 @@ export default function PedidosClient({
                         </div>
                         <input
                           type="number" step="0.01"
-                          value={f.cantidad}
+                          placeholder="0"
+                          value={f.cantidad === 0 ? '' : f.cantidad}
                           onChange={e => actualizarCantidadFilaModal(idx, Number(e.target.value))}
                           className={`${inputClass} w-24 shrink-0 text-right`}
                         />
@@ -526,8 +528,9 @@ export default function PedidosClient({
                   <div key={idx} className="flex items-center gap-2">
                     <input
                       type="number" step="0.01"
+                      placeholder="0"
                       className={`${inputClass} w-24`}
-                      value={l.cantidad}
+                      value={l.cantidad === 0 ? '' : l.cantidad}
                       onChange={e => actualizarLineaLibreModal(idx, { cantidad: Number(e.target.value) })}
                     />
                     <input

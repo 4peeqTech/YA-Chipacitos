@@ -288,14 +288,14 @@ export default function MateriaPrimaClient({
               Kg por unidad *
               <HelpTooltip text="Cuántos kg trae cada unidad de compra. Por ejemplo, una bolsa de fécula trae 25kg." />
             </label>
-            <input type="number" step="0.01" className={inputClass} value={form.kg_por_unidad ?? 0} onChange={e => setForm(f => ({...f, kg_por_unidad: Number(e.target.value)}))} />
+            <input type="number" step="0.01" placeholder="0" className={inputClass} value={!form.kg_por_unidad ? '' : form.kg_por_unidad} onChange={e => setForm(f => ({...f, kg_por_unidad: Number(e.target.value)}))} />
           </div>
           <div>
             <label className={labelClass}>
               Kg por masa
               <HelpTooltip text="Cuánto de esta materia prima entra en una masa (un batch de producción). La necesidad sugerida = kg por masa × masas proyectadas. Dejalo en 0 si no entra en la receta (por ejemplo, Pategrás)." />
             </label>
-            <input type="number" step="0.001" className={inputClass} value={form.kg_por_masa ?? 0} onChange={e => setForm(f => ({...f, kg_por_masa: Number(e.target.value)}))} />
+            <input type="number" step="0.001" placeholder="0" className={inputClass} value={!form.kg_por_masa ? '' : form.kg_por_masa} onChange={e => setForm(f => ({...f, kg_por_masa: Number(e.target.value)}))} />
           </div>
           <div>
             <label className={labelClass}>

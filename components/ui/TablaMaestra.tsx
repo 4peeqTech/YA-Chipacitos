@@ -223,6 +223,7 @@ export default function TablaMaestra({ titulo, descripcion, apiPath, singular, c
               <input
                 type="number"
                 step={campoExtra.step ?? 'any'}
+                placeholder="0"
                 className={inputClass}
                 value={formExtra}
                 onChange={e => setFormExtra(e.target.value)}

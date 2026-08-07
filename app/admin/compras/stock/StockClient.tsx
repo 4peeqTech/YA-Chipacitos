@@ -31,7 +31,10 @@ export default function StockClient({
     () => Object.fromEntries(stockInicial.map(s => [s.item_id, s]))
   )
   const [cantidadesForm, setCantidadesForm] = useState<Record<string, string>>(
-    () => Object.fromEntries(itemsIniciales.map(i => [i.id, String(stockInicial.find(s => s.item_id === i.id)?.cantidad ?? 0)]))
+    () => Object.fromEntries(itemsIniciales.map(i => {
+      const stock = stockInicial.find(s => s.item_id === i.id)
+      return [i.id, stock ? String(stock.cantidad) : '']
+    }))
   )
   const [guardandoId, setGuardandoId] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -110,6 +113,7 @@ export default function StockClient({
                         <input
                           type="number"
                           step="0.01"
+                          placeholder="0"
                           className={inputClass}
                           value={cantidadesForm[i.id] ?? ''}
                           onChange={e => setCantidadesForm(f => ({ ...f, [i.id]: e.target.value }))}

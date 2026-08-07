@@ -261,7 +261,8 @@ export default function StockClient({
           </label>
           <input
             type="number" inputMode="decimal" step="1"
-            value={conteo.masas_proyectadas}
+            placeholder="0"
+            value={conteo.masas_proyectadas === 0 ? '' : conteo.masas_proyectadas}
             onChange={e => actualizarMasasProyectadas(Number(e.target.value))}
             className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2.5 text-base focus:outline-none focus:border-[#e8c547] transition-colors"
           />
@@ -328,7 +329,8 @@ export default function StockClient({
                   <p className="text-[11px] font-semibold text-[#999] uppercase tracking-wide leading-tight">{i.nombre}</p>
                   <input
                     type="number" inputMode="decimal" step="1"
-                    value={i.cantidad}
+                    placeholder="0"
+                    value={i.cantidad === 0 ? '' : i.cantidad}
                     onChange={e => actualizarCantidadBolsaplast(i.itemId, Number(e.target.value))}
                     className={`${tileInputClass} ${falta ? 'text-red-300' : 'text-[#f0f0f0]'}`}
                   />
@@ -357,7 +359,8 @@ export default function StockClient({
                   <p className="text-[11px] font-semibold text-[#999] uppercase tracking-wide leading-tight">{i.nombre}</p>
                   <input
                     type="number" inputMode="decimal" step="1"
-                    value={i.cantidad}
+                    placeholder="0"
+                    value={i.cantidad === 0 ? '' : i.cantidad}
                     onChange={e => actualizarCantidadMateriaPrima(i.materiaPrimaId, Number(e.target.value))}
                     className={`${tileInputClass} ${falta ? 'text-red-300' : 'text-[#f0f0f0]'}`}
                   />
@@ -391,7 +394,8 @@ export default function StockClient({
                 <label className="block text-[11px] text-[#888] mb-1">Cajones disponibles</label>
                 <input
                   type="number" inputMode="decimal" step="1"
-                  value={conteo.huevos_cajones_disponibles}
+                  placeholder="0"
+                  value={conteo.huevos_cajones_disponibles === 0 ? '' : conteo.huevos_cajones_disponibles}
                   onChange={e => actualizarHuevosCajones(Number(e.target.value))}
                   className={`${tileInputClass} ${previewHuevos.cajonesFaltantes > 0 ? 'text-red-300' : 'text-[#f0f0f0]'}`}
                 />

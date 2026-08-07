@@ -277,7 +277,7 @@ export default function InsumosClient({
           </div>
           <div>
             <label className={labelClass}>Meta semanal</label>
-            <input type="number" step="0.01" className={inputClass} value={form.meta_semanal ?? 0} onChange={e => setForm(f => ({...f, meta_semanal: Number(e.target.value)}))} />
+            <input type="number" step="0.01" placeholder="0" className={inputClass} value={!form.meta_semanal ? '' : form.meta_semanal} onChange={e => setForm(f => ({...f, meta_semanal: Number(e.target.value)}))} />
           </div>
           <div>
             <label className={labelClass}>Precio</label>

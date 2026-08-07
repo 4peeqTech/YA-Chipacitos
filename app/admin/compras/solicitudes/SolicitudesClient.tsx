@@ -269,7 +269,8 @@ export default function SolicitudesClient({
                     </div>
                     <input
                       type="number" inputMode="decimal" step="0.01"
-                      value={i.cantidad_ajustada}
+                      placeholder="0"
+                      value={i.cantidad_ajustada === 0 ? '' : i.cantidad_ajustada}
                       disabled={abierta.estado !== 'abierta'}
                       onChange={e => actualizarCantidad(i.id, Number(e.target.value))}
                       className={inputClass}

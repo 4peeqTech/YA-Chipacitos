@@ -221,7 +221,8 @@ export default function EmbolsadoClient({
                       </select>
                       <input
                         type="number" inputMode="decimal" step="0.01" min={0}
-                        value={linea.cantidadKg}
+                        placeholder="0"
+                        value={linea.cantidadKg === 0 ? '' : linea.cantidadKg}
                         onChange={e => actualizarLinea(key, idx, { cantidadKg: Number(e.target.value) })}
                         className="w-24 shrink-0 bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-2.5 text-sm text-right focus:outline-none focus:border-[#e8c547]"
                       />

@@ -299,11 +299,11 @@ export default function PedidoBaseClient({
           </div>
           <div>
             <label className={labelClass}>Cantidad</label>
-            <input type="number" step="0.01" className={inputClass} value={form.cantidad ?? 0} onChange={e => setForm(f => ({ ...f, cantidad: Number(e.target.value) }))} />
+            <input type="number" step="0.01" placeholder="0" className={inputClass} value={!form.cantidad ? '' : form.cantidad} onChange={e => setForm(f => ({ ...f, cantidad: Number(e.target.value) }))} />
           </div>
           <div>
             <label className={labelClass}>Orden</label>
-            <input type="number" className={inputClass} value={form.orden ?? 0} onChange={e => setForm(f => ({ ...f, orden: Number(e.target.value) }))} />
+            <input type="number" placeholder="0" className={inputClass} value={!form.orden ? '' : form.orden} onChange={e => setForm(f => ({ ...f, orden: Number(e.target.value) }))} />
           </div>
         </div>
 

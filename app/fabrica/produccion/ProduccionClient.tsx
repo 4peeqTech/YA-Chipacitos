@@ -260,7 +260,8 @@ export default function ProduccionClient({
             <label className="text-xs text-[#888] mb-1 block">Fécula (kg)</label>
             <input
               type="number" inputMode="decimal" step="0.01" min={0}
-              value={feculaKg}
+              placeholder="0"
+              value={feculaKg === 0 ? '' : feculaKg}
               onChange={e => onFeculaChange(Number(e.target.value))}
               className={inputClass}
             />
@@ -269,7 +270,8 @@ export default function ProduccionClient({
             <label className="text-xs text-[#888] mb-1 block">Masa (kg)</label>
             <input
               type="number" inputMode="decimal" step="0.01" min={0}
-              value={masaKg}
+              placeholder="0"
+              value={masaKg === 0 ? '' : masaKg}
               onChange={e => onMasaChange(Number(e.target.value))}
               className={inputClass}
             />
