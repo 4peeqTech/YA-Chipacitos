@@ -112,20 +112,31 @@ export interface CumplimientoSemana {
   cumplimientoEmbolsadoPct: number | null
 }
 
+// El martes a la mañana es cuando se cuenta, no cuando se produce contra la
+// proyección; el viernes a la tarde ya cae fuera de la ventana.
+function dentroDeVentana(fecha: string, turno: 'manana' | 'tarde', desde: string, hasta: string): boolean {
+  if (fecha < desde || fecha > hasta) return false
+  if (desde === hasta) return true          // conteos viejos con ventana de un día
+  if (fecha === desde) return turno === 'tarde'
+  if (fecha === hasta) return turno === 'manana'
+  return true
+}
+
 // Cruza cada conteo cerrado con lo realmente producido dentro de su ventana
 // semana_desde–semana_hasta. No hay FK entre fabrica_producciones/fabrica_embolsados
 // y fabrica_conteos — la única relación es la fecha, así que el cruce es por rango.
 // cumplimientoPct queda en null (no 0 ni Infinity) cuando la proyección fue cero:
-// no hubo meta contra la que medir, distinto de "cumplió 0%".
+// no hubo meta contra la que medir, distinto de "cumplió 0%". Los embolsados siguen
+// con rango de días completos — el pool es por día y no tiene turno.
 export function calcularCumplimientoProyeccion(
   conteos: ConteoSemana[],
-  produccionesPorFecha: { fecha: string; masaKg: number }[],
+  produccionesPorFecha: { fecha: string; turno: 'manana' | 'tarde'; masaKg: number }[],
   embolsadosPorFecha: { fecha: string; cantidadKg: number }[]
 ): CumplimientoSemana[] {
   return conteos
     .map(c => {
       const masaReal = produccionesPorFecha
-        .filter(p => p.fecha >= c.semanaDesde && p.fecha <= c.semanaHasta)
+        .filter(p => dentroDeVentana(p.fecha, p.turno, c.semanaDesde, c.semanaHasta))
         .reduce((acc, p) => acc + p.masaKg, 0)
       const embolsadoReal = embolsadosPorFecha
         .filter(e => e.fecha >= c.semanaDesde && e.fecha <= c.semanaHasta)

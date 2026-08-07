@@ -1,4 +1,4 @@
-# Pruebas — Módulo Fábrica (Fases 1 a 6)
+# Pruebas — Módulo Fábrica (Fases 1 a 7)
 
 Guía manual para probar de punta a punta lo construido en
 `docs/superpowers/planifiquemos-el-modulo-de-fabrica.md`. Pensada para ir tildando a
@@ -46,6 +46,12 @@ puede validar mirando la pantalla: flujos completos, RLS, y que los números cie
 
 Como usuario `fabrica`:
 
+- [ ] `/fabrica/stock` — el subtítulo dice `mar DD/MM (tarde) → vie DD/MM (mañana)`
+      sin importar qué día de la semana se abre la pantalla — la ventana ya no
+      colapsa un jueves/viernes ni depende de "hoy".
+- [ ] Caso borde: con un borrador viejo (de antes de esta corrección, o de la semana
+      pasada), abrir `/fabrica/stock` lo retargetea solo al martes/viernes actual —
+      no se queda pegado a la ventana vieja.
 - [ ] `/fabrica/stock` — abre o retoma el borrador de la semana.
 - [ ] Cargar "Kg de masa" y "Kg a embolsar" en el bloque de proyección.
 - [ ] Escribir una cantidad en 3 insumos con las 3 bases de cálculo distintas y
@@ -94,22 +100,65 @@ Del lado de Compras (otra sesión):
 
 Como usuario `fabrica`, en `/fabrica/produccion`:
 
+- [ ] Chips **Hoy / Ayer** arriba de los de turno — cambiar de día actualiza la lista
+      de cargas de abajo (filtra por fecha **y** turno).
 - [ ] Cargar una producción con destino **"Masa a locales"**: escribir fécula y
       confirmar que la masa se precarga sola (`fécula × rendimiento` configurado).
       Editar la masa a mano y confirmar que, después de tocarla, ya no se recalcula
       sola si se cambia la fécula.
-- [ ] Cargar otra con destino **"Congelado embolsado"**: elegir tamaño una sola vez,
-      agregar 2+ líneas de presentación × sabor × kg.
-- [ ] Caso borde: que la suma de las líneas de embolsado difiera bastante de la masa
-      cargada — debe aparecer el aviso ámbar, pero el botón de guardar sigue
-      habilitado (no bloqueante, a propósito).
-- [ ] Probar **"Repetir última carga"**: duplica sabor/destino/fécula/masa/líneas en
-      el formulario **sin guardar todavía** — hay que tocar "Guardar" a propósito.
-- [ ] Editar una carga ya guardada (ícono lápiz), cambiar algo y guardar — debe
-      actualizarse en la lista, no crear una nueva.
+- [ ] Cargar otra con destino **"Congelado"**: elegir tamaño (chico/medio) — ya **no**
+      hay líneas de presentación/sabor/kg acá, eso se mueve a `/fabrica/embolsado`
+      (Fase 7). Confirmar que aparece un link discreto "Ver embolsado" en la lista
+      cuando hay al menos una carga congelada en el turno/día seleccionado.
+- [ ] Probar **"Repetir última carga"**: duplica sabor/destino/fécula/masa en el
+      formulario **sin guardar todavía** — hay que tocar "Guardar" a propósito.
+- [ ] Editar una carga ya guardada (ícono lápiz) — el chip Hoy/Ayer salta a la fecha
+      de esa carga. Cambiar algo y guardar — debe actualizarse en la lista, no crear
+      una nueva.
 - [ ] Eliminar una carga (ícono tacho) — pide confirmación antes de borrar.
 - [ ] Cambiar entre turno "Mañana"/"Tarde" y confirmar que la lista de abajo filtra
       por turno.
+- [ ] **Guard de fecha**, desde la consola del navegador logueado como `fabrica`:
+      `supabase.rpc('guardar_produccion_fabrica', { p_id: null, p_fecha: '<hace un
+      mes>', p_turno: 'manana', p_sabor_id: '<uuid>', p_destino: 'masa_locales',
+      p_fecula_kg: 1, p_masa_kg: 1, p_tamanio_id: null })` → tiene que rechazar con
+      "Solo se puede cargar producción de hoy o de ayer". Editar por `p_id` una
+      producción vieja (de antes de esta corrección) mandando `p_fecha` de hoy →
+      tiene que rechazar con "Esa producción es del ... y ya no se puede editar"
+      (valida la fecha **guardada**, no la que llega). Con sesión `admin`, las dos
+      pasan sin límite de fecha.
+
+---
+
+## Fase 7 — Embolsado como módulo aparte
+
+`/fabrica/embolsado` (nuevo, 07/08/2026):
+
+- [ ] Cargar 2 producciones de **congelado chico** del mismo sabor en turnos
+      distintos (mañana y tarde) del mismo día en `/fabrica/produccion` — en
+      `/fabrica/embolsado` aparece **un solo pool** "CHICO · [sabor]" con la masa de
+      ambos turnos sumada, y el desglose mañana/tarde como referencia.
+- [ ] Cargar una producción de **congelado medio** el mismo día — tiene que aparecer
+      como pool **separado**, nunca mezclado con el de chico.
+- [ ] En el pool, agregar 2+ líneas de presentación × kg y **"Guardar"** — confirmar
+      que la card muestra "Embolsado X kg de Y kg de masa — restante Z kg" y que el
+      aviso ámbar aparece cuando el restante es grande (no bloqueante).
+- [ ] Guardar la **misma card dos veces seguidas** (sin cambiar nada) y confirmar en
+      `/fabrica/stock-terminado` que el stock **no se duplica** — es el bug que la
+      reversa por neto de movimientos evita.
+- [ ] Cargar una línea con una combinación presentación×sabor×tamaño que **no**
+      tiene producto asignado en `/admin/catalogo` — debe guardarse igual (aparece en
+      la card) pero el toast avisa "N línea(s) no mueven stock — falta el producto
+      con esa combinación en el catálogo", y `/fabrica/stock-terminado` no se mueve
+      para esa línea.
+- [ ] Cargar dos líneas con la **misma presentación** en la misma card y guardar —
+      no debe tirar un error 23505 crudo; el backend las suma en una sola fila.
+- [ ] Chips **Hoy / Ayer**: cambiar de día muestra los pools de ese día. Un pool sin
+      masa ni embolsado ese día no aparece.
+- [ ] Editar/eliminar en `/fabrica/produccion` la producción de congelado que
+      alimentó un pool ya embolsado — el pool en `/fabrica/embolsado` pasa a
+      declarar más (o menos) kg embolsados que masa disponible, y **no hay error**:
+      es informativo, no bloqueante (mismo criterio de Fase 4).
 
 ---
 
@@ -118,7 +167,8 @@ Como usuario `fabrica`, en `/fabrica/produccion`:
 - [ ] `/admin/catalogo`: asignar la terna presentación × sabor × tamaño a un producto
       existente, o crear uno nuevo con **destino `fabrica`** (si no tiene ese destino,
       un pedido interno de ese producto nunca va a tocar el stock de fábrica).
-- [ ] Volver a `/fabrica/produccion` y cargar un embolsado con esa combinación exacta.
+- [ ] Cargar una producción de congelado en `/fabrica/produccion` y embolsarla en
+      `/fabrica/embolsado` con esa combinación exacta.
 - [ ] `/fabrica/stock-terminado`: el producto aparece con el kg cargado, su
       equivalente en bultos (`cantidad_kg / peso_kg`), y el movimiento "Producción" en
       el historial.
@@ -171,8 +221,9 @@ Como usuario `fabrica`, en `/fabrica/produccion`:
 Con el usuario `local` (o cualquier rol sin acceso a fábrica/compras):
 
 - [ ] Entrar por URL directa a `/fabrica/stock`, `/fabrica/produccion`,
-      `/fabrica/stock-terminado` y `/fabrica/reportes` — debe redirigir a `/login`
-      (el layout de `/fabrica` rechaza cualquier rol que no sea `fabrica`/`admin`).
+      `/fabrica/embolsado`, `/fabrica/stock-terminado` y `/fabrica/reportes` — debe
+      redirigir a `/login` (el layout de `/fabrica` rechaza cualquier rol que no sea
+      `fabrica`/`admin`).
 - [ ] Con esa sesión ya logueada, desde la consola del navegador, pedir directo a
       Supabase (`fabrica_conteos`, `fabrica_producciones`, `fabrica_stock_terminado`)
       — tiene que volver vacío por RLS, no por el proxy/layout.

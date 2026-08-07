@@ -58,6 +58,14 @@ function formatearFechaCorta(fecha: string) {
   return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
 }
 
+function formatearFechaConTurno(fecha: string, turno: 'manana' | 'tarde') {
+  const d = new Date(fecha + 'T00:00:00')
+  const dia = d.toLocaleDateString('es-AR', { weekday: 'short' }).replace('.', '')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${dia} ${dd}/${mm} (${turno === 'tarde' ? 'tarde' : 'mañana'})`
+}
+
 function tileClass(falta: boolean) {
   return `rounded-xl border p-3 space-y-1.5 transition-colors ${
     falta ? 'border-red-800 bg-red-950/20' : 'border-[#2a2a2a] bg-[#111111]'
@@ -72,12 +80,16 @@ export default function StockClient({
   materiaPrimaIniciales,
   historialInicial,
   usuarioId,
+  desdeTurno,
+  hastaTurno,
 }: {
   conteoInicial: ConteoBorrador
   bolsaplastIniciales: BolsaplastItem[]
   materiaPrimaIniciales: MateriaPrimaConteo[]
   historialInicial: ConteoHistorial[]
   usuarioId: string
+  desdeTurno: 'tarde'
+  hastaTurno: 'manana'
 }) {
   const supabase = createClient()
   const router = useRouter()
@@ -230,7 +242,7 @@ export default function StockClient({
         <div>
           <h1 className="text-xl font-['Syne'] font-bold text-[#f0f0f0]">Conteo semanal</h1>
           <p className="text-[#888] text-xs mt-0.5">
-            {formatearFechaCorta(conteo.semana_desde)} → {formatearFechaCorta(conteo.semana_hasta)}
+            {formatearFechaConTurno(conteo.semana_desde, desdeTurno)} → {formatearFechaConTurno(conteo.semana_hasta, hastaTurno)}
           </p>
         </div>
         <span className={`text-[11px] font-medium transition-opacity ${guardado === 'idle' ? 'opacity-0' : 'text-[#56d68a]'}`}>
@@ -240,12 +252,12 @@ export default function StockClient({
 
       <Card className="p-4 space-y-3">
         <p className="flex items-center gap-1.5 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">
-          <TrendingUp size={14} /> Proyección hasta el viernes
+          <TrendingUp size={14} /> Proyección martes tarde → viernes mañana
         </p>
         <div>
           <label className="flex items-center text-xs text-[#888] mb-1">
             Masas proyectadas esta semana
-            <HelpTooltip text="Cuántas masas (batches de producción) proyectás hacer desde hoy hasta el viernes. Define cuánto de cada materia prima hace falta y cuántos huevos se necesitan." />
+            <HelpTooltip text="Cuántas masas (batches de producción) proyectás hacer desde el martes a la tarde hasta el viernes a la mañana. Define cuánto de cada materia prima hace falta y cuántos huevos se necesitan." />
           </label>
           <input
             type="number" inputMode="decimal" step="1"

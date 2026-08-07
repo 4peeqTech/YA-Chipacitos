@@ -19,6 +19,7 @@ export default async function FabricaLayout({ children }: { children: React.Reac
     // acceso completo.
     ...(profile?.rol === 'admin' ? [{ href: '/fabrica/pedidos', label: 'Pedidos', icon: '🚚' }] : []),
     { href: '/fabrica/produccion', label: 'Producción', icon: '🏭' },
+    { href: '/fabrica/embolsado',  label: 'Embolsado',  icon: '🧊' },
     { href: '/fabrica/stock',      label: 'Stock',      icon: '📦' },
     ...(profile?.rol === 'admin' ? [{ href: '/fabrica/catalogo', label: 'Catálogo', icon: '🔀' }] : []),
     ...(profile?.modulos_permitidos?.includes('tareas') ? [{ href: '/tareas', label: 'Tareas', icon: '📋' }] : []),

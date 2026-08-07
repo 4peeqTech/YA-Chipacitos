@@ -16,9 +16,10 @@ export default async function FabricaStockPage() {
     .limit(1)
     .maybeSingle()
 
+  const { fecha, semanaDesde, semanaHasta, desdeTurno, hastaTurno } = calcularSemanaConteo(new Date())
+
   let conteo = borrador
   if (!conteo) {
-    const { fecha, semanaDesde, semanaHasta } = calcularSemanaConteo(new Date())
     const { data: nuevo, error: errInsert } = await supabase
       .from('fabrica_conteos')
       .insert({ fecha, semana_desde: semanaDesde, semana_hasta: semanaHasta, creado_por: user!.id })
@@ -39,6 +40,18 @@ export default async function FabricaStockPage() {
     } else {
       conteo = nuevo
     }
+  } else if (conteo.semana_desde !== semanaDesde) {
+    // Un borrador es el trabajo en curso, no un registro histórico — con el
+    // ancla en martes, un borrador viejo (de la semana pasada, o de antes del
+    // cambio a martes-viernes) se retargetea a la ventana actual en vez de
+    // quedarse pegado para siempre.
+    const { data: actualizado } = await supabase
+      .from('fabrica_conteos')
+      .update({ fecha, semana_desde: semanaDesde, semana_hasta: semanaHasta })
+      .eq('id', conteo.id)
+      .select('*')
+      .single()
+    if (actualizado) conteo = actualizado
   }
 
   const [{ data: bolsaplastItems }, { data: stockActual }, { data: materiaPrima }] = await Promise.all([
@@ -98,6 +111,8 @@ export default async function FabricaStockPage() {
       materiaPrimaIniciales={materiaPrimaItems}
       historialInicial={historial}
       usuarioId={user!.id}
+      desdeTurno={desdeTurno}
+      hastaTurno={hastaTurno}
     />
   )
 }

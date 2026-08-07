@@ -1017,6 +1017,25 @@ de duplicarlo.
 > accesibles solo por URL directa. El foco actual del módulo es Fases 1-3: conteo
 > semanal → solicitud → pedido.
 
+---
+
+> **Corrección de ventana horaria y split de embolsado (07/08/2026):** tres pedidos de
+> planta sobre este módulo. (1) El conteo semanal decía arrancar "hoy" y cortar el
+> viernes — con el ancla real en **martes a la mañana**, la ventana pasa a ser fija:
+> **martes tarde → viernes mañana**, sin importar qué día se abre la pantalla.
+> (2) Producción gana selector **hoy/ayer** — es común dejar la masa hecha y editarla
+> al día siguiente. (3) El embolsado **deja de ser hijo de una producción**: la
+> presentación (1/2, 2, 5, 10 Kg) del congelado se decide después de juntar masa de
+> varios lotes, momento en el que el lote de origen ya no es recuperable — imposible
+> atribuir una presentación a una fila de `fabrica_producciones`, que es justo lo que
+> exigía el esquema viejo (`fabrica_embolsados.produccion_id NOT NULL`). Pasa a ser un
+> **pool del día** (`fecha` × `tamanio_id` × `sabor_id`, `fecha` = día de la MASA, no
+> de la bolsa) en su propio módulo `/fabrica/embolsado`. De paso se corrigió que
+> `calcularSemanaConteo()`/`fabrica_producciones.fecha` corrían sobre UTC del server
+> (Vercel) — entre las 21:00 y las 00:00 ART el server ya creía que era el día
+> siguiente — con `dia_fabrica()` (SQL) y `lib/fabrica/diaFabrica.ts` (cliente) sobre
+> hora Argentina real.
+
 #### El flujo completo
 
 ```
@@ -1110,26 +1129,56 @@ de duplicarlo.
                               │
 ┌─── Fase 4: producción por turno ─────────────────────────────────┐
 │                                                                  │
-│  /fabrica/produccion — un registro por turno: fécula → masa      │
-│  precargada (fecula_kg × config.fabrica_rendimiento_masa,        │
-│  editable — lib/fabrica/rendimiento.ts) · sabor · destino         │
+│  /fabrica/produccion — selector Hoy/Ayer (diaFabrica.ts) + turno, │
+│  un registro por turno: fécula → masa precargada (fecula_kg ×     │
+│  config.fabrica_rendimiento_masa, editable —                     │
+│  lib/fabrica/rendimiento.ts) · sabor · destino                    │
 │         │                                                        │
-│         ├─ destino='masa_locales'      → no hay sección anidada  │
-│         └─ destino='congelado_embolsado' → se abre: tamaño        │
-│              (una sola vez, vive en fabrica_producciones —        │
-│              se hereda por FK) + N líneas presentación×sabor×kg  │
+│         ├─ destino='masa_locales' → nada más                     │
+│         └─ destino='congelado_embolsado' → solo elige tamaño      │
+│              (chico/medio, vive en fabrica_producciones). La      │
+│              presentación NO se carga acá — se decide después,    │
+│              por lote, en /fabrica/embolsado (Fase 7); un link     │
+│              discreto aparece cuando la carga es congelado         │
 │         ▼                                                        │
-│  "Guardar" → RPC guardar_produccion_fabrica() (transaccional):   │
-│    alta o edición de fabrica_producciones + reemplazo completo    │
-│    de sus fabrica_embolsados en la misma transacción             │
+│  "Guardar" → RPC guardar_produccion_fabrica(8 args, sin           │
+│  p_embolsados) — valida fabrica_puede_editar_fecha() (hoy/ayer,   │
+│  admin sin límite) contra la fecha guardada, no solo la nueva      │
 │         │                                                        │
 │  "Repetir última carga" duplica el registro más reciente del      │
 │  turno en el formulario (sin guardar) — en la planilla la misma   │
 │  fila se repite 3-4 veces seguidas, es donde está la mayor parte   │
 │  del tipeo manual                                                 │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+┌─── Fase 7: embolsado como pool del día ──────────────────────────┐
 │                                                                  │
-│  Aviso NO bloqueante si Σ kg embolsados ≠ masa_kg — los datos      │
-│  históricos muestran que difiere seguido, no debe frenar la carga │
+│  /fabrica/embolsado — módulo aparte (07/08/2026): la masa de       │
+│  congelado del día ya no es hija de una producción, es un POOL     │
+│  (fecha × tamanio_id × sabor_id — fecha = día de la MASA, no de    │
+│  la bolsa). lib/fabrica/pools.ts: agruparPoolCongelado() suma       │
+│  mañana+tarde en un solo pool por tamaño×sabor, con el desglose     │
+│  por turno como referencia                                         │
+│         │                                                        │
+│         ▼  selector Hoy/Ayer, una card por pool: masa disponible   │
+│  del día + N líneas presentación×kg editables (dedup por           │
+│  presentación al guardar)                                          │
+│         ▼                                                        │
+│  "Guardar" → RPC guardar_embolsado_fabrica(p_fecha, p_tamanio_id,  │
+│  p_sabor_id, p_lineas) reemplaza el pool entero de forma atómica:   │
+│    · revierte por el NETO de fabrica_stock_terminado_mov del pool   │
+│      (no por cantidad_kg de cada fila — una fila puede no haber     │
+│      movido stock si el producto no existía al cargarla)            │
+│    · pg_advisory_xact_lock sobre la clave del pool (ya no hay fila  │
+│      ancla que lockear como antes lo era la producción)             │
+│    · resuelve producto por la terna presentación×sabor×tamaño y     │
+│      devuelve cuántas líneas no encontraron producto (no mueven     │
+│      stock, mismo criterio que Fase 5)                              │
+│                                                                  │
+│  Delta producido-vs-embolsado se MUESTRA, no bloquea — mismo        │
+│  criterio que el "difiere" de Fase 4: si se edita/borra una         │
+│  producción de congelado después, el pool puede declarar más kg     │
+│  que la masa del día y no hay constraint que lo impida              │
 └──────────────────────────────────────────────────────────────────┘
                               │
                     ⌄ Fases 5 y 6 — construidas, ocultas de la navegación (ago. 2026) ⌄
@@ -1146,10 +1195,10 @@ de duplicarlo.
 │            cantidad_kg + delta, para no reproducir la carrera      │
 │            read-then-write de compras_stock_actual                 │
 │         │                                                        │
-│         ├─ guardar_produccion_fabrica() (redefinida): cada línea   │
-│         │  de embolsado resuelve su producto por la terna y suma   │
-│         │  stock ('produccion_embolsado'). Al editar, primero      │
-│         │  revierte el stock de los embolsados viejos              │
+│         ├─ guardar_embolsado_fabrica() (Fase 7): cada línea del    │
+│         │  pool resuelve su producto por la terna y suma stock      │
+│         │  ('produccion_embolsado'). Al reemplazar el pool,         │
+│         │  revierte primero por el neto de sus movimientos          │
 │         ├─ fabrica_marcar_pedido_enviado(): pedido interno          │
 │         │  destino='fabrica' → 'enviado' resta cantidad×peso_kg     │
 │         │  de cada línea con terna ('salida_pedido')                │
@@ -1172,7 +1221,9 @@ de duplicarlo.
 │      del operario, no el promedio de sus cargas individuales       │
 │    · Cumplimiento: cruza cada fabrica_conteos cerrado con lo        │
 │      realmente producido dentro de su ventana semana_desde–hasta   │
-│      (no hay FK, el cruce es por rango de fecha)                    │
+│      (no hay FK, el cruce es por rango de fecha + turno —           │
+│      dentroDeVentana() cuenta el martes tarde y el viernes mañana,  │
+│      no el martes mañana ni el viernes tarde)                       │
 │         │                                                        │
 │  /admin/compras/reportes ganó una pestaña "Sugerido vs. comprado": │
 │  calcularSugeridoVsComprado() (lib/compras/reportes.ts) cruza       │
@@ -1207,9 +1258,19 @@ Se agregó una policy de SELECT adicional con el mismo criterio; alta/edición/b
 proveedores sigue siendo admin-only.
 
 `fabrica_producciones` y `fabrica_embolsados` **no tienen policy de INSERT/UPDATE/DELETE
-directa** — solo SELECT. Toda escritura pasa por `guardar_produccion_fabrica()` /
-`eliminar_produccion_fabrica()` (`SECURITY DEFINER`), a propósito: una carga es
-producción + N líneas de embolsado, y debe ser atómica.
+directa** — solo SELECT. Escritura de producción pasa por `guardar_produccion_fabrica()` /
+`eliminar_produccion_fabrica()`; escritura de embolsado por `guardar_embolsado_fabrica()`
+(Fase 7) — las tres `SECURITY DEFINER`. Desde el split, ya no son la misma transacción:
+antes una carga era producción + N líneas de embolsado en un solo commit, ahora cada RPC
+reemplaza su propio recurso (una producción, o un pool entero).
+
+**Guard de fecha (07/08/2026):** `fabrica_puede_editar_fecha(p_fecha)` compone con
+`tiene_acceso_fabrica()` en `guardar_produccion_fabrica()` y `eliminar_produccion_fabrica()` —
+admin sin límite, rol `fabrica` solo hoy o ayer (`dia_fabrica() - 1` a `dia_fabrica()`). Al
+editar valida la fecha **guardada** de la fila, no la que llega en el parámetro — si no,
+el id de una producción vieja se podría "traer al presente" mandando `p_fecha = hoy` en el
+update. `guardar_embolsado_fabrica()` no tiene este guard: el pool que edita ya está acotado
+a las fechas que el cliente puede ver (hoy/ayer).
 
 `fabrica_stock_terminado` y `fabrica_stock_terminado_mov` (Fase 5) tampoco tienen policy
 de escritura: todo pasa por `mover_stock_terminado()`. Esa función **no se expone
@@ -1230,9 +1291,11 @@ SELECT más para `tiene_acceso_fabrica()`, mismo criterio que la de `config` en 
 | Archivo | Responsabilidad |
 |---|---|
 | [calculoSugerido.ts](lib/fabrica/calculoSugerido.ts) | `calcularNecesidadYSugerido()` (materia prima, redondeo variable por ítem) · `faltanteBolsaplast()` · `calcularHuevos()` — mismas 3 fórmulas que `cerrar_conteo_fabrica()`, duplicadas a propósito para la previsualización en vivo del cliente |
-| [semanaConteo.ts](lib/fabrica/semanaConteo.ts) | `calcularSemanaConteo()` — fecha del conteo y ventana hasta el viernes, determinístico (recibe `ahora`) |
+| [diaFabrica.ts](lib/fabrica/diaFabrica.ts) | `diaFabrica()` — "hoy" en hora Argentina real (`Intl` con `en-CA`, no `new Date()` crudo del server en UTC); `sumarDias()` / `diaAnterior()` |
+| [semanaConteo.ts](lib/fabrica/semanaConteo.ts) | `calcularSemanaConteo()` — ventana fija martes tarde → viernes mañana, ancla en el martes de `diaFabrica()`, determinístico (recibe `ahora`) |
 | [rendimiento.ts](lib/fabrica/rendimiento.ts) | `masaDesdeFecula()` precarga masa desde fécula; `rendimientoFeculaMasa()` para reportes de Fase 6 |
-| [reportes.ts](lib/fabrica/reportes.ts) | `agruparProduccion()`, `agruparEmbolsadoPorPresentacion()`, `calcularRendimientoPorOperario()`, `calcularCumplimientoProyeccion()` — alimentan las 4 pestañas de `/fabrica/reportes` |
+| [reportes.ts](lib/fabrica/reportes.ts) | `agruparProduccion()`, `agruparEmbolsadoPorPresentacion()`, `calcularRendimientoPorOperario()`, `calcularCumplimientoProyeccion()` (con `dentroDeVentana()`, turno-aware) — alimentan las 4 pestañas de `/fabrica/reportes` |
+| [pools.ts](lib/fabrica/pools.ts) | `agruparPoolCongelado()` (Fase 7) — suma producción de congelado por tamaño×sabor del día (mañana+tarde) y le adjunta las líneas de embolsado ya cargadas |
 
 #### Snapshot deliberado
 
@@ -1528,9 +1591,15 @@ Fudo (13)         ← ninguna en uso
 |---|---|---|
 | `get_user_rol()` | `→ text`, `SQL SECURITY DEFINER STABLE` | Helper de RLS: `SELECT rol FROM profiles WHERE id = auth.uid()` |
 | `recalcular_conciliacion(p_fecha, p_local_id)` | `→ void`, `plpgsql SECURITY DEFINER` | Reconstruye `conciliaciones` para un (local, día). Ver [§5.2](#52-ventas-posberry--conciliación) |
+| `dia_fabrica()` | `→ date`, `SQL STABLE` | `(now() at time zone 'America/Argentina/Buenos_Aires')::date` — reemplaza a `current_date` en Fábrica, el server corre en UTC. Ver [§5.9](#59-módulo-fábrica) |
+| `fabrica_puede_editar_fecha(p_fecha)` | `→ boolean`, `SQL SECURITY DEFINER STABLE` | Guard de ventana hoy/ayer para producción y embolsado (admin sin restricción). Compone con `tiene_acceso_fabrica()` |
+| `guardar_embolsado_fabrica(p_fecha, p_tamanio_id, p_sabor_id, p_lineas)` | `→ integer`, `plpgsql SECURITY DEFINER` | Reemplazo atómico de un pool de embolsado; devuelve cuántas líneas no movieron stock por falta de producto en catálogo |
 
-Son las **únicas dos funciones**. No hay triggers, ni vistas, ni funciones de agregación.
-Toda la lógica derivada vive en TypeScript.
+Esta tabla no es un inventario exhaustivo — Compras y Fábrica agregaron bastantes
+helpers/RPC más (`tiene_acceso_compras()`, `tiene_acceso_fabrica()`,
+`cerrar_conteo_fabrica()`, `guardar_produccion_fabrica()`, `mover_stock_terminado()`,
+etc.) que no siempre se reflejaron acá. No hay triggers ni vistas; toda la lógica
+derivada de UI vive en TypeScript.
 
 ### 7.2 Row Level Security
 

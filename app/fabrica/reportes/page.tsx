@@ -17,11 +17,7 @@ export default async function FabricaReportesPage() {
       .order('fecha', { ascending: false }),
     supabase
       .from('fabrica_embolsados')
-      .select(`
-        cantidad_kg,
-        presentacion:fabrica_presentaciones(nombre),
-        produccion:fabrica_producciones(fecha)
-      `),
+      .select('fecha, cantidad_kg, presentacion:fabrica_presentaciones(nombre)'),
     supabase
       .from('fabrica_conteos')
       .select('id, semana_desde, semana_hasta, masas_proyectadas, proyeccion_embolsado_kg')
@@ -38,13 +34,11 @@ export default async function FabricaReportesPage() {
     masaKg: p.masa_kg,
   }))
 
-  const embolsadosUI: EmbolsadoFilaUI[] = ((embolsados ?? []) as any[])
-    .filter(e => e.produccion?.fecha)
-    .map(e => ({
-      fecha: e.produccion.fecha,
-      presentacionNombre: e.presentacion?.nombre ?? '—',
-      cantidadKg: e.cantidad_kg,
-    }))
+  const embolsadosUI: EmbolsadoFilaUI[] = ((embolsados ?? []) as any[]).map(e => ({
+    fecha: e.fecha,
+    presentacionNombre: e.presentacion?.nombre ?? '—',
+    cantidadKg: e.cantidad_kg,
+  }))
 
   const conteosUI: ConteoSemanaUI[] = ((conteos ?? []) as any[]).map(c => ({
     id: c.id,

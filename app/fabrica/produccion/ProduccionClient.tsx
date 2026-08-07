@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import {
-  Factory, Repeat, Plus, Trash2, Pencil, AlertTriangle,
+  Factory, Repeat, Trash2, Pencil, ArrowRight,
   Package, Snowflake, Save, X as XIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -16,21 +17,8 @@ export interface Parametro {
   nombre: string
 }
 
-export interface PresentacionParam extends Parametro {
-  pesoKg: number
-}
-
 export type Destino = 'masa_locales' | 'congelado_embolsado'
 export type Turno = 'manana' | 'tarde'
-
-export interface EmbolsadoTurno {
-  id: string
-  presentacionId: string
-  presentacionNombre: string
-  saborId: string
-  saborNombre: string
-  cantidadKg: number
-}
 
 export interface ProduccionTurno {
   id: string
@@ -43,13 +31,6 @@ export interface ProduccionTurno {
   destino: Destino
   tamanioId: string | null
   tamanioNombre: string | null
-  embolsados: EmbolsadoTurno[]
-}
-
-interface LineaEmbolsado {
-  presentacionId: string
-  saborId: string
-  cantidadKg: number
 }
 
 function turnoActualPorHora(): Turno {
@@ -72,16 +53,16 @@ const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] r
 
 export default function ProduccionClient({
   hoy,
+  ayer,
   sabores,
   tamanios,
-  presentaciones,
   rendimientoMasa,
   produccionesIniciales,
 }: {
   hoy: string
+  ayer: string
   sabores: Parametro[]
   tamanios: Parametro[]
-  presentaciones: PresentacionParam[]
   rendimientoMasa: number
   produccionesIniciales: ProduccionTurno[]
 }) {
@@ -89,6 +70,7 @@ export default function ProduccionClient({
   const toast = useToasts()
 
   const [producciones, setProducciones] = useState(produccionesIniciales)
+  const [diaSeleccionado, setDiaSeleccionado] = useState(hoy)
   const [turnoSeleccionado, setTurnoSeleccionado] = useState<Turno>(turnoActualPorHora())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saborId, setSaborId] = useState(sabores[0]?.id ?? '')
@@ -97,19 +79,16 @@ export default function ProduccionClient({
   const [masaKg, setMasaKg] = useState(0)
   const [masaTocada, setMasaTocada] = useState(false)
   const [tamanioId, setTamanioId] = useState(tamanios[0]?.id ?? '')
-  const [lineas, setLineas] = useState<LineaEmbolsado[]>([])
   const [guardando, setGuardando] = useState(false)
   const [aEliminar, setAEliminar] = useState<ProduccionTurno | null>(null)
   const [eliminando, setEliminando] = useState(false)
 
   const listaTurno = useMemo(
-    () => producciones.filter(p => p.turno === turnoSeleccionado),
-    [producciones, turnoSeleccionado]
+    () => producciones.filter(p => p.fecha === diaSeleccionado && p.turno === turnoSeleccionado),
+    [producciones, diaSeleccionado, turnoSeleccionado]
   )
 
-  const sumaEmbolsado = useMemo(() => lineas.reduce((acc, l) => acc + (l.cantidadKg || 0), 0), [lineas])
-  const diferencia = masaKg - sumaEmbolsado
-  const difiereMucho = destino === 'congelado_embolsado' && lineas.length > 0 && Math.abs(diferencia) > 0.05
+  const hayCongeladoEnLista = useMemo(() => listaTurno.some(p => p.destino === 'congelado_embolsado'), [listaTurno])
 
   function resetFormulario() {
     setEditingId(null)
@@ -119,7 +98,6 @@ export default function ProduccionClient({
     setMasaKg(0)
     setMasaTocada(false)
     setTamanioId(tamanios[0]?.id ?? '')
-    setLineas([])
   }
 
   function onFeculaChange(valor: number) {
@@ -132,20 +110,9 @@ export default function ProduccionClient({
     setMasaTocada(true)
   }
 
-  function agregarLinea() {
-    setLineas(prev => [...prev, { presentacionId: presentaciones[0]?.id ?? '', saborId, cantidadKg: 0 }])
-  }
-
-  function actualizarLinea(idx: number, cambios: Partial<LineaEmbolsado>) {
-    setLineas(prev => prev.map((l, i) => (i === idx ? { ...l, ...cambios } : l)))
-  }
-
-  function quitarLinea(idx: number) {
-    setLineas(prev => prev.filter((_, i) => i !== idx))
-  }
-
   function cargarParaEditar(p: ProduccionTurno) {
     setEditingId(p.id)
+    setDiaSeleccionado(p.fecha)
     setTurnoSeleccionado(p.turno)
     setSaborId(p.saborId)
     setDestino(p.destino)
@@ -153,7 +120,6 @@ export default function ProduccionClient({
     setMasaKg(p.masaKg)
     setMasaTocada(true)
     setTamanioId(p.tamanioId ?? tamanios[0]?.id ?? '')
-    setLineas(p.embolsados.map(e => ({ presentacionId: e.presentacionId, saborId: e.saborId, cantidadKg: e.cantidadKg })))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -167,31 +133,26 @@ export default function ProduccionClient({
     setMasaKg(ultima.masaKg)
     setMasaTocada(true)
     setTamanioId(ultima.tamanioId ?? tamanios[0]?.id ?? '')
-    setLineas(ultima.embolsados.map(e => ({ presentacionId: e.presentacionId, saborId: e.saborId, cantidadKg: e.cantidadKg })))
     window.scrollTo({ top: 0, behavior: 'smooth' })
     toast.success('Carga duplicada — revisá y guardá')
   }
 
   async function guardar() {
     if (destino === 'congelado_embolsado' && !tamanioId) {
-      toast.error('Elegí un tamaño para el embolsado')
+      toast.error('Elegí un tamaño para el congelado')
       return
     }
     setGuardando(true)
-    const embolsadosPayload = destino === 'congelado_embolsado'
-      ? lineas.map(l => ({ presentacion_id: l.presentacionId, sabor_id: l.saborId, cantidad_kg: l.cantidadKg }))
-      : []
 
     const { data: id, error } = await supabase.rpc('guardar_produccion_fabrica', {
       p_id: editingId,
-      p_fecha: hoy,
+      p_fecha: diaSeleccionado,
       p_turno: turnoSeleccionado,
       p_sabor_id: saborId,
       p_destino: destino,
       p_fecula_kg: feculaKg,
       p_masa_kg: masaKg,
       p_tamanio_id: destino === 'congelado_embolsado' ? tamanioId : null,
-      p_embolsados: embolsadosPayload,
     })
 
     if (error) {
@@ -204,7 +165,7 @@ export default function ProduccionClient({
     const tamanioNombre = destino === 'congelado_embolsado' ? (tamanios.find(t => t.id === tamanioId)?.nombre ?? null) : null
     const nuevaEntrada: ProduccionTurno = {
       id,
-      fecha: hoy,
+      fecha: diaSeleccionado,
       turno: turnoSeleccionado,
       feculaKg,
       masaKg,
@@ -213,14 +174,6 @@ export default function ProduccionClient({
       destino,
       tamanioId: destino === 'congelado_embolsado' ? tamanioId : null,
       tamanioNombre,
-      embolsados: lineas.map((l, i) => ({
-        id: `${id}-${i}`,
-        presentacionId: l.presentacionId,
-        presentacionNombre: presentaciones.find(p => p.id === l.presentacionId)?.nombre ?? '—',
-        saborId: l.saborId,
-        saborNombre: sabores.find(s => s.id === l.saborId)?.nombre ?? '—',
-        cantidadKg: l.cantidadKg,
-      })),
     }
 
     setProducciones(prev => editingId ? prev.map(p => p.id === editingId ? nuevaEntrada : p) : [nuevaEntrada, ...prev])
@@ -252,7 +205,7 @@ export default function ProduccionClient({
           <h1 className="flex items-center gap-2 text-xl font-['Syne'] font-bold text-[#f0f0f0]">
             <Factory size={20} className="text-[#e8c547]" /> Producción
           </h1>
-          <p className="text-[#888] text-xs mt-0.5">Turno actual · {editingId ? 'editando carga' : 'nueva carga'}</p>
+          <p className="text-[#888] text-xs mt-0.5">{editingId ? 'editando carga' : 'nueva carga'}</p>
         </div>
         {editingId && (
           <button
@@ -265,6 +218,14 @@ export default function ProduccionClient({
       </div>
 
       <Card className="p-4 space-y-4">
+        <div>
+          <p className="text-xs text-[#888] mb-1.5">Día</p>
+          <div className="flex gap-2">
+            <Chip active={diaSeleccionado === hoy} onClick={() => setDiaSeleccionado(hoy)}>Hoy</Chip>
+            <Chip active={diaSeleccionado === ayer} onClick={() => setDiaSeleccionado(ayer)}>Ayer</Chip>
+          </div>
+        </div>
+
         <div>
           <p className="text-xs text-[#888] mb-1.5">Turno</p>
           <div className="flex gap-2">
@@ -289,7 +250,7 @@ export default function ProduccionClient({
               <span className="flex items-center gap-1.5"><Package size={13} /> Masa a locales</span>
             </Chip>
             <Chip active={destino === 'congelado_embolsado'} onClick={() => setDestino('congelado_embolsado')}>
-              <span className="flex items-center gap-1.5"><Snowflake size={13} /> Congelado embolsado</span>
+              <span className="flex items-center gap-1.5"><Snowflake size={13} /> Congelado</span>
             </Chip>
           </div>
         </div>
@@ -316,68 +277,13 @@ export default function ProduccionClient({
         </div>
 
         {destino === 'congelado_embolsado' && (
-          <div className="rounded-xl bg-[#161616] border border-[#2a2a2a] p-3 space-y-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">
-              <Snowflake size={13} /> Embolsado
-            </div>
-
-            <div>
-              <p className="text-xs text-[#888] mb-1.5">Tamaño</p>
-              <div className="flex gap-2">
-                {tamanios.map(t => (
-                  <Chip key={t.id} active={tamanioId === t.id} onClick={() => setTamanioId(t.id)}>{t.nombre}</Chip>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {lineas.map((linea, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <select
-                    value={linea.presentacionId}
-                    onChange={e => actualizarLinea(idx, { presentacionId: e.target.value })}
-                    className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-2.5 text-xs focus:outline-none focus:border-[#e8c547]"
-                  >
-                    {presentaciones.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                  </select>
-                  <select
-                    value={linea.saborId}
-                    onChange={e => actualizarLinea(idx, { saborId: e.target.value })}
-                    className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-2.5 text-xs focus:outline-none focus:border-[#e8c547]"
-                  >
-                    {sabores.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                  </select>
-                  <input
-                    type="number" inputMode="decimal" step="0.01" min={0}
-                    value={linea.cantidadKg}
-                    onChange={e => actualizarLinea(idx, { cantidadKg: Number(e.target.value) })}
-                    className="w-20 shrink-0 bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-2.5 text-sm text-right focus:outline-none focus:border-[#e8c547]"
-                  />
-                  <button
-                    onClick={() => quitarLinea(idx)}
-                    aria-label="Quitar línea"
-                    className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-red-400 rounded-lg hover:bg-[#1a1a1a] transition-colors"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
+          <div>
+            <p className="text-xs text-[#888] mb-1.5">Tamaño</p>
+            <div className="flex gap-2">
+              {tamanios.map(t => (
+                <Chip key={t.id} active={tamanioId === t.id} onClick={() => setTamanioId(t.id)}>{t.nombre}</Chip>
               ))}
-
-              <button
-                onClick={agregarLinea}
-                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#888] hover:text-[#e8c547] border border-dashed border-[#2a2a2a] hover:border-[#e8c547] rounded-lg py-2.5 transition-colors"
-              >
-                <Plus size={14} /> Agregar línea
-              </button>
             </div>
-
-            {lineas.length > 0 && (
-              <p className={`flex items-center gap-1.5 text-xs ${difiereMucho ? 'text-amber-400' : 'text-[#666]'}`}>
-                {difiereMucho && <AlertTriangle size={12} />}
-                Embolsado {sumaEmbolsado.toFixed(1)} kg de {masaKg.toFixed(1)} kg de masa
-                {difiereMucho && <> — difiere {Math.abs(diferencia).toFixed(1)} kg, no bloquea el guardado</>}
-              </p>
-            )}
           </div>
         )}
       </Card>
@@ -401,9 +307,19 @@ export default function ProduccionClient({
       </div>
 
       <div className="space-y-2 pt-2">
-        <p className="text-xs font-semibold text-[#888] uppercase tracking-wider px-1">
-          {listaTurno.length} carga{listaTurno.length !== 1 ? 's' : ''} del turno {turnoSeleccionado === 'manana' ? 'mañana' : 'tarde'}
-        </p>
+        <div className="flex items-center justify-between px-1">
+          <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">
+            {listaTurno.length} carga{listaTurno.length !== 1 ? 's' : ''} · {diaSeleccionado === hoy ? 'hoy' : 'ayer'} · turno {turnoSeleccionado === 'manana' ? 'mañana' : 'tarde'}
+          </p>
+          {hayCongeladoEnLista && (
+            <Link
+              href="/fabrica/embolsado"
+              className="flex items-center gap-1 text-[11px] font-medium text-[#888] hover:text-[#e8c547] transition-colors shrink-0"
+            >
+              Ver embolsado <ArrowRight size={11} />
+            </Link>
+          )}
+        </div>
         {listaTurno.length === 0 ? (
           <p className="text-sm text-[#666] text-center py-8">Todavía no hay cargas en este turno.</p>
         ) : (
@@ -417,7 +333,7 @@ export default function ProduccionClient({
                   </p>
                   <p className="text-xs text-[#666] mt-0.5">
                     {p.feculaKg} kg fécula → {p.masaKg} kg masa
-                    {p.destino === 'congelado_embolsado' && p.tamanioNombre && <> · {p.tamanioNombre} · {p.embolsados.length} línea{p.embolsados.length !== 1 ? 's' : ''}</>}
+                    {p.destino === 'congelado_embolsado' && p.tamanioNombre && <> · {p.tamanioNombre}</>}
                   </p>
                 </div>
                 <button
@@ -442,7 +358,7 @@ export default function ProduccionClient({
 
       <Modal open={!!aEliminar} onClose={() => !eliminando && setAEliminar(null)} title="Eliminar carga" accent="red">
         <p className="text-sm text-[#888]">
-          Se borra esta producción {aEliminar?.destino === 'congelado_embolsado' ? 'y sus líneas de embolsado' : ''}. No se puede deshacer.
+          Se borra esta producción. No se puede deshacer.
         </p>
         <div className="flex gap-2 pt-4">
           <button onClick={() => setAEliminar(null)} disabled={eliminando} className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] transition-colors disabled:opacity-40">
