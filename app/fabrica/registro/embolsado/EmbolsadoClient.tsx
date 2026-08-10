@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Snowflake, Plus, Trash2, Save, AlertTriangle, Sun, Moon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { agruparPoolCongelado, type ProduccionCongelado, type EmbolsadoLinea, type PoolCongelado } from '@/lib/fabrica/pools'
+import { agruparPoolCongelado, type ProduccionCongelado, type EmbolsadoLinea, type DevolucionReinsercion, type PoolCongelado } from '@/lib/fabrica/pools'
 import Card from '@/components/ui/Card'
 import InputNumero from '@/components/ui/InputNumero'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
@@ -50,6 +50,7 @@ export default function EmbolsadoClient({
   presentaciones,
   produccionesIniciales,
   embolsadosIniciales,
+  devolucionesIniciales,
 }: {
   hoy: string
   ayer: string
@@ -58,6 +59,7 @@ export default function EmbolsadoClient({
   presentaciones: PresentacionParam[]
   produccionesIniciales: ProduccionCongelado[]
   embolsadosIniciales: EmbolsadoLinea[]
+  devolucionesIniciales: DevolucionReinsercion[]
 }) {
   const supabase = createClient()
   const toast = useToasts()
@@ -71,7 +73,7 @@ export default function EmbolsadoClient({
   const nombreTamanio = useMemo(() => new Map(tamanios.map(t => [t.id, t.nombre])), [tamanios])
 
   const pools: PoolCongelado[] = useMemo(() => {
-    return agruparPoolCongelado(produccionesIniciales, embolsados, dia).map(pool => ({
+    return agruparPoolCongelado(produccionesIniciales, embolsados, devolucionesIniciales, dia).map(pool => ({
       ...pool,
       // Un pool que existe solo por embolsados (sin producción del día) no
       // trae nombre legible desde agruparPoolCongelado — se completa acá
@@ -79,7 +81,7 @@ export default function EmbolsadoClient({
       tamanioNombre: pool.tamanioNombre === '—' ? (nombreTamanio.get(pool.tamanioId) ?? '—') : pool.tamanioNombre,
       saborNombre: pool.saborNombre === '—' ? (nombreSabor.get(pool.saborId) ?? '—') : pool.saborNombre,
     }))
-  }, [produccionesIniciales, embolsados, dia, nombreTamanio, nombreSabor])
+  }, [produccionesIniciales, embolsados, devolucionesIniciales, dia, nombreTamanio, nombreSabor])
 
   // Un pool con toda su masa ya repartida en presentaciones guardadas deja
   // de listarse: sin stock de catálogo no hay nada más que reconciliar
@@ -218,6 +220,11 @@ export default function EmbolsadoClient({
                   <span className="flex items-center gap-1"><Sun size={11} /> {formatKg(pool.masaManana)}</span>
                   <span className="flex items-center gap-1"><Moon size={11} /> {formatKg(pool.masaTarde)}</span>
                 </p>
+                {pool.masaReinsertadaKg > 0 && (
+                  <p className="text-xs text-[#e8c547]">
+                    Incluye {formatKg(pool.masaReinsertadaKg)} reinsertados de una devolución
+                  </p>
+                )}
 
                 <div className="space-y-2">
                   {lineas.map((linea, idx) => (

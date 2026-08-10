@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { diaFabrica, diaAnterior } from '@/lib/fabrica/diaFabrica'
-import type { ProduccionCongelado, EmbolsadoLinea } from '@/lib/fabrica/pools'
+import type { ProduccionCongelado, EmbolsadoLinea, DevolucionReinsercion } from '@/lib/fabrica/pools'
 import EmbolsadoClient, { Parametro, PresentacionParam } from './EmbolsadoClient'
 
 export default async function FabricaEmbolsadoPage() {
@@ -11,7 +11,7 @@ export default async function FabricaEmbolsadoPage() {
   const hoy = diaFabrica(new Date())
   const ayer = diaAnterior(hoy)
 
-  const [{ data: sabores }, { data: tamanios }, { data: presentaciones }, { data: producciones }, { data: embolsados }] =
+  const [{ data: sabores }, { data: tamanios }, { data: presentaciones }, { data: producciones }, { data: embolsados }, { data: devoluciones }] =
     await Promise.all([
       supabase.from('fabrica_sabores').select('id, nombre').eq('activo', true).order('orden'),
       supabase.from('fabrica_tamanios').select('id, nombre').eq('activo', true).order('orden'),
@@ -31,6 +31,11 @@ export default async function FabricaEmbolsadoPage() {
           id, fecha, tamanio_id, sabor_id, presentacion_id, cantidad_kg,
           presentacion:fabrica_presentaciones(nombre)
         `)
+        .in('fecha', [ayer, hoy]),
+      supabase
+        .from('fabrica_devoluciones')
+        .select('fecha, tamanio_id, sabor_id, cantidad_kg')
+        .eq('destino', 'reinsercion')
         .in('fecha', [ayer, hoy]),
     ])
 
@@ -54,6 +59,13 @@ export default async function FabricaEmbolsadoPage() {
     cantidadKg: e.cantidad_kg,
   }))
 
+  const devolucionesUI: DevolucionReinsercion[] = ((devoluciones ?? []) as any[]).map(d => ({
+    fecha: d.fecha,
+    tamanioId: d.tamanio_id,
+    saborId: d.sabor_id,
+    cantidadKg: d.cantidad_kg,
+  }))
+
   return (
     <EmbolsadoClient
       hoy={hoy}
@@ -63,6 +75,7 @@ export default async function FabricaEmbolsadoPage() {
       presentaciones={(presentaciones ?? []).map(p => ({ id: p.id, nombre: p.nombre, pesoKg: p.peso_kg }))}
       produccionesIniciales={produccionesUI}
       embolsadosIniciales={embolsadosUI}
+      devolucionesIniciales={devolucionesUI}
     />
   )
 }
