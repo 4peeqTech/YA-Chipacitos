@@ -23,13 +23,6 @@ interface CompraItem {
   meta_semanal: number
 }
 
-interface MateriaPrimaItem {
-  id: string
-  proveedor_id: string
-  nombre: string
-  unidad_compra: string
-}
-
 interface StockActual {
   item_id: string
   cantidad: number
@@ -39,7 +32,6 @@ interface PedidoItem {
   id: string
   pedido_id: string
   item_id: string | null
-  materia_prima_id: string | null
   descripcion: string
   unidad: string | null
   cantidad: number
@@ -62,7 +54,7 @@ interface Pedido {
 type FiltroPedidos = 'activos' | 'todos'
 
 // Fila local del editor de ítems: id/pedido_id quedan sin definir hasta guardar.
-type ItemEditor = Pick<PedidoItem, 'item_id' | 'materia_prima_id' | 'descripcion' | 'unidad' | 'cantidad'>
+type ItemEditor = Pick<PedidoItem, 'item_id' | 'descripcion' | 'unidad' | 'cantidad'>
 
 // Fila del catálogo del proveedor elegido en el modal de creación, con su checkbox de inclusión.
 interface FilaCatalogo extends ItemEditor {
@@ -72,14 +64,12 @@ interface FilaCatalogo extends ItemEditor {
 export default function PedidosClient({
   proveedores,
   itemsCatalogo,
-  materiaPrimaCatalogo,
   stockInicial,
   pedidosIniciales,
   usuarioId,
 }: {
   proveedores: Proveedor[]
   itemsCatalogo: CompraItem[]
-  materiaPrimaCatalogo: MateriaPrimaItem[]
   stockInicial: StockActual[]
   pedidosIniciales: Pedido[]
   usuarioId: string
@@ -106,16 +96,12 @@ export default function PedidosClient({
 
   function filasParaProveedor(proveedorId: string): FilaCatalogo[] {
     const proveedor = proveedores.find(p => p.id === proveedorId)
-    const filasItems: FilaCatalogo[] = itemsCatalogo
+    return itemsCatalogo
       .filter(i => i.proveedor_id === proveedorId)
       .map(i => {
         const cantidad = proveedor?.maneja_stock ? Math.max(0, i.meta_semanal - (stockPorItem[i.id] ?? 0)) : 0
-        return { item_id: i.id, materia_prima_id: null, descripcion: i.nombre, unidad: i.unidad, cantidad, incluir: cantidad > 0 }
+        return { item_id: i.id, descripcion: i.nombre, unidad: i.unidad, cantidad, incluir: cantidad > 0 }
       })
-    const filasMateriaPrima: FilaCatalogo[] = materiaPrimaCatalogo
-      .filter(m => m.proveedor_id === proveedorId)
-      .map(m => ({ item_id: null, materia_prima_id: m.id, descripcion: m.nombre, unidad: m.unidad_compra, cantidad: 0, incluir: false }))
-    return [...filasItems, ...filasMateriaPrima]
   }
 
   function abrirModalCrear() {
@@ -141,7 +127,7 @@ export default function PedidosClient({
   }
 
   function agregarLineaLibreModal() {
-    setLineasLibresModal(prev => [...prev, { item_id: null, materia_prima_id: null, descripcion: '', unidad: '', cantidad: 0 }])
+    setLineasLibresModal(prev => [...prev, { item_id: null, descripcion: '', unidad: '', cantidad: 0 }])
   }
 
   function actualizarLineaLibreModal(index: number, cambios: Partial<ItemEditor>) {
@@ -157,7 +143,7 @@ export default function PedidosClient({
     setItemsEditor(
       [...pedido.compras_pedido_items]
         .sort((a, b) => a.orden - b.orden)
-        .map(i => ({ item_id: i.item_id, materia_prima_id: i.materia_prima_id, descripcion: i.descripcion, unidad: i.unidad, cantidad: i.cantidad }))
+        .map(i => ({ item_id: i.item_id, descripcion: i.descripcion, unidad: i.unidad, cantidad: i.cantidad }))
     )
     setError('')
     setMensajeCopiado(false)
@@ -180,7 +166,6 @@ export default function PedidosClient({
       .map((i, idx) => ({
         pedido_id: pedido.id,
         item_id: i.item_id,
-        materia_prima_id: i.materia_prima_id,
         descripcion: i.descripcion.trim(),
         unidad: i.unidad?.trim() || null,
         cantidad: i.cantidad,
@@ -361,7 +346,7 @@ export default function PedidosClient({
           </div>
 
           <div className="flex gap-3 flex-wrap">
-            <button onClick={() => setItemsEditor(prev => [...prev, { item_id: null, materia_prima_id: null, descripcion: '', unidad: '', cantidad: 0 }])} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
+            <button onClick={() => setItemsEditor(prev => [...prev, { item_id: null, descripcion: '', unidad: '', cantidad: 0 }])} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
               + Agregar ítem
             </button>
             <button onClick={() => guardarItems()} disabled={isPending} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">

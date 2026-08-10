@@ -2,9 +2,9 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, History, TrendingUp, AlertTriangle, ChevronRight, Search, Trash2, Package, Wheat, Egg } from 'lucide-react'
+import { Lock, History, TrendingUp, AlertTriangle, ChevronRight, Search, Trash2, Package, Wheat } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { calcularNecesidadYSugerido, faltanteBolsaplast, calcularHuevos, type Redondeo } from '@/lib/fabrica/calculoSugerido'
+import { calcularNecesidadYSugerido, faltanteBolsaplast, type Redondeo } from '@/lib/fabrica/calculoSugerido'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
@@ -21,11 +21,11 @@ export interface BolsaplastItem {
 
 export interface MateriaPrimaConteo {
   conteoItemId: string
-  materiaPrimaId: string
+  itemId: string
   nombre: string
-  unidadCompra: string
-  kgPorUnidad: number
-  kgPorMasa: number
+  unidad: string
+  cantidadPorUnidad: number
+  cantidadPorMasa: number
   redondeo: Redondeo
   cantidad: number
 }
@@ -36,7 +36,6 @@ export interface ConteoBorrador {
   semana_desde: string
   semana_hasta: string
   masas_proyectadas: number
-  huevos_cajones_disponibles: number
   estado: 'borrador' | 'cerrado'
 }
 
@@ -108,7 +107,7 @@ export default function StockClient({
   const [detalle, setDetalle] = useState<ConteoHistorial | null>(null)
   const [detalleLineas, setDetalleLineas] = useState<DetalleLinea[] | null>(null)
   const [busqueda, setBusqueda] = useState('')
-  const [seccion, setSeccion] = useState<'todos' | 'bolsaplast' | 'global' | 'huevos'>('todos')
+  const [seccion, setSeccion] = useState<'todos' | 'bolsaplast' | 'global'>('todos')
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   function marcarGuardado() {
@@ -126,13 +125,6 @@ export default function StockClient({
     marcarGuardado()
     const { error } = await supabase.from('fabrica_conteos').update({ masas_proyectadas: valor }).eq('id', conteo.id)
     if (error) toast.error('No se pudo guardar la proyección')
-  }
-
-  async function actualizarHuevosCajones(valor: number) {
-    setConteo(prev => ({ ...prev, huevos_cajones_disponibles: valor }))
-    marcarGuardado()
-    const { error } = await supabase.from('fabrica_conteos').update({ huevos_cajones_disponibles: valor }).eq('id', conteo.id)
-    if (error) toast.error('No se pudo guardar los cajones de huevos')
   }
 
   function actualizarCantidadBolsaplast(itemId: string, cantidad: number) {
@@ -153,10 +145,10 @@ export default function StockClient({
     })
   }
 
-  function actualizarCantidadMateriaPrima(materiaPrimaId: string, cantidad: number) {
-    setMateriaPrima(prev => prev.map(i => i.materiaPrimaId === materiaPrimaId ? { ...i, cantidad } : i))
-    debounced(`mp-${materiaPrimaId}`, async () => {
-      const item = materiaPrima.find(i => i.materiaPrimaId === materiaPrimaId)
+  function actualizarCantidadMateriaPrima(itemId: string, cantidad: number) {
+    setMateriaPrima(prev => prev.map(i => i.itemId === itemId ? { ...i, cantidad } : i))
+    debounced(`mp-${itemId}`, async () => {
+      const item = materiaPrima.find(i => i.itemId === itemId)
       if (!item?.conteoItemId) return
       const { error } = await supabase.from('fabrica_conteo_items').update({ cantidad }).eq('id', item.conteoItemId)
       if (error) toast.error('No se pudo guardar la cantidad')
@@ -164,17 +156,12 @@ export default function StockClient({
   }
 
   const previewMateriaPrima = useMemo(() => {
-    const porItem = new Map(materiaPrima.map(i => [i.materiaPrimaId, calcularNecesidadYSugerido(
-      { kgPorMasa: i.kgPorMasa, kgPorUnidad: i.kgPorUnidad, cantidadUnidades: i.cantidad, redondeo: i.redondeo },
+    const porItem = new Map(materiaPrima.map(i => [i.itemId, calcularNecesidadYSugerido(
+      { cantidadPorMasa: i.cantidadPorMasa, cantidadPorUnidad: i.cantidadPorUnidad, cantidadUnidades: i.cantidad, redondeo: i.redondeo },
       conteo.masas_proyectadas
     )]))
     return porItem
   }, [materiaPrima, conteo.masas_proyectadas])
-
-  const previewHuevos = useMemo(
-    () => calcularHuevos(conteo.masas_proyectadas, conteo.huevos_cajones_disponibles),
-    [conteo.masas_proyectadas, conteo.huevos_cajones_disponibles]
-  )
 
   const q = busqueda.trim().toLowerCase()
   const bolsaplastFiltrado = seccion === 'todos' || seccion === 'bolsaplast'
@@ -183,11 +170,10 @@ export default function StockClient({
   const materiaPrimaFiltrada = seccion === 'todos' || seccion === 'global'
     ? materiaPrima.filter(i => !q || i.nombre.toLowerCase().includes(q))
     : []
-  const mostrarHuevos = (seccion === 'todos' || seccion === 'huevos') && !q
 
   const faltantesBolsaplast = bolsaplast.filter(i => faltanteBolsaplast(i.metaSemanal, i.cantidad) > 0).length
-  const faltantesMateriaPrima = materiaPrima.filter(i => (previewMateriaPrima.get(i.materiaPrimaId)?.sugeridoUnidades ?? 0) > 0).length
-  const faltantesTotal = faltantesBolsaplast + faltantesMateriaPrima + (previewHuevos.cajonesFaltantes > 0 ? 1 : 0)
+  const faltantesMateriaPrima = materiaPrima.filter(i => (previewMateriaPrima.get(i.itemId)?.sugeridoUnidades ?? 0) > 0).length
+  const faltantesTotal = faltantesBolsaplast + faltantesMateriaPrima
 
   async function confirmarCierre() {
     setCerrando(true)
@@ -284,8 +270,7 @@ export default function StockClient({
           {([
             { key: 'todos' as const, label: 'Todos', icono: null },
             { key: 'bolsaplast' as const, label: 'Bolsaplast', icono: Package, count: bolsaplast.length },
-            { key: 'global' as const, label: 'Global', icono: Wheat, count: materiaPrima.length },
-            { key: 'huevos' as const, label: 'Huevos', icono: Egg },
+            { key: 'global' as const, label: 'Materia prima', icono: Wheat, count: materiaPrima.length },
           ]).map(f => {
             const Icono = f.icono
             return (
@@ -343,27 +328,27 @@ export default function StockClient({
         </div>
       )}
 
-      {/* Global — materia prima */}
+      {/* Materia prima (incluye Huevos, ahora un ítem normal del catálogo) */}
       {materiaPrimaFiltrada.length > 0 && (
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-xs font-semibold text-[#888] uppercase tracking-wider px-1">
-            <Wheat size={13} /> Global — Materias primas <span className="text-[#555]">· en unidades de compra</span>
+            <Wheat size={13} /> Materias primas <span className="text-[#555]">· en unidades de compra</span>
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             {materiaPrimaFiltrada.map(i => {
-              const calc = previewMateriaPrima.get(i.materiaPrimaId)
+              const calc = previewMateriaPrima.get(i.itemId)
               const falta = (calc?.sugeridoUnidades ?? 0) > 0
               return (
-                <div key={i.materiaPrimaId} className={tileClass(falta)}>
+                <div key={i.itemId} className={tileClass(falta)}>
                   <p className="text-[11px] font-semibold text-[#999] uppercase tracking-wide leading-tight">{i.nombre}</p>
                   <InputNumero
                     placeholder="0"
                     value={i.cantidad === 0 ? null : i.cantidad}
-                    onChange={v => actualizarCantidadMateriaPrima(i.materiaPrimaId, v ?? 0)}
+                    onChange={v => actualizarCantidadMateriaPrima(i.itemId, v ?? 0)}
                     className={`${tileInputClass} ${falta ? 'text-red-300' : 'text-[#f0f0f0]'}`}
                   />
                   <p className="text-[10px] text-[#666]">
-                    {i.unidadCompra} × {i.kgPorUnidad}kg{i.kgPorMasa > 0 ? ` | ${i.kgPorMasa}kg/masa` : ' | stock extra'}
+                    {i.unidad} × {i.cantidadPorUnidad}{i.cantidadPorMasa > 0 ? ` | ${i.cantidadPorMasa}/masa` : ' | stock extra'}
                   </p>
                   {falta && (
                     <p className="flex items-center gap-1 text-[10px] text-red-400 font-medium">
@@ -374,40 +359,6 @@ export default function StockClient({
               )
             })}
           </div>
-        </div>
-      )}
-
-      {/* Huevos */}
-      {mostrarHuevos && (
-        <div className="space-y-2">
-          <p className="flex items-center gap-1.5 text-xs font-semibold text-[#888] uppercase tracking-wider px-1">
-            <Egg size={13} /> Huevos — Huevo Campo
-          </p>
-          <Card className="p-4 space-y-3">
-            <p className="text-[11px] text-[#666]">
-              1 cajón = 12 maples × 30 huevos = 360 u. · Receta: 90 huevos/masa → 1 cajón c/4 masas
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] text-[#888] mb-1">Cajones disponibles</label>
-                <InputNumero
-                  placeholder="0"
-                  value={conteo.huevos_cajones_disponibles === 0 ? null : conteo.huevos_cajones_disponibles}
-                  onChange={v => actualizarHuevosCajones(v ?? 0)}
-                  className={`${tileInputClass} ${previewHuevos.cajonesFaltantes > 0 ? 'text-red-300' : 'text-[#f0f0f0]'}`}
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] text-[#888] mb-1">Cajones necesarios</label>
-                <div className={`${tileInputClass} flex items-center justify-center text-[#888]`}>{previewHuevos.cajonesNecesarios}</div>
-              </div>
-            </div>
-            {previewHuevos.cajonesFaltantes > 0 && (
-              <p className="flex items-center gap-1 text-[11px] text-red-400 font-medium">
-                <AlertTriangle size={11} /> faltan {previewHuevos.cajonesFaltantes} cajón{previewHuevos.cajonesFaltantes > 1 ? 'es' : ''}
-              </p>
-            )}
-          </Card>
         </div>
       )}
 

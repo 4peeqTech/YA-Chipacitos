@@ -3,7 +3,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { enviarPush } from '@/lib/push/sendPush'
 import { NextRequest, NextResponse } from 'next/server'
 
-const MODULOS_COMPRAS = ['compras-insumos', 'compras-stock', 'compras-pedidos', 'compras-remitos', 'compras-reportes']
+const MODULOS_COMPRAS = ['compras-insumos', 'compras-stock', 'compras-pedidos', 'compras-remitos', 'compras-reportes', 'compras-solicitudes', 'compras-pedido-base']
 
 function getAdminClient() {
   return createAdminClient(

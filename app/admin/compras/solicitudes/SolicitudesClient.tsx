@@ -22,7 +22,6 @@ interface SolicitudItem {
   id: string
   solicitud_id: string
   item_id: string | null
-  materia_prima_id: string | null
   proveedor_id: string
   descripcion: string
   unidad: string | null

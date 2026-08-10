@@ -24,7 +24,6 @@ interface CatalogoItem {
 interface PlantillaLinea {
   id: string
   item_id: string | null
-  materia_prima_id: string | null
   descripcion: string
   proveedor_id: string
   unidad: string | null
@@ -35,7 +34,6 @@ interface PlantillaLinea {
 
 const emptyForm = (): Partial<PlantillaLinea> => ({
   item_id: null,
-  materia_prima_id: null,
   descripcion: '',
   proveedor_id: '',
   unidad: '',
@@ -48,12 +46,10 @@ export default function PedidoBaseClient({
   plantillaInicial,
   proveedores,
   itemsCatalogo,
-  materiaPrimaCatalogo,
 }: {
   plantillaInicial: PlantillaLinea[]
   proveedores: ProveedorOption[]
   itemsCatalogo: CatalogoItem[]
-  materiaPrimaCatalogo: CatalogoItem[]
 }) {
   const supabase = createClient()
   const router = useRouter()
@@ -87,32 +83,17 @@ export default function PedidoBaseClient({
     setEditando(null)
   }
 
-  function elegirItem(valor: string) {
-    if (!valor) { setForm(f => ({ ...f, item_id: null, materia_prima_id: null })); return }
-    const [tipo, id] = valor.split(':')
-    if (tipo === 'mp') {
-      const item = materiaPrimaCatalogo.find(i => i.id === id)
-      if (!item) return
-      setForm(f => ({
-        ...f,
-        item_id: null,
-        materia_prima_id: item.id,
-        descripcion: f.descripcion?.trim() ? f.descripcion : item.nombre,
-        unidad: f.unidad?.trim() ? f.unidad : item.unidad,
-        proveedor_id: f.proveedor_id || item.proveedor_id,
-      }))
-    } else {
-      const item = itemsCatalogo.find(i => i.id === id)
-      if (!item) return
-      setForm(f => ({
-        ...f,
-        item_id: item.id,
-        materia_prima_id: null,
-        descripcion: f.descripcion?.trim() ? f.descripcion : item.nombre,
-        unidad: f.unidad?.trim() ? f.unidad : item.unidad,
-        proveedor_id: f.proveedor_id || item.proveedor_id,
-      }))
-    }
+  function elegirItem(itemId: string) {
+    if (!itemId) { setForm(f => ({ ...f, item_id: null })); return }
+    const item = itemsCatalogo.find(i => i.id === itemId)
+    if (!item) return
+    setForm(f => ({
+      ...f,
+      item_id: item.id,
+      descripcion: f.descripcion?.trim() ? f.descripcion : item.nombre,
+      unidad: f.unidad?.trim() ? f.unidad : item.unidad,
+      proveedor_id: f.proveedor_id || item.proveedor_id,
+    }))
   }
 
   async function guardar() {
@@ -122,7 +103,6 @@ export default function PedidoBaseClient({
     startTransition(async () => {
       const body = {
         item_id: form.item_id ?? null,
-        materia_prima_id: form.materia_prima_id ?? null,
         descripcion: form.descripcion!.trim(),
         proveedor_id: form.proveedor_id,
         unidad: form.unidad?.trim() || null,
@@ -174,8 +154,6 @@ export default function PedidoBaseClient({
 
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
   const labelClass = "flex items-center text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
-
-  const valorSeleccionado = form.materia_prima_id ? `mp:${form.materia_prima_id}` : form.item_id ? `item:${form.item_id}` : ''
 
   return (
     <div className="space-y-6">
@@ -271,16 +249,11 @@ export default function PedidoBaseClient({
           <div className="md:col-span-2">
             <label className={labelClass}>
               Ítem del catálogo
-              <HelpTooltip text="Opcional. Elegilo para autocompletar descripción, unidad y proveedor desde Materia prima o Insumos — igual podés editarlos después. Dejalo vacío para una línea libre (por ejemplo, algo que no está en ningún catálogo)." />
+              <HelpTooltip text="Opcional. Elegilo para autocompletar descripción, unidad y proveedor desde el catálogo de Insumos — igual podés editarlos después. Dejalo vacío para una línea libre (por ejemplo, algo que no está en ningún catálogo)." />
             </label>
-            <select className={inputClass} value={valorSeleccionado} onChange={e => elegirItem(e.target.value)}>
+            <select className={inputClass} value={form.item_id ?? ''} onChange={e => elegirItem(e.target.value)}>
               <option value="">Línea libre (sin ítem)</option>
-              <optgroup label="Materia prima">
-                {materiaPrimaCatalogo.map(i => <option key={`mp:${i.id}`} value={`mp:${i.id}`}>{i.nombre}</option>)}
-              </optgroup>
-              <optgroup label="Insumos">
-                {itemsCatalogo.map(i => <option key={`item:${i.id}`} value={`item:${i.id}`}>{i.nombre}</option>)}
-              </optgroup>
+              {itemsCatalogo.map(i => <option key={i.id} value={i.id}>{i.nombre}</option>)}
             </select>
           </div>
           <div className="md:col-span-2">

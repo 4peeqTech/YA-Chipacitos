@@ -3,9 +3,11 @@
 import { useState, useTransition } from 'react'
 import { Archive, ArchiveRestore, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import type { Redondeo } from '@/lib/fabrica/calculoSugerido'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
+import SelectBuscador from '@/components/ui/SelectBuscador'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 interface ProveedorOption {
@@ -25,6 +27,9 @@ interface CompraItem {
   nombre: string
   unidad: string
   meta_semanal: number
+  cantidad_por_unidad: number
+  cantidad_por_masa: number
+  redondeo: Redondeo
   precio: number | null
   incluir_en_conteo: boolean
   estado: 'activo' | 'archivado'
@@ -32,14 +37,22 @@ interface CompraItem {
 
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
 
+const REDONDEO_LABEL: Record<Redondeo, string> = {
+  estandar: 'Estándar (redondeo al medio)',
+  siempre_arriba: 'Siempre hacia arriba',
+  siempre_abajo: 'Siempre hacia abajo',
+  sin_calculo: 'Sin cálculo (solo stock)',
+}
+
 const emptyForm = (): Partial<CompraItem> => ({
   proveedor_id: '',
   categoria_id: null,
   nombre: '',
   unidad: '',
-  meta_semanal: 0,
+  cantidad_por_unidad: 1,
+  cantidad_por_masa: 0,
+  redondeo: 'estandar',
   precio: null,
-  incluir_en_conteo: false,
   estado: 'activo',
 })
 
@@ -55,6 +68,7 @@ export default function InsumosClient({
   const supabase = createClient()
   const [items, setItems] = useState<CompraItem[]>(itemsIniciales)
   const [filtro, setFiltro] = useState<FiltroEstado>('activo')
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string | 'todas'>('todas')
   const [busqueda, setBusqueda] = useState('')
   const [editando, setEditando] = useState<CompraItem | null>(null)
   const [creando, setCreando] = useState(false)
@@ -69,8 +83,9 @@ export default function InsumosClient({
   const filtrados = items
     .filter(i => {
       const matchEstado = filtro === 'todos' || i.estado === filtro
+      const matchCategoria = categoriaFiltro === 'todas' || i.categoria_id === categoriaFiltro
       const matchBusqueda = i.nombre.toLowerCase().includes(busqueda.toLowerCase())
-      return matchEstado && matchBusqueda
+      return matchEstado && matchCategoria && matchBusqueda
     })
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
@@ -182,6 +197,24 @@ export default function InsumosClient({
         ))}
       </div>
 
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => setCategoriaFiltro('todas')}
+          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoriaFiltro === 'todas' ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] border border-[#2a2a2a] hover:text-[#f0f0f0]'}`}
+        >
+          Todas las categorías
+        </button>
+        {categorias.map(c => (
+          <button
+            key={c.id}
+            onClick={() => setCategoriaFiltro(c.id)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoriaFiltro === c.id ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] border border-[#2a2a2a] hover:text-[#f0f0f0]'}`}
+          >
+            {c.nombre}
+          </button>
+        ))}
+      </div>
+
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
         {filtrados.length === 0 ? (
           <p className="p-8 text-center text-[#888] text-sm">
@@ -196,7 +229,8 @@ export default function InsumosClient({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Categoría</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Proveedor</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Unidad</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Meta semanal</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Cant./masa</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Redondeo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Precio</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
@@ -209,7 +243,8 @@ export default function InsumosClient({
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{nombreCategoria(i.categoria_id)}</td>
                     <td className="px-4 py-3 text-[#888]">{nombreProveedor(i.proveedor_id)}</td>
                     <td className="px-4 py-3 text-[#888]">{i.unidad}</td>
-                    <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.meta_semanal}</td>
+                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{i.cantidad_por_masa > 0 ? i.cantidad_por_masa : '—'}</td>
+                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell text-xs">{REDONDEO_LABEL[i.redondeo] ?? i.redondeo}</td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.precio != null ? `$${i.precio.toLocaleString('es-AR')}` : '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${i.estado === 'activo' ? 'bg-green-900/50 text-green-300' : 'bg-[#2a2a2a] text-[#666]'}`}>
@@ -260,14 +295,12 @@ export default function InsumosClient({
           </div>
           <div>
             <label className={labelClass}>Proveedor *</label>
-            <select className={inputClass} value={form.proveedor_id ?? ''} onChange={e => setForm(f => ({...f, proveedor_id: e.target.value}))}>
-              <option value="">Seleccionar...</option>
-              {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Unidad *</label>
-            <input className={inputClass} placeholder="Ej: kg, unidad, docena" value={form.unidad ?? ''} onChange={e => setForm(f => ({...f, unidad: e.target.value}))} />
+            <SelectBuscador
+              value={form.proveedor_id ?? ''}
+              onChange={v => setForm(f => ({...f, proveedor_id: v}))}
+              opciones={proveedores.map(p => ({ value: p.id, label: p.nombre }))}
+              placeholderVacio="Seleccionar..."
+            />
           </div>
           <div>
             <label className={labelClass}>Categoría</label>
@@ -277,24 +310,35 @@ export default function InsumosClient({
             </select>
           </div>
           <div>
-            <label className={labelClass}>Meta semanal</label>
-            <InputNumero placeholder="0" className={inputClass} value={!form.meta_semanal ? null : form.meta_semanal} onChange={v => setForm(f => ({...f, meta_semanal: v ?? 0}))} />
+            <label className={labelClass}>Unidad de compra *</label>
+            <input className={inputClass} placeholder="Ej: kg, Bolsa, Caja, Cajón" value={form.unidad ?? ''} onChange={e => setForm(f => ({...f, unidad: e.target.value}))} />
+          </div>
+          <div>
+            <label className={labelClass}>
+              Cantidad por unidad
+              <HelpTooltip text="Cuánto trae cada unidad de compra. Por ejemplo, una bolsa de fécula trae 25kg, o un cajón de huevos trae 360 unidades." />
+            </label>
+            <InputNumero placeholder="1" className={inputClass} value={form.cantidad_por_unidad ?? null} onChange={v => setForm(f => ({...f, cantidad_por_unidad: v ?? 1}))} />
+          </div>
+          <div>
+            <label className={labelClass}>
+              Cantidad por masa
+              <HelpTooltip text="Cuánto de este insumo entra en una masa (un batch de producción) — la receta. La necesidad sugerida = cantidad por masa × masas proyectadas. Dejalo en 0 si no entra en ninguna receta." />
+            </label>
+            <InputNumero placeholder="0" className={inputClass} value={!form.cantidad_por_masa ? null : form.cantidad_por_masa} onChange={v => setForm(f => ({...f, cantidad_por_masa: v ?? 0}))} />
+          </div>
+          <div>
+            <label className={labelClass}>
+              Redondeo
+              <HelpTooltip text="Cómo redondear cuántas unidades pedir al cerrar el conteo. Estándar: si falta menos de media unidad no se pide, si falta media o más se pide una entera. Siempre hacia arriba: cualquier faltante pide una unidad completa. Siempre hacia abajo: un faltante menor a una unidad no pide nada. Sin cálculo: no participa del pedido complementario — se repone solo vía el Pedido base semanal." />
+            </label>
+            <select className={inputClass} value={form.redondeo ?? 'estandar'} onChange={e => setForm(f => ({...f, redondeo: e.target.value as Redondeo}))}>
+              {Object.entries(REDONDEO_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
           </div>
           <div>
             <label className={labelClass}>Precio</label>
             <InputNumero className={inputClass} value={form.precio ?? null} onChange={v => setForm(f => ({...f, precio: v}))} />
-          </div>
-          <div className="md:col-span-2 pt-1">
-            <label className="inline-flex items-center gap-2 text-sm text-[#f0f0f0] cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.incluir_en_conteo ?? false}
-                onChange={e => setForm(f => ({...f, incluir_en_conteo: e.target.checked}))}
-                className="w-4 h-4 shrink-0 p-0 accent-[#e8c547] cursor-pointer"
-              />
-              Incluir en conteo semanal
-              <HelpTooltip text="Con esto tildado, el insumo aparece en el conteo semanal de fábrica (pantalla de Stock) junto a la materia prima y los huevos, para que Fábrica cargue su stock y se calcule cuánto falta pedir. Es el caso de los 7 insumos de Bolsaplast; el resto de los proveedores de depósito no participa del conteo." />
-            </label>
           </div>
         </div>
 

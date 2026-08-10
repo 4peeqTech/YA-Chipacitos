@@ -54,10 +54,21 @@ export default async function FabricaStockPage() {
     if (actualizado) conteo = actualizado
   }
 
+  const { data: categoriaMateriaPrima } = await supabase
+    .from('compras_categorias')
+    .select('id')
+    .eq('nombre', 'Materia prima')
+    .maybeSingle()
+
   const [{ data: bolsaplastItems }, { data: stockActual }, { data: materiaPrima }] = await Promise.all([
     supabase.from('compras_items').select('id, nombre, unidad, meta_semanal').eq('incluir_en_conteo', true).eq('estado', 'activo'),
     supabase.from('compras_stock_actual').select('item_id, cantidad'),
-    supabase.from('fabrica_materia_prima').select('id, nombre, unidad_compra, kg_por_unidad, kg_por_masa, redondeo').eq('estado', 'activo'),
+    categoriaMateriaPrima
+      ? supabase.from('compras_items')
+          .select('id, nombre, unidad, cantidad_por_unidad, cantidad_por_masa, redondeo')
+          .eq('categoria_id', categoriaMateriaPrima.id)
+          .eq('estado', 'activo')
+      : Promise.resolve({ data: [] as { id: string; nombre: string; unidad: string; cantidad_por_unidad: number; cantidad_por_masa: number; redondeo: string }[] }),
   ])
 
   const stockPorItem = new Map((stockActual || []).map(s => [s.item_id, s.cantidad]))
@@ -68,28 +79,28 @@ export default async function FabricaStockPage() {
 
   if (conteo && materiaPrima?.length) {
     await supabase.from('fabrica_conteo_items').upsert(
-      materiaPrima.map(m => ({ conteo_id: conteo!.id, materia_prima_id: m.id })),
-      { onConflict: 'conteo_id,materia_prima_id', ignoreDuplicates: true }
+      materiaPrima.map(m => ({ conteo_id: conteo!.id, item_id: m.id })),
+      { onConflict: 'conteo_id,item_id', ignoreDuplicates: true }
     )
   }
 
   const { data: conteoItems } = conteo
-    ? await supabase.from('fabrica_conteo_items').select('id, materia_prima_id, cantidad').eq('conteo_id', conteo.id)
+    ? await supabase.from('fabrica_conteo_items').select('id, item_id, cantidad').eq('conteo_id', conteo.id)
     : { data: [] }
 
-  const cantidadPorMateriaPrima = new Map((conteoItems || []).map(ci => [ci.materia_prima_id, ci]))
+  const cantidadPorItem = new Map((conteoItems || []).map(ci => [ci.item_id, ci]))
 
   const materiaPrimaItems: MateriaPrimaConteo[] = (materiaPrima || [])
     .map(m => {
-      const ci = cantidadPorMateriaPrima.get(m.id)
+      const ci = cantidadPorItem.get(m.id)
       return {
         conteoItemId: ci?.id ?? '',
-        materiaPrimaId: m.id,
+        itemId: m.id,
         nombre: m.nombre,
-        unidadCompra: m.unidad_compra,
-        kgPorUnidad: m.kg_por_unidad,
-        kgPorMasa: m.kg_por_masa,
-        redondeo: m.redondeo,
+        unidad: m.unidad,
+        cantidadPorUnidad: m.cantidad_por_unidad,
+        cantidadPorMasa: m.cantidad_por_masa,
+        redondeo: m.redondeo as MateriaPrimaConteo['redondeo'],
         cantidad: ci?.cantidad ?? 0,
       }
     })

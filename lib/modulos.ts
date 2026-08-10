@@ -36,7 +36,6 @@ export const MODULOS: Modulo[] = [
   { key: 'fabrica_parametros', label: 'Parámetros Fábrica', icon: '🏭', href: '/admin/fabrica-parametros', section: 'Parámetros' },
 
   { key: 'compras-insumos', label: 'Insumos', icon: '🧺', href: '/admin/compras/insumos', section: 'Compras' },
-  { key: 'compras-materia-prima', label: 'Materia prima', icon: '🌾', href: '/admin/compras/materia-prima', section: 'Compras' },
   { key: 'compras-stock',   label: 'Stock',   icon: '📦', href: '/admin/compras/stock',   section: 'Compras' },
   { key: 'compras-pedidos', label: 'Pedidos', icon: '📋', href: '/admin/compras/pedidos', section: 'Compras' },
   { key: 'compras-remitos', label: 'Remitos', icon: '📥', href: '/admin/compras/remitos', section: 'Compras' },

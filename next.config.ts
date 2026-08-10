@@ -7,6 +7,15 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key',
   },
   transpilePackages: ['@4peeqtech/ticket-widget'],
+  async redirects() {
+    return [
+      {
+        source: '/admin/compras/materia-prima',
+        destination: '/admin/compras/insumos',
+        permanent: true,
+      },
+    ]
+  },
 }
 
 export default nextConfig
