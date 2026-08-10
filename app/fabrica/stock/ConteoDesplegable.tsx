@@ -13,6 +13,7 @@ import Collapsible from '@/components/ui/Collapsible'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 const DIA_NOMBRE = ['', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+const PERIODO_ABREV = { semanal: 'sem', quincenal: 'quinc', mensual: 'mes' } as const
 
 export interface ItemConteoUI {
   conteoItemId: string
@@ -23,7 +24,7 @@ export interface ItemConteoUI {
   cantidadPorMasa: number
   redondeo: Redondeo
   modoCalculo: ModoCalculo
-  metaSemanal: number
+  meta: number
   cantidadFija: number
   cantidad: number
 }
@@ -52,6 +53,7 @@ export interface DefinicionConDatos {
   icono: string | null
   diaSemana: number
   pideMasas: boolean
+  periodicidad: 'semanal' | 'quincenal' | 'mensual'
   desdeTurno: 'manana' | 'tarde'
   hastaTurno: 'manana' | 'tarde'
   conteo: ConteoBorrador
@@ -154,7 +156,7 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
         cantidadPorUnidad: i.cantidadPorUnidad,
         cantidadUnidades: i.cantidad,
         redondeo: i.redondeo,
-        metaSemanal: i.metaSemanal,
+        meta: i.meta,
         cantidadFija: i.cantidadFija,
       },
       conteo.masas_proyectadas
@@ -282,7 +284,7 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
               />
               <p className="text-[10px] text-[#666]">
                 {i.unidad}
-                {i.modoCalculo === 'meta_semanal' && i.metaSemanal > 0 && ` · meta ${i.metaSemanal}/sem`}
+                {i.modoCalculo === 'meta_semanal' && i.meta > 0 && ` · meta ${i.meta}/${PERIODO_ABREV[definicion.periodicidad]}`}
                 {i.modoCalculo === 'por_masa' && i.cantidadPorMasa > 0 && ` · ${i.cantidadPorMasa}/masa`}
               </p>
               {falta && (

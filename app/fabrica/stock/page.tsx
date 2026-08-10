@@ -5,6 +5,8 @@ import { calcularSemanaConteo } from '@/lib/fabrica/semanaConteo'
 import type { Redondeo, ModoCalculo } from '@/lib/fabrica/calculoSugerido'
 import StockClient, { type DefinicionConDatos, type ConteoBorrador, type ItemConteoUI, type ConteoHistorial } from './StockClient'
 
+type Periodicidad = 'semanal' | 'quincenal' | 'mensual'
+
 interface DefinicionRow {
   id: string
   nombre: string
@@ -14,6 +16,7 @@ interface DefinicionRow {
   dias_ventana: number
   turno_hasta: 'manana' | 'tarde'
   pide_masas: boolean
+  periodicidad: Periodicidad
 }
 
 export default async function FabricaStockPage() {
@@ -22,7 +25,7 @@ export default async function FabricaStockPage() {
 
   const { data: definicionesData } = await supabase
     .from('fabrica_conteo_definiciones')
-    .select('id, nombre, icono, dia_semana, turno_desde, dias_ventana, turno_hasta, pide_masas')
+    .select('id, nombre, icono, dia_semana, turno_desde, dias_ventana, turno_hasta, pide_masas, periodicidad')
     .eq('activo', true)
     .order('orden')
 
@@ -93,7 +96,7 @@ export default async function FabricaStockPage() {
     ? await supabase
         .from('fabrica_conteo_definicion_items')
         .select(`
-          definicion_id, item_id, modo_calculo, meta_semanal, cantidad_fija, orden,
+          definicion_id, item_id, modo_calculo, meta, cantidad_fija, orden,
           compras_items(nombre, unidad, cantidad_por_unidad, cantidad_por_masa, redondeo)
         `)
         .eq('activo', true)
@@ -105,7 +108,7 @@ export default async function FabricaStockPage() {
     definicion_id: string
     item_id: string
     modo_calculo: ModoCalculo
-    meta_semanal: number
+    meta: number
     cantidad_fija: number
     compras_items: { nombre: string; unidad: string; cantidad_por_unidad: number; cantidad_por_masa: number; redondeo: Redondeo } | null
   }
@@ -156,7 +159,7 @@ export default async function FabricaStockPage() {
           cantidadPorMasa: catalogo.cantidad_por_masa,
           redondeo: catalogo.redondeo,
           modoCalculo: di.modo_calculo,
-          metaSemanal: di.meta_semanal,
+          meta: di.meta,
           cantidadFija: di.cantidad_fija,
           cantidad: ci?.cantidad ?? 0,
         }
@@ -177,6 +180,7 @@ export default async function FabricaStockPage() {
       icono: def.icono,
       diaSemana: def.dia_semana,
       pideMasas: def.pide_masas,
+      periodicidad: def.periodicidad,
       desdeTurno: def.turno_desde,
       hastaTurno: def.turno_hasta,
       conteo,

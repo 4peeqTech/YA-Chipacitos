@@ -27,7 +27,7 @@ interface CompraItem {
   categoria_id: string | null
   nombre: string
   unidad: string
-  meta_semanal: number
+  stock_minimo: number
   cantidad_por_unidad: number
   cantidad_por_masa: number
   redondeo: Redondeo
@@ -51,6 +51,7 @@ const emptyForm = (): Partial<CompraItem> => ({
   unidad: '',
   cantidad_por_unidad: 1,
   cantidad_por_masa: 0,
+  stock_minimo: 0,
   redondeo: 'estandar',
   precio: null,
   estado: 'activo',
@@ -232,6 +233,12 @@ export default function InsumosClient({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Proveedor</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Unidad</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Cant./masa</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">
+                    <span className="flex items-center gap-1">
+                      Stock mín.
+                      <HelpTooltip text="Piso general de este insumo para cualquier proveedor, sin relación con los conteos — lo usan la sugerencia de /admin/compras/pedidos y el indicador de bajo stock de /admin/compras/stock." />
+                    </span>
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Redondeo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Precio</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">
@@ -252,6 +259,7 @@ export default function InsumosClient({
                     <td className="px-4 py-3 text-[#888]">{nombreProveedor(i.proveedor_id)}</td>
                     <td className="px-4 py-3 text-[#888]">{i.unidad}</td>
                     <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{i.cantidad_por_masa > 0 ? i.cantidad_por_masa : '—'}</td>
+                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{i.stock_minimo > 0 ? i.stock_minimo : '—'}</td>
                     <td className="px-4 py-3 text-[#888] hidden lg:table-cell text-xs">{REDONDEO_LABEL[i.redondeo] ?? i.redondeo}</td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.precio != null ? `$${i.precio.toLocaleString('es-AR')}` : '—'}</td>
                     <td className="px-4 py-3 text-[#888] hidden lg:table-cell text-xs">
@@ -341,6 +349,13 @@ export default function InsumosClient({
               <HelpTooltip text="Cuánto de este insumo entra en una masa (un batch de producción) — la receta. La necesidad sugerida = cantidad por masa × masas proyectadas. Dejalo en 0 si no entra en ninguna receta." />
             </label>
             <InputNumero placeholder="0" className={inputClass} value={!form.cantidad_por_masa ? null : form.cantidad_por_masa} onChange={v => setForm(f => ({...f, cantidad_por_masa: v ?? 0}))} />
+          </div>
+          <div>
+            <label className={labelClass}>
+              Stock mínimo
+              <HelpTooltip text="Piso general de este insumo, sin relación con ningún conteo — lo usan la sugerencia de /admin/compras/pedidos y el indicador de bajo stock de /admin/compras/stock. Si el insumo participa de un conteo, ese conteo tiene su propia meta independiente de esta." />
+            </label>
+            <InputNumero placeholder="0" className={inputClass} value={!form.stock_minimo ? null : form.stock_minimo} onChange={v => setForm(f => ({...f, stock_minimo: v ?? 0}))} />
           </div>
           <div>
             <label className={labelClass}>

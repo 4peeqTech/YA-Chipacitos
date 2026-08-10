@@ -20,7 +20,7 @@ interface CompraItem {
   proveedor_id: string
   nombre: string
   unidad: string
-  meta_semanal: number
+  stock_minimo: number
 }
 
 interface StockActual {
@@ -99,7 +99,7 @@ export default function PedidosClient({
     return itemsCatalogo
       .filter(i => i.proveedor_id === proveedorId)
       .map(i => {
-        const cantidad = proveedor?.maneja_stock ? Math.max(0, i.meta_semanal - (stockPorItem[i.id] ?? 0)) : 0
+        const cantidad = proveedor?.maneja_stock ? Math.max(0, i.stock_minimo - (stockPorItem[i.id] ?? 0)) : 0
         return { item_id: i.id, descripcion: i.nombre, unidad: i.unidad, cantidad, incluir: cantidad > 0 }
       })
   }

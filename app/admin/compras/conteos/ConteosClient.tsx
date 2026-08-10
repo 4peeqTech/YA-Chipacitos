@@ -11,6 +11,7 @@ import SelectBuscador from '@/components/ui/SelectBuscador'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 type Turno = 'manana' | 'tarde'
+type Periodicidad = 'semanal' | 'quincenal' | 'mensual'
 
 interface Definicion {
   id: string
@@ -21,6 +22,8 @@ interface Definicion {
   dias_ventana: number
   turno_hasta: Turno
   pide_masas: boolean
+  periodicidad: Periodicidad
+  modulo: string
   orden: number
   activo: boolean
 }
@@ -30,7 +33,7 @@ interface DefinicionItem {
   definicion_id: string
   item_id: string
   modo_calculo: ModoCalculo
-  meta_semanal: number
+  meta: number
   cantidad_fija: number
   orden: number
   activo: boolean
@@ -53,18 +56,26 @@ const DIA_OPCIONES = [
   { value: 4, label: 'Jueves' }, { value: 5, label: 'Viernes' }, { value: 6, label: 'Sábado' }, { value: 7, label: 'Domingo' },
 ]
 
+const PERIODO_LABEL: Record<Periodicidad, string> = {
+  semanal: 'semanal', quincenal: 'quincenal', mensual: 'mensual',
+}
+
+const MODULO_LABEL: Record<string, string> = {
+  fabrica: 'Fábrica',
+}
+
 const MODO_LABEL: Record<ModoCalculo, string> = {
   por_masa: 'Por masa (receta × proyección)',
-  meta_semanal: 'Meta semanal (piso fijo)',
+  meta_semanal: 'Meta del período (piso fijo)',
   cantidad_fija: 'Cantidad fija',
 }
 
 const emptyDefForm = (): Partial<Definicion> => ({
-  nombre: '', icono: '', dia_semana: 1, turno_desde: 'tarde', dias_ventana: 3, turno_hasta: 'manana', pide_masas: false, orden: 0,
+  nombre: '', icono: '', dia_semana: 1, turno_desde: 'tarde', dias_ventana: 3, turno_hasta: 'manana', pide_masas: false, periodicidad: 'semanal', orden: 0,
 })
 
-const emptyItemForm = (): { item_id: string; modo_calculo: ModoCalculo; meta_semanal: number; cantidad_fija: number; orden: number } => ({
-  item_id: '', modo_calculo: 'por_masa', meta_semanal: 0, cantidad_fija: 0, orden: 0,
+const emptyItemForm = (): { item_id: string; modo_calculo: ModoCalculo; meta: number; cantidad_fija: number; orden: number } => ({
+  item_id: '', modo_calculo: 'por_masa', meta: 0, cantidad_fija: 0, orden: 0,
 })
 
 export default function ConteosClient({
@@ -133,6 +144,7 @@ export default function ConteosClient({
       dias_ventana: Number(formDef.dias_ventana ?? 3),
       turno_hasta: formDef.turno_hasta ?? 'manana',
       pide_masas: !!formDef.pide_masas,
+      periodicidad: formDef.periodicidad ?? 'semanal',
       orden: Number(formDef.orden ?? 0),
     }
 
@@ -186,7 +198,7 @@ export default function ConteosClient({
       definicion_id: gestionando.id,
       item_id: formItem.item_id,
       modo_calculo: formItem.modo_calculo,
-      meta_semanal: formItem.modo_calculo === 'cantidad_fija' ? 0 : Number(formItem.meta_semanal ?? 0),
+      meta: formItem.modo_calculo === 'cantidad_fija' ? 0 : Number(formItem.meta ?? 0),
       cantidad_fija: formItem.modo_calculo === 'cantidad_fija' ? Number(formItem.cantidad_fija ?? 0) : 0,
       orden: Number(formItem.orden ?? 0),
     }
@@ -242,8 +254,10 @@ export default function ConteosClient({
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Nombre</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Día</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Período</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Ventana</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Pide masas</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Módulo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Ítems</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
@@ -254,8 +268,10 @@ export default function ConteosClient({
                   <tr key={d.id} className={`hover:bg-[#1a1a1a] transition-colors ${!d.activo ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3 text-[#f0f0f0] font-medium">{d.icono ? `${d.icono} ` : ''}{d.nombre}</td>
                     <td className="px-4 py-3 text-[#888]">{diaLabel(d.dia_semana)}</td>
+                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell capitalize">{PERIODO_LABEL[d.periodicidad]}</td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{d.dias_ventana} días</td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{d.pide_masas ? 'Sí' : 'No'}</td>
+                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{MODULO_LABEL[d.modulo] ?? d.modulo}</td>
                     <td className="px-4 py-3">
                       <button onClick={() => abrirGestionar(d)} className="text-xs font-semibold text-[#e8c547] hover:underline">
                         {itemsDe(d.id).length} ítem{itemsDe(d.id).length === 1 ? '' : 's'}
@@ -312,8 +328,19 @@ export default function ConteosClient({
           </div>
           <div>
             <label className={labelClass}>
+              Período
+              <HelpTooltip text="Cada cuánto se repite este conteo. Por ahora es solo informativo — la fecha del próximo conteo se sigue calculando semana a semana; cuando haga falta un conteo quincenal o mensual de verdad, se termina de programar la rotación." />
+            </label>
+            <select className={inputClass} value={formDef.periodicidad ?? 'semanal'} onChange={e => setFormDef(f => ({ ...f, periodicidad: e.target.value as Periodicidad }))}>
+              <option value="semanal">Semanal</option>
+              <option value="quincenal">Quincenal</option>
+              <option value="mensual">Mensual</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>
               Ventana (días)
-              <HelpTooltip text="Cuántos días cubre la proyección desde el día del conteo. Define cuándo el conteo de esta semana pasa a ser el de la próxima." />
+              <HelpTooltip text="Cuántos días cubre la proyección desde el día del conteo — no es lo mismo que el período: Global es semanal pero solo proyecta 3 días (martes tarde a viernes mañana)." />
             </label>
             <InputNumero enteros placeholder="3" className={inputClass} value={formDef.dias_ventana ?? null} onChange={v => setFormDef(f => ({ ...f, dias_ventana: v ?? 0 }))} />
           </div>
@@ -402,7 +429,7 @@ export default function ConteosClient({
                         <tr key={i.id} className="hover:bg-[#1a1a1a] transition-colors">
                           <td className="px-3 py-2 text-[#f0f0f0]">{nombreCatalogo(i.item_id)}</td>
                           <td className="px-3 py-2 text-[#888] text-xs">{MODO_LABEL[i.modo_calculo]}</td>
-                          <td className="px-3 py-2 text-[#888]">{i.modo_calculo === 'cantidad_fija' ? i.cantidad_fija : (i.meta_semanal || '—')}</td>
+                          <td className="px-3 py-2 text-[#888]">{i.modo_calculo === 'cantidad_fija' ? i.cantidad_fija : (i.meta || '—')}</td>
                           <td className="px-3 py-2 text-right">
                             <button onClick={() => setEliminandoItem(i)} title="Quitar" aria-label={`Quitar ${nombreCatalogo(i.item_id)}`} className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-[#888] hover:text-red-400 hover:bg-red-900/20 transition-colors">
                               <Trash2 size={14} />
@@ -442,10 +469,12 @@ export default function ConteosClient({
                 ) : (
                   <div>
                     <label className={labelClass}>
-                      {formItem.modo_calculo === 'meta_semanal' ? 'Meta semanal' : 'Meta semanal (piso, opcional)'}
-                      <HelpTooltip text={formItem.modo_calculo === 'meta_semanal' ? 'El pedido siempre completa hasta esta cantidad.' : 'Si se completa, el sugerido nunca baja de esta cantidad aunque la receta pida menos.'} />
+                      {formItem.modo_calculo === 'meta_semanal'
+                        ? `Meta ${PERIODO_LABEL[gestionando.periodicidad]}`
+                        : `Meta ${PERIODO_LABEL[gestionando.periodicidad]} (piso, opcional)`}
+                      <HelpTooltip text={formItem.modo_calculo === 'meta_semanal' ? 'El pedido siempre completa hasta esta cantidad, cada vez que se cierra este conteo.' : 'Si se completa, el sugerido nunca baja de esta cantidad aunque la receta pida menos.'} />
                     </label>
-                    <InputNumero placeholder="0" className={inputClass} value={formItem.meta_semanal || null} onChange={v => setFormItem(f => ({ ...f, meta_semanal: v ?? 0 }))} />
+                    <InputNumero placeholder="0" className={inputClass} value={formItem.meta || null} onChange={v => setFormItem(f => ({ ...f, meta: v ?? 0 }))} />
                   </div>
                 )}
                 <div>

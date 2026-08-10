@@ -7,7 +7,7 @@ interface CompraItem {
   id: string
   nombre: string
   unidad: string
-  meta_semanal: number
+  stock_minimo: number
 }
 
 interface StockActual {
@@ -79,7 +79,7 @@ export default function StockClient({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-[#f0f0f0]">Stock</h1>
-        <p className="text-[#888] text-sm mt-0.5">Cargá la cantidad actual de cada insumo. Se marca en rojo cuando está por debajo de la meta semanal.</p>
+        <p className="text-[#888] text-sm mt-0.5">Cargá la cantidad actual de cada insumo. Se marca en rojo cuando está por debajo del stock mínimo.</p>
       </div>
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
@@ -94,7 +94,7 @@ export default function StockClient({
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Insumo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Unidad</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Meta semanal</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Stock mínimo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Cantidad actual</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
@@ -103,12 +103,12 @@ export default function StockClient({
               <tbody className="divide-y divide-[#2a2a2a]">
                 {items.map(i => {
                   const cantidadGuardada = stockPorItem[i.id]?.cantidad ?? 0
-                  const bajo = cantidadGuardada < i.meta_semanal
+                  const bajo = cantidadGuardada < i.stock_minimo
                   return (
                     <tr key={i.id} className="hover:bg-[#1a1a1a] transition-colors">
                       <td className="px-4 py-3 text-[#f0f0f0] font-medium">{i.nombre}</td>
                       <td className="px-4 py-3 text-[#888]">{i.unidad}</td>
-                      <td className="px-4 py-3 text-[#888]">{i.meta_semanal}</td>
+                      <td className="px-4 py-3 text-[#888]">{i.stock_minimo}</td>
                       <td className="px-4 py-3">
                         <input
                           type="number"

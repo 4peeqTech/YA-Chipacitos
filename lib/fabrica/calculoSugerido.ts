@@ -7,7 +7,7 @@ export interface ItemCatalogo {
   cantidadPorUnidad: number
   cantidadUnidades: number
   redondeo: Redondeo
-  metaSemanal: number
+  meta: number
   cantidadFija: number
 }
 
@@ -16,14 +16,16 @@ export interface NecesidadSugerido {
   sugeridoUnidades: number
 }
 
-// Misma fórmula que el RPC cerrar_conteo_fabrica (supabase/migrations/*_fabrica_conteos_parametrizables.sql).
-// necesidad = cantidad_por_masa × masas proyectadas (0 si el ítem no tiene receta,
-// como los de modo cantidad_fija/meta_semanal). El sugerido depende del modo de
-// cálculo que la definición del conteo le asignó al ítem:
+// Misma fórmula que el RPC cerrar_conteo_fabrica (supabase/migrations/*_fabrica_conteos_parametrizables.sql
+// y su follow-up *_fabrica_meta_periodicidad_modulo.sql). necesidad = cantidad_por_masa ×
+// masas proyectadas (0 si el ítem no tiene receta, como los de modo cantidad_fija/meta_semanal).
+// El sugerido depende del modo de cálculo que la definición del conteo le asignó al ítem:
 //   'cantidad_fija'  → siempre esa cantidad, sin importar lo contado (docs/analisis-motor-calculo-legacy.md)
-//   'meta_semanal'   → max(0, meta_semanal − contado) — el faltante contra un piso semanal fijo
+//   'meta_semanal'   → max(0, meta − contado) — el faltante contra un piso fijo. El nombre del
+//                      modo quedó de cuando todo conteo era semanal; el período real (semanal/
+//                      quincenal/mensual) lo define la definición del conteo, no el ítem.
 //   'por_masa'       → faltante = necesidad − contado×cantidad_por_unidad, redondeado por
-//                      la regla del ítem, con meta_semanal (si > 0) como piso: nunca sugiere
+//                      la regla del ítem, con meta (si > 0) como piso: nunca sugiere
 //                      menos que el faltante contra la meta, aunque la receta pida menos
 // Redondeo por ítem (independiente del modo, salvo 'sin_calculo' que corta todo a 0):
 //   'estandar'       → floor si falta menos de media unidad, ceil si falta media o más
@@ -46,7 +48,7 @@ export function calcularNecesidadYSugerido(item: ItemCatalogo, masasProyectadas:
   }
 
   if (item.modoCalculo === 'meta_semanal') {
-    return { necesidad, sugeridoUnidades: Math.max(0, item.metaSemanal - item.cantidadUnidades) }
+    return { necesidad, sugeridoUnidades: Math.max(0, item.meta - item.cantidadUnidades) }
   }
 
   if (item.cantidadPorUnidad <= 0) {
@@ -60,7 +62,7 @@ export function calcularNecesidadYSugerido(item: ItemCatalogo, masasProyectadas:
     item.redondeo === 'siempre_arriba' ? Math.ceil(fraccion) :
     item.redondeo === 'siempre_abajo' ? Math.floor(fraccion) :
     Math.round(fraccion)
-  const piso = item.metaSemanal > 0 ? Math.max(0, item.metaSemanal - item.cantidadUnidades) : 0
+  const piso = item.meta > 0 ? Math.max(0, item.meta - item.cantidadUnidades) : 0
 
   return { necesidad, sugeridoUnidades: Math.max(porMasa, piso) }
 }
