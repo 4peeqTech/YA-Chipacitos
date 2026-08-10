@@ -102,6 +102,7 @@ export default function ConteosClient({
 
   const [gestionando, setGestionando] = useState<Definicion | null>(null)
   const [formItem, setFormItem] = useState(emptyItemForm())
+  const [editandoItem, setEditandoItem] = useState<DefinicionItem | null>(null)
   const [eliminandoItem, setEliminandoItem] = useState<DefinicionItem | null>(null)
 
   const [isPending, startTransition] = useTransition()
@@ -188,15 +189,24 @@ export default function ConteosClient({
   function abrirGestionar(d: Definicion) {
     setGestionando(d)
     setFormItem(emptyItemForm())
+    setEditandoItem(null)
   }
 
-  async function agregarItem() {
+  function abrirEditarItem(i: DefinicionItem) {
+    setEditandoItem(i)
+    setFormItem({ item_id: i.item_id, modo_calculo: i.modo_calculo, meta: i.meta, cantidad_fija: i.cantidad_fija, orden: i.orden })
+  }
+
+  function cancelarEdicionItem() {
+    setEditandoItem(null)
+    setFormItem(emptyItemForm())
+  }
+
+  async function guardarItem() {
     if (!gestionando) return
     if (!formItem.item_id) { toast.error('Elegí un insumo'); return }
 
     const body = {
-      definicion_id: gestionando.id,
-      item_id: formItem.item_id,
       modo_calculo: formItem.modo_calculo,
       meta: formItem.modo_calculo === 'cantidad_fija' ? 0 : Number(formItem.meta ?? 0),
       cantidad_fija: formItem.modo_calculo === 'cantidad_fija' ? Number(formItem.cantidad_fija ?? 0) : 0,
@@ -204,11 +214,19 @@ export default function ConteosClient({
     }
 
     startTransition(async () => {
-      const { data, error } = await supabase.from('fabrica_conteo_definicion_items').insert([{ ...body, activo: true }]).select().single()
-      if (error) { toast.error(error.message); return }
-      setItems(prev => [...prev, data])
-      setFormItem(emptyItemForm())
-      toast.success('Ítem agregado al conteo')
+      if (editandoItem) {
+        const { data, error } = await supabase.from('fabrica_conteo_definicion_items').update(body).eq('id', editandoItem.id).select().single()
+        if (error) { toast.error(error.message); return }
+        setItems(prev => prev.map(i => i.id === editandoItem.id ? data : i))
+        toast.success('Ítem actualizado')
+        cancelarEdicionItem()
+      } else {
+        const { data, error } = await supabase.from('fabrica_conteo_definicion_items').insert([{ ...body, definicion_id: gestionando.id, item_id: formItem.item_id, activo: true }]).select().single()
+        if (error) { toast.error(error.message); return }
+        setItems(prev => [...prev, data])
+        setFormItem(emptyItemForm())
+        toast.success('Ítem agregado al conteo')
+      }
     })
   }
 
@@ -431,9 +449,14 @@ export default function ConteosClient({
                           <td className="px-3 py-2 text-[#888] text-xs">{MODO_LABEL[i.modo_calculo]}</td>
                           <td className="px-3 py-2 text-[#888]">{i.modo_calculo === 'cantidad_fija' ? i.cantidad_fija : (i.meta || '—')}</td>
                           <td className="px-3 py-2 text-right">
-                            <button onClick={() => setEliminandoItem(i)} title="Quitar" aria-label={`Quitar ${nombreCatalogo(i.item_id)}`} className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-[#888] hover:text-red-400 hover:bg-red-900/20 transition-colors">
-                              <Trash2 size={14} />
-                            </button>
+                            <div className="flex gap-1 justify-end">
+                              <button onClick={() => abrirEditarItem(i)} title="Editar" aria-label={`Editar ${nombreCatalogo(i.item_id)}`} className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-[#888] hover:text-[#e8c547] hover:bg-[#2a2a2a] transition-colors">
+                                <Pencil size={14} />
+                              </button>
+                              <button onClick={() => setEliminandoItem(i)} title="Quitar" aria-label={`Quitar ${nombreCatalogo(i.item_id)}`} className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-[#888] hover:text-red-400 hover:bg-red-900/20 transition-colors">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -444,17 +467,28 @@ export default function ConteosClient({
             </div>
 
             <div className="border border-[#2a2a2a] rounded-xl p-4 space-y-3">
-              <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">Agregar insumo</p>
+              <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">
+                {editandoItem ? `Editar — ${nombreCatalogo(editandoItem.item_id)}` : 'Agregar insumo'}
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="md:col-span-2">
-                  <label className={labelClass}>Insumo</label>
-                  <SelectBuscador
-                    value={formItem.item_id}
-                    onChange={v => setFormItem(f => ({ ...f, item_id: v }))}
-                    opciones={itemsDisponibles}
-                    placeholderVacio="Seleccionar insumo..."
-                  />
-                </div>
+                {editandoItem ? (
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Insumo</label>
+                    <p className="text-sm text-[#f0f0f0] px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
+                      {nombreCatalogo(editandoItem.item_id)}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Insumo</label>
+                    <SelectBuscador
+                      value={formItem.item_id}
+                      onChange={v => setFormItem(f => ({ ...f, item_id: v }))}
+                      opciones={itemsDisponibles}
+                      placeholderVacio="Seleccionar insumo..."
+                    />
+                  </div>
+                )}
                 <div>
                   <label className={labelClass}>Modo de cálculo</label>
                   <select className={inputClass} value={formItem.modo_calculo} onChange={e => setFormItem(f => ({ ...f, modo_calculo: e.target.value as ModoCalculo }))}>
@@ -482,9 +516,16 @@ export default function ConteosClient({
                   <InputNumero enteros placeholder="0" className={inputClass} value={formItem.orden || null} onChange={v => setFormItem(f => ({ ...f, orden: v ?? 0 }))} />
                 </div>
               </div>
-              <button onClick={agregarItem} disabled={isPending} className="w-full flex items-center justify-center gap-1.5 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 rounded-lg transition-all">
-                <Plus size={15} /> Agregar
-              </button>
+              <div className="flex gap-2">
+                <button onClick={guardarItem} disabled={isPending} className="flex-1 flex items-center justify-center gap-1.5 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 rounded-lg transition-all">
+                  {editandoItem ? (isPending ? 'Guardando...' : 'Guardar cambios') : <><Plus size={15} /> Agregar</>}
+                </button>
+                {editandoItem && (
+                  <button onClick={cancelarEdicionItem} disabled={isPending} className="flex-1 border border-[#2a2a2a] text-[#888] hover:text-[#f0f0f0] font-semibold text-sm py-2 rounded-lg transition-all disabled:opacity-40">
+                    Cancelar
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
