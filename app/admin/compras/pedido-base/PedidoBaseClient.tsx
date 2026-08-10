@@ -6,6 +6,7 @@ import { ClipboardList, Pencil, Plus, Send, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
+import InputNumero from '@/components/ui/InputNumero'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 interface ProveedorOption {
@@ -299,11 +300,11 @@ export default function PedidoBaseClient({
           </div>
           <div>
             <label className={labelClass}>Cantidad</label>
-            <input type="number" step="0.01" placeholder="0" className={inputClass} value={!form.cantidad ? '' : form.cantidad} onChange={e => setForm(f => ({ ...f, cantidad: Number(e.target.value) }))} />
+            <InputNumero placeholder="0" className={inputClass} value={!form.cantidad ? null : form.cantidad} onChange={v => setForm(f => ({ ...f, cantidad: v ?? 0 }))} />
           </div>
           <div>
             <label className={labelClass}>Orden</label>
-            <input type="number" placeholder="0" className={inputClass} value={!form.orden ? '' : form.orden} onChange={e => setForm(f => ({ ...f, orden: Number(e.target.value) }))} />
+            <InputNumero enteros placeholder="0" className={inputClass} value={!form.orden ? null : form.orden} onChange={v => setForm(f => ({ ...f, orden: v ?? 0 }))} />
           </div>
         </div>
 

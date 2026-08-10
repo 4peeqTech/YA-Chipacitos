@@ -8,6 +8,7 @@ import { calcularNecesidadYSugerido, faltanteBolsaplast, calcularHuevos, type Re
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
+import InputNumero from '@/components/ui/InputNumero'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 export interface BolsaplastItem {
@@ -259,11 +260,10 @@ export default function StockClient({
             Masas proyectadas esta semana
             <HelpTooltip text="Cuántas masas (batches de producción) proyectás hacer desde el martes a la tarde hasta el viernes a la mañana. Define cuánto de cada materia prima hace falta y cuántos huevos se necesitan." />
           </label>
-          <input
-            type="number" inputMode="decimal" step="1"
+          <InputNumero
             placeholder="0"
-            value={conteo.masas_proyectadas === 0 ? '' : conteo.masas_proyectadas}
-            onChange={e => actualizarMasasProyectadas(Number(e.target.value))}
+            value={conteo.masas_proyectadas === 0 ? null : conteo.masas_proyectadas}
+            onChange={v => actualizarMasasProyectadas(v ?? 0)}
             className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2.5 text-base focus:outline-none focus:border-[#e8c547] transition-colors"
           />
         </div>
@@ -327,11 +327,10 @@ export default function StockClient({
               return (
                 <div key={i.itemId} className={tileClass(falta)}>
                   <p className="text-[11px] font-semibold text-[#999] uppercase tracking-wide leading-tight">{i.nombre}</p>
-                  <input
-                    type="number" inputMode="decimal" step="1"
+                  <InputNumero
                     placeholder="0"
-                    value={i.cantidad === 0 ? '' : i.cantidad}
-                    onChange={e => actualizarCantidadBolsaplast(i.itemId, Number(e.target.value))}
+                    value={i.cantidad === 0 ? null : i.cantidad}
+                    onChange={v => actualizarCantidadBolsaplast(i.itemId, v ?? 0)}
                     className={`${tileInputClass} ${falta ? 'text-red-300' : 'text-[#f0f0f0]'}`}
                   />
                   <p className="text-[10px] text-[#666]">
@@ -357,11 +356,10 @@ export default function StockClient({
               return (
                 <div key={i.materiaPrimaId} className={tileClass(falta)}>
                   <p className="text-[11px] font-semibold text-[#999] uppercase tracking-wide leading-tight">{i.nombre}</p>
-                  <input
-                    type="number" inputMode="decimal" step="1"
+                  <InputNumero
                     placeholder="0"
-                    value={i.cantidad === 0 ? '' : i.cantidad}
-                    onChange={e => actualizarCantidadMateriaPrima(i.materiaPrimaId, Number(e.target.value))}
+                    value={i.cantidad === 0 ? null : i.cantidad}
+                    onChange={v => actualizarCantidadMateriaPrima(i.materiaPrimaId, v ?? 0)}
                     className={`${tileInputClass} ${falta ? 'text-red-300' : 'text-[#f0f0f0]'}`}
                   />
                   <p className="text-[10px] text-[#666]">
@@ -392,11 +390,10 @@ export default function StockClient({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] text-[#888] mb-1">Cajones disponibles</label>
-                <input
-                  type="number" inputMode="decimal" step="1"
+                <InputNumero
                   placeholder="0"
-                  value={conteo.huevos_cajones_disponibles === 0 ? '' : conteo.huevos_cajones_disponibles}
-                  onChange={e => actualizarHuevosCajones(Number(e.target.value))}
+                  value={conteo.huevos_cajones_disponibles === 0 ? null : conteo.huevos_cajones_disponibles}
+                  onChange={v => actualizarHuevosCajones(v ?? 0)}
                   className={`${tileInputClass} ${previewHuevos.cajonesFaltantes > 0 ? 'text-red-300' : 'text-[#f0f0f0]'}`}
                 />
               </div>

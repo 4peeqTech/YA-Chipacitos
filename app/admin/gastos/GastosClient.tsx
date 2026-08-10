@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import InputNumero from '@/components/ui/InputNumero'
 import { RUBROS_CATEGORIAS, RUBROS, LOCALES, FORMAS_PAGO, ESTADOS_GASTO } from '@/lib/gastos-constants'
 
 interface Proveedor { id: string; nombre: string }
@@ -193,14 +194,12 @@ export default function GastosClient() {
             {/* MONTO */}
             <div>
               <label className={labelClass}>$ Monto ARS</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
+              <InputNumero
+                min={0}
                 placeholder="solo el número, sin $"
                 className={inputClass}
-                value={form.monto}
-                onChange={e => setField('monto', e.target.value)}
+                value={form.monto === '' ? null : Number(form.monto)}
+                onChange={v => setField('monto', v == null ? '' : String(v))}
               />
             </div>
 

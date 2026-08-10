@@ -5,6 +5,7 @@ import { Snowflake, Plus, Trash2, Save, AlertTriangle, Sun, Moon } from 'lucide-
 import { createClient } from '@/lib/supabase/client'
 import { agruparPoolCongelado, type ProduccionCongelado, type EmbolsadoLinea, type PoolCongelado } from '@/lib/fabrica/pools'
 import Card from '@/components/ui/Card'
+import InputNumero from '@/components/ui/InputNumero'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 export interface Parametro {
@@ -228,11 +229,11 @@ export default function EmbolsadoClient({
                       >
                         {presentaciones.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                       </select>
-                      <input
-                        type="number" inputMode="decimal" step="0.01" min={0}
+                      <InputNumero
+                        min={0}
                         placeholder="0"
-                        value={linea.cantidadKg === 0 ? '' : linea.cantidadKg}
-                        onChange={e => actualizarLinea(key, idx, { cantidadKg: Number(e.target.value) })}
+                        value={linea.cantidadKg === 0 ? null : linea.cantidadKg}
+                        onChange={v => actualizarLinea(key, idx, { cantidadKg: v ?? 0 })}
                         className="w-24 shrink-0 bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-2.5 text-sm text-right focus:outline-none focus:border-[#e8c547]"
                       />
                       <button

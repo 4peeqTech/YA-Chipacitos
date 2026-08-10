@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { masaDesdeFecula } from '@/lib/fabrica/rendimiento'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
+import InputNumero from '@/components/ui/InputNumero'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 export interface Parametro {
@@ -258,21 +259,21 @@ export default function ProduccionClient({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-[#888] mb-1 block">Fécula (kg)</label>
-            <input
-              type="number" inputMode="decimal" step="0.01" min={0}
+            <InputNumero
+              min={0}
               placeholder="0"
-              value={feculaKg === 0 ? '' : feculaKg}
-              onChange={e => onFeculaChange(Number(e.target.value))}
+              value={feculaKg === 0 ? null : feculaKg}
+              onChange={v => onFeculaChange(v ?? 0)}
               className={inputClass}
             />
           </div>
           <div>
             <label className="text-xs text-[#888] mb-1 block">Masa (kg)</label>
-            <input
-              type="number" inputMode="decimal" step="0.01" min={0}
+            <InputNumero
+              min={0}
               placeholder="0"
-              value={masaKg === 0 ? '' : masaKg}
-              onChange={e => onMasaChange(Number(e.target.value))}
+              value={masaKg === 0 ? null : masaKg}
+              onChange={v => onMasaChange(v ?? 0)}
               className={inputClass}
             />
           </div>

@@ -9,6 +9,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
+import InputNumero from '@/components/ui/InputNumero'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 interface ConteoRef {
@@ -267,12 +268,11 @@ export default function SolicitudesClient({
                       <p className="text-sm text-[#f0f0f0] truncate">{i.descripcion}</p>
                       <p className="text-xs text-[#666]">sugerido {i.cantidad_sugerida} {i.unidad}</p>
                     </div>
-                    <input
-                      type="number" inputMode="decimal" step="0.01"
+                    <InputNumero
                       placeholder="0"
-                      value={i.cantidad_ajustada === 0 ? '' : i.cantidad_ajustada}
+                      value={i.cantidad_ajustada === 0 ? null : i.cantidad_ajustada}
                       disabled={abierta.estado !== 'abierta'}
-                      onChange={e => actualizarCantidad(i.id, Number(e.target.value))}
+                      onChange={v => actualizarCantidad(i.id, v ?? 0)}
                       className={inputClass}
                     />
                     <select

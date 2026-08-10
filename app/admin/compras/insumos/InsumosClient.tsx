@@ -5,6 +5,7 @@ import { Archive, ArchiveRestore, Pencil, Plus, Search, Trash2 } from 'lucide-re
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
+import InputNumero from '@/components/ui/InputNumero'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 interface ProveedorOption {
@@ -277,11 +278,11 @@ export default function InsumosClient({
           </div>
           <div>
             <label className={labelClass}>Meta semanal</label>
-            <input type="number" step="0.01" placeholder="0" className={inputClass} value={!form.meta_semanal ? '' : form.meta_semanal} onChange={e => setForm(f => ({...f, meta_semanal: Number(e.target.value)}))} />
+            <InputNumero placeholder="0" className={inputClass} value={!form.meta_semanal ? null : form.meta_semanal} onChange={v => setForm(f => ({...f, meta_semanal: v ?? 0}))} />
           </div>
           <div>
             <label className={labelClass}>Precio</label>
-            <input type="number" step="0.01" className={inputClass} value={form.precio ?? ''} onChange={e => setForm(f => ({...f, precio: e.target.value === '' ? null : Number(e.target.value)}))} />
+            <InputNumero className={inputClass} value={form.precio ?? null} onChange={v => setForm(f => ({...f, precio: v}))} />
           </div>
           <div className="md:col-span-2 pt-1">
             <label className="inline-flex items-center gap-2 text-sm text-[#f0f0f0] cursor-pointer">

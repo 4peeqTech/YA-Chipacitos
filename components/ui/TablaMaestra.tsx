@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import Modal from './Modal'
+import InputNumero from './InputNumero'
 import { useToasts, ToastStack } from './Toast'
 
 interface Item { id: string; nombre: string; activo: boolean; [key: string]: unknown }
@@ -220,13 +221,11 @@ export default function TablaMaestra({ titulo, descripcion, apiPath, singular, c
           {campoExtra && (
             <div>
               <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">{campoExtra.label}</label>
-              <input
-                type="number"
-                step={campoExtra.step ?? 'any'}
+              <InputNumero
                 placeholder="0"
                 className={inputClass}
-                value={formExtra}
-                onChange={e => setFormExtra(e.target.value)}
+                value={formExtra === '' ? null : Number(formExtra)}
+                onChange={v => setFormExtra(v == null ? '' : String(v))}
                 onKeyDown={e => e.key === 'Enter' && guardar()}
               />
             </div>
