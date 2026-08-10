@@ -316,7 +316,7 @@ export default function ProduccionClient({
           </p>
           {hayCongeladoEnLista && (
             <Link
-              href="/fabrica/embolsado"
+              href="/fabrica/registro/embolsado"
               className="flex items-center gap-1 text-[11px] font-medium text-[#888] hover:text-[#e8c547] transition-colors shrink-0"
             >
               Ver embolsado <ArrowRight size={11} />

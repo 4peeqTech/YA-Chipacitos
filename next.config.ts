@@ -14,6 +14,16 @@ const nextConfig: NextConfig = {
         destination: '/admin/compras/insumos',
         permanent: true,
       },
+      {
+        source: '/fabrica/produccion',
+        destination: '/fabrica/registro/produccion',
+        permanent: true,
+      },
+      {
+        source: '/fabrica/embolsado',
+        destination: '/fabrica/registro/embolsado',
+        permanent: true,
+      },
     ]
   },
 }
