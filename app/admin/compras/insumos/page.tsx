@@ -9,7 +9,7 @@ export default async function InsumosPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: items }, { data: proveedores }, { data: categorias }] = await Promise.all([
+  const [{ data: items }, { data: proveedores }, { data: categorias }, { data: definicionItems }] = await Promise.all([
     supabase.from('compras_items').select('*').order('nombre'),
     supabase
       .from('proveedores')
@@ -18,7 +18,25 @@ export default async function InsumosPage() {
       .eq('estado', 'activo')
       .order('nombre'),
     supabase.from('compras_categorias').select('id, nombre').order('orden'),
+    supabase
+      .from('fabrica_conteo_definicion_items')
+      .select('item_id, fabrica_conteo_definiciones(nombre)')
+      .eq('activo', true),
   ])
 
-  return <InsumosClient itemsIniciales={items ?? []} proveedores={proveedores ?? []} categorias={categorias ?? []} />
+  const conteosPorItem: Record<string, string[]> = {}
+  for (const di of (definicionItems ?? []) as unknown as { item_id: string; fabrica_conteo_definiciones: { nombre: string } | null }[]) {
+    if (!di.fabrica_conteo_definiciones) continue
+    conteosPorItem[di.item_id] ??= []
+    conteosPorItem[di.item_id].push(di.fabrica_conteo_definiciones.nombre)
+  }
+
+  return (
+    <InsumosClient
+      itemsIniciales={items ?? []}
+      proveedores={proveedores ?? []}
+      categorias={categorias ?? []}
+      conteosPorItem={conteosPorItem}
+    />
+  )
 }

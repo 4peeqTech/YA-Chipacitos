@@ -2,39 +2,46 @@ import { diaFabrica, sumarDias } from './diaFabrica'
 
 export interface SemanaConteo {
   fecha: string            // día en que se abre/retoma el conteo (ART)
-  semanaDesde: string      // martes ancla de la ventana
-  semanaHasta: string      // viernes de esa misma semana
-  desdeTurno: 'tarde'      // el conteo se hace el martes a la mañana
-  hastaTurno: 'manana'
+  semanaDesde: string      // ancla de la ventana (el dia_semana de la definición)
+  semanaHasta: string      // fin de la ventana, semanaDesde + diasVentana
+  desdeTurno: 'manana' | 'tarde'
+  hastaTurno: 'manana' | 'tarde'
 }
 
-// Recibe `ahora` como parámetro (no usa `new Date()` internamente) para ser
-// determinístico y testeable con npx tsx. El conteo se hace SIEMPRE el
-// martes a la mañana y la proyección cubre martes tarde → viernes mañana —
-// una ventana fija de 3 días que no depende de qué día se abrió la pantalla.
-export function calcularSemanaConteo(ahora: Date): SemanaConteo {
+export interface VentanaConteo {
+  diaSemana: number    // ISO: 1 = lunes ... 7 = domingo (fabrica_conteo_definiciones.dia_semana)
+  diasVentana: number
+  turnoDesde?: 'manana' | 'tarde'
+  turnoHasta?: 'manana' | 'tarde'
+}
+
+// Generaliza el ancla semanal de un conteo a partir de los parámetros de su
+// definición (antes hardcodeado al martes). Recibe `ahora` como parámetro
+// (no usa `new Date()` internamente) para ser determinístico y testeable con
+// npx tsx.
+//
+// Regla: se calcula cuántos días pasaron desde la última vez que cayó
+// dia_semana (0 si hoy es ese día). Si esa distancia todavía entra en la
+// ventana (<= diasVentana) el conteo de esta semana sigue vigente y el
+// ancla es esa fecha pasada; si no, el conteo ya venció y el ancla salta al
+// próximo dia_semana. Con diasVentana >= 6 el ancla simplemente rota cada
+// dia_semana sin importar cuánto dure la ventana mostrada (caso Bolsaplast/
+// Huevos).
+export function calcularSemanaConteo(ahora: Date, { diaSemana, diasVentana, turnoDesde = 'tarde', turnoHasta = 'manana' }: VentanaConteo): SemanaConteo {
   const fecha = diaFabrica(ahora)
-  const diaSemana = new Date(`${fecha}T00:00:00`).getDay() // 0=dom ... 6=sáb
+  const hoyIso = new Date(`${fecha}T00:00:00`).getDay() || 7 // getDay(): 0=dom...6=sáb → ISO 1=lun...7=dom
+  const diasDesdeAncla = ((hoyIso - diaSemana) % 7 + 7) % 7
 
-  let offsetAlMartes: number
-  if (diaSemana >= 2 && diaSemana <= 5) {
-    offsetAlMartes = 2 - diaSemana       // martes de la semana en curso
-  } else if (diaSemana === 6) {
-    offsetAlMartes = 3                   // sábado → martes que viene
-  } else if (diaSemana === 0) {
-    offsetAlMartes = 2                   // domingo → martes que viene
-  } else {
-    offsetAlMartes = 1                   // lunes → martes que viene
-  }
-
-  const semanaDesde = sumarDias(fecha, offsetAlMartes)
-  const semanaHasta = sumarDias(semanaDesde, 3)
+  const semanaDesde = diasDesdeAncla <= diasVentana
+    ? sumarDias(fecha, -diasDesdeAncla)
+    : sumarDias(fecha, 7 - diasDesdeAncla)
+  const semanaHasta = sumarDias(semanaDesde, diasVentana)
 
   return {
     fecha,
     semanaDesde,
     semanaHasta,
-    desdeTurno: 'tarde',
-    hastaTurno: 'manana',
+    desdeTurno: turnoDesde,
+    hastaTurno: turnoHasta,
   }
 }

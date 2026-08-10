@@ -1,10 +1,14 @@
 export type Redondeo = 'estandar' | 'siempre_arriba' | 'siempre_abajo' | 'sin_calculo'
+export type ModoCalculo = 'por_masa' | 'meta_semanal' | 'cantidad_fija'
 
 export interface ItemCatalogo {
+  modoCalculo: ModoCalculo
   cantidadPorMasa: number
   cantidadPorUnidad: number
   cantidadUnidades: number
   redondeo: Redondeo
+  metaSemanal: number
+  cantidadFija: number
 }
 
 export interface NecesidadSugerido {
@@ -12,9 +16,16 @@ export interface NecesidadSugerido {
   sugeridoUnidades: number
 }
 
-// Misma fórmula que el RPC cerrar_conteo_fabrica (supabase/migrations/*_fabrica_catalogo_unico.sql).
-// necesidad = cantidad_por_masa × masas proyectadas; sugerido en unidades de
-// compra a pedir, con la regla de redondeo propia del ítem (docs/analisis-motor-calculo-legacy.md):
+// Misma fórmula que el RPC cerrar_conteo_fabrica (supabase/migrations/*_fabrica_conteos_parametrizables.sql).
+// necesidad = cantidad_por_masa × masas proyectadas (0 si el ítem no tiene receta,
+// como los de modo cantidad_fija/meta_semanal). El sugerido depende del modo de
+// cálculo que la definición del conteo le asignó al ítem:
+//   'cantidad_fija'  → siempre esa cantidad, sin importar lo contado (docs/analisis-motor-calculo-legacy.md)
+//   'meta_semanal'   → max(0, meta_semanal − contado) — el faltante contra un piso semanal fijo
+//   'por_masa'       → faltante = necesidad − contado×cantidad_por_unidad, redondeado por
+//                      la regla del ítem, con meta_semanal (si > 0) como piso: nunca sugiere
+//                      menos que el faltante contra la meta, aunque la receta pida menos
+// Redondeo por ítem (independiente del modo, salvo 'sin_calculo' que corta todo a 0):
 //   'estandar'       → floor si falta menos de media unidad, ceil si falta media o más
 //                       (Math.round ya lo cumple porque el faltante nunca es negativo)
 //   'siempre_arriba' → ceil siempre (Polvo de Hornear)
@@ -26,24 +37,30 @@ export interface NecesidadSugerido {
 export function calcularNecesidadYSugerido(item: ItemCatalogo, masasProyectadas: number): NecesidadSugerido {
   const necesidad = item.cantidadPorMasa * masasProyectadas
 
-  if (item.redondeo === 'sin_calculo' || item.cantidadPorUnidad <= 0) {
+  if (item.redondeo === 'sin_calculo') {
+    return { necesidad, sugeridoUnidades: 0 }
+  }
+
+  if (item.modoCalculo === 'cantidad_fija') {
+    return { necesidad, sugeridoUnidades: item.cantidadFija }
+  }
+
+  if (item.modoCalculo === 'meta_semanal') {
+    return { necesidad, sugeridoUnidades: Math.max(0, item.metaSemanal - item.cantidadUnidades) }
+  }
+
+  if (item.cantidadPorUnidad <= 0) {
     return { necesidad, sugeridoUnidades: 0 }
   }
 
   const contado = item.cantidadUnidades * item.cantidadPorUnidad
   const faltante = Math.max(0, necesidad - contado)
   const fraccion = faltante / item.cantidadPorUnidad
-  const sugeridoUnidades =
+  const porMasa =
     item.redondeo === 'siempre_arriba' ? Math.ceil(fraccion) :
     item.redondeo === 'siempre_abajo' ? Math.floor(fraccion) :
     Math.round(fraccion)
+  const piso = item.metaSemanal > 0 ? Math.max(0, item.metaSemanal - item.cantidadUnidades) : 0
 
-  return { necesidad, sugeridoUnidades }
-}
-
-// Bolsaplast (calculadora más simple del legacy): sin redondeo especial, faltante
-// directo en la unidad nativa del ítem. metaSemanal = 0 (sin meta fija, "según
-// necesidad" en el legacy) da faltante siempre 0 — no hace falta un caso especial.
-export function faltanteBolsaplast(metaSemanal: number, stockActual: number): number {
-  return Math.max(0, metaSemanal - stockActual)
+  return { necesidad, sugeridoUnidades: Math.max(porMasa, piso) }
 }

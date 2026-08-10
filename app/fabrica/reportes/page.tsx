@@ -20,7 +20,7 @@ export default async function FabricaReportesPage() {
       .select('fecha, cantidad_kg, presentacion:fabrica_presentaciones(nombre)'),
     supabase
       .from('fabrica_conteos')
-      .select('id, semana_desde, semana_hasta, masas_proyectadas, proyeccion_embolsado_kg')
+      .select('id, semana_desde, semana_hasta, masas_proyectadas')
       .eq('estado', 'cerrado')
       .order('semana_desde', { ascending: false }),
   ])
@@ -48,7 +48,10 @@ export default async function FabricaReportesPage() {
     // lib/fabrica/calculoSugerido.ts), no kg — este cruce contra masaRealKg queda
     // con un desajuste de unidades pendiente de revisar si se retoma esta fase.
     proyeccionMasaKg: c.masas_proyectadas,
-    proyeccionEmbolsadoKg: c.proyeccion_embolsado_kg,
+    // proyeccion_embolsado_kg se dropeó en la Fase 2 del catálogo/conteos: nunca se
+    // escribió desde ninguna pantalla, así que este cruce siempre mostró "sin
+    // proyección" — se mantiene ese mismo comportamiento con un 0 fijo.
+    proyeccionEmbolsadoKg: 0,
   }))
 
   return (

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { Archive, ArchiveRestore, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Redondeo } from '@/lib/fabrica/calculoSugerido'
@@ -31,7 +32,6 @@ interface CompraItem {
   cantidad_por_masa: number
   redondeo: Redondeo
   precio: number | null
-  incluir_en_conteo: boolean
   estado: 'activo' | 'archivado'
 }
 
@@ -60,10 +60,12 @@ export default function InsumosClient({
   itemsIniciales,
   proveedores,
   categorias,
+  conteosPorItem,
 }: {
   itemsIniciales: CompraItem[]
   proveedores: ProveedorOption[]
   categorias: CategoriaOption[]
+  conteosPorItem: Record<string, string[]>
 }) {
   const supabase = createClient()
   const [items, setItems] = useState<CompraItem[]>(itemsIniciales)
@@ -232,6 +234,12 @@ export default function InsumosClient({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Cant./masa</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Redondeo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Precio</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">
+                    <span className="flex items-center gap-1">
+                      Conteos
+                      <HelpTooltip text="En qué conteos semanales participa este insumo. Se gestiona desde Compras → Conteos." />
+                    </span>
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
                 </tr>
@@ -246,6 +254,13 @@ export default function InsumosClient({
                     <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{i.cantidad_por_masa > 0 ? i.cantidad_por_masa : '—'}</td>
                     <td className="px-4 py-3 text-[#888] hidden lg:table-cell text-xs">{REDONDEO_LABEL[i.redondeo] ?? i.redondeo}</td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.precio != null ? `$${i.precio.toLocaleString('es-AR')}` : '—'}</td>
+                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell text-xs">
+                      {(conteosPorItem[i.id] ?? []).length > 0 ? (
+                        <Link href="/admin/compras/conteos" className="hover:text-[#e8c547] hover:underline">
+                          {conteosPorItem[i.id].join(', ')}
+                        </Link>
+                      ) : '—'}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${i.estado === 'activo' ? 'bg-green-900/50 text-green-300' : 'bg-[#2a2a2a] text-[#666]'}`}>
                         {i.estado}
