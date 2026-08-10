@@ -1,3 +1,7 @@
+import { parseDecimal } from './numeros'
+
+export { parseDecimal, formatDecimal } from './numeros'
+
 /**
  * Parser CSV robusto que maneja:
  * - Campos entre comillas con comas internas (ej: "6868,91")
@@ -49,28 +53,5 @@ export function formatDateForSheet(isoDate: string): string {
  *  Soporta símbolo $, espacios, y formato "1.234" (solo punto de miles sin decimales).
  */
 export function parseNumero(str: string): number {
-  if (!str || str === '#N/A') return 0
-  // Quitar símbolo de moneda, espacios, y caracteres no numéricos salvo . y ,
-  let s = str.replace(/[$  ]/g, '').trim()
-  if (!s) return 0
-  // Si tiene tanto punto como coma: 1.234,56 → punto=miles
-  if (s.includes('.') && s.includes(',')) {
-    s = s.replace(/\./g, '').replace(',', '.')
-  } else if (s.includes(',')) {
-    // Solo coma: puede ser decimal (6868,91) o miles (1,234) — si hay exactamente 3 dígitos tras la coma, es miles
-    const parts = s.split(',')
-    if (parts.length === 2 && parts[1].length === 3 && !parts[1].includes('.')) {
-      s = s.replace(',', '') // miles sin decimal
-    } else {
-      s = s.replace(',', '.') // decimal
-    }
-  } else if (s.includes('.')) {
-    // Solo punto: si hay exactamente 3 dígitos tras el punto, es miles (1.234)
-    const parts = s.split('.')
-    if (parts.length === 2 && parts[1].length === 3) {
-      s = s.replace('.', '') // miles sin decimal
-    }
-    // si tiene decimales normales (1.5) lo deja como está
-  }
-  return parseFloat(s) || 0
+  return parseDecimal(str) ?? 0
 }
