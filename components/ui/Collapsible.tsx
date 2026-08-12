@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
+import { IconoRenderer } from './IconoPicker'
 
 interface Props {
   titulo: string
@@ -21,7 +22,7 @@ export default function Collapsible({ titulo, subtitulo, badge, defaultOpen = fa
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
       >
         <div className="flex items-center gap-2 min-w-0">
-          {icono && <span className="text-base shrink-0">{icono}</span>}
+          <IconoRenderer nombre={icono} size={18} className="shrink-0 text-[#e8c547]" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[#f0f0f0] truncate">{titulo}</p>
             {subtitulo && <p className="text-xs text-[#666] truncate">{subtitulo}</p>}

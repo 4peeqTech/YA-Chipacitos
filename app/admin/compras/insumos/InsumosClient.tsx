@@ -243,11 +243,10 @@ export default function InsumosClient({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Precio</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">
                     <span className="flex items-center gap-1">
-                      Conteos
-                      <HelpTooltip text="En qué conteos semanales participa este insumo. Se gestiona desde Compras → Conteos." />
+                      Control de Stock
+                      <HelpTooltip text="En qué controles de stock participa este insumo. Se gestiona desde Compras → Control de Stock." />
                     </span>
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
@@ -268,11 +267,6 @@ export default function InsumosClient({
                           {conteosPorItem[i.id].join(', ')}
                         </Link>
                       ) : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${i.estado === 'activo' ? 'bg-green-900/50 text-green-300' : 'bg-[#2a2a2a] text-[#666]'}`}>
-                        {i.estado}
-                      </span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex gap-1 justify-end">

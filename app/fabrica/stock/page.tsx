@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { calcularSemanaConteo } from '@/lib/fabrica/semanaConteo'
 import type { Redondeo, ModoCalculo } from '@/lib/fabrica/calculoSugerido'
-import StockClient, { type DefinicionConDatos, type ConteoBorrador, type ItemConteoUI, type ConteoHistorial } from './StockClient'
+import StockClient, { type DefinicionConDatos, type ConteoBorrador, type ItemConteoUI, type ConteoHistorial, type HistorialGlobalItem } from './StockClient'
 
 type Periodicidad = 'semanal' | 'quincenal' | 'mensual'
 
@@ -27,7 +27,7 @@ export default async function FabricaStockPage() {
     .from('fabrica_conteo_definiciones')
     .select('id, nombre, icono, dia_semana, turno_desde, dias_ventana, turno_hasta, pide_masas, periodicidad')
     .eq('activo', true)
-    .order('orden')
+    .order('created_at')
 
   const definiciones: DefinicionRow[] = definicionesData ?? []
 
@@ -101,7 +101,7 @@ export default async function FabricaStockPage() {
         `)
         .eq('activo', true)
         .in('definicion_id', definiciones.map(d => d.id))
-        .order('orden')
+        .order('created_at')
     : { data: [] }
 
   type DefinicionItemRow = {
@@ -140,6 +140,27 @@ export default async function FabricaStockPage() {
     : { data: [] }
   const conteoItemPorClave = new Map((conteoItemsData || []).map(ci => [`${ci.conteo_id}:${ci.item_id}`, ci]))
 
+  // Historial global: un solo fetch (en vez de uno por definición) ordenado
+  // por cerrado_en — no por fecha, que es la fecha "objetivo" del conteo y no
+  // cambia si se cierra fuera de término — para que "el último cerrado" sea
+  // siempre el que realmente se cerró más reciente.
+  const { data: historialData } = definiciones.length
+    ? await supabase
+        .from('fabrica_conteos')
+        .select('id, fecha, semana_desde, semana_hasta, masas_proyectadas, cerrado_en, definicion_id')
+        .in('definicion_id', definiciones.map(d => d.id))
+        .eq('estado', 'cerrado')
+        .order('cerrado_en', { ascending: false })
+        .limit(100)
+    : { data: [] }
+
+  const historialPorDef = new Map<string, ConteoHistorial[]>()
+  for (const h of historialData ?? []) {
+    const arr = historialPorDef.get(h.definicion_id) ?? []
+    arr.push(h)
+    historialPorDef.set(h.definicion_id, arr)
+  }
+
   const definicionesUI: DefinicionConDatos[] = []
   for (const def of definiciones) {
     const conteo = conteoPorDefinicion.get(def.id)
@@ -166,14 +187,6 @@ export default async function FabricaStockPage() {
       })
       .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
-    const { data: historialData } = await supabase
-      .from('fabrica_conteos')
-      .select('id, fecha, semana_desde, semana_hasta, masas_proyectadas, cerrado_en')
-      .eq('definicion_id', def.id)
-      .eq('estado', 'cerrado')
-      .order('fecha', { ascending: false })
-      .limit(20)
-
     definicionesUI.push({
       id: def.id,
       nombre: def.nombre,
@@ -185,9 +198,21 @@ export default async function FabricaStockPage() {
       hastaTurno: def.turno_hasta,
       conteo,
       items,
-      historial: (historialData || []) as ConteoHistorial[],
+      historial: historialPorDef.get(def.id) ?? [],
     })
   }
 
-  return <StockClient definiciones={definicionesUI} usuarioId={user!.id} />
+  const definicionPorId = new Map(definiciones.map(d => [d.id, d]))
+  const historialGlobal: HistorialGlobalItem[] = (historialData ?? []).map(h => {
+    const def = definicionPorId.get(h.definicion_id)!
+    return {
+      ...h,
+      definicionId: h.definicion_id,
+      definicionNombre: def.nombre,
+      definicionIcono: def.icono,
+      pideMasas: def.pide_masas,
+    }
+  })
+
+  return <StockClient definiciones={definicionesUI} historialGlobal={historialGlobal} usuarioId={user!.id} />
 }

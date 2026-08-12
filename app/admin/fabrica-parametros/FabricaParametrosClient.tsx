@@ -19,7 +19,7 @@ export default function FabricaParametrosClient() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#f0f0f0]">Parámetros Fábrica</h1>
+        <h1 className="text-2xl font-bold text-[#f0f0f0]">Fábrica</h1>
         <p className="text-[#888] text-sm mt-0.5">Sabores, presentaciones y tamaños usados en producción</p>
       </div>
 

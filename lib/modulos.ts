@@ -33,7 +33,7 @@ export const MODULOS: Modulo[] = [
   { key: 'proveedores',  label: 'Proveedores',     icon: '🚚', href: '/admin/proveedores',  section: 'Parámetros' },
   { key: 'cajas',        label: 'Cajas',           icon: '🏦', href: '/admin/cajas',        section: 'Parámetros' },
   { key: 'formas_pago',  label: 'Formas de pago',  icon: '💳', href: '/admin/formas-pago',  section: 'Parámetros' },
-  { key: 'fabrica_parametros', label: 'Parámetros Fábrica', icon: '🏭', href: '/admin/fabrica-parametros', section: 'Parámetros' },
+  { key: 'fabrica_parametros', label: 'Fábrica', icon: '🏭', href: '/admin/fabrica-parametros', section: 'Parámetros' },
 
   { key: 'compras-insumos', label: 'Insumos', icon: '🧺', href: '/admin/compras/insumos', section: 'Compras' },
   { key: 'compras-stock',   label: 'Stock',   icon: '📦', href: '/admin/compras/stock',   section: 'Compras' },
@@ -41,7 +41,7 @@ export const MODULOS: Modulo[] = [
   { key: 'compras-remitos', label: 'Remitos', icon: '📥', href: '/admin/compras/remitos', section: 'Compras' },
   { key: 'compras-solicitudes', label: 'Solicitudes', icon: '📨', href: '/admin/compras/solicitudes', section: 'Compras' },
   { key: 'compras-pedido-base', label: 'Pedido base', icon: '🗂️', href: '/admin/compras/pedido-base', section: 'Compras' },
-  { key: 'compras-conteos', label: 'Conteos', icon: '📝', href: '/admin/compras/conteos', section: 'Compras' },
+  { key: 'compras-conteos', label: 'Control de Stock', icon: '📝', href: '/admin/compras/conteos', section: 'Compras' },
 
   { key: 'tareas', label: 'Tareas', icon: '📋', href: '/tareas' },
 ]

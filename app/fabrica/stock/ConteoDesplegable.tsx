@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, History, TrendingUp, AlertTriangle, ChevronRight, Trash2 } from 'lucide-react'
+import { Lock, TrendingUp, AlertTriangle, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { calcularNecesidadYSugerido, type ModoCalculo, type Redondeo } from '@/lib/fabrica/calculoSugerido'
 import Card from '@/components/ui/Card'
@@ -61,16 +61,6 @@ export interface DefinicionConDatos {
   historial: ConteoHistorial[]
 }
 
-interface DetalleLinea {
-  descripcion: string
-  unidad: string | null
-  cantidad_sugerida: number
-}
-
-function formatearFechaCorta(fecha: string) {
-  return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
-}
-
 function formatearFechaConTurno(fecha: string, turno: 'manana' | 'tarde') {
   const d = new Date(fecha + 'T00:00:00')
   const dia = d.toLocaleDateString('es-AR', { weekday: 'short' }).replace('.', '')
@@ -100,8 +90,6 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
   const [eliminando, setEliminando] = useState(false)
   const [cerrando, setCerrando] = useState(false)
   const [borrando, setBorrando] = useState(false)
-  const [detalle, setDetalle] = useState<ConteoHistorial | null>(null)
-  const [detalleLineas, setDetalleLineas] = useState<DetalleLinea[] | null>(null)
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const hoyIso = new Date().getDay() || 7
@@ -199,21 +187,6 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
     router.refresh()
   }
 
-  async function verDetalle(c: ConteoHistorial) {
-    setDetalle(c)
-    setDetalleLineas(null)
-    const { data } = await supabase
-      .from('compras_solicitudes')
-      .select('compras_solicitud_items(descripcion, unidad, cantidad_sugerida)')
-      .eq('conteo_id', c.id)
-      .eq('tipo', 'complementario')
-      .maybeSingle()
-    const lineas = ((data?.compras_solicitud_items as DetalleLinea[] | undefined) ?? [])
-      .slice()
-      .sort((a, b) => b.cantidad_sugerida - a.cantidad_sugerida)
-    setDetalleLineas(lineas)
-  }
-
   return (
     <Collapsible
       titulo={definicion.nombre}
@@ -287,10 +260,16 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
                 {i.modoCalculo === 'meta_semanal' && i.meta > 0 && ` · meta ${i.meta}/${PERIODO_ABREV[definicion.periodicidad]}`}
                 {i.modoCalculo === 'por_masa' && i.cantidadPorMasa > 0 && ` · ${i.cantidadPorMasa}/masa`}
               </p>
-              {falta && (
-                <p className="flex items-center gap-1 text-[10px] text-red-400 font-medium">
-                  <AlertTriangle size={10} /> sugerido {calc?.sugeridoUnidades}
-                </p>
+              {(calc?.necesidad ?? 0) > 0 && (
+                falta ? (
+                  <p className="flex items-center gap-1 text-[10px] text-red-400 font-medium">
+                    <AlertTriangle size={10} /> sugerido {calc?.sugeridoUnidades}
+                  </p>
+                ) : (
+                  <p className="flex items-center gap-1 text-[10px] text-[#56d68a] font-medium">
+                    ✓ cubre con stock actual
+                  </p>
+                )
               )}
             </div>
           )
@@ -301,42 +280,10 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
         onClick={() => setConfirmando(true)}
         className="w-full flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 text-black font-['Syne'] font-bold text-sm py-3.5 rounded-xl transition-all"
       >
-        <Lock size={16} /> Cerrar conteo y pedir a Compras
+        <Lock size={16} /> Cerrar control y pedir a Compras
       </button>
 
-      <button
-        onClick={() => setEliminando(true)}
-        className="w-full flex items-center justify-center gap-2 border border-[#2a2a2a] hover:border-red-800 hover:text-red-400 text-[#888] font-semibold text-sm py-2.5 rounded-xl transition-all"
-      >
-        <Trash2 size={14} /> Eliminar conteo
-      </button>
-
-      <div className="space-y-2 pt-2">
-        <p className="flex items-center gap-1.5 text-xs font-semibold text-[#888] uppercase tracking-wider px-1">
-          <History size={14} /> Historial de conteos cerrados
-        </p>
-        {historial.length === 0 ? (
-          <p className="text-sm text-[#666] px-1">Todavía no hay conteos cerrados.</p>
-        ) : (
-          <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
-            {historial.map(c => (
-              <button
-                key={c.id}
-                onClick={() => verDetalle(c)}
-                className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-[#1a1a1a] transition-colors"
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#f0f0f0]">{formatearFechaCorta(c.semana_desde)} → {formatearFechaCorta(c.semana_hasta)}</p>
-                  {definicion.pideMasas && <p className="text-xs text-[#666] mt-0.5">{c.masas_proyectadas} masas proyectadas</p>}
-                </div>
-                <ChevronRight size={16} className="text-[#666] shrink-0" />
-              </button>
-            ))}
-          </Card>
-        )}
-      </div>
-
-      <Modal open={confirmando} onClose={() => !cerrando && setConfirmando(false)} title={`Cerrar conteo — ${definicion.nombre}`} accent="red">
+      <Modal open={confirmando} onClose={() => !cerrando && setConfirmando(false)} title={`Cerrar control — ${definicion.nombre}`} accent="red">
         <p className="text-sm text-[#888]">
           Esta acción no se puede deshacer. Se calcula el sugerido de cada ítem con lo cargado
           {faltantesTotal > 0 && <> — <span className="text-[#f0f0f0] font-medium">{faltantesTotal} ítem{faltantesTotal > 1 ? 's' : ''}</span> por debajo de la necesidad</>}
@@ -366,24 +313,14 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
         </div>
       </Modal>
 
-      <Modal open={!!detalle} onClose={() => setDetalle(null)} title={detalle ? `${definicion.nombre} — ${formatearFechaCorta(detalle.semana_desde)}` : ''} size="lg">
-        {!detalleLineas ? (
-          <p className="text-sm text-[#888] text-center py-8">Cargando...</p>
-        ) : detalleLineas.length === 0 ? (
-          <p className="text-sm text-[#666] text-center py-8">Este conteo no generó ninguna línea sugerida.</p>
-        ) : (
-          <div className="divide-y divide-[#1a1a1a] -mx-6">
-            {detalleLineas.map((it, idx) => (
-              <div key={idx} className="px-6 py-2.5 flex items-center gap-3">
-                <span className="flex-1 text-sm text-[#f0f0f0] truncate">{it.descripcion}</span>
-                <span className={`text-xs font-medium shrink-0 ${it.cantidad_sugerida > 0 ? 'text-red-400' : 'text-[#56d68a]'}`}>
-                  sugerido {it.cantidad_sugerida} {it.unidad}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
+      <div className="flex justify-end pt-1">
+        <button
+          onClick={() => setEliminando(true)}
+          className="flex items-center gap-1 text-xs text-[#666] hover:text-red-400 transition-colors"
+        >
+          <Trash2 size={12} /> Eliminar conteo
+        </button>
+      </div>
 
       <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
     </Collapsible>

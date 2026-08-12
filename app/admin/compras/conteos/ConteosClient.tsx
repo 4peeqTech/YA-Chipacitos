@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { ClipboardList, Pencil, Plus, Settings2, Trash2, Archive, ArchiveRestore } from 'lucide-react'
+import { ClipboardList, Pencil, Plus, Settings2, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { ModoCalculo } from '@/lib/fabrica/calculoSugerido'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
 import SelectBuscador from '@/components/ui/SelectBuscador'
+import IconoPicker, { IconoRenderer } from '@/components/ui/IconoPicker'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 type Turno = 'manana' | 'tarde'
@@ -24,7 +25,7 @@ interface Definicion {
   pide_masas: boolean
   periodicidad: Periodicidad
   modulo: string
-  orden: number
+  created_at: string
   activo: boolean
 }
 
@@ -35,7 +36,7 @@ interface DefinicionItem {
   modo_calculo: ModoCalculo
   meta: number
   cantidad_fija: number
-  orden: number
+  created_at: string
   activo: boolean
 }
 
@@ -71,11 +72,11 @@ const MODO_LABEL: Record<ModoCalculo, string> = {
 }
 
 const emptyDefForm = (): Partial<Definicion> => ({
-  nombre: '', icono: '', dia_semana: 1, turno_desde: 'tarde', dias_ventana: 3, turno_hasta: 'manana', pide_masas: false, periodicidad: 'semanal', orden: 0,
+  nombre: '', icono: '', dia_semana: 1, turno_desde: 'tarde', dias_ventana: 3, turno_hasta: 'manana', pide_masas: false, periodicidad: 'semanal',
 })
 
-const emptyItemForm = (): { item_id: string; modo_calculo: ModoCalculo; meta: number; cantidad_fija: number; orden: number } => ({
-  item_id: '', modo_calculo: 'por_masa', meta: 0, cantidad_fija: 0, orden: 0,
+const emptyItemForm = (): { item_id: string; modo_calculo: ModoCalculo; meta: number; cantidad_fija: number } => ({
+  item_id: '', modo_calculo: 'por_masa', meta: 0, cantidad_fija: 0,
 })
 
 export default function ConteosClient({
@@ -101,15 +102,17 @@ export default function ConteosClient({
   const [eliminandoDef, setEliminandoDef] = useState<Definicion | null>(null)
 
   const [gestionando, setGestionando] = useState<Definicion | null>(null)
+  const [agregandoItem, setAgregandoItem] = useState(false)
   const [formItem, setFormItem] = useState(emptyItemForm())
   const [editandoItem, setEditandoItem] = useState<DefinicionItem | null>(null)
   const [eliminandoItem, setEliminandoItem] = useState<DefinicionItem | null>(null)
+  const [categoriaFiltroItem, setCategoriaFiltroItem] = useState<string | 'todas'>('todas')
 
   const [isPending, startTransition] = useTransition()
 
   const nombreCatalogo = (id: string) => catalogo.find(c => c.id === id)?.nombre ?? '—'
   const nombreCategoria = (id: string | null) => categorias.find(c => c.id === id)?.nombre ?? 'Sin categoría'
-  const itemsDe = (defId: string) => items.filter(i => i.definicion_id === defId).sort((a, b) => a.orden - b.orden)
+  const itemsDe = (defId: string) => items.filter(i => i.definicion_id === defId).sort((a, b) => a.created_at.localeCompare(b.created_at))
 
   function diaLabel(dia: number) {
     return DIA_OPCIONES.find(d => d.value === dia)?.label ?? '—'
@@ -146,7 +149,6 @@ export default function ConteosClient({
       turno_hasta: formDef.turno_hasta ?? 'manana',
       pide_masas: !!formDef.pide_masas,
       periodicidad: formDef.periodicidad ?? 'semanal',
-      orden: Number(formDef.orden ?? 0),
     }
 
     startTransition(async () => {
@@ -190,15 +192,19 @@ export default function ConteosClient({
     setGestionando(d)
     setFormItem(emptyItemForm())
     setEditandoItem(null)
+    setAgregandoItem(false)
+    setCategoriaFiltroItem('todas')
   }
 
   function abrirEditarItem(i: DefinicionItem) {
     setEditandoItem(i)
-    setFormItem({ item_id: i.item_id, modo_calculo: i.modo_calculo, meta: i.meta, cantidad_fija: i.cantidad_fija, orden: i.orden })
+    setAgregandoItem(false)
+    setFormItem({ item_id: i.item_id, modo_calculo: i.modo_calculo, meta: i.meta, cantidad_fija: i.cantidad_fija })
   }
 
   function cancelarEdicionItem() {
     setEditandoItem(null)
+    setAgregandoItem(false)
     setFormItem(emptyItemForm())
   }
 
@@ -210,7 +216,6 @@ export default function ConteosClient({
       modo_calculo: formItem.modo_calculo,
       meta: formItem.modo_calculo === 'cantidad_fija' ? 0 : Number(formItem.meta ?? 0),
       cantidad_fija: formItem.modo_calculo === 'cantidad_fija' ? Number(formItem.cantidad_fija ?? 0) : 0,
-      orden: Number(formItem.orden ?? 0),
     }
 
     startTransition(async () => {
@@ -225,6 +230,7 @@ export default function ConteosClient({
         if (error) { toast.error(error.message); return }
         setItems(prev => [...prev, data])
         setFormItem(emptyItemForm())
+        setAgregandoItem(false)
         toast.success('Ítem agregado al conteo')
       }
     })
@@ -247,6 +253,7 @@ export default function ConteosClient({
   const itemsDisponibles = gestionando
     ? catalogo
         .filter(c => !itemsDe(gestionando.id).some(i => i.item_id === c.id))
+        .filter(c => categoriaFiltroItem === 'todas' || c.categoria_id === categoriaFiltroItem)
         .map(c => ({ value: c.id, label: c.nombre, grupo: nombreCategoria(c.categoria_id) }))
     : []
 
@@ -254,7 +261,7 @@ export default function ConteosClient({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-[#f0f0f0]"><ClipboardList size={22} className="text-[#e8c547]" /> Conteos</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-[#f0f0f0]"><ClipboardList size={22} className="text-[#e8c547]" /> Control de Stock</h1>
           <p className="text-[#888] text-sm mt-0.5">{definiciones.filter(d => d.activo).length} activos · así se arman los desplegables de /fabrica/stock</p>
         </div>
         <button onClick={abrirCrearDef} className="flex items-center gap-1.5 bg-[#e8c547] hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
@@ -282,9 +289,14 @@ export default function ConteosClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#2a2a2a]">
-                {definiciones.sort((a, b) => a.orden - b.orden).map(d => (
+                {definiciones.slice().sort((a, b) => a.created_at.localeCompare(b.created_at)).map(d => (
                   <tr key={d.id} className={`hover:bg-[#1a1a1a] transition-colors ${!d.activo ? 'opacity-50' : ''}`}>
-                    <td className="px-4 py-3 text-[#f0f0f0] font-medium">{d.icono ? `${d.icono} ` : ''}{d.nombre}</td>
+                    <td className="px-4 py-3 text-[#f0f0f0] font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        <IconoRenderer nombre={d.icono} size={14} />
+                        {d.nombre}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-[#888]">{diaLabel(d.dia_semana)}</td>
                     <td className="px-4 py-3 text-[#888] hidden lg:table-cell capitalize">{PERIODO_LABEL[d.periodicidad]}</td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{d.dias_ventana} días</td>
@@ -296,9 +308,17 @@ export default function ConteosClient({
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${d.activo ? 'bg-green-900/50 text-green-300' : 'bg-[#2a2a2a] text-[#666]'}`}>
-                        {d.activo ? 'activo' : 'inactivo'}
-                      </span>
+                      <button
+                        onClick={() => archivarDef(d)}
+                        title={d.activo ? 'Desactivar' : 'Activar'}
+                        aria-label={d.activo ? `Desactivar ${d.nombre}` : `Activar ${d.nombre}`}
+                        className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                          d.activo ? 'bg-green-900/30 border-green-800 text-green-300' : 'bg-[#1a1a1a] border-[#2a2a2a] text-[#666]'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${d.activo ? 'bg-green-400' : 'bg-[#555]'}`} />
+                        {d.activo ? 'Activo' : 'Inactivo'}
+                      </button>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex gap-1 justify-end">
@@ -307,9 +327,6 @@ export default function ConteosClient({
                         </button>
                         <button onClick={() => abrirEditarDef(d)} title="Editar" aria-label={`Editar ${d.nombre}`} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#e8c547] hover:bg-[#2a2a2a] transition-colors">
                           <Pencil size={15} />
-                        </button>
-                        <button onClick={() => archivarDef(d)} title={d.activo ? 'Desactivar' : 'Reactivar'} aria-label={d.activo ? `Desactivar ${d.nombre}` : `Reactivar ${d.nombre}`} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#f0f0f0] hover:bg-[#2a2a2a] transition-colors">
-                          {d.activo ? <Archive size={15} /> : <ArchiveRestore size={15} />}
                         </button>
                         <button onClick={() => setEliminandoDef(d)} title="Eliminar" aria-label={`Eliminar ${d.nombre}`} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-red-400 hover:bg-red-900/20 transition-colors">
                           <Trash2 size={15} />
@@ -332,8 +349,8 @@ export default function ConteosClient({
             <input className={inputClass} value={formDef.nombre ?? ''} onChange={e => setFormDef(f => ({ ...f, nombre: e.target.value }))} />
           </div>
           <div>
-            <label className={labelClass}>Icono (emoji)</label>
-            <input className={inputClass} placeholder="📦" value={formDef.icono ?? ''} onChange={e => setFormDef(f => ({ ...f, icono: e.target.value }))} />
+            <label className={labelClass}>Ícono</label>
+            <IconoPicker value={formDef.icono ?? null} onChange={v => setFormDef(f => ({ ...f, icono: v }))} />
           </div>
           <div>
             <label className={labelClass}>
@@ -393,10 +410,6 @@ export default function ConteosClient({
               </div>
             </>
           )}
-          <div>
-            <label className={labelClass}>Orden</label>
-            <InputNumero enteros placeholder="0" className={inputClass} value={formDef.orden ?? null} onChange={v => setFormDef(f => ({ ...f, orden: v ?? 0 }))} />
-          </div>
         </div>
 
         <div className="flex gap-3 pt-4">
@@ -466,6 +479,14 @@ export default function ConteosClient({
               )}
             </div>
 
+            {!editandoItem && !agregandoItem ? (
+              <button
+                onClick={() => setAgregandoItem(true)}
+                className="w-full flex items-center justify-center gap-1.5 border border-dashed border-[#2a2a2a] text-[#888] hover:text-[#e8c547] hover:border-[#e8c547] font-semibold text-sm py-2.5 rounded-xl transition-all"
+              >
+                <Plus size={15} /> Agregar insumo
+              </button>
+            ) : (
             <div className="border border-[#2a2a2a] rounded-xl p-4 space-y-3">
               <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">
                 {editandoItem ? `Editar — ${nombreCatalogo(editandoItem.item_id)}` : 'Agregar insumo'}
@@ -479,8 +500,27 @@ export default function ConteosClient({
                     </p>
                   </div>
                 ) : (
-                  <div className="md:col-span-2">
+                  <div className="md:col-span-2 space-y-2">
                     <label className={labelClass}>Insumo</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setCategoriaFiltroItem('todas')}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${categoriaFiltroItem === 'todas' ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] border border-[#2a2a2a] hover:text-[#f0f0f0]'}`}
+                      >
+                        Todas las categorías
+                      </button>
+                      {categorias.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setCategoriaFiltroItem(c.id)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${categoriaFiltroItem === c.id ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] border border-[#2a2a2a] hover:text-[#f0f0f0]'}`}
+                        >
+                          {c.nombre}
+                        </button>
+                      ))}
+                    </div>
                     <SelectBuscador
                       value={formItem.item_id}
                       onChange={v => setFormItem(f => ({ ...f, item_id: v }))}
@@ -511,22 +551,17 @@ export default function ConteosClient({
                     <InputNumero placeholder="0" className={inputClass} value={formItem.meta || null} onChange={v => setFormItem(f => ({ ...f, meta: v ?? 0 }))} />
                   </div>
                 )}
-                <div>
-                  <label className={labelClass}>Orden</label>
-                  <InputNumero enteros placeholder="0" className={inputClass} value={formItem.orden || null} onChange={v => setFormItem(f => ({ ...f, orden: v ?? 0 }))} />
-                </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={guardarItem} disabled={isPending} className="flex-1 flex items-center justify-center gap-1.5 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 rounded-lg transition-all">
                   {editandoItem ? (isPending ? 'Guardando...' : 'Guardar cambios') : <><Plus size={15} /> Agregar</>}
                 </button>
-                {editandoItem && (
-                  <button onClick={cancelarEdicionItem} disabled={isPending} className="flex-1 border border-[#2a2a2a] text-[#888] hover:text-[#f0f0f0] font-semibold text-sm py-2 rounded-lg transition-all disabled:opacity-40">
-                    Cancelar
-                  </button>
-                )}
+                <button onClick={cancelarEdicionItem} disabled={isPending} className="flex-1 border border-[#2a2a2a] text-[#888] hover:text-[#f0f0f0] font-semibold text-sm py-2 rounded-lg transition-all disabled:opacity-40">
+                  Cancelar
+                </button>
               </div>
             </div>
+            )}
           </div>
         )}
       </Modal>
