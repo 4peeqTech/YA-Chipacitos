@@ -4,11 +4,16 @@ import { createClient } from '@/lib/supabase/server'
 import { diaFabrica, diaAnterior } from '@/lib/fabrica/diaFabrica'
 import DevolucionClient, { Parametro, DevolucionRegistro } from './DevolucionClient'
 
-export default async function FabricaDevolucionPage() {
+export default async function FabricaDevolucionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ dia?: string }>
+}) {
   const supabase = await createClient()
 
   const hoy = diaFabrica(new Date())
   const ayer = diaAnterior(hoy)
+  const dia = (await searchParams).dia || hoy
 
   const [{ data: sabores }, { data: tamanios }, { data: presentaciones }, { data: motivos }, { data: devoluciones }] =
     await Promise.all([
@@ -25,12 +30,14 @@ export default async function FabricaDevolucionPage() {
           presentacion:fabrica_presentaciones(nombre),
           motivo:fabrica_devolucion_motivos(nombre)
         `)
-        .in('fecha', [ayer, hoy])
+        .eq('fecha', dia)
         .order('created_at', { ascending: false }),
     ])
 
   return (
     <DevolucionClient
+      key={dia}
+      dia={dia}
       hoy={hoy}
       ayer={ayer}
       sabores={(sabores ?? []) as Parametro[]}

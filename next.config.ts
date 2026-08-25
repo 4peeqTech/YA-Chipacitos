@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/fabrica/embolsado',
-        destination: '/fabrica/registro/embolsado',
+        destination: '/fabrica/registro/congelados',
         permanent: true,
       },
     ]

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Undo2, Recycle, Trash2, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import SelectorDia from '@/components/fabrica/SelectorDia'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
 import InputNumero from '@/components/ui/InputNumero'
@@ -42,6 +43,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
 const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2.5 text-base focus:outline-none focus:border-[#e8c547] transition-colors"
 
 export default function DevolucionClient({
+  dia,
   hoy,
   ayer,
   sabores,
@@ -50,6 +52,7 @@ export default function DevolucionClient({
   motivos,
   devolucionesIniciales,
 }: {
+  dia: string
   hoy: string
   ayer: string
   sabores: Parametro[]
@@ -62,7 +65,6 @@ export default function DevolucionClient({
   const toast = useToasts()
 
   const [devoluciones, setDevoluciones] = useState(devolucionesIniciales)
-  const [diaSeleccionado, setDiaSeleccionado] = useState(hoy)
   const [saborId, setSaborId] = useState(sabores[0]?.id ?? '')
   const [tamanioId, setTamanioId] = useState(tamanios[0]?.id ?? '')
   const [presentacionId, setPresentacionId] = useState(presentaciones[0]?.id ?? '')
@@ -75,8 +77,8 @@ export default function DevolucionClient({
   const [eliminando, setEliminando] = useState(false)
 
   const listaDia = useMemo(
-    () => devoluciones.filter(d => d.fecha === diaSeleccionado),
-    [devoluciones, diaSeleccionado]
+    () => devoluciones.filter(d => d.fecha === dia),
+    [devoluciones, dia]
   )
 
   function resetFormulario() {
@@ -98,7 +100,7 @@ export default function DevolucionClient({
 
     const { data: id, error } = await supabase.rpc('guardar_devolucion_fabrica', {
       p_id: null,
-      p_fecha: diaSeleccionado,
+      p_fecha: dia,
       p_sabor_id: saborId,
       p_tamanio_id: tamanioId,
       p_presentacion_id: presentacionId,
@@ -116,7 +118,7 @@ export default function DevolucionClient({
 
     const nuevaEntrada: DevolucionRegistro = {
       id,
-      fecha: diaSeleccionado,
+      fecha: dia,
       cantidadKg,
       destino,
       notas: notas.trim() || null,
@@ -157,11 +159,7 @@ export default function DevolucionClient({
       </div>
 
       <div className="sticky top-0 z-10 bg-[#0a0a0a] py-2 -mx-4 px-4 lg:-mx-8 lg:px-8">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[#888]">Viendo</span>
-          <Chip active={diaSeleccionado === ayer} onClick={() => setDiaSeleccionado(ayer)}>Ayer</Chip>
-          <Chip active={diaSeleccionado === hoy} onClick={() => setDiaSeleccionado(hoy)}>Hoy</Chip>
-        </div>
+        <SelectorDia dia={dia} hoy={hoy} ayer={ayer} />
       </div>
 
       <Card className="p-4 space-y-4">
@@ -238,7 +236,7 @@ export default function DevolucionClient({
             </button>
           </div>
           {destino === 'reinsercion' && (
-            <p className="text-[11px] text-[#666] mt-1.5">La masa vuelve al pool del día en Embolsado.</p>
+            <p className="text-[11px] text-[#666] mt-1.5">Solo informativo — no genera una carga en Congelados, hay que cargarla aparte si corresponde.</p>
           )}
         </div>
 
@@ -263,7 +261,7 @@ export default function DevolucionClient({
 
       <div className="space-y-2 pt-2">
         <p className="text-xs font-semibold text-[#888] uppercase tracking-wider px-1">
-          {listaDia.length} devolución{listaDia.length !== 1 ? 'es' : ''} · {diaSeleccionado === hoy ? 'hoy' : 'ayer'}
+          {listaDia.length} devolución{listaDia.length !== 1 ? 'es' : ''} · {dia === hoy ? 'hoy' : dia === ayer ? 'ayer' : dia}
         </p>
         {listaDia.length === 0 ? (
           <p className="text-sm text-[#666] text-center py-8">Todavía no hay devoluciones este día.</p>

@@ -1,13 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import {
-  Factory, Repeat, Trash2, Pencil, ArrowRight,
-  Package, Snowflake, Save, X as XIcon,
-} from 'lucide-react'
+import { Snowflake, Repeat, Trash2, Pencil, ArrowRight, Save, X as XIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { masaDesdeFecula } from '@/lib/fabrica/rendimiento'
 import SelectorDia from '@/components/fabrica/SelectorDia'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
@@ -19,26 +15,16 @@ export interface Parametro {
   nombre: string
 }
 
-export type Destino = 'masa_locales' | 'congelado_embolsado'
-export type Turno = 'manana' | 'tarde'
-
-export interface ProduccionTurno {
+export interface Congelado {
   id: string
   fecha: string
-  turno: Turno
-  feculaKg: number
-  masaKg: number
+  tamanioId: string
   saborId: string
-  saborNombre: string
-  destino: Destino
-  tamanioId: string | null
-  tamanioNombre: string | null
+  presentacionId: string
+  presentacionNombre: string
+  cantidadKg: number
   operarioId: string | null
   operarioNombre: string | null
-}
-
-function turnoActualPorHora(): Turno {
-  return new Date().getHours() < 13 ? 'manana' : 'tarde'
 }
 
 const chipBase = 'px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border'
@@ -55,146 +41,114 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
 
 const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2.5 text-base focus:outline-none focus:border-[#e8c547] transition-colors"
 
-export default function ProduccionClient({
+export default function CongeladosClient({
   dia,
   hoy,
   ayer,
   sabores,
   tamanios,
+  presentaciones,
   operarios,
-  rendimientoMasa,
-  produccionesIniciales,
+  congeladosIniciales,
 }: {
   dia: string
   hoy: string
   ayer: string
   sabores: Parametro[]
   tamanios: Parametro[]
+  presentaciones: Parametro[]
   operarios: Parametro[]
-  rendimientoMasa: number
-  produccionesIniciales: ProduccionTurno[]
+  congeladosIniciales: Congelado[]
 }) {
   const supabase = createClient()
   const toast = useToasts()
 
-  const [producciones, setProducciones] = useState(produccionesIniciales)
-  const [turnoSeleccionado, setTurnoSeleccionado] = useState<Turno>(turnoActualPorHora())
+  const [congelados, setCongelados] = useState(congeladosIniciales)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [saborId, setSaborId] = useState(sabores[0]?.id ?? '')
-  const [destino, setDestino] = useState<Destino>('masa_locales')
-  const [feculaKg, setFeculaKg] = useState(0)
-  const [masaKg, setMasaKg] = useState(0)
-  const [masaTocada, setMasaTocada] = useState(false)
   const [tamanioId, setTamanioId] = useState(tamanios[0]?.id ?? '')
+  const [saborId, setSaborId] = useState(sabores[0]?.id ?? '')
+  const [presentacionId, setPresentacionId] = useState(presentaciones[0]?.id ?? '')
+  const [cantidadKg, setCantidadKg] = useState(0)
   const [operarioId, setOperarioId] = useState(operarios[0]?.id ?? '')
   const [guardando, setGuardando] = useState(false)
-  const [aEliminar, setAEliminar] = useState<ProduccionTurno | null>(null)
+  const [aEliminar, setAEliminar] = useState<Congelado | null>(null)
   const [eliminando, setEliminando] = useState(false)
 
-  const listaTurno = useMemo(
-    () => producciones.filter(p => p.fecha === dia && p.turno === turnoSeleccionado),
-    [producciones, dia, turnoSeleccionado]
-  )
-
-  const hayCongeladoEnLista = useMemo(() => listaTurno.some(p => p.destino === 'congelado_embolsado'), [listaTurno])
+  const nombreTamanio = (id: string) => tamanios.find(t => t.id === id)?.nombre ?? '—'
+  const nombreSabor = (id: string) => sabores.find(s => s.id === id)?.nombre ?? '—'
 
   function resetFormulario() {
     setEditingId(null)
-    setSaborId(sabores[0]?.id ?? '')
-    setDestino('masa_locales')
-    setFeculaKg(0)
-    setMasaKg(0)
-    setMasaTocada(false)
     setTamanioId(tamanios[0]?.id ?? '')
+    setSaborId(sabores[0]?.id ?? '')
+    setPresentacionId(presentaciones[0]?.id ?? '')
+    setCantidadKg(0)
     setOperarioId(operarios[0]?.id ?? '')
   }
 
-  function onFeculaChange(valor: number) {
-    setFeculaKg(valor)
-    if (!masaTocada) setMasaKg(masaDesdeFecula(valor, rendimientoMasa))
-  }
-
-  function onMasaChange(valor: number) {
-    setMasaKg(valor)
-    setMasaTocada(true)
-  }
-
-  function cargarParaEditar(p: ProduccionTurno) {
-    setEditingId(p.id)
-    setTurnoSeleccionado(p.turno)
-    setSaborId(p.saborId)
-    setDestino(p.destino)
-    setFeculaKg(p.feculaKg)
-    setMasaKg(p.masaKg)
-    setMasaTocada(true)
-    setTamanioId(p.tamanioId ?? tamanios[0]?.id ?? '')
-    setOperarioId(p.operarioId ?? operarios[0]?.id ?? '')
+  function cargarParaEditar(c: Congelado) {
+    setEditingId(c.id)
+    setTamanioId(c.tamanioId)
+    setSaborId(c.saborId)
+    setPresentacionId(c.presentacionId)
+    setCantidadKg(c.cantidadKg)
+    setOperarioId(c.operarioId ?? operarios[0]?.id ?? '')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function repetirUltima() {
-    const ultima = listaTurno[0]
+    const ultima = congelados[0]
     if (!ultima) return
     setEditingId(null)
+    setTamanioId(ultima.tamanioId)
     setSaborId(ultima.saborId)
-    setDestino(ultima.destino)
-    setFeculaKg(ultima.feculaKg)
-    setMasaKg(ultima.masaKg)
-    setMasaTocada(true)
-    setTamanioId(ultima.tamanioId ?? tamanios[0]?.id ?? '')
+    setPresentacionId(ultima.presentacionId)
+    setCantidadKg(ultima.cantidadKg)
     setOperarioId(ultima.operarioId ?? operarios[0]?.id ?? '')
     window.scrollTo({ top: 0, behavior: 'smooth' })
     toast.success('Carga duplicada — revisá y guardá')
   }
 
   async function guardar() {
-    if (destino === 'congelado_embolsado' && !tamanioId) {
-      toast.error('Elegí un tamaño para el congelado')
-      return
-    }
     if (!operarioId) {
       toast.error('Elegí un operario')
       return
     }
+    if (!cantidadKg || cantidadKg <= 0) {
+      toast.error('La cantidad debe ser mayor a cero')
+      return
+    }
     setGuardando(true)
 
-    const { data: id, error } = await supabase.rpc('guardar_produccion_fabrica', {
+    const { data: id, error } = await supabase.rpc('guardar_congelado_fabrica', {
       p_id: editingId,
       p_fecha: dia,
-      p_turno: turnoSeleccionado,
+      p_tamanio_id: tamanioId,
       p_sabor_id: saborId,
-      p_destino: destino,
-      p_fecula_kg: feculaKg,
-      p_masa_kg: masaKg,
-      p_tamanio_id: destino === 'congelado_embolsado' ? tamanioId : null,
+      p_presentacion_id: presentacionId,
+      p_cantidad_kg: cantidadKg,
       p_operario_fabrica_id: operarioId,
     })
 
     if (error) {
-      toast.error(error.message || 'No se pudo guardar la producción')
+      toast.error(error.message || 'No se pudo guardar el congelado')
       setGuardando(false)
       return
     }
 
-    const saborNombre = sabores.find(s => s.id === saborId)?.nombre ?? '—'
-    const tamanioNombre = destino === 'congelado_embolsado' ? (tamanios.find(t => t.id === tamanioId)?.nombre ?? null) : null
-    const operarioNombre = operarios.find(o => o.id === operarioId)?.nombre ?? null
-    const nuevaEntrada: ProduccionTurno = {
+    const nuevaEntrada: Congelado = {
       id,
       fecha: dia,
-      turno: turnoSeleccionado,
-      feculaKg,
-      masaKg,
+      tamanioId,
       saborId,
-      saborNombre,
-      destino,
-      tamanioId: destino === 'congelado_embolsado' ? tamanioId : null,
-      tamanioNombre,
+      presentacionId,
+      presentacionNombre: presentaciones.find(p => p.id === presentacionId)?.nombre ?? '—',
+      cantidadKg,
       operarioId,
-      operarioNombre,
+      operarioNombre: operarios.find(o => o.id === operarioId)?.nombre ?? null,
     }
 
-    setProducciones(prev => editingId ? prev.map(p => p.id === editingId ? nuevaEntrada : p) : [nuevaEntrada, ...prev])
+    setCongelados(prev => editingId ? prev.map(c => c.id === editingId ? nuevaEntrada : c) : [nuevaEntrada, ...prev])
     toast.success(editingId ? 'Carga actualizada' : 'Carga guardada')
     resetFormulario()
     setGuardando(false)
@@ -203,13 +157,13 @@ export default function ProduccionClient({
   async function confirmarEliminar() {
     if (!aEliminar) return
     setEliminando(true)
-    const { error } = await supabase.rpc('eliminar_produccion_fabrica', { p_id: aEliminar.id })
+    const { error } = await supabase.rpc('eliminar_congelado_fabrica', { p_id: aEliminar.id })
     if (error) {
       toast.error(error.message || 'No se pudo eliminar')
       setEliminando(false)
       return
     }
-    setProducciones(prev => prev.filter(p => p.id !== aEliminar.id))
+    setCongelados(prev => prev.filter(c => c.id !== aEliminar.id))
     if (editingId === aEliminar.id) resetFormulario()
     toast.success('Carga eliminada')
     setAEliminar(null)
@@ -221,7 +175,7 @@ export default function ProduccionClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-['Syne'] font-bold text-[#f0f0f0]">
-            <Factory size={20} className="text-[#e8c547]" /> Producción
+            <Snowflake size={20} className="text-[#e8c547]" /> Congelados
           </h1>
           <p className="text-[#888] text-xs mt-0.5">{editingId ? 'editando carga' : 'nueva carga'}</p>
         </div>
@@ -241,10 +195,11 @@ export default function ProduccionClient({
 
       <Card className="p-4 space-y-4">
         <div>
-          <p className="text-xs text-[#888] mb-1.5">Turno</p>
+          <p className="text-xs text-[#888] mb-1.5">Tamaño</p>
           <div className="flex gap-2">
-            <Chip active={turnoSeleccionado === 'manana'} onClick={() => setTurnoSeleccionado('manana')}>Mañana</Chip>
-            <Chip active={turnoSeleccionado === 'tarde'} onClick={() => setTurnoSeleccionado('tarde')}>Tarde</Chip>
+            {tamanios.map(t => (
+              <Chip key={t.id} active={tamanioId === t.id} onClick={() => setTamanioId(t.id)}>{t.nombre}</Chip>
+            ))}
           </div>
         </div>
 
@@ -258,50 +213,24 @@ export default function ProduccionClient({
         </div>
 
         <div>
-          <p className="text-xs text-[#888] mb-1.5">Destino</p>
-          <div className="flex gap-2">
-            <Chip active={destino === 'masa_locales'} onClick={() => setDestino('masa_locales')}>
-              <span className="flex items-center gap-1.5"><Package size={13} /> Masa a locales</span>
-            </Chip>
-            <Chip active={destino === 'congelado_embolsado'} onClick={() => setDestino('congelado_embolsado')}>
-              <span className="flex items-center gap-1.5"><Snowflake size={13} /> Congelado</span>
-            </Chip>
+          <p className="text-xs text-[#888] mb-1.5">Presentación</p>
+          <div className="flex flex-wrap gap-2">
+            {presentaciones.map(p => (
+              <Chip key={p.id} active={presentacionId === p.id} onClick={() => setPresentacionId(p.id)}>{p.nombre}</Chip>
+            ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-[#888] mb-1 block">Fécula (kg)</label>
-            <InputNumero
-              min={0}
-              placeholder="0"
-              value={feculaKg === 0 ? null : feculaKg}
-              onChange={v => onFeculaChange(v ?? 0)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-[#888] mb-1 block">Masa (kg)</label>
-            <InputNumero
-              min={0}
-              placeholder="0"
-              value={masaKg === 0 ? null : masaKg}
-              onChange={v => onMasaChange(v ?? 0)}
-              className={inputClass}
-            />
-          </div>
+        <div>
+          <label className="text-xs text-[#888] mb-1 block">Cantidad (kg)</label>
+          <InputNumero
+            min={0}
+            placeholder="0"
+            value={cantidadKg === 0 ? null : cantidadKg}
+            onChange={v => setCantidadKg(v ?? 0)}
+            className={inputClass}
+          />
         </div>
-
-        {destino === 'congelado_embolsado' && (
-          <div>
-            <p className="text-xs text-[#888] mb-1.5">Tamaño</p>
-            <div className="flex gap-2">
-              {tamanios.map(t => (
-                <Chip key={t.id} active={tamanioId === t.id} onClick={() => setTamanioId(t.id)}>{t.nombre}</Chip>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div>
           <p className="text-xs text-[#888] mb-1.5">Operario</p>
@@ -314,7 +243,7 @@ export default function ProduccionClient({
       </Card>
 
       <div className="flex gap-2">
-        {!editingId && listaTurno.length > 0 && (
+        {!editingId && congelados.length > 0 && (
           <button
             onClick={repetirUltima}
             className="flex items-center justify-center gap-1.5 px-4 py-3.5 rounded-xl text-sm font-semibold text-[#888] hover:text-[#f0f0f0] border border-[#2a2a2a] transition-colors"
@@ -334,43 +263,40 @@ export default function ProduccionClient({
       <div className="space-y-2 pt-2">
         <div className="flex items-center justify-between px-1">
           <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">
-            {listaTurno.length} carga{listaTurno.length !== 1 ? 's' : ''} · {dia === hoy ? 'hoy' : dia === ayer ? 'ayer' : dia} · turno {turnoSeleccionado === 'manana' ? 'mañana' : 'tarde'}
+            {congelados.length} carga{congelados.length !== 1 ? 's' : ''} · {dia === hoy ? 'hoy' : dia === ayer ? 'ayer' : dia}
           </p>
-          {hayCongeladoEnLista && (
-            <Link
-              href="/fabrica/registro/congelados"
-              className="flex items-center gap-1 text-[11px] font-medium text-[#888] hover:text-[#e8c547] transition-colors shrink-0"
-            >
-              Ver congelados <ArrowRight size={11} />
-            </Link>
-          )}
+          <Link
+            href="/fabrica/registro/produccion"
+            className="flex items-center gap-1 text-[11px] font-medium text-[#888] hover:text-[#e8c547] transition-colors shrink-0"
+          >
+            Ver producción <ArrowRight size={11} />
+          </Link>
         </div>
-        {listaTurno.length === 0 ? (
-          <p className="text-sm text-[#666] text-center py-8">Todavía no hay cargas en este turno.</p>
+        {congelados.length === 0 ? (
+          <p className="text-sm text-[#666] text-center py-8">Todavía no hay congelados cargados este día.</p>
         ) : (
           <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
-            {listaTurno.map(p => (
-              <div key={p.id} className="px-4 py-3 flex items-center gap-3">
+            {congelados.map(c => (
+              <div key={c.id} className="px-4 py-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f0] font-medium flex items-center gap-1.5">
-                    {p.destino === 'congelado_embolsado' ? <Snowflake size={13} className="text-[#666]" /> : <Package size={13} className="text-[#666]" />}
-                    {p.saborNombre}
+                    <Snowflake size={13} className="text-[#666]" />
+                    {nombreTamanio(c.tamanioId)} · {nombreSabor(c.saborId)}
                   </p>
                   <p className="text-xs text-[#666] mt-0.5">
-                    {p.feculaKg} kg fécula → {p.masaKg} kg masa
-                    {p.destino === 'congelado_embolsado' && p.tamanioNombre && <> · {p.tamanioNombre}</>}
-                    {p.operarioNombre && <> · {p.operarioNombre}</>}
+                    {c.cantidadKg} kg · {c.presentacionNombre}
+                    {c.operarioNombre && <> · {c.operarioNombre}</>}
                   </p>
                 </div>
                 <button
-                  onClick={() => cargarParaEditar(p)}
+                  onClick={() => cargarParaEditar(c)}
                   aria-label="Editar"
                   className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-[#e8c547] rounded-lg hover:bg-[#1a1a1a] transition-colors"
                 >
                   <Pencil size={15} />
                 </button>
                 <button
-                  onClick={() => setAEliminar(p)}
+                  onClick={() => setAEliminar(c)}
                   aria-label="Eliminar"
                   className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-red-400 rounded-lg hover:bg-[#1a1a1a] transition-colors"
                 >
@@ -384,7 +310,7 @@ export default function ProduccionClient({
 
       <Modal open={!!aEliminar} onClose={() => !eliminando && setAEliminar(null)} title="Eliminar carga" accent="red">
         <p className="text-sm text-[#888]">
-          Se borra esta producción. No se puede deshacer.
+          Se borra este congelado. No se puede deshacer.
         </p>
         <div className="flex gap-2 pt-4">
           <button onClick={() => setAEliminar(null)} disabled={eliminando} className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] transition-colors disabled:opacity-40">

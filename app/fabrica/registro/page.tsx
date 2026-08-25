@@ -4,7 +4,7 @@ import Card from '@/components/ui/Card'
 
 const TARJETAS = [
   { href: '/fabrica/registro/produccion', label: 'Producción', descripcion: 'Cargar fécula y masa por turno', Icon: Factory },
-  { href: '/fabrica/registro/embolsado', label: 'Embolsado', descripcion: 'Repartir masa de congelado en presentaciones', Icon: Snowflake },
+  { href: '/fabrica/registro/congelados', label: 'Congelados', descripcion: 'Cargar presentaciones de producto congelado', Icon: Snowflake },
   { href: '/fabrica/registro/devolucion', label: 'Devolución', descripcion: 'Registrar producto devuelto, con reinserción o pérdida', Icon: Undo2 },
 ] as const
 
