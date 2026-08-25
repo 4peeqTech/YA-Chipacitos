@@ -44,6 +44,44 @@ export function construirMensajePedido(proveedorNombre: string, local: string | 
   return `🧾 *PEDIDO ${proveedorNombre.toUpperCase()}* — ${dia} ${fecha}${entrega}\n\n*Detalle del pedido:*\n${cuerpo}${facturacion}`
 }
 
+export interface ContextoMensaje {
+  proveedorNombre: string
+  contactoNombre?: string | null
+  local: string | null
+  items: ItemMensaje[]
+}
+
+// Variables soportadas por las plantillas (ver ABM en /admin/proveedores/plantillas):
+// {{proveedor}} {{contacto}} {{items}} {{fecha}} {{dia}} {{entrega}} {{facturacion}}
+// {{local_suc}} {{local_direccion}} {{local_cuit}}. Una variable no reconocida
+// se deja vacía en vez de romper el mensaje.
+export function renderPlantilla(cuerpo: string, ctx: ContextoMensaje): string {
+  const hoy = new Date()
+  const fecha = `${hoy.getDate()}/${String(hoy.getMonth() + 1).padStart(2, '0')}`
+  const dia = DIAS_SEMANA[hoy.getDay()]
+  const datosLocal = ctx.local ? LOCALES[ctx.local] : undefined
+
+  const entrega = datosLocal ? `\n\n📍 *Entrega:* ${datosLocal.direccion}` : ''
+  const facturacion = datosLocal
+    ? `\n\n· · · · · · · · · · ·\n🏷 *Datos de facturación*\n${datosLocal.suc}\nYA ! CHIPACITOS\nCUIT: ${datosLocal.cuit}`
+    : ''
+
+  const variables: Record<string, string> = {
+    proveedor: ctx.proveedorNombre.toUpperCase(),
+    contacto: ctx.contactoNombre ?? '',
+    items: ctx.items.map(formatearLineaItem).join('\n'),
+    fecha,
+    dia,
+    entrega,
+    facturacion,
+    local_suc: datosLocal?.suc ?? '',
+    local_direccion: datosLocal?.direccion ?? '',
+    local_cuit: datosLocal?.cuit ?? '',
+  }
+
+  return cuerpo.replace(/\{\{(\w+)\}\}/g, (_, key: string) => variables[key] ?? '')
+}
+
 export function linkWhatsApp(telefono: string | null, mensaje: string): string {
   const texto = encodeURIComponent(mensaje)
   const numero = telefono ? telefono.replace(/[^\d]/g, '') : ''

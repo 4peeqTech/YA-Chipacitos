@@ -3,14 +3,22 @@
 import { useState, useTransition } from 'react'
 import { Lock, Pencil, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { construirMensajePedido, linkWhatsApp } from '@/lib/compras/pedidoMensaje'
+import { construirMensajePedido, renderPlantilla, linkWhatsApp } from '@/lib/compras/pedidoMensaje'
 import Modal from '@/components/ui/Modal'
 import RemitosPedido, { type Remito } from './RemitosPedido'
+
+interface Plantilla {
+  id: string
+  nombre: string
+  cuerpo: string
+  es_default: boolean
+}
 
 interface Proveedor {
   id: string
   nombre: string
   local: string | null
+  contacto_nombre: string | null
   contacto_telefono: string | null
   maneja_stock: boolean
 }
@@ -68,12 +76,14 @@ export default function PedidosClient({
   stockInicial,
   pedidosIniciales,
   usuarioId,
+  plantillas,
 }: {
   proveedores: Proveedor[]
   itemsCatalogo: CompraItem[]
   stockInicial: StockActual[]
   pedidosIniciales: Pedido[]
   usuarioId: string
+  plantillas: Plantilla[]
 }) {
   const supabase = createClient()
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
@@ -85,6 +95,7 @@ export default function PedidosClient({
   const [creandoPedido, setCreandoPedido] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<Pedido | null>(null)
   const [itemsEditor, setItemsEditor] = useState<ItemEditor[]>([])
+  const [plantillaId, setPlantillaId] = useState('')
   const [mensajeCopiado, setMensajeCopiado] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -147,6 +158,7 @@ export default function PedidosClient({
         .sort((a, b) => a.orden - b.orden)
         .map(i => ({ item_id: i.item_id, descripcion: i.descripcion, unidad: i.unidad, cantidad: i.cantidad }))
     )
+    setPlantillaId(plantillas.find(p => p.es_default)?.id ?? plantillas[0]?.id ?? '')
     setError('')
     setMensajeCopiado(false)
   }
@@ -227,7 +239,15 @@ export default function PedidosClient({
       if (!itemsGuardados) return
       if (!itemsGuardados.length) { setError('Agregá al menos un ítem antes de generar el mensaje'); return }
 
-      const mensaje = construirMensajePedido(pedidoEditando.proveedores.nombre, pedidoEditando.proveedores.local, itemsGuardados)
+      const plantilla = plantillas.find(p => p.id === plantillaId)
+      const mensaje = plantilla
+        ? renderPlantilla(plantilla.cuerpo, {
+            proveedorNombre: pedidoEditando.proveedores.nombre,
+            contactoNombre: pedidoEditando.proveedores.contacto_nombre,
+            local: pedidoEditando.proveedores.local,
+            items: itemsGuardados,
+          })
+        : construirMensajePedido(pedidoEditando.proveedores.nombre, pedidoEditando.proveedores.local, itemsGuardados)
 
       const { data, error: errUpdate } = await supabase
         .from('compras_pedidos')
@@ -354,6 +374,16 @@ export default function PedidosClient({
             <button onClick={() => guardarItems()} disabled={isPending} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
               Guardar ítems
             </button>
+            {plantillas.length > 0 && (
+              <select
+                value={plantillaId}
+                onChange={e => setPlantillaId(e.target.value)}
+                disabled={pedidoEditando.estado === 'cerrado'}
+                className={`${inputClass} w-auto disabled:opacity-40`}
+              >
+                {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.es_default ? ' (default)' : ''}</option>)}
+              </select>
+            )}
             <button onClick={generarMensaje} disabled={isPending || pedidoEditando.estado === 'cerrado'} className="bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
               Generar mensaje
             </button>

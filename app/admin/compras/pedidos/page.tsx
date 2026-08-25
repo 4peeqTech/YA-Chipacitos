@@ -14,10 +14,11 @@ export default async function PedidosPage() {
     { data: itemsCatalogo },
     { data: stock },
     { data: pedidos },
+    { data: plantillas },
   ] = await Promise.all([
     supabase
       .from('proveedores')
-      .select('id, nombre, local, contacto_telefono, maneja_stock')
+      .select('id, nombre, local, contacto_nombre, contacto_telefono, maneja_stock')
       .eq('estado', 'activo')
       .order('nombre'),
     supabase
@@ -28,8 +29,13 @@ export default async function PedidosPage() {
     supabase.from('compras_stock_actual').select('*'),
     supabase
       .from('compras_pedidos')
-      .select('*, proveedores(id, nombre, local, contacto_telefono, maneja_stock), compras_pedido_items(*), compras_remitos(*, compras_remito_items(*))')
+      .select('*, proveedores(id, nombre, local, contacto_nombre, contacto_telefono, maneja_stock), compras_pedido_items(*), compras_remitos(*, compras_remito_items(*))')
       .order('created_at', { ascending: false }),
+    supabase
+      .from('compras_plantillas_mensaje')
+      .select('id, nombre, cuerpo, es_default')
+      .eq('activo', true)
+      .order('orden'),
   ])
 
   return (
@@ -39,6 +45,7 @@ export default async function PedidosPage() {
       stockInicial={stock ?? []}
       pedidosIniciales={pedidos ?? []}
       usuarioId={user.id}
+      plantillas={plantillas ?? []}
     />
   )
 }
