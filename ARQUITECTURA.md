@@ -1495,7 +1495,8 @@ Las credenciales viven en variables de entorno (ver §5.4 y §9).
 
 | Tabla | Columnas clave | Índices |
 |---|---|---|
-| `compras_items` | `proveedor_id` FK · `categoria_id` FK · `nombre` · `unidad` · `meta_semanal` numeric · `precio` numeric · `estado` (activo\|archivado) | `idx_compras_items_proveedor_id` |
+| `compras_items` | `proveedor_id` FK (⚠️ 1:N legacy, en desuso — ver `compras_item_proveedores`) · `categoria_id` FK · `nombre` · `unidad` · `meta_semanal` numeric · `precio` numeric · `estado` (activo\|archivado) | `idx_compras_items_proveedor_id` |
+| `compras_item_proveedores` | `item_id` FK CASCADE · `proveedor_id` FK CASCADE · `es_principal` bool (único por item) · `precio_ref`/`codigo_proveedor` · `activo` · **UNIQUE `(item_id, proveedor_id)`** — M:N insumo↔proveedor | `idx_cip_item_id`, `idx_cip_proveedor_id`, `idx_cip_principal_unico` |
 | `fabrica_materia_prima` | `proveedor_id` FK (Global) · `nombre` · `unidad_compra` · `kg_por_unidad` numeric > 0 · `coeficiente` numeric (kg/kg masa) · `precio` numeric · `estado` (activo\|archivado) | — |
 | `compras_stock_actual` | `item_id` **PK** FK CASCADE · `cantidad` numeric · `actualizado_en` · `actualizado_por` | PK |
 | `compras_stock_movimientos` | `item_id` FK CASCADE · `delta` numeric NOT NULL · `tipo` (`entrada_remito`\|`ajuste_manual`) · `remito_id` FK SET NULL · `creado_por` · `created_at` | `idx_..._item_id` |
@@ -1596,10 +1597,16 @@ Fudo (13)         ← ninguna en uso
 | `guardar_embolsado_fabrica(p_fecha, p_tamanio_id, p_sabor_id, p_lineas)` | `→ integer`, `plpgsql SECURITY DEFINER` | Reemplazo atómico de un pool de embolsado; devuelve cuántas líneas no movieron stock por falta de producto en catálogo |
 
 Esta tabla no es un inventario exhaustivo — Compras y Fábrica agregaron bastantes
-helpers/RPC más (`tiene_acceso_compras()`, `tiene_acceso_fabrica()`,
+helpers/RPC más (`tiene_acceso_compras()`, `tiene_acceso_fabrica()`, `es_admin()`,
 `cerrar_conteo_fabrica()`, `guardar_produccion_fabrica()`, `mover_stock_terminado()`,
-etc.) que no siempre se reflejaron acá. No hay triggers ni vistas; toda la lógica
-derivada de UI vive en TypeScript.
+etc.) que no siempre se reflejaron acá. No hay triggers; toda la lógica derivada
+de UI vive en TypeScript.
+
+**Única vista del proyecto**: `v_compras_items` (`20260825140000_compras_items_proveedores_mn.sql`)
+— `compras_items` + su proveedor principal (`compras_item_proveedores.es_principal`),
+como `proveedor_principal_id`/`proveedor_principal_nombre`. Se introdujo al pasar
+insumo↔proveedor de 1:N a M:N (ver [§6.5](#65-compras-5-tablas--3--fabrica_materia_prima-de-fábrica))
+para no reescribir cada consumidor que solo necesita "el proveedor de este insumo".
 
 ### 7.2 Row Level Security
 

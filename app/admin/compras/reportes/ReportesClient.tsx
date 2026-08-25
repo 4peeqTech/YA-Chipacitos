@@ -23,6 +23,7 @@ export default function ReportesClient({
   stockInicial,
   solicitudItemsIniciales,
   pedidoItemsIniciales,
+  proveedorPorItem,
 }: {
   remitosIniciales: RemitoReporte[]
   pedidosIniciales: PedidoReporte[]
@@ -30,6 +31,7 @@ export default function ReportesClient({
   stockInicial: StockActualRow[]
   solicitudItemsIniciales: SolicitudItemReporte[]
   pedidoItemsIniciales: PedidoItemCompradoReporte[]
+  proveedorPorItem: Record<string, string>
 }) {
   const [tab, setTab] = useState<Tab>('gasto')
   const [preset, setPreset] = useState<PresetUI>('mes_actual')
@@ -127,7 +129,7 @@ export default function ReportesClient({
 
       {tab === 'gasto' && <GastoPorProveedor remitos={remitosFiltrados} />}
       {tab === 'historial' && <HistorialPedidos pedidos={pedidosFiltrados} />}
-      {tab === 'stock' && <MovimientoStock movimientos={movimientosFiltrados} stockActualPorItem={stockActualPorItem} />}
+      {tab === 'stock' && <MovimientoStock movimientos={movimientosFiltrados} stockActualPorItem={stockActualPorItem} proveedorPorItem={proveedorPorItem} />}
       {tab === 'sugerido' && <SugeridoVsComprado solicitudItems={solicitudItemsIniciales} pedidoItems={pedidoItemsIniciales} />}
     </div>
   )

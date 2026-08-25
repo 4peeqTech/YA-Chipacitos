@@ -71,9 +71,11 @@ function origenSolicitud(s: Solicitud) {
 export default function SolicitudesClient({
   solicitudesIniciales,
   proveedores,
+  proveedoresPorItem,
 }: {
   solicitudesIniciales: Solicitud[]
   proveedores: ProveedorOption[]
+  proveedoresPorItem: Record<string, string[]>
 }) {
   const supabase = createClient()
   const router = useRouter()
@@ -90,6 +92,14 @@ export default function SolicitudesClient({
 
   const abierta = solicitudes.find(s => s.id === abiertaId) ?? null
   const nombreProveedor = (id: string) => proveedores.find(p => p.id === id)?.nombre ?? '—'
+
+  // Limita el select a los proveedores asociados al ítem; sin ítem (línea libre)
+  // o sin asociaciones cargadas, se ve la lista completa.
+  function proveedoresParaItem(itemId: string | null): ProveedorOption[] {
+    const asociados = itemId ? proveedoresPorItem[itemId] : undefined
+    if (!asociados?.length) return proveedores
+    return proveedores.filter(p => asociados.includes(p.id))
+  }
 
   const pendientes = solicitudes.filter(s => s.estado === 'abierta').length
   const lista = solicitudes.filter(s => filtro === 'todas' || s.estado === 'abierta')
@@ -280,7 +290,7 @@ export default function SolicitudesClient({
                       onChange={e => cambiarProveedor(i.id, e.target.value)}
                       className={`hidden sm:block ${selectClass}`}
                     >
-                      {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                      {proveedoresParaItem(i.item_id).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                     </select>
                     <input
                       type="checkbox"

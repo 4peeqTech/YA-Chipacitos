@@ -139,7 +139,7 @@ export interface MovimientoReporte {
   tipo: 'entrada_remito' | 'ajuste_manual'
   remito_id: string | null
   created_at: string
-  compras_items: { nombre: string; proveedores: { nombre: string } | null } | null
+  compras_items: { nombre: string } | null
 }
 
 export interface MovimientoDetalle {
@@ -165,9 +165,13 @@ export interface MovimientoInsumo {
 // lista recibida no aparecen — el caller filtra `movimientos` por rango
 // de fecha antes de llamar a esta función, así que "sin movimientos en
 // la lista" ya significa "sin movimientos en el período elegido".
+// proveedorPorItem viene de v_compras_items (proveedor_principal_nombre) —
+// el insumo puede tener varios proveedores desde que existe compras_item_proveedores,
+// acá se muestra el principal.
 export function calcularMovimientoPorInsumo(
   movimientos: MovimientoReporte[],
-  stockActualPorItem: Record<string, number>
+  stockActualPorItem: Record<string, number>,
+  proveedorPorItem: Record<string, string>
 ): MovimientoInsumo[] {
   const porItem = new Map<string, MovimientoInsumo>()
 
@@ -177,7 +181,7 @@ export function calcularMovimientoPorInsumo(
       grupo = {
         itemId: mov.item_id,
         itemNombre: mov.compras_items?.nombre ?? '—',
-        proveedorNombre: mov.compras_items?.proveedores?.nombre ?? '—',
+        proveedorNombre: proveedorPorItem[mov.item_id] ?? '—',
         entradas: 0,
         ajustes: 0,
         balance: 0,

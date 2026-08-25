@@ -16,6 +16,7 @@ export default async function ReportesPage() {
     { data: stock },
     { data: solicitudItems },
     { data: pedidoItems },
+    { data: vItems },
   ] = await Promise.all([
     supabase
       .from('compras_remitos')
@@ -27,7 +28,7 @@ export default async function ReportesPage() {
       .order('created_at', { ascending: false }),
     supabase
       .from('compras_stock_movimientos')
-      .select('*, compras_items(nombre, proveedores(nombre))')
+      .select('*, compras_items(nombre)')
       .order('created_at', { ascending: false }),
     supabase.from('compras_stock_actual').select('item_id, cantidad'),
     supabase
@@ -36,7 +37,15 @@ export default async function ReportesPage() {
     supabase
       .from('compras_pedido_items')
       .select('item_id, cantidad, compras_pedidos(solicitud_id)'),
+    // v_compras_items evita depender de compras_items.proveedor_id (1:N, en desuso
+    // desde que existe compras_item_proveedores) solo para mostrar el proveedor principal acá.
+    supabase.from('v_compras_items').select('id, proveedor_principal_nombre'),
   ])
+
+  const proveedorPorItem: Record<string, string> = {}
+  for (const v of vItems ?? []) {
+    proveedorPorItem[v.id] = v.proveedor_principal_nombre ?? '—'
+  }
 
   return (
     <ReportesClient
@@ -46,6 +55,7 @@ export default async function ReportesPage() {
       stockInicial={stock ?? []}
       solicitudItemsIniciales={(solicitudItems ?? []) as any}
       pedidoItemsIniciales={(pedidoItems ?? []) as any}
+      proveedorPorItem={proveedorPorItem}
     />
   )
 }

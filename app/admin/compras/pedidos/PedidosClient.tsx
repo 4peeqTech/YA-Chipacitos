@@ -17,10 +17,10 @@ interface Proveedor {
 
 interface CompraItem {
   id: string
-  proveedor_id: string
   nombre: string
   unidad: string
   stock_minimo: number
+  compras_item_proveedores: { proveedor_id: string; precio_ref: number | null; activo: boolean }[]
 }
 
 interface StockActual {
@@ -59,6 +59,7 @@ type ItemEditor = Pick<PedidoItem, 'item_id' | 'descripcion' | 'unidad' | 'canti
 // Fila del catálogo del proveedor elegido en el modal de creación, con su checkbox de inclusión.
 interface FilaCatalogo extends ItemEditor {
   incluir: boolean
+  precioRef: number | null
 }
 
 export default function PedidosClient({
@@ -97,10 +98,11 @@ export default function PedidosClient({
   function filasParaProveedor(proveedorId: string): FilaCatalogo[] {
     const proveedor = proveedores.find(p => p.id === proveedorId)
     return itemsCatalogo
-      .filter(i => i.proveedor_id === proveedorId)
-      .map(i => {
+      .map(i => ({ item: i, asociado: i.compras_item_proveedores.find(cp => cp.proveedor_id === proveedorId && cp.activo) }))
+      .filter((x): x is { item: CompraItem; asociado: NonNullable<typeof x.asociado> } => !!x.asociado)
+      .map(({ item: i, asociado }) => {
         const cantidad = proveedor?.maneja_stock ? Math.max(0, i.stock_minimo - (stockPorItem[i.id] ?? 0)) : 0
-        return { item_id: i.id, descripcion: i.nombre, unidad: i.unidad, cantidad, incluir: cantidad > 0 }
+        return { item_id: i.id, descripcion: i.nombre, unidad: i.unidad, cantidad, incluir: cantidad > 0, precioRef: asociado.precio_ref }
       })
   }
 
@@ -202,7 +204,7 @@ export default function PedidosClient({
       if (errPedido) { setError(errPedido.message); return }
 
       const filasFinal: ItemEditor[] = [
-        ...filasModal.filter(f => f.incluir && f.cantidad > 0).map(({ incluir, ...resto }) => resto),
+        ...filasModal.filter(f => f.incluir && f.cantidad > 0).map(({ incluir, precioRef, ...resto }) => resto),
         ...lineasLibresModal.filter(l => l.descripcion.trim() && l.cantidad > 0),
       ]
 
@@ -493,7 +495,7 @@ export default function PedidosClient({
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-[#f0f0f0] truncate">{f.descripcion}</p>
-                          <p className="text-xs text-[#666]">{f.unidad}</p>
+                          <p className="text-xs text-[#666]">{f.unidad}{f.precioRef != null ? ` · ref. $${f.precioRef.toLocaleString('es-AR')}` : ''}</p>
                         </div>
                         <input
                           type="number" step="0.01"

@@ -11,12 +11,14 @@ const TIPO_LABEL: Record<'entrada_remito' | 'ajuste_manual', string> = {
 export default function MovimientoStock({
   movimientos,
   stockActualPorItem,
+  proveedorPorItem,
 }: {
   movimientos: MovimientoReporte[]
   stockActualPorItem: Record<string, number>
+  proveedorPorItem: Record<string, string>
 }) {
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
-  const filas = calcularMovimientoPorInsumo(movimientos, stockActualPorItem)
+  const filas = calcularMovimientoPorInsumo(movimientos, stockActualPorItem, proveedorPorItem)
 
   const thClass = "px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider"
 

@@ -18,7 +18,8 @@ interface CatalogoItem {
   id: string
   nombre: string
   unidad: string
-  proveedor_id: string
+  proveedorPrincipalId: string | null
+  proveedoresAsociados: string[]
 }
 
 interface PlantillaLinea {
@@ -92,8 +93,16 @@ export default function PedidoBaseClient({
       item_id: item.id,
       descripcion: f.descripcion?.trim() ? f.descripcion : item.nombre,
       unidad: f.unidad?.trim() ? f.unidad : item.unidad,
-      proveedor_id: f.proveedor_id || item.proveedor_id,
+      proveedor_id: f.proveedor_id || item.proveedorPrincipalId || '',
     }))
+  }
+
+  // Limita el select de proveedor a los asociados al ítem elegido — si no hay
+  // ítem (línea libre) o el ítem no tiene proveedores cargados, se ve la lista completa.
+  function proveedoresParaForm(): ProveedorOption[] {
+    const item = itemsCatalogo.find(i => i.id === form.item_id)
+    if (!item || !item.proveedoresAsociados.length) return proveedores
+    return proveedores.filter(p => item.proveedoresAsociados.includes(p.id))
   }
 
   async function guardar() {
@@ -264,7 +273,7 @@ export default function PedidoBaseClient({
             <label className={labelClass}>Proveedor *</label>
             <select className={inputClass} value={form.proveedor_id ?? ''} onChange={e => setForm(f => ({ ...f, proveedor_id: e.target.value }))}>
               <option value="">Seleccionar...</option>
-              {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              {proveedoresParaForm().map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
           </div>
           <div>

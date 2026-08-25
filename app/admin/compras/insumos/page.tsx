@@ -10,7 +10,7 @@ export default async function InsumosPage() {
   if (!user) redirect('/login')
 
   const [{ data: items }, { data: proveedores }, { data: categorias }, { data: definicionItems }] = await Promise.all([
-    supabase.from('compras_items').select('*').order('nombre'),
+    supabase.from('compras_items').select('*, compras_item_proveedores(proveedor_id, es_principal, precio_ref, codigo_proveedor)').order('nombre'),
     supabase
       .from('proveedores')
       .select('id, nombre')
