@@ -4,6 +4,8 @@ export interface Modulo {
   icon: string
   href: string
   section?: string
+  /** Escritura (y asignación en Usuarios) exclusiva de admin, sin importar modulos_permitidos. */
+  soloAdmin?: boolean
 }
 
 // Registro único de módulos asignables. Lo usan el Sidebar (navegación),
@@ -33,7 +35,7 @@ export const MODULOS: Modulo[] = [
   { key: 'proveedores',  label: 'Proveedores',     icon: '🚚', href: '/admin/proveedores',  section: 'Parámetros' },
   { key: 'cajas',        label: 'Cajas',           icon: '🏦', href: '/admin/cajas',        section: 'Parámetros' },
   { key: 'formas_pago',  label: 'Formas de pago',  icon: '💳', href: '/admin/formas-pago',  section: 'Parámetros' },
-  { key: 'fabrica_parametros', label: 'Fábrica', icon: '🏭', href: '/admin/fabrica-parametros', section: 'Parámetros' },
+  { key: 'fabrica_parametros', label: 'Fábrica', icon: '🏭', href: '/admin/fabrica-parametros', section: 'Parámetros', soloAdmin: true },
 
   { key: 'compras-insumos', label: 'Insumos', icon: '🧺', href: '/admin/compras/insumos', section: 'Compras' },
   { key: 'compras-stock',   label: 'Stock',   icon: '📦', href: '/admin/compras/stock',   section: 'Compras' },

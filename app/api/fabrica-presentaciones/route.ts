@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { NextRequest, NextResponse } from 'next/server'
 
 async function requireAuth() {
@@ -22,16 +23,18 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { supabase, error } = await requireAuth()
+  const { supabase, error } = await requireAdmin()
   if (error) return error
   const { nombre, peso_kg } = await req.json()
-  const { data, error: e } = await supabase.from('fabrica_presentaciones').insert({ nombre, peso_kg }).select().single()
+  const { data: ultimo } = await supabase.from('fabrica_presentaciones').select('orden').order('orden', { ascending: false }).limit(1).maybeSingle()
+  const orden = (ultimo?.orden ?? 0) + 1
+  const { data, error: e } = await supabase.from('fabrica_presentaciones').insert({ nombre, peso_kg, orden }).select().single()
   if (e) return errorResponse(e.message, e.code)
   return NextResponse.json(data)
 }
 
 export async function PATCH(req: NextRequest) {
-  const { supabase, error } = await requireAuth()
+  const { supabase, error } = await requireAdmin()
   if (error) return error
   const { id, ...fields } = await req.json()
   const { data, error: e } = await supabase.from('fabrica_presentaciones').update(fields).eq('id', id).select().single()
@@ -40,7 +43,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { supabase, error } = await requireAuth()
+  const { supabase, error } = await requireAdmin()
   if (error) return error
   const { id } = await req.json()
   const { error: e } = await supabase.from('fabrica_presentaciones').delete().eq('id', id)

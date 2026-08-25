@@ -119,7 +119,7 @@ export async function proxy(request: NextRequest) {
       // entrar a los módulos que tienen asignados en modulos_permitidos.
       if (esRolConModulos(rol) && pathname.startsWith('/admin')) {
         const modulo = getModuloPorPath(pathname)
-        const tieneAcceso = modulo && modulosPermitidos.includes(modulo.key)
+        const tieneAcceso = modulo && !modulo.soloAdmin && modulosPermitidos.includes(modulo.key)
         if (!tieneAcceso) {
           const primerModulo = MODULOS.find(m => modulosPermitidos.includes(m.key))
           // Si no tiene NINGÚN módulo asignado, '/ayuda' es la única ruta

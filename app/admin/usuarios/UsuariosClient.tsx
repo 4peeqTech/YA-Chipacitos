@@ -5,7 +5,9 @@ import { Profile, Rol, RoleDef } from '@/lib/types'
 import Card from '@/components/ui/Card'
 import { MODULOS } from '@/lib/modulos'
 
-const MODULOS_POR_SECCION = MODULOS.reduce((acc, m) => {
+// soloAdmin queda afuera: admin ya lo ve siempre, y asignárselo a otro rol
+// generaría la falsa expectativa de que puede escribir ahí.
+const MODULOS_POR_SECCION = MODULOS.filter(m => !m.soloAdmin).reduce((acc, m) => {
   const seccion = m.section || 'General'
   if (!acc[seccion]) acc[seccion] = []
   acc[seccion].push(m)
