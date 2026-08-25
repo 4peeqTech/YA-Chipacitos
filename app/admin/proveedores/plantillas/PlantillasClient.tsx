@@ -57,6 +57,7 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
   const [form, setForm] = useState<Partial<Plantilla>>(emptyForm())
   const [eliminando, setEliminando] = useState<Plantilla | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [textareaDragOver, setTextareaDragOver] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   // Recuerda dónde estaba el cursor la última vez que el usuario tocó el textarea,
   // así un clic en una variable inserta ahí aunque el foco haya pasado al botón.
@@ -269,7 +270,7 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
           <div>
             <label className={labelClass}>
               Variables
-              <HelpTooltip text="Clic para agregar al mensaje — se inserta donde tengas el cursor, o al final si no tocaste el texto todavía." />
+              <HelpTooltip text="Arrastrá una variable hasta el punto exacto del mensaje, o hacé clic para agregarla donde tengas el cursor (al final si no tocaste el texto todavía)." />
             </label>
             <div className="flex flex-wrap gap-1.5">
               {VARIABLES.map(v => (
@@ -277,8 +278,10 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
                   key={v.key}
                   type="button"
                   title={v.desc}
+                  draggable
+                  onDragStart={e => e.dataTransfer.setData('text/plain', `{{${v.key}}}`)}
                   onClick={() => insertarVariable(v.key)}
-                  className="flex items-center gap-1.5 text-xs text-[#ccc] hover:text-[#e8c547] bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#e8c547] rounded-lg px-2.5 py-1.5 transition-colors"
+                  className="flex items-center gap-1.5 text-xs text-[#ccc] hover:text-[#e8c547] bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#e8c547] rounded-lg px-2.5 py-1.5 cursor-grab active:cursor-grabbing transition-colors"
                 >
                   <v.icon size={13} />
                   {v.label}
@@ -291,13 +294,16 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
             <label className={labelClass}>Cuerpo *</label>
             <textarea
               ref={textareaRef}
-              className={`${inputClass} resize-none`}
+              className={`${inputClass} resize-none transition-colors ${textareaDragOver ? 'border-[#e8c547] ring-1 ring-[#e8c547]' : ''}`}
               rows={8}
               value={form.cuerpo ?? ''}
               onChange={e => { setForm(f => ({ ...f, cuerpo: e.target.value })); recordarCursor(e) }}
               onSelect={recordarCursor}
               onClick={recordarCursor}
               onKeyUp={recordarCursor}
+              onDragOver={e => { e.preventDefault(); setTextareaDragOver(true) }}
+              onDragLeave={() => setTextareaDragOver(false)}
+              onDrop={() => setTextareaDragOver(false)}
             />
           </div>
 
