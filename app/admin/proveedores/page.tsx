@@ -9,10 +9,17 @@ export default async function ProveedoresPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: proveedores } = await supabase
-    .from('proveedores')
-    .select('*')
-    .order('nombre')
+  const [{ data: proveedores }, { data: itemsProveedores }] = await Promise.all([
+    supabase.from('proveedores').select('*').order('nombre'),
+    supabase.from('compras_item_proveedores').select('proveedor_id').eq('activo', true),
+  ])
 
-  return <ProveedoresClient proveedoresIniciales={proveedores ?? []} />
+  const proveedorIdsConInsumos = [...new Set((itemsProveedores ?? []).map(ip => ip.proveedor_id))]
+
+  return (
+    <ProveedoresClient
+      proveedoresIniciales={proveedores ?? []}
+      proveedorIdsConInsumos={proveedorIdsConInsumos}
+    />
+  )
 }

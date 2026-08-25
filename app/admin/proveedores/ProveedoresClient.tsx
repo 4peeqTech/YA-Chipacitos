@@ -3,6 +3,21 @@
 import { useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { normalizarTelefonoAR, formatearTelefono } from '@/lib/compras/telefono'
+import Modal from '@/components/ui/Modal'
+
+interface InsumoAsociado {
+  itemId: string
+  itemNombre: string
+  unidad: string
+  esPrincipal: boolean
+  precioRef: number | null
+}
+
+interface PedidoResumen {
+  id: string
+  estado: 'borrador' | 'enviado' | 'cerrado'
+  createdAt: string
+}
 
 interface Proveedor {
   id: string
@@ -43,10 +58,17 @@ const emptyForm = (): Partial<Proveedor> => ({
   local: null,
 })
 
-export default function ProveedoresClient({ proveedoresIniciales }: { proveedoresIniciales: Proveedor[] }) {
+export default function ProveedoresClient({
+  proveedoresIniciales,
+  proveedorIdsConInsumos,
+}: {
+  proveedoresIniciales: Proveedor[]
+  proveedorIdsConInsumos: string[]
+}) {
   const supabase = createClient()
   const [proveedores, setProveedores] = useState<Proveedor[]>(proveedoresIniciales)
   const [filtro, setFiltro] = useState<FiltroEstado>('activo')
+  const [soloSinInsumos, setSoloSinInsumos] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [editando, setEditando] = useState<Proveedor | null>(null)
   const [creando, setCreando] = useState(false)
@@ -54,11 +76,54 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
+  const [ficha, setFicha] = useState<Proveedor | null>(null)
+  const [fichaCargando, setFichaCargando] = useState(false)
+  const [fichaInsumos, setFichaInsumos] = useState<InsumoAsociado[]>([])
+  const [fichaPedidos, setFichaPedidos] = useState<PedidoResumen[]>([])
+
+  const idsConInsumos = new Set(proveedorIdsConInsumos)
+
   const filtrados = proveedores.filter(p => {
     const matchEstado = filtro === 'todos' || p.estado === filtro
     const matchBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase())
-    return matchEstado && matchBusqueda
+    const matchInsumos = !soloSinInsumos || !idsConInsumos.has(p.id)
+    return matchEstado && matchBusqueda && matchInsumos
   })
+
+  async function abrirFicha(p: Proveedor) {
+    setFicha(p)
+    setFichaCargando(true)
+    const [{ data: insumos }, { data: pedidos }] = await Promise.all([
+      supabase
+        .from('compras_item_proveedores')
+        .select('item_id, es_principal, precio_ref, compras_items(nombre, unidad)')
+        .eq('proveedor_id', p.id)
+        .eq('activo', true),
+      supabase
+        .from('compras_pedidos')
+        .select('id, estado, created_at')
+        .eq('proveedor_id', p.id)
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ])
+    setFichaInsumos(
+      (insumos ?? []).map((i: any) => ({
+        itemId: i.item_id,
+        itemNombre: i.compras_items?.nombre ?? '—',
+        unidad: i.compras_items?.unidad ?? '',
+        esPrincipal: i.es_principal,
+        precioRef: i.precio_ref,
+      }))
+    )
+    setFichaPedidos((pedidos ?? []).map(p => ({ id: p.id, estado: p.estado, createdAt: p.created_at })))
+    setFichaCargando(false)
+  }
+
+  function cerrarFicha() {
+    setFicha(null)
+    setFichaInsumos([])
+    setFichaPedidos([])
+  }
 
   function abrirCrear() {
     setForm(emptyForm())
@@ -138,6 +203,11 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
 
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
   const labelClass = "block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
+  const estadoPedidoBadge: Record<PedidoResumen['estado'], string> = {
+    borrador: 'bg-[#2a2a2a] text-[#ccc]',
+    enviado: 'bg-yellow-900/50 text-yellow-300',
+    cerrado: 'bg-green-900/50 text-green-300',
+  }
 
   return (
     <div className="space-y-6">
@@ -170,6 +240,13 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
             {f}
           </button>
         ))}
+        <button
+          onClick={() => setSoloSinInsumos(v => !v)}
+          title="De la lista semilla de proveedores de gastos, separá los que además son proveedores reales de Compras"
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${soloSinInsumos ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'}`}
+        >
+          Sin insumos asociados
+        </button>
       </div>
 
       {/* Form modal */}
@@ -288,7 +365,9 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
               <tbody className="divide-y divide-[#2a2a2a]">
                 {filtrados.map(p => (
                   <tr key={p.id} className="hover:bg-[#1a1a1a] transition-colors">
-                    <td className="px-4 py-3 text-[#f0f0f0] font-medium">{p.nombre}</td>
+                    <td className="px-4 py-3 text-[#f0f0f0] font-medium">
+                      <button onClick={() => abrirFicha(p)} className="hover:text-[#e8c547] hover:underline text-left">{p.nombre}</button>
+                    </td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{p.categoria || '—'}</td>
                     <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{p.tiempo_entrega || '—'}</td>
                     <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{p.periodicidad_compra || '—'}</td>
@@ -329,6 +408,76 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
           </div>
         )}
       </div>
+
+      <Modal open={!!ficha} onClose={cerrarFicha} title={ficha?.nombre ?? ''} size="lg">
+        {ficha && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <p><span className="text-[#666]">Contacto: </span><span className="text-[#f0f0f0]">{ficha.contacto_nombre || '—'}</span></p>
+              <p>
+                <span className="text-[#666]">Teléfono: </span>
+                <span className="text-[#f0f0f0]">{ficha.contacto_telefono ? formatearTelefono(ficha.contacto_telefono) : '—'}</span>
+                {normalizarTelefonoAR(ficha.contacto_telefono) && (
+                  <a
+                    href={`https://wa.me/${normalizarTelefonoAR(ficha.contacto_telefono)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-2 text-xs text-green-400 hover:underline"
+                  >
+                    WhatsApp
+                  </a>
+                )}
+              </p>
+              <p><span className="text-[#666]">Email: </span><span className="text-[#f0f0f0]">{ficha.contacto_email || '—'}</span></p>
+              <p><span className="text-[#666]">CUIT: </span><span className="text-[#f0f0f0]">{ficha.cuit || '—'}</span></p>
+              <p className="sm:col-span-2"><span className="text-[#666]">Dirección: </span><span className="text-[#f0f0f0]">{ficha.direccion || '—'}</span></p>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wider mb-2">Insumos asociados</h3>
+              {fichaCargando ? (
+                <p className="text-sm text-[#666]">Cargando...</p>
+              ) : fichaInsumos.length === 0 ? (
+                <p className="text-sm text-[#666]">Sin insumos asociados en Compras.</p>
+              ) : (
+                <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
+                  <div className="divide-y divide-[#1a1a1a]">
+                    {fichaInsumos.map(i => (
+                      <div key={i.itemId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                        <span className="text-[#f0f0f0]">
+                          {i.itemNombre} <span className="text-[#666]">({i.unidad})</span>
+                          {i.esPrincipal && <span className="ml-2 text-xs text-[#e8c547]">★ principal</span>}
+                        </span>
+                        <span className="text-[#888]">{i.precioRef != null ? `$${i.precioRef.toLocaleString('es-AR')}` : '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wider mb-2">Últimos pedidos</h3>
+              {fichaCargando ? (
+                <p className="text-sm text-[#666]">Cargando...</p>
+              ) : fichaPedidos.length === 0 ? (
+                <p className="text-sm text-[#666]">Todavía no tiene pedidos.</p>
+              ) : (
+                <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
+                  <div className="divide-y divide-[#1a1a1a]">
+                    {fichaPedidos.map(p => (
+                      <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                        <span className="text-[#f0f0f0]">{new Date(p.createdAt).toLocaleDateString('es-AR')}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoPedidoBadge[p.estado]}`}>{p.estado}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
