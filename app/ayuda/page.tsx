@@ -19,7 +19,7 @@ export default async function AyudaPage() {
     ? '/admin/dashboard'
     : profile.rol === 'squad'
       ? MODULOS.find(m => (profile.modulos_permitidos || []).includes(m.key))?.href || '/ayuda'
-      : profile.rol === 'deposito' || profile.rol === 'fabrica'
+      : profile.rol === 'deposito' || profile.rol === 'supervisor_fabrica'
         ? '/operador/pedidos'
         : '/local/pedidos'
 

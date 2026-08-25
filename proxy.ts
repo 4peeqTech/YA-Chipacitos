@@ -102,7 +102,7 @@ export async function proxy(request: NextRequest) {
     const rolRoutes: Record<string, string[]> = {
       local: ['/local', '/ayuda'],
       deposito: ['/deposito', '/ayuda'],
-      fabrica: ['/fabrica', '/ayuda'],
+      supervisor_fabrica: ['/fabrica', '/ayuda'],
       admin: ['/admin', '/local', '/deposito', '/fabrica', '/ayuda'],
     }
 

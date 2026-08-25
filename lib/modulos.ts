@@ -60,7 +60,7 @@ export function getModuloPorPath(pathname: string): Modulo | undefined {
 // columna es_sistema). Cualquier otro rol —squad o uno creado a mano—
 // entra al panel /admin/* y su acceso a módulos depende de
 // profiles.modulos_permitidos, igual que ya funciona para squad hoy.
-export const ROLES_OPERATIVOS = ['local', 'deposito', 'fabrica'] as const
+export const ROLES_OPERATIVOS = ['local', 'deposito', 'supervisor_fabrica'] as const
 
 export function esRolConModulos(rol: string | null | undefined): boolean {
   return !!rol && rol !== 'admin' && !ROLES_OPERATIVOS.includes(rol as typeof ROLES_OPERATIVOS[number])
@@ -69,6 +69,6 @@ export function esRolConModulos(rol: string | null | undefined): boolean {
 export function getRoleHome(rol: string | null | undefined): string {
   if (rol === 'local') return '/local/pedidos'
   if (rol === 'deposito') return '/deposito/pedidos'
-  if (rol === 'fabrica') return '/fabrica/pedidos'
+  if (rol === 'supervisor_fabrica') return '/fabrica/registro'
   return '/admin/dashboard' // admin, squad, o cualquier rol personalizado
 }

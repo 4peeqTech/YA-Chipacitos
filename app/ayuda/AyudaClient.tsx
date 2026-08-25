@@ -16,7 +16,7 @@ type SeccionId = 'local' | 'deposito' | 'fabrica' | 'admin' | 'squad'
 const secciones: { id: SeccionId; label: string; icon: string; roles: string[] }[] = [
   { id: 'local',    label: 'Locales',      icon: '🏪', roles: ['local'] },
   { id: 'deposito', label: 'Depósito',     icon: '📦', roles: ['deposito'] },
-  { id: 'fabrica',  label: 'Fábrica',      icon: '🏭', roles: ['fabrica'] },
+  { id: 'fabrica',  label: 'Fábrica',      icon: '🏭', roles: ['supervisor_fabrica'] },
   { id: 'admin',    label: 'Admin',        icon: '⚙️', roles: ['admin'] },
   { id: 'squad',    label: 'Colaborador',  icon: '👤', roles: ['squad'] },
 ]

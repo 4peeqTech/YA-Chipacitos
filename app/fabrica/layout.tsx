@@ -11,15 +11,17 @@ export default async function FabricaLayout({ children }: { children: React.Reac
   const { data: profile } = await supabase
     .from('profiles').select('nombre, rol, modulos_permitidos').eq('id', user.id).single()
 
-  if (profile?.rol !== 'fabrica' && profile?.rol !== 'admin') redirect('/login')
+  if (profile?.rol !== 'supervisor_fabrica' && profile?.rol !== 'admin') redirect('/login')
 
   const navItems = [
-    // Pedidos y Catálogo se le sacan al rol fabrica por el momento — ver guard en
+    // Pedidos y Catálogo se le sacan al supervisor de fábrica por el momento — ver guard en
     // app/fabrica/pedidos/page.tsx y app/fabrica/catalogo/page.tsx. Admin conserva
     // acceso completo.
     ...(profile?.rol === 'admin' ? [{ href: '/fabrica/pedidos', label: 'Pedidos', icon: '🚚' }] : []),
     { href: '/fabrica/registro',   label: 'Registro',   icon: '📋' },
+    { href: '/fabrica/personal',   label: 'Personal',   icon: '👷' },
     { href: '/fabrica/stock',      label: 'Stock',      icon: '📦' },
+    { href: '/fabrica/reportes',   label: 'Reportes',   icon: '📊' },
     ...(profile?.rol === 'admin' ? [{ href: '/fabrica/catalogo', label: 'Catálogo', icon: '🔀' }] : []),
     ...(profile?.modulos_permitidos?.includes('tareas') ? [{ href: '/tareas', label: 'Tareas', icon: '📋' }] : []),
     { href: '/ayuda',             label: 'Ayuda',    icon: '❓' },
@@ -27,7 +29,7 @@ export default async function FabricaLayout({ children }: { children: React.Reac
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col">
-      <Header titulo="Fábrica" subtitulo={profile?.nombre} rol="fabrica" />
+      <Header titulo="Fábrica" subtitulo={profile?.nombre} rol="supervisor_fabrica" />
       <main className="flex-1 pb-24 lg:pb-16 w-full lg:pt-4">
         {children}
       </main>
