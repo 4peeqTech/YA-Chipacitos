@@ -25,8 +25,10 @@ interface Props {
  */
 export default function InputNumero({ value, onChange, placeholder, className, disabled, min, enteros, autoFocus, onKeyDown }: Props) {
   const [raw, setRaw] = useState(value == null ? '' : String(value).replace('.', ','))
+  const [focused, setFocused] = useState(false)
 
   useEffect(() => {
+    if (focused) return
     const parsed = parseDecimal(raw)
     if (value !== parsed) {
       setRaw(value == null ? '' : String(value).replace('.', ','))
@@ -43,6 +45,8 @@ export default function InputNumero({ value, onChange, placeholder, className, d
       disabled={disabled}
       autoFocus={autoFocus}
       onKeyDown={onKeyDown}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       className={className ?? inputNumeroClass}
       onChange={e => {
         let next = e.target.value
