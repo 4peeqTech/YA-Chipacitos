@@ -45,7 +45,6 @@ const emptyForm = (): Partial<Plantilla> => ({
   cuerpo: '',
   es_default: false,
   activo: true,
-  orden: 0,
 })
 
 export default function PlantillasClient({ plantillasIniciales }: { plantillasIniciales: Plantilla[] }) {
@@ -111,12 +110,18 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
         if (errUnset) { toast.error(errUnset.message); return }
       }
 
+      // Sin input manual de orden: una nueva plantilla va al final de la lista;
+      // al editar, conserva el orden que ya tenía.
+      const orden = creando
+        ? (plantillas.length ? Math.max(...plantillas.map(p => p.orden)) + 1 : 0)
+        : editando!.orden
+
       const body = {
         nombre: form.nombre!.trim(),
         cuerpo: form.cuerpo!.trim(),
         es_default: esDefault,
         activo: form.activo ?? true,
-        orden: Number(form.orden ?? 0),
+        orden,
         updated_at: new Date().toISOString(),
       }
 
@@ -263,13 +268,9 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
 
       <Modal open={creando || !!editando} onClose={cerrarForm} title={creando ? 'Nueva plantilla' : `Editar — ${editando?.nombre}`} size="xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+          <div className="md:col-span-2">
             <label className={labelClass}>Nombre *</label>
             <input className={inputClass} value={form.nombre ?? ''} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
-          </div>
-          <div>
-            <label className={labelClass}>Orden</label>
-            <input type="number" className={inputClass} value={form.orden ?? 0} onChange={e => setForm(f => ({ ...f, orden: Number(e.target.value) }))} />
           </div>
           <div className="md:col-span-2 flex items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-[#f0f0f0]">
