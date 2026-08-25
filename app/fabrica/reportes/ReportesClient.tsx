@@ -129,7 +129,7 @@ export default function ReportesClient({
         <select
           value={operarioId}
           onChange={e => setOperarioId(e.target.value)}
-          className={`${inputClass} ml-auto`}
+          className={`${inputClass} w-full sm:w-auto sm:ml-auto`}
         >
           <option value="todos">Todos los operarios</option>
           {operarios.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
@@ -156,7 +156,7 @@ export default function ReportesClient({
 
       <KpisFabrica kpis={kpis} />
 
-      <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4 scrollbar-none">
+      <div className="flex flex-wrap gap-2">
         {TABS.map(t => {
           const Icon = t.icon
           const activo = tab === t.key
@@ -164,7 +164,7 @@ export default function ReportesClient({
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 activo ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'
               }`}
             >

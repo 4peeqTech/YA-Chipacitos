@@ -140,7 +140,7 @@ export interface ConteoSemana {
   id: string
   semanaDesde: string
   semanaHasta: string
-  proyeccionMasaKg: number
+  masasProyectadas: number
   proyeccionEmbolsadoKg: number
 }
 
@@ -148,8 +148,8 @@ export interface CumplimientoSemana {
   conteoId: string
   semanaDesde: string
   semanaHasta: string
-  proyeccionMasaKg: number
-  masaRealKg: number
+  masasProyectadas: number
+  masasReales: number
   cumplimientoMasaPct: number | null
   proyeccionEmbolsadoKg: number
   embolsadoRealKg: number
@@ -172,16 +172,20 @@ function dentroDeVentana(fecha: string, turno: 'manana' | 'tarde', desde: string
 // cumplimientoPct queda en null (no 0 ni Infinity) cuando la proyección fue cero:
 // no hubo meta contra la que medir, distinto de "cumplió 0%". Los embolsados siguen
 // con rango de días completos — el pool es por día y no tiene turno.
+// La masa se compara en cantidad de cargas, no en kg: "masas proyectadas" del conteo
+// es un conteo de masas (una por receta/lote, ver lib/fabrica/calculoSugerido.ts), y
+// cada fila de fabrica_producciones ("carga guardada" en el formulario) es una masa —
+// mezclar eso con masaKg real daba porcentajes sin sentido (ej. 2234%).
 export function calcularCumplimientoProyeccion(
   conteos: ConteoSemana[],
-  produccionesPorFecha: { fecha: string; turno: 'manana' | 'tarde'; masaKg: number }[],
+  produccionesPorFecha: { fecha: string; turno: 'manana' | 'tarde' }[],
   embolsadosPorFecha: { fecha: string; cantidadKg: number }[]
 ): CumplimientoSemana[] {
   return conteos
     .map(c => {
-      const masaReal = produccionesPorFecha
+      const masasReales = produccionesPorFecha
         .filter(p => dentroDeVentana(p.fecha, p.turno, c.semanaDesde, c.semanaHasta))
-        .reduce((acc, p) => acc + p.masaKg, 0)
+        .length
       const embolsadoReal = embolsadosPorFecha
         .filter(e => e.fecha >= c.semanaDesde && e.fecha <= c.semanaHasta)
         .reduce((acc, e) => acc + e.cantidadKg, 0)
@@ -190,9 +194,9 @@ export function calcularCumplimientoProyeccion(
         conteoId: c.id,
         semanaDesde: c.semanaDesde,
         semanaHasta: c.semanaHasta,
-        proyeccionMasaKg: c.proyeccionMasaKg,
-        masaRealKg: masaReal,
-        cumplimientoMasaPct: c.proyeccionMasaKg > 0 ? (masaReal / c.proyeccionMasaKg) * 100 : null,
+        masasProyectadas: c.masasProyectadas,
+        masasReales,
+        cumplimientoMasaPct: c.masasProyectadas > 0 ? (masasReales / c.masasProyectadas) * 100 : null,
         proyeccionEmbolsadoKg: c.proyeccionEmbolsadoKg,
         embolsadoRealKg: embolsadoReal,
         cumplimientoEmbolsadoPct: c.proyeccionEmbolsadoKg > 0 ? (embolsadoReal / c.proyeccionEmbolsadoKg) * 100 : null,

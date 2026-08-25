@@ -77,10 +77,7 @@ export default async function FabricaReportesPage() {
     id: c.id,
     semanaDesde: c.semana_desde,
     semanaHasta: c.semana_hasta,
-    // Fase 6 oculta: la proyección real del legacy es "número de masas" (ver
-    // lib/fabrica/calculoSugerido.ts), no kg — este cruce contra masaRealKg queda
-    // con un desajuste de unidades pendiente de revisar si se retoma esta fase.
-    proyeccionMasaKg: c.masas_proyectadas,
+    masasProyectadas: c.masas_proyectadas,
     // proyeccion_embolsado_kg se dropeó en la Fase 2 del catálogo/conteos: nunca se
     // escribió desde ninguna pantalla, así que este cruce siempre mostró "sin
     // proyección" — se mantiene ese mismo comportamiento con un 0 fijo.

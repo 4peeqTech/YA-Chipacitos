@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { Truck, Factory, Users, Package, BarChart3, Shuffle, ListTodo, HelpCircle } from 'lucide-react'
 import Header from '@/components/ui/Header'
 import BottomNav from '@/components/ui/BottomNav'
 
@@ -17,14 +18,14 @@ export default async function FabricaLayout({ children }: { children: React.Reac
     // Pedidos y Catálogo se le sacan al supervisor de fábrica por el momento — ver guard en
     // app/fabrica/pedidos/page.tsx y app/fabrica/catalogo/page.tsx. Admin conserva
     // acceso completo.
-    ...(profile?.rol === 'admin' ? [{ href: '/fabrica/pedidos', label: 'Pedidos', icon: '🚚' }] : []),
-    { href: '/fabrica/registro',   label: 'Registro',   icon: '📋' },
-    { href: '/fabrica/personal',   label: 'Personal',   icon: '👷' },
-    { href: '/fabrica/stock',      label: 'Stock',      icon: '📦' },
-    { href: '/fabrica/reportes',   label: 'Reportes',   icon: '📊' },
-    ...(profile?.rol === 'admin' ? [{ href: '/fabrica/catalogo', label: 'Catálogo', icon: '🔀' }] : []),
-    ...(profile?.modulos_permitidos?.includes('tareas') ? [{ href: '/tareas', label: 'Tareas', icon: '📋' }] : []),
-    { href: '/ayuda',             label: 'Ayuda',    icon: '❓' },
+    ...(profile?.rol === 'admin' ? [{ href: '/fabrica/pedidos', label: 'Pedidos', icon: <Truck size={20} /> }] : []),
+    { href: '/fabrica/registro',   label: 'Registro',   icon: <Factory size={20} /> },
+    { href: '/fabrica/personal',   label: 'Personal',   icon: <Users size={20} /> },
+    { href: '/fabrica/stock',      label: 'Stock',      icon: <Package size={20} /> },
+    { href: '/fabrica/reportes',   label: 'Reportes',   icon: <BarChart3 size={20} /> },
+    ...(profile?.rol === 'admin' ? [{ href: '/fabrica/catalogo', label: 'Catálogo', icon: <Shuffle size={20} /> }] : []),
+    ...(profile?.modulos_permitidos?.includes('tareas') ? [{ href: '/tareas', label: 'Tareas', icon: <ListTodo size={20} /> }] : []),
+    { href: '/ayuda',             label: 'Ayuda',    icon: <HelpCircle size={20} /> },
   ]
 
   return (

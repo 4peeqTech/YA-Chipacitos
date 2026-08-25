@@ -15,6 +15,10 @@ function formatSemana(desde: string, hasta: string) {
   return `${d} al ${h}`
 }
 
+function formatMasas(n: number) {
+  return `${n} ${n === 1 ? 'masa' : 'masas'}`
+}
+
 function estadoCumplimiento(pct: number | null) {
   if (pct == null) return { label: 'Sin proyección', tone: 'text-[#666]', Icon: Target }
   if (pct >= 90) return { label: `${pct.toFixed(0)}% cumplido`, tone: 'text-[#56d68a]', Icon: CheckCircle2 }
@@ -22,7 +26,9 @@ function estadoCumplimiento(pct: number | null) {
   return { label: `${pct.toFixed(0)}% cumplido`, tone: 'text-red-400', Icon: XCircle }
 }
 
-function Fila({ titulo, proyeccion, real, pct }: { titulo: string; proyeccion: number; real: number; pct: number | null }) {
+function Fila({
+  titulo, proyeccion, real, pct, proyectadoLabel,
+}: { titulo: string; proyeccion: string; real: string; pct: number | null; proyectadoLabel: string }) {
   const estado = estadoCumplimiento(pct)
   return (
     <div className="space-y-1">
@@ -33,45 +39,43 @@ function Fila({ titulo, proyeccion, real, pct }: { titulo: string; proyeccion: n
         </p>
       </div>
       <p className="text-sm text-[#f0f0f0]">
-        <span className="font-semibold">{formatKg(real)}</span>
-        <span className="text-[#666]"> de {formatKg(proyeccion)} proyectados</span>
+        <span className="font-semibold">{real}</span>
+        <span className="text-[#666]"> de {proyeccion} {proyectadoLabel}</span>
       </p>
     </div>
   )
 }
 
 export default function CumplimientoProyeccion({ semanas }: { semanas: CumplimientoSemana[] }) {
-  const nota = (
-    <p className="text-[11px] text-[#666] px-1">
-      La proyección de masa viene de &ldquo;Masas proyectadas&rdquo; del conteo semanal, que es
-      cantidad de masas, no kg — este cruce contra la masa real en kg queda con un
-      desajuste de unidades pendiente de revisar.
-    </p>
-  )
-
   if (semanas.length === 0) {
     return (
-      <div className="space-y-3">
-        {nota}
-        <Card className="p-8 text-center">
-          <p className="text-sm text-[#888]">Todavía no hay conteos cerrados en el período elegido.</p>
-        </Card>
-      </div>
+      <Card className="p-8 text-center">
+        <p className="text-sm text-[#888]">Todavía no hay conteos cerrados en el período elegido.</p>
+      </Card>
     )
   }
 
   return (
-    <div className="space-y-3">
-      {nota}
-      <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
+    <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
       {semanas.map(s => (
         <div key={s.conteoId} className="px-4 py-3 space-y-3">
           <p className="text-sm text-[#f0f0f0] font-medium">Semana {formatSemana(s.semanaDesde, s.semanaHasta)}</p>
-          <Fila titulo="Masa" proyeccion={s.proyeccionMasaKg} real={s.masaRealKg} pct={s.cumplimientoMasaPct} />
-          <Fila titulo="Embolsado" proyeccion={s.proyeccionEmbolsadoKg} real={s.embolsadoRealKg} pct={s.cumplimientoEmbolsadoPct} />
+          <Fila
+            titulo="Masa"
+            proyeccion={formatMasas(s.masasProyectadas)}
+            real={formatMasas(s.masasReales)}
+            pct={s.cumplimientoMasaPct}
+            proyectadoLabel="proyectadas"
+          />
+          <Fila
+            titulo="Embolsado"
+            proyeccion={formatKg(s.proyeccionEmbolsadoKg)}
+            real={formatKg(s.embolsadoRealKg)}
+            pct={s.cumplimientoEmbolsadoPct}
+            proyectadoLabel="proyectados"
+          />
         </div>
       ))}
-      </Card>
-    </div>
+    </Card>
   )
 }

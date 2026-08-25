@@ -4,7 +4,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
+import { HelpCircle, LifeBuoy } from 'lucide-react'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { MODULOS } from '@/lib/modulos'
 import { TicketWidget } from '@4peeqtech/ticket-widget'
@@ -21,7 +22,7 @@ interface SidebarProps {
 interface NavItem {
   href: string
   label: string
-  icon: string
+  icon: ReactNode
 }
 
 interface NavSection {
@@ -30,7 +31,7 @@ interface NavSection {
 }
 
 const bottomStandaloneItems: NavItem[] = [
-  { href: '/ayuda', label: 'Ayuda', icon: '❓' },
+  { href: '/ayuda', label: 'Ayuda', icon: <HelpCircle size={16} /> },
 ]
 
 export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos, usuarioEmail }: SidebarProps) {
@@ -172,7 +173,7 @@ export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos,
           onClick={() => setTicketAbierto(true)}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] hover:bg-[#1a1a1a] transition-all cursor-pointer"
         >
-          <span className="text-base">🛟</span>
+          <LifeBuoy size={16} />
           Reportar un problema
         </button>
       </nav>

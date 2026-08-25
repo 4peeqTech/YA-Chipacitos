@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { LayoutDashboard, Wallet, BarChart3, RefreshCw, ListTodo, HelpCircle } from 'lucide-react'
 import Header from '@/components/ui/Header'
 import BottomNav from '@/components/ui/BottomNav'
 import Sidebar from '@/components/ui/Sidebar'
@@ -28,12 +29,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const tieneTareas = !esSquad || modulosPermitidos.includes('tareas')
 
   const navItems = [
-    { href: '/admin/dashboard',    label: 'Dashboard',       icon: '🏠' },
-    { href: '/admin/gastos',       label: 'Gastos',          icon: '💰' },
-    { href: '/admin/conciliacion', label: 'Conciliación',    icon: '📊' },
-    { href: '/admin/importar',     label: 'Sincronizar',     icon: '🔄' },
-    ...(tieneTareas ? [{ href: '/tareas', label: 'Tareas', icon: '📋' }] : []),
-    { href: '/ayuda',              label: 'Ayuda',           icon: '❓' },
+    { href: '/admin/dashboard',    label: 'Dashboard',       icon: <LayoutDashboard size={20} /> },
+    { href: '/admin/gastos',       label: 'Gastos',          icon: <Wallet size={20} /> },
+    { href: '/admin/conciliacion', label: 'Conciliación',    icon: <BarChart3 size={20} /> },
+    { href: '/admin/importar',     label: 'Sincronizar',     icon: <RefreshCw size={20} /> },
+    ...(tieneTareas ? [{ href: '/tareas', label: 'Tareas', icon: <ListTodo size={20} /> }] : []),
+    { href: '/ayuda',              label: 'Ayuda',           icon: <HelpCircle size={20} /> },
   ]
 
   return (

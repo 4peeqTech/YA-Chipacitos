@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { LayoutDashboard, Wallet, BarChart3, RefreshCw, ListTodo, HelpCircle } from 'lucide-react'
 import Header from '@/components/ui/Header'
 import Sidebar from '@/components/ui/Sidebar'
 import BottomNav from '@/components/ui/BottomNav'
@@ -28,15 +29,15 @@ export default async function TareasLayout({ children }: { children: React.React
   // se quedan con el header simple + volver.
   if (profile.rol === 'admin' || esRolConModulos(profile.rol)) {
     const candidatos = [
-      { href: '/admin/dashboard',    label: 'Dashboard',       icon: '🏠', key: 'dashboard' },
-      { href: '/admin/gastos',       label: 'Gastos',          icon: '💰', key: 'gastos' },
-      { href: '/admin/conciliacion', label: 'Conciliación',    icon: '📊', key: 'conciliacion' },
-      { href: '/admin/importar',     label: 'Sincronizar',     icon: '🔄', key: 'importar' },
+      { href: '/admin/dashboard',    label: 'Dashboard',       icon: <LayoutDashboard size={20} />, key: 'dashboard' },
+      { href: '/admin/gastos',       label: 'Gastos',          icon: <Wallet size={20} />, key: 'gastos' },
+      { href: '/admin/conciliacion', label: 'Conciliación',    icon: <BarChart3 size={20} />, key: 'conciliacion' },
+      { href: '/admin/importar',     label: 'Sincronizar',     icon: <RefreshCw size={20} />, key: 'importar' },
     ]
     const navItems = [
       ...(profile.rol === 'admin' ? candidatos : candidatos.filter(c => modulosPermitidos.includes(c.key))),
-      { href: '/tareas', label: 'Tareas', icon: '📋' },
-      { href: '/ayuda', label: 'Ayuda', icon: '❓' },
+      { href: '/tareas', label: 'Tareas', icon: <ListTodo size={20} /> },
+      { href: '/ayuda', label: 'Ayuda', icon: <HelpCircle size={20} /> },
     ]
 
     return (
