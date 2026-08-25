@@ -1,7 +1,10 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
-import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
+import {
+  Pencil, Plus, Star, Trash2,
+  Truck, User, Package, CalendarDays, MapPin, Receipt, Store, CreditCard,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { renderPlantilla, type ContextoMensaje } from '@/lib/compras/pedidoMensaje'
 import Modal from '@/components/ui/Modal'
@@ -17,17 +20,17 @@ interface Plantilla {
   orden: number
 }
 
-const VARIABLES: { key: string; desc: string }[] = [
-  { key: 'proveedor', desc: 'Nombre del proveedor (mayúsculas)' },
-  { key: 'contacto', desc: 'Contacto del proveedor' },
-  { key: 'items', desc: 'Detalle de ítems del pedido' },
-  { key: 'fecha', desc: 'Fecha de hoy' },
-  { key: 'dia', desc: 'Día de la semana' },
-  { key: 'entrega', desc: 'Bloque de entrega (si el proveedor tiene local asignado)' },
-  { key: 'facturacion', desc: 'Bloque de facturación (si el proveedor tiene local asignado)' },
-  { key: 'local_suc', desc: 'Sucursal del local' },
-  { key: 'local_direccion', desc: 'Dirección del local' },
-  { key: 'local_cuit', desc: 'CUIT del local' },
+const VARIABLES: { key: string; label: string; desc: string; icon: typeof Truck }[] = [
+  { key: 'proveedor', label: 'Proveedor', desc: 'Nombre del proveedor (mayúsculas)', icon: Truck },
+  { key: 'contacto', label: 'Contacto', desc: 'Contacto del proveedor', icon: User },
+  { key: 'items', label: 'Detalle del pedido', desc: 'Lista de ítems del pedido', icon: Package },
+  { key: 'fecha', label: 'Fecha', desc: 'Fecha de hoy', icon: CalendarDays },
+  { key: 'dia', label: 'Día', desc: 'Día de la semana', icon: CalendarDays },
+  { key: 'entrega', label: 'Entrega', desc: 'Bloque de dirección de entrega (si el proveedor tiene local asignado)', icon: MapPin },
+  { key: 'facturacion', label: 'Facturación', desc: 'Bloque de datos de facturación (si el proveedor tiene local asignado)', icon: Receipt },
+  { key: 'local_suc', label: 'Sucursal', desc: 'Nombre de la sucursal del local', icon: Store },
+  { key: 'local_direccion', label: 'Dirección del local', desc: 'Dirección del local', icon: MapPin },
+  { key: 'local_cuit', label: 'CUIT del local', desc: 'CUIT del local', icon: CreditCard },
 ]
 
 const EJEMPLO: ContextoMensaje = {
@@ -43,8 +46,6 @@ const EJEMPLO: ContextoMensaje = {
 const emptyForm = (): Partial<Plantilla> => ({
   nombre: '',
   cuerpo: '',
-  es_default: false,
-  activo: true,
 })
 
 export default function PlantillasClient({ plantillasIniciales }: { plantillasIniciales: Plantilla[] }) {
@@ -57,15 +58,22 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
   const [eliminando, setEliminando] = useState<Plantilla | null>(null)
   const [isPending, startTransition] = useTransition()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Recuerda dónde estaba el cursor la última vez que el usuario tocó el textarea,
+  // así un clic en una variable inserta ahí aunque el foco haya pasado al botón.
+  // Sin ningún clic previo (null) inserta al final — no hace falta "primero
+  // posicionar el cursor" para usar las variables.
+  const cursorPos = useRef<number | null>(null)
 
   function abrirCrear() {
     setForm(emptyForm())
+    cursorPos.current = null
     setEditando(null)
     setCreando(true)
   }
 
   function abrirEditar(p: Plantilla) {
     setForm({ ...p })
+    cursorPos.current = null
     setEditando(p)
     setCreando(false)
   }
@@ -75,74 +83,59 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
     setEditando(null)
   }
 
+  function recordarCursor(e: React.SyntheticEvent<HTMLTextAreaElement>) {
+    cursorPos.current = e.currentTarget.selectionStart
+  }
+
   function insertarVariable(key: string) {
     const token = `{{${key}}}`
-    const textarea = textareaRef.current
     const actual = form.cuerpo ?? ''
-    if (!textarea) {
-      setForm(f => ({ ...f, cuerpo: actual + token }))
-      return
-    }
-    const inicio = textarea.selectionStart ?? actual.length
-    const fin = textarea.selectionEnd ?? actual.length
-    const nuevo = actual.slice(0, inicio) + token + actual.slice(fin)
+    const pos = cursorPos.current ?? actual.length
+    const nuevo = actual.slice(0, pos) + token + actual.slice(pos)
+    const nuevaPos = pos + token.length
     setForm(f => ({ ...f, cuerpo: nuevo }))
+    cursorPos.current = nuevaPos
     requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
       textarea.focus()
-      const pos = inicio + token.length
-      textarea.setSelectionRange(pos, pos)
+      textarea.setSelectionRange(nuevaPos, nuevaPos)
     })
   }
 
-  // El índice único de es_default no "corre" al anterior — hay que desmarcarlo
-  // en un paso aparte antes de guardar este como default, si no la escritura falla.
   async function guardar() {
     if (!form.nombre?.trim()) { toast.error('El nombre es requerido'); return }
     if (!form.cuerpo?.trim()) { toast.error('El cuerpo es requerido'); return }
 
     startTransition(async () => {
-      const esDefault = form.es_default ?? false
-
-      if (esDefault) {
-        let query = supabase.from('compras_plantillas_mensaje').update({ es_default: false }).eq('es_default', true)
-        if (editando) query = query.neq('id', editando.id)
-        const { error: errUnset } = await query
-        if (errUnset) { toast.error(errUnset.message); return }
-      }
-
-      // Sin input manual de orden: una nueva plantilla va al final de la lista;
-      // al editar, conserva el orden que ya tenía.
-      const orden = creando
-        ? (plantillas.length ? Math.max(...plantillas.map(p => p.orden)) + 1 : 0)
-        : editando!.orden
-
-      const body = {
-        nombre: form.nombre!.trim(),
-        cuerpo: form.cuerpo!.trim(),
-        es_default: esDefault,
-        activo: form.activo ?? true,
-        orden,
-        updated_at: new Date().toISOString(),
-      }
+      const nombre = form.nombre!.trim()
+      const cuerpo = form.cuerpo!.trim()
 
       if (creando) {
-        const { data, error } = await supabase.from('compras_plantillas_mensaje').insert([body]).select().single()
+        // Activa/default se manejan desde la lista, no al crear — una plantilla
+        // nueva arranca inactiva de default y al final del orden.
+        const orden = plantillas.length ? Math.max(...plantillas.map(p => p.orden)) + 1 : 0
+        const { data, error } = await supabase
+          .from('compras_plantillas_mensaje')
+          .insert([{ nombre, cuerpo, es_default: false, activo: true, orden }])
+          .select()
+          .single()
         if (error) { toast.error(error.message); return }
-        setPlantillas(prev => aplicarDefault([...prev, data], data))
+        setPlantillas(prev => [...prev, data])
         toast.success('Plantilla creada')
       } else if (editando) {
-        const { data, error } = await supabase.from('compras_plantillas_mensaje').update(body).eq('id', editando.id).select().single()
+        const { data, error } = await supabase
+          .from('compras_plantillas_mensaje')
+          .update({ nombre, cuerpo, updated_at: new Date().toISOString() })
+          .eq('id', editando.id)
+          .select()
+          .single()
         if (error) { toast.error(error.message); return }
-        setPlantillas(prev => aplicarDefault(prev.map(p => p.id === editando.id ? data : p), data))
+        setPlantillas(prev => prev.map(p => p.id === editando.id ? data : p))
         toast.success('Cambios guardados')
       }
       cerrarForm()
     })
-  }
-
-  function aplicarDefault(lista: Plantilla[], guardada: Plantilla): Plantilla[] {
-    if (!guardada.es_default) return lista
-    return lista.map(p => p.id === guardada.id ? p : { ...p, es_default: false })
   }
 
   async function marcarDefault(p: Plantilla) {
@@ -267,26 +260,16 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
       </div>
 
       <Modal open={creando || !!editando} onClose={cerrarForm} title={creando ? 'Nueva plantilla' : `Editar — ${editando?.nombre}`} size="xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="md:col-span-2">
+        <div className="grid grid-cols-1 gap-4">
+          <div>
             <label className={labelClass}>Nombre *</label>
             <input className={inputClass} value={form.nombre ?? ''} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
           </div>
-          <div className="md:col-span-2 flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-[#f0f0f0]">
-              <input type="checkbox" checked={form.activo ?? true} onChange={e => setForm(f => ({ ...f, activo: e.target.checked }))} className="w-4 h-4 accent-[#e8c547]" />
-              Activa
-            </label>
-            <label className="flex items-center gap-2 text-sm text-[#f0f0f0]">
-              <input type="checkbox" checked={form.es_default ?? false} onChange={e => setForm(f => ({ ...f, es_default: e.target.checked }))} className="w-4 h-4 accent-[#e8c547]" />
-              Default
-            </label>
-          </div>
 
-          <div className="md:col-span-2">
+          <div>
             <label className={labelClass}>
               Variables
-              <HelpTooltip text="Clic para insertar en el cursor del cuerpo del mensaje." />
+              <HelpTooltip text="Clic para agregar al mensaje — se inserta donde tengas el cursor, o al final si no tocaste el texto todavía." />
             </label>
             <div className="flex flex-wrap gap-1.5">
               {VARIABLES.map(v => (
@@ -295,26 +278,30 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
                   type="button"
                   title={v.desc}
                   onClick={() => insertarVariable(v.key)}
-                  className="text-xs text-[#ccc] hover:text-[#e8c547] font-mono bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#e8c547] rounded-lg px-2 py-1 transition-colors"
+                  className="flex items-center gap-1.5 text-xs text-[#ccc] hover:text-[#e8c547] bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#e8c547] rounded-lg px-2.5 py-1.5 transition-colors"
                 >
-                  {`{{${v.key}}}`}
+                  <v.icon size={13} />
+                  {v.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="md:col-span-2">
+          <div>
             <label className={labelClass}>Cuerpo *</label>
             <textarea
               ref={textareaRef}
-              className={`${inputClass} font-mono resize-none`}
+              className={`${inputClass} resize-none`}
               rows={8}
               value={form.cuerpo ?? ''}
-              onChange={e => setForm(f => ({ ...f, cuerpo: e.target.value }))}
+              onChange={e => { setForm(f => ({ ...f, cuerpo: e.target.value })); recordarCursor(e) }}
+              onSelect={recordarCursor}
+              onClick={recordarCursor}
+              onKeyUp={recordarCursor}
             />
           </div>
 
-          <div className="md:col-span-2">
+          <div>
             <label className={labelClass}>Vista previa (con datos de ejemplo)</label>
             <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4">
               <pre className="text-[#e0e0e0] text-sm whitespace-pre-wrap font-sans">{preview || 'Escribí el cuerpo para ver la vista previa.'}</pre>
