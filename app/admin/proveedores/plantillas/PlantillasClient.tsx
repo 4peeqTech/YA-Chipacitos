@@ -48,6 +48,63 @@ const emptyForm = (): Partial<Plantilla> => ({
   cuerpo: '',
 })
 
+// Propiedades de tipografía/caja que hay que clonar para que el texto del
+// "espejo" ocupe exactamente el mismo lugar que en el textarea real.
+const PROPIEDADES_ESPEJO = [
+  'box-sizing', 'width', 'overflow-wrap', 'word-break',
+  'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width', 'border-style',
+  'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+  'font-style', 'font-variant', 'font-weight', 'font-stretch', 'font-size',
+  'line-height', 'font-family',
+  'text-align', 'text-transform', 'text-indent', 'letter-spacing', 'word-spacing', 'tab-size',
+]
+
+// A un <textarea> no se le puede preguntar "¿qué carácter cae en este punto
+// de la pantalla?" (no expone Range/caretRangeFromPoint como el resto del DOM).
+// El truco estándar: clonar su tipografía y su texto en un <div> invisible
+// superpuesto, y preguntarle eso al div — ahí sí funciona.
+function posicionDeDrop(textarea: HTMLTextAreaElement, clientX: number, clientY: number): number {
+  const estilo = window.getComputedStyle(textarea)
+  const espejo = document.createElement('div')
+  for (const prop of PROPIEDADES_ESPEJO) espejo.style.setProperty(prop, estilo.getPropertyValue(prop))
+
+  const rect = textarea.getBoundingClientRect()
+  Object.assign(espejo.style, {
+    position: 'fixed',
+    top: `${rect.top}px`,
+    left: `${rect.left}px`,
+    height: `${rect.height}px`,
+    whiteSpace: 'pre-wrap',
+    // opacity, no visibility: "visibility: hidden" también lo saca del hit-testing
+    // de caretRangeFromPoint/caretPositionFromPoint, y esa es la única razón por
+    // la que existe este div — tiene que seguir siendo "tocable" para esas APIs.
+    // Por el mismo motivo el z-index tiene que ganarle al textarea real: si
+    // queda "debajo" en el orden de pintado, el hit-test resuelve al textarea
+    // en vez de al espejo aunque el espejo sea invisible.
+    opacity: '0',
+    zIndex: '2147483647',
+    overflow: 'hidden',
+  })
+  espejo.textContent = textarea.value
+  espejo.scrollTop = textarea.scrollTop
+  document.body.appendChild(espejo)
+
+  let indice = textarea.value.length
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
+  }
+  if (doc.caretPositionFromPoint) {
+    const pos = doc.caretPositionFromPoint(clientX, clientY)
+    if (pos && espejo.contains(pos.offsetNode)) indice = pos.offset
+  } else if (document.caretRangeFromPoint) {
+    const range = document.caretRangeFromPoint(clientX, clientY)
+    if (range && espejo.contains(range.startContainer)) indice = range.startOffset
+  }
+
+  document.body.removeChild(espejo)
+  return Math.max(0, Math.min(indice, textarea.value.length))
+}
+
 export default function PlantillasClient({ plantillasIniciales }: { plantillasIniciales: Plantilla[] }) {
   const supabase = createClient()
   const toast = useToasts()
@@ -88,10 +145,8 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
     cursorPos.current = e.currentTarget.selectionStart
   }
 
-  function insertarVariable(key: string) {
-    const token = `{{${key}}}`
+  function insertarTokenEn(token: string, pos: number) {
     const actual = form.cuerpo ?? ''
-    const pos = cursorPos.current ?? actual.length
     const nuevo = actual.slice(0, pos) + token + actual.slice(pos)
     const nuevaPos = pos + token.length
     setForm(f => ({ ...f, cuerpo: nuevo }))
@@ -102,6 +157,20 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
       textarea.focus()
       textarea.setSelectionRange(nuevaPos, nuevaPos)
     })
+  }
+
+  function insertarVariable(key: string) {
+    const actual = form.cuerpo ?? ''
+    insertarTokenEn(`{{${key}}}`, cursorPos.current ?? actual.length)
+  }
+
+  function soltarVariable(e: React.DragEvent<HTMLTextAreaElement>) {
+    e.preventDefault()
+    setTextareaDragOver(false)
+    const token = e.dataTransfer.getData('text/plain')
+    const textarea = textareaRef.current
+    if (!token || !textarea) return
+    insertarTokenEn(token, posicionDeDrop(textarea, e.clientX, e.clientY))
   }
 
   async function guardar() {
@@ -303,7 +372,7 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
               onKeyUp={recordarCursor}
               onDragOver={e => { e.preventDefault(); setTextareaDragOver(true) }}
               onDragLeave={() => setTextareaDragOver(false)}
-              onDrop={() => setTextareaDragOver(false)}
+              onDrop={soltarVariable}
             />
           </div>
 
