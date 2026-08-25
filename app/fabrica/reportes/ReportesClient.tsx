@@ -156,7 +156,7 @@ export default function ReportesClient({
 
       <KpisFabrica kpis={kpis} />
 
-      <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4">
+      <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4 scrollbar-none">
         {TABS.map(t => {
           const Icon = t.icon
           const activo = tab === t.key
