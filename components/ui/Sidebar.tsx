@@ -4,9 +4,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useState, useEffect, type ReactNode } from 'react'
-import { HelpCircle, LifeBuoy } from 'lucide-react'
-import ThemeToggle from '@/components/ui/ThemeToggle'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { HelpCircle, LifeBuoy, ChevronDown, ChevronUp, Sun, Moon, LogOut } from 'lucide-react'
 import { MODULOS } from '@/lib/modulos'
 import { TicketWidget } from '@4peeqtech/ticket-widget'
 import { TICKET_WIDGET_CONFIG } from '@/lib/ticketWidget'
@@ -40,6 +39,34 @@ export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos,
   const supabase = createClient()
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [ticketAbierto, setTicketAbierto] = useState(false)
+  const [perfilAbierto, setPerfilAbierto] = useState(false)
+  const [light, setLight] = useState(false)
+  const perfilRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setLight(document.documentElement.classList.contains('light'))
+  }, [])
+
+  useEffect(() => {
+    if (!perfilAbierto) return
+    function onClickFuera(e: MouseEvent) {
+      if (perfilRef.current && !perfilRef.current.contains(e.target as Node)) setPerfilAbierto(false)
+    }
+    document.addEventListener('mousedown', onClickFuera)
+    return () => document.removeEventListener('mousedown', onClickFuera)
+  }, [perfilAbierto])
+
+  function toggleTheme() {
+    const next = !light
+    setLight(next)
+    if (next) {
+      document.documentElement.classList.add('light')
+      document.cookie = 'theme=light; path=/; max-age=31536000'
+    } else {
+      document.documentElement.classList.remove('light')
+      document.cookie = 'theme=dark; path=/; max-age=31536000'
+    }
+  }
 
   const modulosVisibles = modulosPermitidos
     ? MODULOS.filter(m => modulosPermitidos.includes(m.key))
@@ -102,7 +129,7 @@ export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos,
       </div>
 
       {/* Nav links */}
-      <nav className="flex-1 px-3 py-4 space-y-3 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-3 overflow-y-auto scrollbar-thin">
         {/* Standalone items */}
         {standaloneItems.map(item => (
           <Link
@@ -127,9 +154,10 @@ export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos,
               className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-[#666] hover:text-[#888] transition-colors uppercase tracking-wider"
             >
               {section.label}
-              <span className={`text-xs transition-transform ${expandedSections.has(section.label) ? 'rotate-0' : '-rotate-90'}`}>
-                ▼
-              </span>
+              <ChevronDown
+                size={14}
+                className={`text-[#666] transition-transform ${expandedSections.has(section.label) ? '' : '-rotate-90'}`}
+              />
             </button>
 
             {expandedSections.has(section.label) && (
@@ -189,23 +217,38 @@ export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos,
         logoUrl={TICKET_WIDGET_CONFIG.logoUrl}
       />
 
-      {/* User footer */}
-      <div className="px-4 py-4 border-t border-[#2a2a2a]">
-        <div className="flex items-center gap-3 mb-3">
+      {/* User footer — un solo botón de perfil que despliega tema/logout hacia arriba */}
+      <div ref={perfilRef} className="relative px-3 py-3 border-t border-[#2a2a2a]">
+        {perfilAbierto && (
+          <div className="absolute bottom-full left-3 right-3 mb-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,.4)]">
+            <button
+              onClick={() => { toggleTheme(); setPerfilAbierto(false) }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-medium text-[#888] hover:text-[#f0f0f0] hover:bg-[#2a2a2a] transition-colors"
+            >
+              {light ? <Moon size={15} /> : <Sun size={15} />}
+              {light ? 'Tema oscuro' : 'Tema claro'}
+            </button>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-medium text-[#888] hover:text-[#f0f0f0] hover:bg-[#2a2a2a] transition-colors border-t border-[#2a2a2a]"
+            >
+              <LogOut size={15} />
+              Cerrar sesión
+            </button>
+          </div>
+        )}
+        <button
+          onClick={() => setPerfilAbierto(o => !o)}
+          className="w-full flex items-center gap-3 px-1 py-1 rounded-lg hover:bg-[#1a1a1a] transition-colors"
+        >
           <div className="w-8 h-8 bg-[#e8c547] rounded-full flex items-center justify-center shrink-0">
             <span className="text-black text-xs font-bold">{nombre.charAt(0)}</span>
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-left">
             <p className="text-[#f0f0f0] text-xs font-medium truncate">{nombre}</p>
             <p className="text-[#888] text-[10px]">{rolLabel}</p>
           </div>
-        </div>
-        <ThemeToggle />
-        <button
-          onClick={handleLogout}
-          className="w-full text-xs text-[#888] hover:text-[#f0f0f0] hover:bg-[#1a1a1a] py-2 rounded-lg transition-colors text-left px-3"
-        >
-          → Cerrar sesión
+          <ChevronUp size={14} className={`text-[#666] shrink-0 transition-transform ${perfilAbierto ? '' : 'rotate-180'}`} />
         </button>
       </div>
     </aside>

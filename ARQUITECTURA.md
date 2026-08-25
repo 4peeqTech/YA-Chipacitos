@@ -124,7 +124,7 @@ app/
 components/
 ├─ pedidos/        Compartidos entre local/fabrica/deposito
 └─ ui/             Card, Badge, Header, Sidebar, BottomNav, TablaMaestra, SelectBuscador,
-                   NotificationBell, PushToggle, SWRegister, InstallPrompt, ThemeToggle
+                   NotificationBell, PushToggle, SWRegister, InstallPrompt
 
 lib/
 ├─ supabase/       client.ts (browser) · server.ts (SSR con cookies)
