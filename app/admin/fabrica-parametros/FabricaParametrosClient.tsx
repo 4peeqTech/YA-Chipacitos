@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Package, Ruler, Utensils, Undo2 } from 'lucide-react'
+import { Package, Ruler, Utensils, Undo2, Users } from 'lucide-react'
 import TablaMaestra from '@/components/ui/TablaMaestra'
 
 const TABS = [
@@ -9,6 +9,7 @@ const TABS = [
   { key: 'presentaciones', label: 'Presentaciones', Icon: Package },
   { key: 'tamanios', label: 'Tamaños', Icon: Ruler },
   { key: 'devolucion-motivos', label: 'Motivos de devolución', Icon: Undo2 },
+  { key: 'operarios', label: 'Operarios', Icon: Users },
 ] as const
 
 type TabKey = typeof TABS[number]['key']
@@ -58,6 +59,14 @@ export default function FabricaParametrosClient() {
           singular="motivo"
           descripcion="Motivos disponibles al cargar una devolución en fábrica"
           apiPath="/api/fabrica-devolucion-motivos"
+        />
+      )}
+      {tab === 'operarios' && (
+        <TablaMaestra
+          titulo="Operarios"
+          singular="operario"
+          descripcion="Personal a cargo del supervisor de fábrica, para atribuir cada carga"
+          apiPath="/api/fabrica-operarios"
         />
       )}
     </div>
