@@ -43,7 +43,7 @@ function Fila({ titulo, proyeccion, real, pct }: { titulo: string; proyeccion: n
 export default function CumplimientoProyeccion({ semanas }: { semanas: CumplimientoSemana[] }) {
   const nota = (
     <p className="text-[11px] text-[#666] px-1">
-      La proyección de masa viene de "Masas proyectadas" del conteo semanal, que es
+      La proyección de masa viene de &ldquo;Masas proyectadas&rdquo; del conteo semanal, que es
       cantidad de masas, no kg — este cruce contra la masa real en kg queda con un
       desajuste de unidades pendiente de revisar.
     </p>
