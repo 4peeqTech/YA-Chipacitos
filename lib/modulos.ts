@@ -32,10 +32,12 @@ export const MODULOS: Modulo[] = [
   { key: 'usuarios',     label: 'Usuarios',        icon: '👥', href: '/admin/usuarios',     section: 'Parámetros' },
   { key: 'roles',        label: 'Roles',           icon: '🎭', href: '/admin/roles',        section: 'Parámetros' },
   { key: 'plan_cuentas', label: 'Plan de cuentas', icon: '📋', href: '/admin/plan-cuentas', section: 'Parámetros' },
-  { key: 'proveedores',  label: 'Proveedores',     icon: '🚚', href: '/admin/proveedores',  section: 'Parámetros' },
   { key: 'cajas',        label: 'Cajas',           icon: '🏦', href: '/admin/cajas',        section: 'Parámetros' },
   { key: 'formas_pago',  label: 'Formas de pago',  icon: '💳', href: '/admin/formas-pago',  section: 'Parámetros' },
   { key: 'fabrica_parametros', label: 'Fábrica', icon: '🏭', href: '/admin/fabrica-parametros', section: 'Parámetros', soloAdmin: true },
+
+  { key: 'proveedores',            label: 'Proveedores', icon: '🚚', href: '/admin/proveedores',            section: 'Proveedores', soloAdmin: true },
+  { key: 'proveedores_plantillas', label: 'Plantillas WPP', icon: '💬', href: '/admin/proveedores/plantillas', section: 'Proveedores', soloAdmin: true },
 
   { key: 'compras-insumos', label: 'Insumos', icon: '🧺', href: '/admin/compras/insumos', section: 'Compras' },
   { key: 'compras-stock',   label: 'Stock',   icon: '📦', href: '/admin/compras/stock',   section: 'Compras' },

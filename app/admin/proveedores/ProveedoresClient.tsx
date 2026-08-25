@@ -2,11 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { normalizarTelefonoAR, formatearTelefono } from '@/lib/compras/telefono'
 
 interface Proveedor {
   id: string
   nombre: string
   categoria: string | null
+  cuit: string | null
   contacto_nombre: string | null
   contacto_telefono: string | null
   contacto_email: string | null
@@ -26,6 +28,7 @@ type FiltroEstado = 'activo' | 'archivado' | 'todos'
 const emptyForm = (): Partial<Proveedor> => ({
   nombre: '',
   categoria: '',
+  cuit: '',
   contacto_nombre: '',
   contacto_telefono: '',
   contacto_email: '',
@@ -79,13 +82,23 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
 
   async function guardar() {
     if (!form.nombre?.trim()) { setError('El nombre es requerido'); return }
+    if (form.contacto_telefono?.trim() && !normalizarTelefonoAR(form.contacto_telefono)) {
+      setError('El teléfono de contacto no parece un número argentino válido')
+      return
+    }
     setError('')
+
+    const datos = {
+      ...form,
+      contacto_telefono: form.contacto_telefono?.trim() ? normalizarTelefonoAR(form.contacto_telefono) : null,
+      updated_at: new Date().toISOString(),
+    }
 
     startTransition(async () => {
       if (creando) {
         const { data, error: err } = await supabase
           .from('proveedores')
-          .insert([{ ...form, estado: 'activo' }])
+          .insert([{ ...datos, estado: 'activo' }])
           .select()
           .single()
         if (err) { setError(err.message); return }
@@ -93,7 +106,7 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
       } else if (editando) {
         const { data, error: err } = await supabase
           .from('proveedores')
-          .update({ ...form })
+          .update(datos)
           .eq('id', editando.id)
           .select()
           .single()
@@ -172,6 +185,10 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
             <div>
               <label className={labelClass}>Categoría</label>
               <input className={inputClass} placeholder="Ej: Lácteos, Harinas..." value={form.categoria ?? ''} onChange={e => setForm(f => ({...f, categoria: e.target.value}))} />
+            </div>
+            <div>
+              <label className={labelClass}>CUIT</label>
+              <input className={inputClass} placeholder="20-12345678-9" value={form.cuit ?? ''} onChange={e => setForm(f => ({...f, cuit: e.target.value}))} />
             </div>
 
             <div>
@@ -283,6 +300,17 @@ export default function ProveedoresClient({ proveedoresIniciales }: { proveedore
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex gap-2 justify-end">
+                        {normalizarTelefonoAR(p.contacto_telefono) && (
+                          <a
+                            href={`https://wa.me/${normalizarTelefonoAR(p.contacto_telefono)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={formatearTelefono(p.contacto_telefono)}
+                            className="text-xs text-[#888] hover:text-green-400 transition-colors px-2 py-1 rounded-lg hover:bg-[#2a2a2a]"
+                          >
+                            WhatsApp
+                          </a>
+                        )}
                         <button onClick={() => abrirEditar(p)} className="text-xs text-[#888] hover:text-[#e8c547] transition-colors px-2 py-1 rounded-lg hover:bg-[#2a2a2a]">
                           Editar
                         </button>
