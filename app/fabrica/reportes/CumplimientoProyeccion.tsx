@@ -41,16 +41,29 @@ function Fila({ titulo, proyeccion, real, pct }: { titulo: string; proyeccion: n
 }
 
 export default function CumplimientoProyeccion({ semanas }: { semanas: CumplimientoSemana[] }) {
+  const nota = (
+    <p className="text-[11px] text-[#666] px-1">
+      La proyección de masa viene de "Masas proyectadas" del conteo semanal, que es
+      cantidad de masas, no kg — este cruce contra la masa real en kg queda con un
+      desajuste de unidades pendiente de revisar.
+    </p>
+  )
+
   if (semanas.length === 0) {
     return (
-      <Card className="p-8 text-center">
-        <p className="text-sm text-[#888]">Todavía no hay conteos cerrados en el período elegido.</p>
-      </Card>
+      <div className="space-y-3">
+        {nota}
+        <Card className="p-8 text-center">
+          <p className="text-sm text-[#888]">Todavía no hay conteos cerrados en el período elegido.</p>
+        </Card>
+      </div>
     )
   }
 
   return (
-    <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
+    <div className="space-y-3">
+      {nota}
+      <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
       {semanas.map(s => (
         <div key={s.conteoId} className="px-4 py-3 space-y-3">
           <p className="text-sm text-[#f0f0f0] font-medium">Semana {formatSemana(s.semanaDesde, s.semanaHasta)}</p>
@@ -58,6 +71,7 @@ export default function CumplimientoProyeccion({ semanas }: { semanas: Cumplimie
           <Fila titulo="Embolsado" proyeccion={s.proyeccionEmbolsadoKg} real={s.embolsadoRealKg} pct={s.cumplimientoEmbolsadoPct} />
         </div>
       ))}
-    </Card>
+      </Card>
+    </div>
   )
 }

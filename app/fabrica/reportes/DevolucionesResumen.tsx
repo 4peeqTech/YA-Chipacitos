@@ -1,25 +1,26 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Package, IceCreamCone, Ruler, User } from 'lucide-react'
+import { Undo2, IceCreamCone, Ruler, Package, Recycle } from 'lucide-react'
 import Card from '@/components/ui/Card'
-import { agruparEmbolsado, type AgrupacionEmbolsado, type EmbolsadoFila } from '@/lib/fabrica/reportes'
+import { agruparDevoluciones, type AgrupacionDevolucion, type DevolucionFila } from '@/lib/fabrica/reportes'
 
-const DIMENSIONES: { key: AgrupacionEmbolsado; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
-  { key: 'presentacionNombre', label: 'Presentación', icon: Package },
+const DIMENSIONES: { key: AgrupacionDevolucion; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+  { key: 'motivoNombre', label: 'Motivo', icon: Undo2 },
+  { key: 'destino', label: 'Destino', icon: Recycle },
   { key: 'saborNombre', label: 'Sabor', icon: IceCreamCone },
   { key: 'tamanioNombre', label: 'Tamaño', icon: Ruler },
-  { key: 'operarioNombre', label: 'Operario', icon: User },
+  { key: 'presentacionNombre', label: 'Presentación', icon: Package },
 ]
 
 function formatKg(kg: number) {
   return `${kg.toLocaleString('es-AR', { maximumFractionDigits: 1 })} kg`
 }
 
-export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) {
-  const [dimension, setDimension] = useState<AgrupacionEmbolsado>('presentacionNombre')
+export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[] }) {
+  const [dimension, setDimension] = useState<AgrupacionDevolucion>('motivoNombre')
 
-  const resumen = useMemo(() => agruparEmbolsado(filas, dimension), [filas, dimension])
+  const resumen = useMemo(() => agruparDevoluciones(filas, dimension), [filas, dimension])
   const total = useMemo(() => resumen.reduce((acc, r) => acc + r.cantidadKg, 0), [resumen])
   const maxKg = useMemo(() => Math.max(1, ...resumen.map(r => r.cantidadKg)), [resumen])
 
@@ -45,11 +46,11 @@ export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) 
 
       {resumen.length === 0 ? (
         <Card className="p-8 text-center">
-          <p className="text-sm text-[#888]">No hay congelados cargados en el período elegido.</p>
+          <p className="text-sm text-[#888]">No hay devoluciones registradas en el período elegido.</p>
         </Card>
       ) : (
         <div className="space-y-3">
-          <p className="text-xs text-[#888] px-1">{formatKg(total)} congelados en total</p>
+          <p className="text-xs text-[#888] px-1">{formatKg(total)} devueltos en total</p>
           <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
             {resumen.map(r => (
               <div key={r.clave} className="px-4 py-3 space-y-1.5">
@@ -60,7 +61,7 @@ export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) 
                 <div className="h-1.5 rounded-full bg-[#1a1a1a] overflow-hidden">
                   <div className="h-full rounded-full bg-[#e8c547]" style={{ width: `${(r.cantidadKg / maxKg) * 100}%` }} />
                 </div>
-                <p className="text-[11px] text-[#666]">{r.lineas} línea{r.lineas !== 1 ? 's' : ''}</p>
+                <p className="text-[11px] text-[#666]">{r.cargas} carga{r.cargas !== 1 ? 's' : ''}</p>
               </div>
             ))}
           </Card>

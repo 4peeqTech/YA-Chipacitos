@@ -3,6 +3,7 @@ import { rendimientoFeculaMasa } from './rendimiento'
 export interface ProduccionFila {
   fecha: string
   turno: 'manana' | 'tarde'
+  operarioId: string | null
   operarioNombre: string
   saborNombre: string
   feculaKg: number
@@ -38,28 +39,71 @@ export function agruparProduccion(filas: ProduccionFila[], dimension: Agrupacion
 }
 
 export interface EmbolsadoFila {
+  fecha: string
   presentacionNombre: string
+  saborNombre: string
+  tamanioNombre: string
+  operarioId: string | null
+  operarioNombre: string
   cantidadKg: number
 }
 
+export type AgrupacionEmbolsado = 'presentacionNombre' | 'saborNombre' | 'tamanioNombre' | 'operarioNombre'
+
 export interface ResumenEmbolsado {
-  presentacionNombre: string
+  clave: string
   cantidadKg: number
   lineas: number
 }
 
-export function agruparEmbolsadoPorPresentacion(filas: EmbolsadoFila[]): ResumenEmbolsado[] {
-  const porPresentacion = new Map<string, ResumenEmbolsado>()
+export function agruparEmbolsado(filas: EmbolsadoFila[], dimension: AgrupacionEmbolsado): ResumenEmbolsado[] {
+  const porClave = new Map<string, ResumenEmbolsado>()
   for (const f of filas) {
-    let grupo = porPresentacion.get(f.presentacionNombre)
+    const clave = f[dimension]
+    let grupo = porClave.get(clave)
     if (!grupo) {
-      grupo = { presentacionNombre: f.presentacionNombre, cantidadKg: 0, lineas: 0 }
-      porPresentacion.set(f.presentacionNombre, grupo)
+      grupo = { clave, cantidadKg: 0, lineas: 0 }
+      porClave.set(clave, grupo)
     }
     grupo.cantidadKg += f.cantidadKg
     grupo.lineas += 1
   }
-  return [...porPresentacion.values()].sort((a, b) => b.cantidadKg - a.cantidadKg)
+  return [...porClave.values()].sort((a, b) => b.cantidadKg - a.cantidadKg)
+}
+
+export interface DevolucionFila {
+  fecha: string
+  motivoNombre: string
+  saborNombre: string
+  tamanioNombre: string
+  presentacionNombre: string
+  destino: 'reinsercion' | 'perdida'
+  cantidadKg: number
+}
+
+export type AgrupacionDevolucion = 'motivoNombre' | 'saborNombre' | 'tamanioNombre' | 'presentacionNombre' | 'destino'
+
+export interface ResumenDevolucion {
+  clave: string
+  cantidadKg: number
+  cargas: number
+}
+
+// Mismo molde que agruparEmbolsado — solo cambia el nombre del contador
+// (cargas en vez de líneas, más natural para un registro de devolución).
+export function agruparDevoluciones(filas: DevolucionFila[], dimension: AgrupacionDevolucion): ResumenDevolucion[] {
+  const porClave = new Map<string, ResumenDevolucion>()
+  for (const f of filas) {
+    const clave = dimension === 'destino' ? (f.destino === 'reinsercion' ? 'Reinserción' : 'Pérdida') : f[dimension]
+    let grupo = porClave.get(clave)
+    if (!grupo) {
+      grupo = { clave, cantidadKg: 0, cargas: 0 }
+      porClave.set(clave, grupo)
+    }
+    grupo.cantidadKg += f.cantidadKg
+    grupo.cargas += 1
+  }
+  return [...porClave.values()].sort((a, b) => b.cantidadKg - a.cantidadKg)
 }
 
 export interface RendimientoOperario {
@@ -155,4 +199,34 @@ export function calcularCumplimientoProyeccion(
       }
     })
     .sort((a, b) => b.semanaDesde.localeCompare(a.semanaDesde))
+}
+
+export interface KpisFabrica {
+  masaKg: number
+  feculaKg: number
+  rendimiento: number | null
+  congeladosKg: number
+  devueltoKg: number
+  pctDevolucionSobreProducido: number | null
+}
+
+// KPIs de la fila superior de Reportes — recalculados sobre las filas ya
+// filtradas por rango de fechas y operario.
+export function calcularKpisFabrica(
+  producciones: { feculaKg: number; masaKg: number }[],
+  embolsados: { cantidadKg: number }[],
+  devoluciones: { cantidadKg: number }[]
+): KpisFabrica {
+  const masaKg = producciones.reduce((acc, p) => acc + p.masaKg, 0)
+  const feculaKg = producciones.reduce((acc, p) => acc + p.feculaKg, 0)
+  const congeladosKg = embolsados.reduce((acc, e) => acc + e.cantidadKg, 0)
+  const devueltoKg = devoluciones.reduce((acc, d) => acc + d.cantidadKg, 0)
+  return {
+    masaKg,
+    feculaKg,
+    rendimiento: rendimientoFeculaMasa(feculaKg, masaKg),
+    congeladosKg,
+    devueltoKg,
+    pctDevolucionSobreProducido: masaKg > 0 ? (devueltoKg / masaKg) * 100 : null,
+  }
 }

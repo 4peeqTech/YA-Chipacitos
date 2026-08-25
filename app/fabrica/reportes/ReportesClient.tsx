@@ -1,28 +1,36 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { BarChart3, CalendarRange, Package, Gauge, Target } from 'lucide-react'
+import { BarChart3, CalendarRange, Snowflake, Gauge, Target, Undo2 } from 'lucide-react'
 import { calcularRangoPreset, fechaEnRango, type PresetRango, type RangoFechas } from '@/lib/compras/rangoFechas'
-import { calcularCumplimientoProyeccion, type ProduccionFila, type ConteoSemana } from '@/lib/fabrica/reportes'
+import {
+  calcularCumplimientoProyeccion, calcularKpisFabrica,
+  type ProduccionFila, type EmbolsadoFila, type DevolucionFila, type ConteoSemana,
+} from '@/lib/fabrica/reportes'
+import KpisFabrica from './KpisFabrica'
 import ProduccionResumen from './ProduccionResumen'
 import EmbolsadoResumen from './EmbolsadoResumen'
+import DevolucionesResumen from './DevolucionesResumen'
 import RendimientoPorOperario from './RendimientoPorOperario'
 import CumplimientoProyeccion from './CumplimientoProyeccion'
 
 export type ProduccionFilaUI = ProduccionFila
-export interface EmbolsadoFilaUI {
-  fecha: string
-  presentacionNombre: string
-  cantidadKg: number
-}
+export type EmbolsadoFilaUI = EmbolsadoFila
+export type DevolucionFilaUI = DevolucionFila
 export type ConteoSemanaUI = ConteoSemana
 
-type Tab = 'produccion' | 'embolsado' | 'rendimiento' | 'cumplimiento'
+export interface OperarioUI {
+  id: string
+  nombre: string
+}
+
+type Tab = 'produccion' | 'embolsado' | 'devoluciones' | 'rendimiento' | 'cumplimiento'
 type PresetUI = PresetRango | 'personalizado'
 
 const TABS: { key: Tab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
   { key: 'produccion', label: 'Producción', icon: BarChart3 },
-  { key: 'embolsado', label: 'Embolsado', icon: Package },
+  { key: 'embolsado', label: 'Congelados', icon: Snowflake },
+  { key: 'devoluciones', label: 'Devoluciones', icon: Undo2 },
   { key: 'rendimiento', label: 'Rendimiento', icon: Gauge },
   { key: 'cumplimiento', label: 'Cumplimiento', icon: Target },
 ]
@@ -36,32 +44,57 @@ const PRESETS: { key: PresetUI; label: string }[] = [
 export default function ReportesClient({
   produccionesIniciales,
   embolsadosIniciales,
+  devolucionesIniciales,
   conteosIniciales,
+  operarios,
 }: {
   produccionesIniciales: ProduccionFilaUI[]
   embolsadosIniciales: EmbolsadoFilaUI[]
+  devolucionesIniciales: DevolucionFilaUI[]
   conteosIniciales: ConteoSemanaUI[]
+  operarios: OperarioUI[]
 }) {
   const [tab, setTab] = useState<Tab>('produccion')
   const [preset, setPreset] = useState<PresetUI>('mes_actual')
   const [rangoPersonalizado, setRangoPersonalizado] = useState<RangoFechas>(() => calcularRangoPreset('mes_actual', new Date()))
+  const [operarioId, setOperarioId] = useState<string>('todos')
 
   const rango: RangoFechas = useMemo(() => {
     if (preset === 'personalizado') return rangoPersonalizado
     return calcularRangoPreset(preset, new Date())
   }, [preset, rangoPersonalizado])
 
-  const producciones = useMemo(
+  const produccionesRango = useMemo(
     () => produccionesIniciales.filter(p => fechaEnRango(p.fecha, rango)),
     [produccionesIniciales, rango]
   )
-  const embolsados = useMemo(
+  const embolsadosRango = useMemo(
     () => embolsadosIniciales.filter(e => fechaEnRango(e.fecha, rango)),
     [embolsadosIniciales, rango]
+  )
+  const devolucionesRango = useMemo(
+    () => devolucionesIniciales.filter(d => fechaEnRango(d.fecha, rango)),
+    [devolucionesIniciales, rango]
   )
   const conteos = useMemo(
     () => conteosIniciales.filter(c => fechaEnRango(c.semanaDesde, rango)),
     [conteosIniciales, rango]
+  )
+
+  // El filtro por operario solo aplica a Producción/Congelados — Devolución no
+  // tiene atribución de operario (decisión del plan: solo Producción y Congelados).
+  const producciones = useMemo(
+    () => operarioId === 'todos' ? produccionesRango : produccionesRango.filter(p => p.operarioId === operarioId),
+    [produccionesRango, operarioId]
+  )
+  const embolsados = useMemo(
+    () => operarioId === 'todos' ? embolsadosRango : embolsadosRango.filter(e => e.operarioId === operarioId),
+    [embolsadosRango, operarioId]
+  )
+
+  const kpis = useMemo(
+    () => calcularKpisFabrica(producciones, embolsados, devolucionesRango),
+    [producciones, embolsados, devolucionesRango]
   )
 
   const cumplimiento = useMemo(
@@ -77,25 +110,7 @@ export default function ReportesClient({
         <h1 className="flex items-center gap-2 text-xl font-['Syne'] font-bold text-[#f0f0f0]">
           <BarChart3 size={20} className="text-[#e8c547]" /> Reportes
         </h1>
-        <p className="text-[#888] text-xs mt-0.5">Producción, embolsado, rendimiento y cumplimiento del período elegido.</p>
-      </div>
-
-      <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4">
-        {TABS.map(t => {
-          const Icon = t.icon
-          const activo = tab === t.key
-          return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                activo ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'
-              }`}
-            >
-              <Icon size={14} /> {t.label}
-            </button>
-          )
-        })}
+        <p className="text-[#888] text-xs mt-0.5">Producción, congelados, devoluciones, rendimiento y cumplimiento del período elegido.</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -111,6 +126,14 @@ export default function ReportesClient({
             {p.label}
           </button>
         ))}
+        <select
+          value={operarioId}
+          onChange={e => setOperarioId(e.target.value)}
+          className={`${inputClass} ml-auto`}
+        >
+          <option value="todos">Todos los operarios</option>
+          {operarios.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+        </select>
       </div>
 
       {preset === 'personalizado' && (
@@ -131,8 +154,29 @@ export default function ReportesClient({
         </div>
       )}
 
+      <KpisFabrica kpis={kpis} />
+
+      <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4">
+        {TABS.map(t => {
+          const Icon = t.icon
+          const activo = tab === t.key
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                activo ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'
+              }`}
+            >
+              <Icon size={14} /> {t.label}
+            </button>
+          )
+        })}
+      </div>
+
       {tab === 'produccion' && <ProduccionResumen filas={producciones} />}
       {tab === 'embolsado' && <EmbolsadoResumen filas={embolsados} />}
+      {tab === 'devoluciones' && <DevolucionesResumen filas={devolucionesRango} />}
       {tab === 'rendimiento' && <RendimientoPorOperario filas={producciones} />}
       {tab === 'cumplimiento' && <CumplimientoProyeccion semanas={cumplimiento} />}
     </div>
