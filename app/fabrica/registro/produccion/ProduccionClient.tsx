@@ -32,6 +32,8 @@ export interface ProduccionTurno {
   destino: Destino
   tamanioId: string | null
   tamanioNombre: string | null
+  operarioId: string | null
+  operarioNombre: string | null
 }
 
 function turnoActualPorHora(): Turno {
@@ -57,6 +59,7 @@ export default function ProduccionClient({
   ayer,
   sabores,
   tamanios,
+  operarios,
   rendimientoMasa,
   produccionesIniciales,
 }: {
@@ -64,6 +67,7 @@ export default function ProduccionClient({
   ayer: string
   sabores: Parametro[]
   tamanios: Parametro[]
+  operarios: Parametro[]
   rendimientoMasa: number
   produccionesIniciales: ProduccionTurno[]
 }) {
@@ -80,6 +84,7 @@ export default function ProduccionClient({
   const [masaKg, setMasaKg] = useState(0)
   const [masaTocada, setMasaTocada] = useState(false)
   const [tamanioId, setTamanioId] = useState(tamanios[0]?.id ?? '')
+  const [operarioId, setOperarioId] = useState(operarios[0]?.id ?? '')
   const [guardando, setGuardando] = useState(false)
   const [aEliminar, setAEliminar] = useState<ProduccionTurno | null>(null)
   const [eliminando, setEliminando] = useState(false)
@@ -99,6 +104,7 @@ export default function ProduccionClient({
     setMasaKg(0)
     setMasaTocada(false)
     setTamanioId(tamanios[0]?.id ?? '')
+    setOperarioId(operarios[0]?.id ?? '')
   }
 
   function onFeculaChange(valor: number) {
@@ -121,6 +127,7 @@ export default function ProduccionClient({
     setMasaKg(p.masaKg)
     setMasaTocada(true)
     setTamanioId(p.tamanioId ?? tamanios[0]?.id ?? '')
+    setOperarioId(p.operarioId ?? operarios[0]?.id ?? '')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -134,6 +141,7 @@ export default function ProduccionClient({
     setMasaKg(ultima.masaKg)
     setMasaTocada(true)
     setTamanioId(ultima.tamanioId ?? tamanios[0]?.id ?? '')
+    setOperarioId(ultima.operarioId ?? operarios[0]?.id ?? '')
     window.scrollTo({ top: 0, behavior: 'smooth' })
     toast.success('Carga duplicada — revisá y guardá')
   }
@@ -141,6 +149,10 @@ export default function ProduccionClient({
   async function guardar() {
     if (destino === 'congelado_embolsado' && !tamanioId) {
       toast.error('Elegí un tamaño para el congelado')
+      return
+    }
+    if (!operarioId) {
+      toast.error('Elegí un operario')
       return
     }
     setGuardando(true)
@@ -154,6 +166,7 @@ export default function ProduccionClient({
       p_fecula_kg: feculaKg,
       p_masa_kg: masaKg,
       p_tamanio_id: destino === 'congelado_embolsado' ? tamanioId : null,
+      p_operario_fabrica_id: operarioId,
     })
 
     if (error) {
@@ -164,6 +177,7 @@ export default function ProduccionClient({
 
     const saborNombre = sabores.find(s => s.id === saborId)?.nombre ?? '—'
     const tamanioNombre = destino === 'congelado_embolsado' ? (tamanios.find(t => t.id === tamanioId)?.nombre ?? null) : null
+    const operarioNombre = operarios.find(o => o.id === operarioId)?.nombre ?? null
     const nuevaEntrada: ProduccionTurno = {
       id,
       fecha: diaSeleccionado,
@@ -175,6 +189,8 @@ export default function ProduccionClient({
       destino,
       tamanioId: destino === 'congelado_embolsado' ? tamanioId : null,
       tamanioNombre,
+      operarioId,
+      operarioNombre,
     }
 
     setProducciones(prev => editingId ? prev.map(p => p.id === editingId ? nuevaEntrada : p) : [nuevaEntrada, ...prev])
@@ -289,6 +305,15 @@ export default function ProduccionClient({
             </div>
           </div>
         )}
+
+        <div>
+          <p className="text-xs text-[#888] mb-1.5">Operario</p>
+          <div className="flex flex-wrap gap-2">
+            {operarios.map(o => (
+              <Chip key={o.id} active={operarioId === o.id} onClick={() => setOperarioId(o.id)}>{o.nombre}</Chip>
+            ))}
+          </div>
+        </div>
       </Card>
 
       <div className="flex gap-2">
@@ -302,7 +327,7 @@ export default function ProduccionClient({
         )}
         <button
           onClick={guardar}
-          disabled={guardando}
+          disabled={guardando || !operarioId}
           className="flex-1 flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 text-black font-['Syne'] font-bold text-sm py-3.5 rounded-xl transition-all disabled:opacity-40"
         >
           <Save size={16} /> {guardando ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Guardar carga'}
@@ -337,6 +362,7 @@ export default function ProduccionClient({
                   <p className="text-xs text-[#666] mt-0.5">
                     {p.feculaKg} kg fécula → {p.masaKg} kg masa
                     {p.destino === 'congelado_embolsado' && p.tamanioNombre && <> · {p.tamanioNombre}</>}
+                    {p.operarioNombre && <> · {p.operarioNombre}</>}
                   </p>
                 </div>
                 <button
