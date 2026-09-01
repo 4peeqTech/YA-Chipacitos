@@ -25,10 +25,14 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { supabase, error } = await requireAdmin()
   if (error) return error
-  const { nombre } = await req.json()
+  const { nombre, requiere_detalle, requiere_cantidad, destino_default } = await req.json()
   const { data: ultimo } = await supabase.from('fabrica_devolucion_motivos').select('orden').order('orden', { ascending: false }).limit(1).maybeSingle()
   const orden = (ultimo?.orden ?? 0) + 1
-  const { data, error: e } = await supabase.from('fabrica_devolucion_motivos').insert({ nombre, orden }).select().single()
+  const { data, error: e } = await supabase
+    .from('fabrica_devolucion_motivos')
+    .insert({ nombre, orden, requiere_detalle, requiere_cantidad, destino_default })
+    .select()
+    .single()
   if (e) return errorResponse(e.message, e.code)
   return NextResponse.json(data)
 }

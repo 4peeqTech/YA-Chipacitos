@@ -8,11 +8,16 @@ import { useToasts, ToastStack } from './Toast'
 
 interface Item { id: string; nombre: string; activo: boolean; [key: string]: unknown }
 
-interface CampoExtra {
+interface CampoExtraBase {
   key: string
   label: string
-  step?: string
+  /** Solo se muestra si el checkbox con esta key está en `true`. */
+  dependeDe?: string
 }
+export type CampoExtra =
+  | (CampoExtraBase & { tipo: 'numero'; step?: string; obligatorio?: boolean })
+  | (CampoExtraBase & { tipo: 'checkbox'; ayuda?: string; /** El valor guardado/leído es `!checked`. */ invertido?: boolean })
+  | (CampoExtraBase & { tipo: 'select'; opciones: { valor: string; label: string }[] })
 
 interface Props {
   titulo: string
@@ -20,12 +25,20 @@ interface Props {
   apiPath: string
   /** Forma singular de `titulo`, para textos como "Nuevo sabor" / "Editar sabor". */
   singular?: string
-  campoExtra?: CampoExtra
+  camposExtra?: CampoExtra[]
+  /** Badges/subtítulo por fila, para no meter lógica de dominio dentro de la tabla. */
+  resumenFila?: (item: Item) => React.ReactNode
 }
 
 type ModalTipo = 'crear' | 'editar' | null
 
-export default function TablaMaestra({ titulo, descripcion, apiPath, singular, campoExtra }: Props) {
+function valorDefault(campo: CampoExtra): unknown {
+  if (campo.tipo === 'checkbox') return true
+  if (campo.tipo === 'select') return campo.opciones[0]?.valor ?? ''
+  return ''
+}
+
+export default function TablaMaestra({ titulo, descripcion, apiPath, singular, camposExtra, resumenFila }: Props) {
   const nombreSingular = singular ?? titulo.toLowerCase()
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,7 +46,7 @@ export default function TablaMaestra({ titulo, descripcion, apiPath, singular, c
   const [modal, setModal] = useState<ModalTipo>(null)
   const [itemActual, setItemActual] = useState<Item | null>(null)
   const [formNombre, setFormNombre] = useState('')
-  const [formExtra, setFormExtra] = useState('')
+  const [formExtras, setFormExtras] = useState<Record<string, unknown>>({})
   const [eliminando, setEliminando] = useState<Item | null>(null)
   const [guardando, setGuardando] = useState(false)
   const toast = useToasts()
@@ -52,12 +65,15 @@ export default function TablaMaestra({ titulo, descripcion, apiPath, singular, c
   const filtrados = items.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
 
   function abrirCrear() {
-    setFormNombre(''); setFormExtra(''); setItemActual(null); setModal('crear')
+    setFormNombre('')
+    setFormExtras(Object.fromEntries((camposExtra ?? []).map(c => [c.key, valorDefault(c)])))
+    setItemActual(null)
+    setModal('crear')
   }
 
   function abrirEditar(item: Item) {
     setFormNombre(item.nombre)
-    setFormExtra(campoExtra ? String(item[campoExtra.key] ?? '') : '')
+    setFormExtras(Object.fromEntries((camposExtra ?? []).map(c => [c.key, item[c.key] ?? valorDefault(c)])))
     setItemActual(item)
     setModal('editar')
   }
@@ -66,13 +82,29 @@ export default function TablaMaestra({ titulo, descripcion, apiPath, singular, c
     setModal(null); setItemActual(null)
   }
 
+  /** Valor mostrado (post-inversión) de un checkbox de camposExtra, para resolver dependeDe. */
+  function checkboxMarcado(key: string): boolean {
+    const campo = (camposExtra ?? []).find(c => c.key === key)
+    const valor = !!formExtras[key]
+    return campo?.tipo === 'checkbox' && campo.invertido ? !valor : valor
+  }
+
+  /** Campos numéricos obligatorios visibles (respetando dependeDe) sin completar. */
+  const numerosFaltantes = (camposExtra ?? []).filter(c =>
+    c.tipo === 'numero' && c.obligatorio &&
+    (!c.dependeDe || checkboxMarcado(c.dependeDe)) &&
+    String(formExtras[c.key] ?? '').trim() === ''
+  )
+
   async function guardar() {
     if (!formNombre.trim()) { toast.error('El nombre es obligatorio'); return }
-    if (campoExtra && !formExtra.trim()) { toast.error(`${campoExtra.label} es obligatorio`); return }
+    if (numerosFaltantes.length > 0) { toast.error(`${numerosFaltantes[0].label} es obligatorio`); return }
 
     setGuardando(true)
     const body: Record<string, unknown> = { nombre: formNombre.trim() }
-    if (campoExtra) body[campoExtra.key] = Number(formExtra)
+    for (const c of camposExtra ?? []) {
+      body[c.key] = c.tipo === 'numero' ? Number(formExtras[c.key]) : formExtras[c.key]
+    }
     if (modal === 'editar' && itemActual) body.id = itemActual.id
 
     const res = await fetch(apiPath, {
@@ -172,7 +204,7 @@ export default function TablaMaestra({ titulo, descripcion, apiPath, singular, c
               <div key={item.id} className={`px-4 py-3 flex items-center gap-3 ${!item.activo ? 'opacity-50' : ''}`}>
                 <span className="flex-1 text-sm text-[#f0f0f0] truncate">
                   {item.nombre}
-                  {campoExtra && <span className="text-[#888]"> · {String(item[campoExtra.key])} {campoExtra.label}</span>}
+                  {resumenFila?.(item)}
                 </span>
                 <button
                   onClick={() => toggleActivo(item)}
@@ -218,25 +250,60 @@ export default function TablaMaestra({ titulo, descripcion, apiPath, singular, c
               onKeyDown={e => e.key === 'Enter' && guardar()}
             />
           </div>
-          {campoExtra && (
-            <div>
-              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">{campoExtra.label}</label>
-              <InputNumero
-                placeholder="0"
-                className={inputClass}
-                value={formExtra === '' ? null : Number(formExtra)}
-                onChange={v => setFormExtra(v == null ? '' : String(v))}
-                onKeyDown={e => e.key === 'Enter' && guardar()}
-              />
-            </div>
-          )}
+          {(camposExtra ?? [])
+            .filter(c => !c.dependeDe || checkboxMarcado(c.dependeDe))
+            .map(c => (
+              <div key={c.key}>
+                {c.tipo === 'numero' && (
+                  <>
+                    <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">{c.label}</label>
+                    <InputNumero
+                      placeholder="0"
+                      className={inputClass}
+                      value={formExtras[c.key] === '' || formExtras[c.key] == null ? null : Number(formExtras[c.key])}
+                      onChange={v => setFormExtras(prev => ({ ...prev, [c.key]: v == null ? '' : String(v) }))}
+                      onKeyDown={e => e.key === 'Enter' && guardar()}
+                    />
+                  </>
+                )}
+                {c.tipo === 'checkbox' && (
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 accent-[#e8c547]"
+                      checked={c.invertido ? !formExtras[c.key] : !!formExtras[c.key]}
+                      onChange={e => {
+                        const checked = e.target.checked
+                        setFormExtras(prev => ({ ...prev, [c.key]: c.invertido ? !checked : checked }))
+                      }}
+                    />
+                    <span>
+                      <span className="block text-sm text-[#f0f0f0]">{c.label}</span>
+                      {c.ayuda && <span className="block text-xs text-[#666] mt-0.5">{c.ayuda}</span>}
+                    </span>
+                  </label>
+                )}
+                {c.tipo === 'select' && (
+                  <>
+                    <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">{c.label}</label>
+                    <select
+                      className={inputClass}
+                      value={String(formExtras[c.key] ?? '')}
+                      onChange={e => setFormExtras(prev => ({ ...prev, [c.key]: e.target.value }))}
+                    >
+                      {c.opciones.map(o => <option key={o.valor} value={o.valor}>{o.label}</option>)}
+                    </select>
+                  </>
+                )}
+              </div>
+            ))}
           <div className="flex gap-2 pt-1">
             <button onClick={cerrarModal} className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] transition-colors">
               Cancelar
             </button>
             <button
               onClick={guardar}
-              disabled={guardando || !formNombre.trim() || (!!campoExtra && !formExtra.trim())}
+              disabled={guardando || !formNombre.trim() || numerosFaltantes.length > 0}
               className="flex-1 py-2.5 bg-[#e8c547] text-black rounded-xl text-sm font-bold disabled:opacity-40 transition-opacity"
             >
               {guardando ? 'Guardando...' : modal === 'editar' ? 'Guardar' : 'Crear'}

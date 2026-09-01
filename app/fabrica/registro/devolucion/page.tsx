@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { diaFabrica, diaAnterior } from '@/lib/fabrica/diaFabrica'
-import DevolucionClient, { Parametro, DevolucionRegistro } from './DevolucionClient'
+import DevolucionClient, { Parametro, MotivoParametro, DevolucionRegistro } from './DevolucionClient'
 
 export default async function FabricaDevolucionPage({
   searchParams,
@@ -20,7 +20,7 @@ export default async function FabricaDevolucionPage({
       supabase.from('fabrica_sabores').select('id, nombre').eq('activo', true).order('orden'),
       supabase.from('fabrica_tamanios').select('id, nombre').eq('activo', true).order('orden'),
       supabase.from('fabrica_presentaciones').select('id, nombre').eq('activo', true).order('orden'),
-      supabase.from('fabrica_devolucion_motivos').select('id, nombre').eq('activo', true).order('orden'),
+      supabase.from('fabrica_devolucion_motivos').select('id, nombre, requiere_detalle, requiere_cantidad, destino_default').eq('activo', true).order('orden'),
       supabase
         .from('fabrica_devoluciones')
         .select(`
@@ -43,16 +43,22 @@ export default async function FabricaDevolucionPage({
       sabores={(sabores ?? []) as Parametro[]}
       tamanios={(tamanios ?? []) as Parametro[]}
       presentaciones={(presentaciones ?? []) as Parametro[]}
-      motivos={(motivos ?? []) as Parametro[]}
+      motivos={((motivos ?? []) as any[]).map(m => ({
+        id: m.id,
+        nombre: m.nombre,
+        requiereDetalle: m.requiere_detalle,
+        requiereCantidad: m.requiere_cantidad,
+        destinoDefault: m.destino_default,
+      })) as MotivoParametro[]}
       devolucionesIniciales={((devoluciones ?? []) as any[]).map(d => ({
         id: d.id,
         fecha: d.fecha,
         cantidadKg: d.cantidad_kg,
         destino: d.destino,
         notas: d.notas,
-        saborNombre: d.sabor?.nombre ?? '—',
-        tamanioNombre: d.tamanio?.nombre ?? '—',
-        presentacionNombre: d.presentacion?.nombre ?? '—',
+        saborNombre: d.sabor?.nombre ?? null,
+        tamanioNombre: d.tamanio?.nombre ?? null,
+        presentacionNombre: d.presentacion?.nombre ?? null,
         motivoNombre: d.motivo?.nombre ?? '—',
       })) as DevolucionRegistro[]}
     />

@@ -66,11 +66,11 @@ export default async function FabricaReportesPage() {
   const devolucionesUI: DevolucionFilaUI[] = ((devoluciones ?? []) as any[]).map(d => ({
     fecha: d.fecha,
     motivoNombre: d.motivo?.nombre ?? '—',
-    saborNombre: d.sabor?.nombre ?? '—',
-    tamanioNombre: d.tamanio?.nombre ?? '—',
-    presentacionNombre: d.presentacion?.nombre ?? '—',
+    saborNombre: d.sabor?.nombre ?? 'Sin detalle',
+    tamanioNombre: d.tamanio?.nombre ?? 'Sin detalle',
+    presentacionNombre: d.presentacion?.nombre ?? 'Sin detalle',
     destino: d.destino,
-    cantidadKg: d.cantidad_kg,
+    cantidadKg: d.cantidad_kg ?? 0,
   }))
 
   const conteosUI: ConteoSemanaUI[] = ((conteos ?? []) as any[]).map(c => ({

@@ -47,7 +47,8 @@ export default function FabricaParametrosClient() {
           singular="presentación"
           descripcion="Presentaciones de producto embolsado, con su peso en kg"
           apiPath="/api/fabrica-presentaciones"
-          campoExtra={{ key: 'peso_kg', label: 'kg', step: '0.01' }}
+          camposExtra={[{ key: 'peso_kg', label: 'kg', tipo: 'numero', step: '0.01', obligatorio: true }]}
+          resumenFila={p => <span className="text-[#888]"> · {String(p.peso_kg)} kg</span>}
         />
       )}
       {tab === 'tamanios' && (
@@ -59,6 +60,26 @@ export default function FabricaParametrosClient() {
           singular="motivo"
           descripcion="Motivos disponibles al cargar una devolución en fábrica"
           apiPath="/api/fabrica-devolucion-motivos"
+          camposExtra={[
+            {
+              key: 'requiere_detalle', tipo: 'checkbox', invertido: true,
+              label: 'No pide detalle del producto',
+              ayuda: 'Se registra solo el motivo, sin sabor, tamaño ni presentación.',
+            },
+            {
+              key: 'requiere_cantidad', tipo: 'checkbox',
+              label: 'Igual pedir la cantidad (kg)', dependeDe: 'requiere_detalle',
+            },
+            {
+              key: 'destino_default', tipo: 'select', label: 'Destino', dependeDe: 'requiere_detalle',
+              opciones: [{ valor: 'reinsercion', label: 'Reinserción' }, { valor: 'perdida', label: 'Pérdida' }],
+            },
+          ]}
+          resumenFila={m => !m.requiere_detalle ? (
+            <span className="text-[#888]">
+              {' '}· Sin detalle{m.requiere_cantidad ? ' · kg' : ''} · {m.destino_default === 'perdida' ? 'Pérdida' : 'Reinserción'}
+            </span>
+          ) : null}
         />
       )}
       {tab === 'operarios' && (

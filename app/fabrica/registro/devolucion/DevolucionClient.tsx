@@ -16,15 +16,23 @@ export interface Parametro {
 
 export type Destino = 'reinsercion' | 'perdida'
 
+export interface MotivoParametro {
+  id: string
+  nombre: string
+  requiereDetalle: boolean
+  requiereCantidad: boolean
+  destinoDefault: Destino
+}
+
 export interface DevolucionRegistro {
   id: string
   fecha: string
-  cantidadKg: number
+  cantidadKg: number | null
   destino: Destino
   notas: string | null
-  saborNombre: string
-  tamanioNombre: string
-  presentacionNombre: string
+  saborNombre: string | null
+  tamanioNombre: string | null
+  presentacionNombre: string | null
   motivoNombre: string
 }
 
@@ -58,7 +66,7 @@ export default function DevolucionClient({
   sabores: Parametro[]
   tamanios: Parametro[]
   presentaciones: Parametro[]
-  motivos: Parametro[]
+  motivos: MotivoParametro[]
   devolucionesIniciales: DevolucionRegistro[]
 }) {
   const supabase = createClient()
@@ -69,7 +77,7 @@ export default function DevolucionClient({
   const [tamanioId, setTamanioId] = useState(tamanios[0]?.id ?? '')
   const [presentacionId, setPresentacionId] = useState(presentaciones[0]?.id ?? '')
   const [cantidadKg, setCantidadKg] = useState(0)
-  const [motivoId, setMotivoId] = useState(motivos[0]?.id ?? '')
+  const [motivoId, setMotivoId] = useState('')
   const [destino, setDestino] = useState<Destino>('reinsercion')
   const [notas, setNotas] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -81,18 +89,39 @@ export default function DevolucionClient({
     [devoluciones, dia]
   )
 
+  const motivo = motivos.find(m => m.id === motivoId)
+  const pideDetalle = motivo?.requiereDetalle ?? false
+  const pideCantidad = pideDetalle || (motivo?.requiereCantidad ?? false)
+
+  function elegirMotivo(id: string) {
+    setMotivoId(id)
+    setSaborId(sabores[0]?.id ?? '')
+    setTamanioId(tamanios[0]?.id ?? '')
+    setPresentacionId(presentaciones[0]?.id ?? '')
+    setCantidadKg(0)
+    setDestino('reinsercion')
+  }
+
   function resetFormulario() {
     setSaborId(sabores[0]?.id ?? '')
     setTamanioId(tamanios[0]?.id ?? '')
     setPresentacionId(presentaciones[0]?.id ?? '')
     setCantidadKg(0)
-    setMotivoId(motivos[0]?.id ?? '')
+    setMotivoId('')
     setDestino('reinsercion')
     setNotas('')
   }
 
   async function guardar() {
-    if (!cantidadKg || cantidadKg <= 0) {
+    if (!motivo) {
+      toast.error('Elegí un motivo')
+      return
+    }
+    if (pideDetalle && (!saborId || !tamanioId || !presentacionId)) {
+      toast.error('Elegí sabor, tamaño y presentación')
+      return
+    }
+    if (pideCantidad && (!cantidadKg || cantidadKg <= 0)) {
       toast.error('Cargá una cantidad mayor a cero')
       return
     }
@@ -101,12 +130,12 @@ export default function DevolucionClient({
     const { data: id, error } = await supabase.rpc('guardar_devolucion_fabrica', {
       p_id: null,
       p_fecha: dia,
-      p_sabor_id: saborId,
-      p_tamanio_id: tamanioId,
-      p_presentacion_id: presentacionId,
-      p_cantidad_kg: cantidadKg,
+      p_sabor_id: pideDetalle ? saborId : null,
+      p_tamanio_id: pideDetalle ? tamanioId : null,
+      p_presentacion_id: pideDetalle ? presentacionId : null,
+      p_cantidad_kg: pideCantidad ? cantidadKg : null,
       p_motivo_id: motivoId,
-      p_destino: destino,
+      p_destino: pideDetalle ? destino : motivo.destinoDefault,
       p_notas: notas.trim() || null,
     })
 
@@ -119,13 +148,13 @@ export default function DevolucionClient({
     const nuevaEntrada: DevolucionRegistro = {
       id,
       fecha: dia,
-      cantidadKg,
-      destino,
+      cantidadKg: pideCantidad ? cantidadKg : null,
+      destino: pideDetalle ? destino : motivo.destinoDefault,
       notas: notas.trim() || null,
-      saborNombre: sabores.find(s => s.id === saborId)?.nombre ?? '—',
-      tamanioNombre: tamanios.find(t => t.id === tamanioId)?.nombre ?? '—',
-      presentacionNombre: presentaciones.find(p => p.id === presentacionId)?.nombre ?? '—',
-      motivoNombre: motivos.find(m => m.id === motivoId)?.nombre ?? '—',
+      saborNombre: pideDetalle ? (sabores.find(s => s.id === saborId)?.nombre ?? null) : null,
+      tamanioNombre: pideDetalle ? (tamanios.find(t => t.id === tamanioId)?.nombre ?? null) : null,
+      presentacionNombre: pideDetalle ? (presentaciones.find(p => p.id === presentacionId)?.nombre ?? null) : null,
+      motivoNombre: motivo.nombre,
     }
 
     setDevoluciones(prev => [nuevaEntrada, ...prev])
@@ -162,35 +191,46 @@ export default function DevolucionClient({
         <SelectorDia dia={dia} hoy={hoy} ayer={ayer} />
       </div>
 
-      <Card className="p-4 space-y-4">
-        <div>
-          <p className="text-xs text-[#888] mb-1.5">Sabor</p>
-          <div className="flex flex-wrap gap-2">
-            {sabores.map(s => (
-              <Chip key={s.id} active={saborId === s.id} onClick={() => setSaborId(s.id)}>{s.nombre}</Chip>
-            ))}
-          </div>
+      <Card className="p-4 space-y-2">
+        <p className="text-xs text-[#888] mb-1.5">Motivo</p>
+        <div className="flex flex-wrap gap-2">
+          {motivos.map(m => (
+            <Chip key={m.id} active={motivoId === m.id} onClick={() => elegirMotivo(m.id)}>{m.nombre}</Chip>
+          ))}
         </div>
+      </Card>
 
-        <div>
-          <p className="text-xs text-[#888] mb-1.5">Tamaño</p>
-          <div className="flex flex-wrap gap-2">
-            {tamanios.map(t => (
-              <Chip key={t.id} active={tamanioId === t.id} onClick={() => setTamanioId(t.id)}>{t.nombre}</Chip>
-            ))}
+      {!motivo ? (
+        <p className="text-sm text-[#666] text-center py-6">Elegí un motivo para continuar.</p>
+      ) : pideDetalle ? (
+        <Card className="p-4 space-y-4">
+          <div>
+            <p className="text-xs text-[#888] mb-1.5">Sabor</p>
+            <div className="flex flex-wrap gap-2">
+              {sabores.map(s => (
+                <Chip key={s.id} active={saborId === s.id} onClick={() => setSaborId(s.id)}>{s.nombre}</Chip>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div>
-          <p className="text-xs text-[#888] mb-1.5">Presentación</p>
-          <div className="flex flex-wrap gap-2">
-            {presentaciones.map(p => (
-              <Chip key={p.id} active={presentacionId === p.id} onClick={() => setPresentacionId(p.id)}>{p.nombre}</Chip>
-            ))}
+          <div>
+            <p className="text-xs text-[#888] mb-1.5">Tamaño</p>
+            <div className="flex flex-wrap gap-2">
+              {tamanios.map(t => (
+                <Chip key={t.id} active={tamanioId === t.id} onClick={() => setTamanioId(t.id)}>{t.nombre}</Chip>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs text-[#888] mb-1.5">Presentación</p>
+            <div className="flex flex-wrap gap-2">
+              {presentaciones.map(p => (
+                <Chip key={p.id} active={presentacionId === p.id} onClick={() => setPresentacionId(p.id)}>{p.nombre}</Chip>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="text-xs text-[#888] mb-1 block">Cantidad (kg)</label>
             <InputNumero
@@ -201,59 +241,78 @@ export default function DevolucionClient({
               className={inputClass}
             />
           </div>
+
           <div>
-            <label className="text-xs text-[#888] mb-1 block">Motivo</label>
-            <select
-              value={motivoId}
-              onChange={e => setMotivoId(e.target.value)}
-              className={inputClass}
-            >
-              {motivos.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-            </select>
+            <p className="text-xs text-[#888] mb-1.5">Destino</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setDestino('reinsercion')}
+                className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold border transition-all ${
+                  destino === 'reinsercion' ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-[#1a1a1a] text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'
+                }`}
+              >
+                <Recycle size={18} /> Reinserción
+              </button>
+              <button
+                type="button"
+                onClick={() => setDestino('perdida')}
+                className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold border transition-all ${
+                  destino === 'perdida' ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-[#1a1a1a] text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'
+                }`}
+              >
+                <Trash2 size={18} /> Pérdida
+              </button>
+            </div>
+            {destino === 'reinsercion' && (
+              <p className="text-[11px] text-[#666] mt-1.5">Solo informativo — no genera una carga en Congelados, hay que cargarla aparte si corresponde.</p>
+            )}
           </div>
-        </div>
 
-        <div>
-          <p className="text-xs text-[#888] mb-1.5">Destino</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setDestino('reinsercion')}
-              className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold border transition-all ${
-                destino === 'reinsercion' ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-[#1a1a1a] text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'
-              }`}
-            >
-              <Recycle size={18} /> Reinserción
-            </button>
-            <button
-              type="button"
-              onClick={() => setDestino('perdida')}
-              className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold border transition-all ${
-                destino === 'perdida' ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-[#1a1a1a] text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'
-              }`}
-            >
-              <Trash2 size={18} /> Pérdida
-            </button>
+          <div>
+            <label className="text-xs text-[#888] mb-1 block">Notas (opcional)</label>
+            <textarea
+              className={`${inputClass} resize-none`}
+              rows={2}
+              value={notas}
+              onChange={e => setNotas(e.target.value)}
+            />
           </div>
-          {destino === 'reinsercion' && (
-            <p className="text-[11px] text-[#666] mt-1.5">Solo informativo — no genera una carga en Congelados, hay que cargarla aparte si corresponde.</p>
+        </Card>
+      ) : (
+        <Card className="p-4 space-y-4">
+          <p className="text-xs text-[#666]">
+            Se registra como {motivo.destinoDefault === 'perdida' ? 'Pérdida' : 'Reinserción'}, sin detalle del producto.
+          </p>
+
+          {pideCantidad && (
+            <div>
+              <label className="text-xs text-[#888] mb-1 block">Cantidad (kg)</label>
+              <InputNumero
+                min={0}
+                placeholder="0"
+                value={cantidadKg === 0 ? null : cantidadKg}
+                onChange={v => setCantidadKg(v ?? 0)}
+                className={inputClass}
+              />
+            </div>
           )}
-        </div>
 
-        <div>
-          <label className="text-xs text-[#888] mb-1 block">Notas (opcional)</label>
-          <textarea
-            className={`${inputClass} resize-none`}
-            rows={2}
-            value={notas}
-            onChange={e => setNotas(e.target.value)}
-          />
-        </div>
-      </Card>
+          <div>
+            <label className="text-xs text-[#888] mb-1 block">Notas (opcional)</label>
+            <textarea
+              className={`${inputClass} resize-none`}
+              rows={2}
+              value={notas}
+              onChange={e => setNotas(e.target.value)}
+            />
+          </div>
+        </Card>
+      )}
 
       <button
         onClick={guardar}
-        disabled={guardando}
+        disabled={guardando || !motivo}
         className="w-full flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 text-black font-['Syne'] font-bold text-sm py-3.5 rounded-xl transition-all disabled:opacity-40"
       >
         <Save size={16} /> {guardando ? 'Guardando...' : 'Guardar devolución'}
@@ -272,10 +331,12 @@ export default function DevolucionClient({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f0] font-medium flex items-center gap-1.5">
                     {d.destino === 'reinsercion' ? <Recycle size={13} className="text-[#666]" /> : <Trash2 size={13} className="text-[#666]" />}
-                    {d.tamanioNombre} · {d.saborNombre}
+                    {d.saborNombre ? `${d.tamanioNombre} · ${d.saborNombre}` : d.motivoNombre}
                   </p>
                   <p className="text-xs text-[#666] mt-0.5">
-                    {d.cantidadKg} kg · {d.presentacionNombre} · {d.motivoNombre}
+                    {d.saborNombre
+                      ? `${d.cantidadKg} kg · ${d.presentacionNombre} · ${d.motivoNombre}`
+                      : `${d.cantidadKg != null ? `${d.cantidadKg} kg · ` : ''}sin detalle`}
                   </p>
                 </div>
                 <button
