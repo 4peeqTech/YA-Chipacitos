@@ -103,6 +103,7 @@ export async function proxy(request: NextRequest) {
       local: ['/local', '/ayuda'],
       deposito: ['/deposito', '/ayuda'],
       supervisor_fabrica: ['/fabrica', '/ayuda'],
+      mayorista: ['/fabrica/pedidos', '/fabrica/catalogo', '/ayuda'],
       admin: ['/admin', '/local', '/deposito', '/fabrica', '/ayuda'],
     }
 

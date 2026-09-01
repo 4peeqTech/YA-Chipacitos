@@ -16,6 +16,7 @@ interface HeaderProps {
 const rolLabel: Record<string, string> = {
   local:    'Sucursal',
   supervisor_fabrica: 'Supervisor de Fábrica',
+  mayorista: 'Mayorista',
   deposito: 'Depósito',
   admin:    'Admin',
   squad:    'Squad',

@@ -15,8 +15,8 @@ export default async function FabricaPedidosPage() {
       .eq('destino', 'fabrica').order('created_at', { ascending: false }).limit(100),
   ])
 
-  // Se le saca el acceso al rol fabrica por el momento — ver nav en app/fabrica/layout.tsx.
-  if (profile?.rol !== 'admin') redirect('/fabrica/stock')
+  // Pedidos es de mayorista/admin — supervisor_fabrica no entra (ver nav en app/fabrica/layout.tsx).
+  if (!['admin', 'mayorista'].includes(profile?.rol ?? '')) redirect('/fabrica/stock')
 
   return (
     <PedidosOperadorClient

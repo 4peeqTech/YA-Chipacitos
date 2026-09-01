@@ -12,25 +12,30 @@ export default async function FabricaLayout({ children }: { children: React.Reac
   const { data: profile } = await supabase
     .from('profiles').select('nombre, rol, modulos_permitidos').eq('id', user.id).single()
 
-  if (profile?.rol !== 'supervisor_fabrica' && profile?.rol !== 'admin') redirect('/login')
+  if (!['supervisor_fabrica', 'mayorista', 'admin'].includes(profile?.rol ?? '')) redirect('/login')
+
+  // Pedidos y Catálogo son de mayorista/admin — supervisor_fabrica no los ve (ver guard en
+  // app/fabrica/pedidos/page.tsx y app/fabrica/catalogo/page.tsx). Mayorista, a su vez, no ve
+  // el resto del árbol de fábrica (Registro/Personal/Stock/Reportes).
+  const veCatalogoPedidos = ['admin', 'mayorista'].includes(profile?.rol ?? '')
+  const veFabricaOperativa = profile?.rol !== 'mayorista'
 
   const navItems = [
-    // Pedidos y Catálogo se le sacan al supervisor de fábrica por el momento — ver guard en
-    // app/fabrica/pedidos/page.tsx y app/fabrica/catalogo/page.tsx. Admin conserva
-    // acceso completo.
-    ...(profile?.rol === 'admin' ? [{ href: '/fabrica/pedidos', label: 'Pedidos', icon: <Truck size={20} /> }] : []),
-    { href: '/fabrica/registro',   label: 'Registro',   icon: <Factory size={20} /> },
-    { href: '/fabrica/personal',   label: 'Personal',   icon: <Users size={20} /> },
-    { href: '/fabrica/stock',      label: 'Stock',      icon: <Package size={20} /> },
-    { href: '/fabrica/reportes',   label: 'Reportes',   icon: <BarChart3 size={20} /> },
-    ...(profile?.rol === 'admin' ? [{ href: '/fabrica/catalogo', label: 'Catálogo', icon: <Shuffle size={20} /> }] : []),
+    ...(veCatalogoPedidos ? [{ href: '/fabrica/pedidos', label: 'Pedidos', icon: <Truck size={20} /> }] : []),
+    ...(veFabricaOperativa ? [
+      { href: '/fabrica/registro',   label: 'Registro',   icon: <Factory size={20} /> },
+      { href: '/fabrica/personal',   label: 'Personal',   icon: <Users size={20} /> },
+      { href: '/fabrica/stock',      label: 'Stock',      icon: <Package size={20} /> },
+      { href: '/fabrica/reportes',   label: 'Reportes',   icon: <BarChart3 size={20} /> },
+    ] : []),
+    ...(veCatalogoPedidos ? [{ href: '/fabrica/catalogo', label: 'Catálogo', icon: <Shuffle size={20} /> }] : []),
     ...(profile?.modulos_permitidos?.includes('tareas') ? [{ href: '/tareas', label: 'Tareas', icon: <ListTodo size={20} /> }] : []),
     { href: '/ayuda',             label: 'Ayuda',    icon: <HelpCircle size={20} /> },
   ]
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col">
-      <Header titulo="Fábrica" subtitulo={profile?.nombre} rol="supervisor_fabrica" />
+      <Header titulo="Fábrica" subtitulo={profile?.nombre} rol={profile?.rol} />
       <main className="flex-1 pb-24 lg:pb-16 w-full lg:pt-4">
         {children}
       </main>

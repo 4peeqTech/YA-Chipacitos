@@ -69,10 +69,13 @@ export function getModuloPorPath(pathname: string): Modulo | undefined {
 
 // Roles operativos: tienen su propio árbol de rutas (/local, /deposito,
 // /fabrica) y no pueden borrarse ni cambiar de key (ver tabla `roles`,
-// columna es_sistema). Cualquier otro rol —squad o uno creado a mano—
+// columna es_sistema). No todos nacieron como roles de sistema fijos:
+// `mayorista` es un rol dinámico (creado desde /admin/roles) al que se
+// le da este mismo trato de ruta fija y se protege con es_sistema=true
+// igual que los demás. Cualquier otro rol —squad o uno creado a mano—
 // entra al panel /admin/* y su acceso a módulos depende de
 // profiles.modulos_permitidos, igual que ya funciona para squad hoy.
-export const ROLES_OPERATIVOS = ['local', 'deposito', 'supervisor_fabrica'] as const
+export const ROLES_OPERATIVOS = ['local', 'deposito', 'supervisor_fabrica', 'mayorista'] as const
 
 export function esRolConModulos(rol: string | null | undefined): boolean {
   return !!rol && rol !== 'admin' && !ROLES_OPERATIVOS.includes(rol as typeof ROLES_OPERATIVOS[number])
@@ -82,5 +85,6 @@ export function getRoleHome(rol: string | null | undefined): string {
   if (rol === 'local') return '/local/pedidos'
   if (rol === 'deposito') return '/deposito/pedidos'
   if (rol === 'supervisor_fabrica') return '/fabrica/registro'
+  if (rol === 'mayorista') return '/fabrica/pedidos'
   return '/admin/dashboard' // admin, squad, o cualquier rol personalizado
 }
