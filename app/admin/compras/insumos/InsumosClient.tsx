@@ -158,8 +158,11 @@ export default function InsumosClient({
     const principal = validas.find(p => p.es_principal) ?? validas[0]
 
     startTransition(async () => {
-      const { id: _id, compras_item_proveedores: _cip, ...datosItem } = form as CompraItem
-      const payload = { ...datosItem, proveedor_id: principal.proveedor_id }
+      // proveedor_id se descarta explícitamente: la columna vieja de compras_items
+      // ya no existe (ver 20260901150000_compras_items_drop_proveedor_id.sql) y el
+      // form puede seguir arrastrándola desde un select('*') cacheado.
+      const { id: _id, compras_item_proveedores: _cip, proveedor_id: _proveedorViejo, ...payload } =
+        form as CompraItem & { proveedor_id?: string }
 
       let itemGuardado: Omit<CompraItem, 'compras_item_proveedores'>
       if (creando) {
