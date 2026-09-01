@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import Modal from './Modal'
 import InputNumero from './InputNumero'
+import HelpTooltip from './HelpTooltip'
 import { useToasts, ToastStack } from './Toast'
 
 interface Item { id: string; nombre: string; activo: boolean; [key: string]: unknown }
@@ -267,21 +268,22 @@ export default function TablaMaestra({ titulo, descripcion, apiPath, singular, c
                   </>
                 )}
                 {c.tipo === 'checkbox' && (
-                  <label className="flex items-start gap-2.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
                     <input
+                      id={`campo-extra-${c.key}`}
                       type="checkbox"
-                      className="mt-0.5 accent-[#e8c547]"
+                      className="w-4 h-4 accent-[#e8c547] cursor-pointer shrink-0"
                       checked={c.invertido ? !formExtras[c.key] : !!formExtras[c.key]}
                       onChange={e => {
                         const checked = e.target.checked
                         setFormExtras(prev => ({ ...prev, [c.key]: c.invertido ? !checked : checked }))
                       }}
                     />
-                    <span>
-                      <span className="block text-sm text-[#f0f0f0]">{c.label}</span>
-                      {c.ayuda && <span className="block text-xs text-[#666] mt-0.5">{c.ayuda}</span>}
-                    </span>
-                  </label>
+                    <label htmlFor={`campo-extra-${c.key}`} className="text-sm text-[#f0f0f0] flex items-center cursor-pointer">
+                      {c.label}
+                      {c.ayuda && <HelpTooltip text={c.ayuda} />}
+                    </label>
+                  </div>
                 )}
                 {c.tipo === 'select' && (
                   <>
