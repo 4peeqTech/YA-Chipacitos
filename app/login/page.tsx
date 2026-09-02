@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { getRoleHome } from '@/lib/modulos'
+import { BadgeEntorno } from '@/components/ui/Badge'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -41,6 +42,9 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center px-4">
+      <div className="absolute top-4 right-4">
+        <BadgeEntorno />
+      </div>
       <div className="w-full max-w-sm">
 
         {/* Logo */}

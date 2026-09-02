@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { LogOut, Moon, Sun } from 'lucide-react'
 import NotificationBell from '@/components/ui/NotificationBell'
+import { BadgeEntorno } from '@/components/ui/Badge'
 
 interface HeaderProps {
   titulo: string
@@ -57,6 +58,9 @@ export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
           <p className="font-['Syne'] font-bold text-[#e8c547] text-base leading-tight truncate">{titulo}</p>
           {subtitulo && <p className="text-[#888] text-[11px]">{subtitulo}</p>}
         </div>
+      </div>
+      <div className="shrink-0">
+        <BadgeEntorno />
       </div>
       {rol && (
         <div className="flex items-center shrink-0">

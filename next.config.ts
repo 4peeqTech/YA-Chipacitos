@@ -1,11 +1,22 @@
 import type { NextConfig } from 'next'
+import { verificarEntorno, mensajeEntorno } from './lib/entorno'
+
+// Aborta el build si el proyecto de Supabase detectado no es el esperado
+// para este entorno (ver lib/entorno.ts). Va acá y no en un script
+// `prebuild` porque next.config.ts lo carga `next build` siempre, sin
+// importar el Build Command configurado en el dashboard de Vercel.
+const entorno = verificarEntorno({
+  vercelEnv: process.env.VERCEL_ENV,
+  url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+})
+console.log(mensajeEntorno(entorno))
+if (!entorno.ok) {
+  throw new Error(mensajeEntorno(entorno))
+}
 
 const nextConfig: NextConfig = {
-  // Fallbacks para build sin env vars — en producción se leen de .env.local / Vercel
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key',
-  },
   transpilePackages: ['@4peeqtech/ticket-widget'],
   async redirects() {
     return [

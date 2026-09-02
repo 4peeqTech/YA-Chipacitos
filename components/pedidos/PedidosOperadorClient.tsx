@@ -7,6 +7,7 @@ import { BadgeEstado } from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
 import PushToggle from '@/components/ui/PushToggle'
 import PedidoMensajes from '@/components/pedidos/PedidoMensajes'
+import { useRefrescarAlVolver } from '@/lib/hooks/useRefrescarAlVolver'
 
 interface Props {
   productosIniciales: Producto[]
@@ -77,10 +78,16 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   useEffect(() => { pedidosRef.current = pedidos }, [pedidos])
   useEffect(() => { actualizarRef.current = actualizar })
 
+  // Red de seguridad: visibilidad, red, y (abajo) reconexión del canal
+  // disparan actualizar(), que además detecta pedidos que llegaron mientras
+  // el WebSocket estaba muerto en silencio y los marca como nuevos.
+  const dispararActualizacion = useRefrescarAlVolver(() => actualizarRef.current?.())
+
   // Realtime: nuevos pedidos y cambios de estado
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let huboCaida = false
 
     function conectar() {
       // Topic único por intento: si se reconecta antes de que el `leave`
@@ -119,8 +126,14 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
         .subscribe((status) => {
           // El socket puede caerse en silencio (suspensión de la laptop,
           // cambio de red) sin pasar por acá como error visible — cuando
-          // sí lo reporta, reconectamos.
+          // sí lo reporta, reconectamos y resincronizamos lo que se haya
+          // perdido durante la caída.
+          if (status === 'SUBSCRIBED' && huboCaida) {
+            huboCaida = false
+            dispararActualizacion()
+          }
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            huboCaida = true
             if (channel) supabase.removeChannel(channel)
             retryTimer = setTimeout(conectar, 3000)
           }
@@ -128,23 +141,11 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
     }
     conectar()
 
-    // Red de seguridad para cuando el socket muere sin avisar: resincroniza
-    // por polling al volver a la pestaña y cada 2 min mientras esté visible.
-    function alVolver() {
-      if (document.visibilityState === 'visible') actualizarRef.current?.()
-    }
-    document.addEventListener('visibilitychange', alVolver)
-    const poll = setInterval(() => {
-      if (document.visibilityState === 'visible') actualizarRef.current?.()
-    }, 120000)
-
     return () => {
-      document.removeEventListener('visibilitychange', alVolver)
-      clearInterval(poll)
       if (retryTimer) clearTimeout(retryTimer)
       if (channel) supabase.removeChannel(channel)
     }
-  }, [destino]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [destino, dispararActualizacion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Título parpadeante cuando hay pedidos nuevos
   useEffect(() => {

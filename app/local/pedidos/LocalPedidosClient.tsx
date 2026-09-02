@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Profile, Producto, Pedido, PedidoItem, CarritoItem } from '@/lib/types'
 import { BadgeEstado, BadgeDestino } from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
 import PushToggle from '@/components/ui/PushToggle'
 import PedidoMensajes from '@/components/pedidos/PedidoMensajes'
+import { useRefrescarAlVolver } from '@/lib/hooks/useRefrescarAlVolver'
 
 interface Props {
   profile: Profile
@@ -15,6 +17,7 @@ interface Props {
 }
 
 export default function LocalPedidosClient({ profile, productos, pedidosIniciales }: Props) {
+  const router = useRouter()
   const [carrito, setCarrito] = useState<CarritoItem[]>([])
   const [notas, setNotas] = useState('')
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
@@ -145,6 +148,19 @@ export default function LocalPedidosClient({ profile, productos, pedidosIniciale
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [profile.id]) // supabase es estable por useMemo, no necesita ser dependencia
+
+  // El server component (page.tsx) es la única fuente de verdad: cuando
+  // llega una `pedidosIniciales` nueva (tras un router.refresh()),
+  // resincronizamos el estado local durante el render (no en un efecto —
+  // evita el cascading-render que marca react-hooks/set-state-in-effect).
+  const [pedidosInicialesSincronizados, setPedidosInicialesSincronizados] = useState(pedidosIniciales)
+  if (pedidosIniciales !== pedidosInicialesSincronizados) {
+    setPedidosInicialesSincronizados(pedidosIniciales)
+    setPedidos(pedidosIniciales)
+  }
+
+  // Red de seguridad para cuando el WebSocket de realtime muere en silencio.
+  useRefrescarAlVolver(() => router.refresh())
 
   function abrirRemito(pedido: Pedido) {
     const inicial: Record<string, { cantidad_recibida: string; valor_total: string }> = {}

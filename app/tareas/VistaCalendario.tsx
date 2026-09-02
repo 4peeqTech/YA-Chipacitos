@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -15,6 +15,7 @@ import { createClient } from '@/lib/supabase/client'
 import ModalSubtarea from './ModalSubtarea'
 import ModalInforme from './ModalInforme'
 import { PRIORIDAD_META, TURNO_META, notificarTarea, truncarTexto } from './helpers'
+import { useRefrescarAlVolver } from '@/lib/hooks/useRefrescarAlVolver'
 import type { Tarea, TareaSubtarea, InformeDiario, Turno } from '@/lib/types'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
@@ -296,22 +297,30 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
     return generarMes(fechaActual)
   }, [fechaActual, modoVista])
 
-  useEffect(() => {
-    let activo = true
-    async function cargar() {
-      const desde = toISODate(dias[0])
-      const hasta = toISODate(dias[dias.length - 1])
-      const [{ data: subs }, { data: infs }] = await Promise.all([
-        supabase.from('tarea_subtareas').select('*').gte('fecha', desde).lte('fecha', hasta),
-        supabase.from('informes_diarios').select('*').gte('fecha', desde).lte('fecha', hasta),
-      ])
-      if (!activo) return
-      setSubtareas(subs || [])
-      setInformes(infs || [])
-    }
-    cargar()
-    return () => { activo = false }
+  // Token en vez de un simple booleano `activo`: así una respuesta vieja se
+  // descarta tanto si cambió `dias` como si un refresco manual (hook de abajo)
+  // disparó una carga más nueva mientras esta seguía en vuelo.
+  const cargarTokenRef = useRef(0)
+
+  const cargar = useCallback(async () => {
+    const token = ++cargarTokenRef.current
+    const desde = toISODate(dias[0])
+    const hasta = toISODate(dias[dias.length - 1])
+    const [{ data: subs }, { data: infs }] = await Promise.all([
+      supabase.from('tarea_subtareas').select('*').gte('fecha', desde).lte('fecha', hasta),
+      supabase.from('informes_diarios').select('*').gte('fecha', desde).lte('fecha', hasta),
+    ])
+    if (cargarTokenRef.current !== token) return
+    setSubtareas(subs || [])
+    setInformes(infs || [])
   }, [dias, supabase])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  // Red de seguridad para cuando el WebSocket de realtime muere en silencio:
+  // este dato no viene de props SSR (se pide acá mismo), así que refrescamos
+  // repitiendo la misma carga en vez de un router.refresh().
+  useRefrescarAlVolver(cargar)
 
   useEffect(() => {
     const canal = supabase.channel(`calendario-tareas-realtime-${Math.random().toString(36).slice(2)}`)

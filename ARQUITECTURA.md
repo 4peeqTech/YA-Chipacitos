@@ -1740,8 +1740,8 @@ async function requireAdmin() {
 ### Variables de entorno
 
 ```
-NEXT_PUBLIC_SUPABASE_URL          Público. Con fallback a placeholder en next.config.ts
-NEXT_PUBLIC_SUPABASE_ANON_KEY     Público. idem
+NEXT_PUBLIC_SUPABASE_URL          Público
+NEXT_PUBLIC_SUPABASE_ANON_KEY     Público
 SUPABASE_SERVICE_ROLE_KEY         🔴 SECRETO — saltea RLS por completo
 GOOGLE_SHEETS_API_KEY             Secreto
 GROQ_API_KEY                      Secreto
@@ -1754,11 +1754,38 @@ FUDO_API_SECRET_<SLUG>            Secreto — idem
 
 `.env.local` está en `.gitignore`. ✅
 
-> ⚠️ [next.config.ts](next.config.ts) inyecta placeholders si faltan la URL y la anon
-> key, para que el build no rompa. Efecto secundario: **un deploy mal configurado
-> arranca "funcionando" y falla en runtime** en vez de fallar en el build. Y
-> [proxy.ts](proxy.ts) tiene un bypass: `if (!URL || !ANON_KEY) return NextResponse.next()`
-> — **sin env vars, el middleware deja pasar todo sin autenticar.**
+**Proyectos de Supabase** (ref hardcodeado en [lib/entorno.ts](lib/entorno.ts), única
+fuente de verdad — ver postmortem del incidente 2026-09-01 en S7 más abajo):
+
+| Ref | Entorno |
+|---|---|
+| `ahlpthzsjipdpcnjbfdk` | **Producción** — Vercel Production únicamente |
+| `fafckqysyvtlslfnpzrh` | Dev/test ("YA! mayorista") — Vercel Preview (`qa`) y desarrollo local |
+
+`lib/entorno.ts` expone `verificarEntorno(...)`, que cruza `NEXT_PUBLIC_SUPABASE_URL`
+contra la anon key y la service role key (son JWT con claim `ref`) y, si
+`VERCEL_ENV === 'production'`, exige que el ref sea el de prod. Se llama en tres
+capas independientes:
+
+- **Build** ([next.config.ts](next.config.ts)): `throw` si no verifica — aborta el build.
+- **Middleware** ([proxy.ts](proxy.ts)): `503` fail-closed si no verifica — cubre
+  promote/rollback a un deployment viejo, que el guard de build no puede ver.
+- **Runtime del servidor** ([lib/supabase/server.ts](lib/supabase/server.ts)):
+  `verificarEntornoServidor()` cruza los `NEXT_PUBLIC_*` (inlineados en build)
+  contra `SUPABASE_SERVICE_ROLE_KEY` (leída en runtime) — detecta env vars
+  cambiadas sin redeploy.
+
+Además hay un badge visible ("DATOS DE DEV") en el Header y en `/login` cuando el
+bundle no apunta a prod, y `GET /api/entorno` para verificar un deploy sin grepear
+el JS.
+
+**Runbook — cómo saber a qué base apunta un deploy:**
+
+1. `curl https://app.yachipacitos.com.ar/api/entorno` → `refCliente` tiene que ser
+   `ahlpthzsjipdpcnjbfdk`.
+2. O mirar el badge: si dice "DATOS DE DEV" en el Header o en `/login`, no es prod.
+3. O buscar `✅ Supabase: proyecto …` (o `❌ Supabase: …`) en el log de build de
+   Vercel — lo imprime `next.config.ts` en cada build.
 
 ---
 
@@ -1774,7 +1801,7 @@ FUDO_API_SECRET_<SLUG>            Secreto — idem
 | S4 | 🟠 Media | **`/api/notificaciones/tareas` acepta `userIds[]` arbitrario.** Cualquier usuario logueado puede pushear cualquier título/cuerpo a cualquier usuario del sistema. `/api/notificaciones/pedidos` ya resuelve esto bien (destinatarios server-side) — replicar ese patrón. | [/api/notificaciones/tareas](app/api/notificaciones/tareas/route.ts) |
 | S5 | 🟠 Media | **RLS abierta en `pedido_mensajes` y `producto_mapeos`:** `USING(true) WITH CHECK(true)` para todo `authenticated`. El chat de pedidos de una sucursal lo lee y escribe cualquiera. | migraciones `..._create_pedido_mensajes`, `..._add_mapeos_...` |
 | S6 | 🟡 Baja | **`pedido_items` SELECT abierto:** `auth.uid() IS NOT NULL`. Toda sucursal ve los ítems, cantidades y `valor_total` de las demás. | `initial_schema:169` |
-| S7 | 🟡 Baja | **Sin env vars, `proxy.ts` deja pasar todo sin autenticar.** Combinado con los placeholders de `next.config.ts`, un deploy mal configurado queda abierto. Preferir fallar el build. | [proxy.ts:10](proxy.ts), [next.config.ts:6](next.config.ts) |
+| S7 | ✅ Resuelto 2026-09-02 | ~~Sin env vars, `proxy.ts` deja pasar todo sin autenticar; combinado con los placeholders de `next.config.ts`, un deploy mal configurado queda abierto.~~ Se concretó el 2026-09-01: las env vars de Production en Vercel quedaron apuntando al proyecto dev por ~16h (sin escrituras en prod durante la ventana; 1 pedido recuperado a mano). `lib/entorno.ts` ahora valida URL/anon key/service role key contra el ref esperado en build (`next.config.ts`, aborta), middleware (`proxy.ts`, 503 fail-closed) y runtime (`lib/supabase/server.ts`), más badge visible y `GET /api/entorno`. | [lib/entorno.ts](lib/entorno.ts), [proxy.ts](proxy.ts), [next.config.ts](next.config.ts) |
 | S8 | 🟡 Baja | **Sin rate limiting en ninguna ruta.** Las de IA (`/api/tareas/audio`, `/agente`) queman cuota de Groq; `/api/sync-sheets` es costosa. | todo `app/api/` |
 | S9 | 🟡 Baja | **UUID de usuario hardcodeado como permiso.** `DESTINATARIO_DEFAULT_INFORME_ID` habilita `/tareas/todas` (service role, todas las tareas del sistema). Debería ser un permiso en datos. | [app/tareas/helpers.ts:79](app/tareas/helpers.ts) |
 

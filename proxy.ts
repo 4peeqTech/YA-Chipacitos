@@ -1,21 +1,42 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getRoleHome, getModuloPorPath, MODULOS, esRolConModulos } from '@/lib/modulos'
+import { verificarEntorno } from '@/lib/entorno'
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
-  // Si no hay variables de entorno configuradas, pasar todo sin auth
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  // /api/entorno tiene que quedar accesible incluso con el entorno roto:
+  // es el propio endpoint de diagnóstico, y devuelve su 503 con detalle.
+  if (pathname === '/api/entorno') {
     return NextResponse.next({ request })
+  }
+
+  // Fail-closed: si el entorno de Supabase no verifica (env vars faltantes,
+  // cruzadas entre proyectos, o prod apuntando a dev), no se sirve nada.
+  // Cubre además el caso "promote/rollback a un deployment viejo", que el
+  // guard de next.config.ts (que corre en build) no puede ver.
+  const entorno = verificarEntorno({
+    vercelEnv: process.env.VERCEL_ENV,
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  })
+  if (!entorno.ok) {
+    return new NextResponse('Servicio no disponible: configuración de entorno inválida.', {
+      status: 503,
+      headers: { 'cache-control': 'no-store' },
+    })
   }
 
   let supabaseResponse = NextResponse.next({ request })
 
   try {
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      // `entorno.ok` ya garantizó en runtime que están definidas y son del
+      // mismo proyecto — el `!` es sobre eso, no una suposición nueva.
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {

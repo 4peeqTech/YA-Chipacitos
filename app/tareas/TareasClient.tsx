@@ -13,10 +13,12 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import ModalTarea from './ModalTarea'
 import VistaCalendario from './VistaCalendario'
 import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, isVencida, esMiaTarea, esCompletadaVieja, nombrePerfil, notificarTarea, DESTINATARIO_DEFAULT_INFORME_ID } from './helpers'
 import { urlBase64ToUint8Array } from '@/lib/push'
+import { useRefrescarAlVolver } from '@/lib/hooks/useRefrescarAlVolver'
 import type { Tarea, PrioridadTarea, EstadoTarea, Turno } from '@/lib/types'
 
 export interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
@@ -292,8 +294,23 @@ interface TareasClientProps {
 }
 
 export default function TareasClient({ userId, userNombre, tareas: initial, perfiles }: TareasClientProps) {
+  const router = useRouter()
   const [supabase] = useState(() => createClient())
   const [tareas, setTareas] = useState<Tarea[]>(initial)
+
+  // El server component (page.tsx) es la única fuente de verdad: cuando
+  // llega una `initial` nueva (tras un router.refresh()), resincronizamos
+  // el estado local durante el render (no en un efecto — evita el
+  // cascading-render que marca react-hooks/set-state-in-effect). Sin esto,
+  // refrescar no actualiza lo que se ve en pantalla.
+  const [initialSincronizada, setInitialSincronizada] = useState(initial)
+  if (initial !== initialSincronizada) {
+    setInitialSincronizada(initial)
+    setTareas(initial)
+  }
+
+  // Red de seguridad para cuando el WebSocket de realtime muere en silencio.
+  useRefrescarAlVolver(() => router.refresh())
   const [comentariosCount, setComentariosCount] = useState<Record<string, number>>({})
   const [filtroPrioridad, setFiltroPrioridad] = useState<'todas' | PrioridadTarea>('todas')
   // '' = todos, 'yo' = yo mismo, 'otros' = cualquiera que no sea yo (solo aplica a "asignado a"), o el id de un perfil puntual

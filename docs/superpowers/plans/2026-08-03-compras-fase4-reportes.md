@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Branch: all work happens on `dev`. Never touch `main` (holds the production database, Supabase project "YA! mayorista", ref `fafckqysyvtlslfnpzrh`).
+- Branch: all work happens on `dev`. Never touch `main` (holds the production database, ref `ahlpthzsjipdpcnjbfdk`). Note: `fafckqysyvtlslfnpzrh` ("YA! mayorista") is the dev/test project, not prod — see the 2026-09-01 incident in `ARQUITECTURA.md` §9/S7.
 - Access: only `admin` and `squad` roles use `/admin/compras/*`. RLS on the new table must allow `admin` AND `squad`, same pattern as every other `compras_*` table.
 - CRUD/read pattern: bespoke server-fetch + client-component, exactly like every other Compras screen. Do NOT use or extend `components/ui/TablaMaestra.tsx`. No API routes.
 - No charting library. Reports are tables + totals only — this was an explicit decision to stay consistent with the rest of the module (no chart dependency exists today).
