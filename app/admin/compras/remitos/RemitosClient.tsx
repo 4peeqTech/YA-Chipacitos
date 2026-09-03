@@ -1,10 +1,12 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { PackageOpen, Pencil, Plus, Trash2 } from 'lucide-react'
+import { PackageOpen, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
 import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
+import { useConfirm } from '@/components/ui/ConfirmDialog'
+import { useToasts, ToastStack } from '@/components/ui/Toast'
 import RemitoForm, { type PedidoConItems } from './RemitoForm'
 import { revertirYBorrar } from '@/lib/compras/stockRemito'
 import type { Remito } from '@/lib/compras/tipos'
@@ -54,6 +56,8 @@ export default function RemitosClient({
   pedidoPreseleccionado?: string
 }) {
   const supabase = createClient()
+  const { confirmar, dialog: confirmDialog } = useConfirm()
+  const toast = useToasts()
   const [remitos, setRemitos] = useState(remitosIniciales)
   const [filtro, setFiltro] = useState('')
   const [sortCampo, setSortCampo] = useState<Columna>('fecha')
@@ -154,10 +158,20 @@ export default function RemitosClient({
     cerrarModal()
   }
 
-  async function borrarRemito(remito: RemitoRow) {
-    if (!confirm(`¿Borrar el remito ${remito.numero}?`)) return
+  function borrarRemito(remito: RemitoRow) {
+    confirmar({
+      titulo: 'Borrar remito',
+      mensaje: `¿Borrar el remito ${remito.numero}? El stock cargado por sus líneas se va a revertir.`,
+      textoConfirmar: 'Borrar',
+      peligroso: true,
+      onConfirmar: () => borrarRemitoConfirmado(remito),
+    })
+  }
+
+  async function borrarRemitoConfirmado(remito: RemitoRow) {
     await revertirYBorrar(supabase, remito, usuarioId)
     setRemitos(prev => prev.filter(r => r.id !== remito.id))
+    toast.success('Remito borrado')
   }
 
   const thClass = "px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider cursor-pointer select-none"
@@ -220,7 +234,7 @@ export default function RemitosClient({
               </thead>
               <tbody className="divide-y divide-[#2a2a2a]">
                 {filtrados.map(r => (
-                  <tr key={r.id} className="hover:bg-[#1a1a1a] transition-colors">
+                  <tr key={r.id} onClick={() => abrirEdicion(r)} className="hover:bg-[#1a1a1a] transition-colors cursor-pointer">
                     <td className="px-4 py-3 text-[#f0f0f0] font-medium">{r.compras_pedidos?.proveedores?.nombre ?? '—'}</td>
                     <td className="px-4 py-3 text-[#888]">{r.numero}</td>
                     <td className="px-4 py-3 text-[#888]">{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td>
@@ -229,15 +243,7 @@ export default function RemitosClient({
                     <td className="px-4 py-3 text-right">
                       <div className="flex gap-1 justify-end">
                         <button
-                          onClick={() => abrirEdicion(r)}
-                          title="Editar remito"
-                          aria-label={`Editar remito ${r.numero}`}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#e8c547] hover:bg-[#2a2a2a] transition-colors"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                        <button
-                          onClick={() => borrarRemito(r)}
+                          onClick={e => { e.stopPropagation(); borrarRemito(r) }}
                           title="Borrar remito"
                           aria-label={`Borrar remito ${r.numero}`}
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-red-400 hover:bg-[#2a2a2a] transition-colors"
@@ -281,6 +287,9 @@ export default function RemitosClient({
           )}
         </div>
       </Modal>
+
+      {confirmDialog}
+      <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
   )
 }

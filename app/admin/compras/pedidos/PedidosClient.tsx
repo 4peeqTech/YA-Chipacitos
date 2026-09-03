@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight, Check, ListChecks, Lock, MessageSquare, Pencil, Plus, RefreshCw, X } from 'lucide-react'
+import { ArrowRight, Check, ListChecks, Lock, MessageSquare, Plus, RefreshCw, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { construirMensajePedido, renderPlantilla, linkWhatsApp } from '@/lib/compras/pedidoMensaje'
 import Modal from '@/components/ui/Modal'
+import { useConfirm } from '@/components/ui/ConfirmDialog'
+import { useToasts, ToastStack } from '@/components/ui/Toast'
 import type { Remito } from '@/lib/compras/tipos'
 import ResumenRemitos from './ResumenRemitos'
 
@@ -101,7 +102,8 @@ export default function PedidosClient({
   localesFacturacion: LocalFacturacion[]
 }) {
   const supabase = createClient()
-  const router = useRouter()
+  const { confirmar, dialog: confirmDialog } = useConfirm()
+  const toast = useToasts()
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
   const [filtro, setFiltro] = useState<FiltroPedidos>('activos')
   const [modalCrear, setModalCrear] = useState(false)
@@ -190,11 +192,9 @@ export default function PedidosClient({
     setCopiado(false)
   }
 
-  async function guardarItems(pedidoOverride?: Pedido, itemsOverride?: ItemEditor[], opts?: { confirmarRemitos?: boolean }): Promise<PedidoItem[] | null> {
+  async function guardarItems(pedidoOverride?: Pedido, itemsOverride?: ItemEditor[]): Promise<PedidoItem[] | null> {
     const pedido = pedidoOverride ?? pedidoEditando
     if (!pedido) return null
-    if (opts?.confirmarRemitos && pedido.compras_remitos.length > 0 &&
-        !confirm('Este pedido ya tiene remitos cargados. Reguardar los ítems va a desvincular las líneas de los remitos. ¿Continuar?')) return null
     setError('')
 
     const fuente = itemsOverride ?? itemsEditor
@@ -222,6 +222,21 @@ export default function PedidosClient({
     setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, compras_pedido_items: itemsGuardados } : p))
     setPedidoEditando(prev => prev && prev.id === pedido.id ? { ...prev, compras_pedido_items: itemsGuardados } : prev)
     return itemsGuardados
+  }
+
+  function confirmarGuardarItems() {
+    if (!pedidoEditando) return
+    if (pedidoEditando.compras_remitos.length > 0) {
+      confirmar({
+        titulo: 'Reguardar ítems',
+        mensaje: 'Este pedido ya tiene remitos cargados. Reguardar los ítems va a desvincular las líneas de los remitos.',
+        textoConfirmar: 'Continuar',
+        peligroso: true,
+        onConfirmar: () => { guardarItems() },
+      })
+      return
+    }
+    guardarItems()
   }
 
   async function confirmarCrearPedido() {
@@ -310,9 +325,8 @@ export default function PedidosClient({
     if (err) { setError(err.message); return }
 
     setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, ...data } : p))
-    const pedidoId = pedidoEditando.id
     cerrarEditor()
-    router.push(`/admin/compras/remitos?pedido=${pedidoId}`)
+    toast.success('Pedido marcado como enviado')
   }
 
   function enviarWhatsApp() {
@@ -322,8 +336,17 @@ export default function PedidosClient({
     setEnvioPreparado(true)
   }
 
-  async function cerrarPedido(pedido: Pedido) {
-    if (!confirm(`¿Cerrar el pedido a ${pedido.proveedores.nombre}?`)) return
+  function cerrarPedido(pedido: Pedido) {
+    confirmar({
+      titulo: 'Cerrar pedido',
+      mensaje: `¿Cerrar el pedido a ${pedido.proveedores.nombre}? Ya no se van a poder editar sus ítems ni reenviar el mensaje.`,
+      textoConfirmar: 'Cerrar pedido',
+      peligroso: true,
+      onConfirmar: () => cerrarPedidoConfirmado(pedido),
+    })
+  }
+
+  async function cerrarPedidoConfirmado(pedido: Pedido) {
     const { data, error: err } = await supabase
       .from('compras_pedidos')
       .update({ estado: 'cerrado', cerrado_en: new Date().toISOString() })
@@ -334,6 +357,7 @@ export default function PedidosClient({
 
     setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, ...data } : p))
     if (pedidoEditando?.id === pedido.id) setPedidoEditando(prev => prev ? { ...prev, ...data } : prev)
+    toast.success('Pedido cerrado')
   }
 
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
@@ -420,7 +444,7 @@ export default function PedidosClient({
                 <button onClick={() => setItemsEditor(prev => [...prev, { item_id: null, descripcion: '', unidad: '', cantidad: 0 }])} className="flex items-center gap-1.5 bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
                   <Plus size={16} /> Agregar ítem
                 </button>
-                <button onClick={() => guardarItems(undefined, undefined, { confirmarRemitos: true })} disabled={isPending} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
+                <button onClick={confirmarGuardarItems} disabled={isPending} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
                   Guardar ítems
                 </button>
               </div>
@@ -554,7 +578,7 @@ export default function PedidosClient({
               </thead>
               <tbody className="divide-y divide-[#2a2a2a]">
                 {pedidosFiltrados.map(p => (
-                  <tr key={p.id} className="hover:bg-[#1a1a1a] transition-colors">
+                  <tr key={p.id} onClick={() => abrirEditor(p)} className="hover:bg-[#1a1a1a] transition-colors cursor-pointer">
                     <td className="px-4 py-3 text-[#f0f0f0] font-medium">{p.proveedores.nombre}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClass[p.estado]}`}>{p.estado}</span>
@@ -563,17 +587,9 @@ export default function PedidosClient({
                     <td className="px-4 py-3 text-[#888]">{p.compras_pedido_items.length}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex gap-1 justify-end">
-                        <button
-                          onClick={() => abrirEditor(p)}
-                          title="Editar"
-                          aria-label={`Editar pedido a ${p.proveedores.nombre}`}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#e8c547] hover:bg-[#2a2a2a] transition-colors"
-                        >
-                          <Pencil size={15} />
-                        </button>
                         {p.estado !== 'cerrado' && (
                           <button
-                            onClick={() => cerrarPedido(p)}
+                            onClick={e => { e.stopPropagation(); cerrarPedido(p) }}
                             title="Cerrar pedido"
                             aria-label={`Cerrar pedido a ${p.proveedores.nombre}`}
                             className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#f0f0f0] hover:bg-[#2a2a2a] transition-colors"
@@ -679,6 +695,9 @@ export default function PedidosClient({
           </div>
         </div>
       </Modal>
+
+      {confirmDialog}
+      <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
   )
 }

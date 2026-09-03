@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { sugerirPedidoItem } from '@/lib/compras/matchRemito'
 import { sumarStock, revertirYBorrar } from '@/lib/compras/stockRemito'
+import { useConfirm } from '@/components/ui/ConfirmDialog'
 import type { Remito } from '@/lib/compras/tipos'
 
 interface PedidoItemPD {
@@ -56,6 +57,7 @@ export default function RemitoForm({
   onCancelar: () => void
 }) {
   const supabase = createClient()
+  const { confirmar, dialog: confirmDialog } = useConfirm()
   const [numero, setNumero] = useState(remitoEditando?.numero ?? '')
   const [fecha, setFecha] = useState(remitoEditando?.fecha ?? '')
   const [lineas, setLineas] = useState<LineaEditor[]>(remitoEditando ? lineasDesdeRemito(remitoEditando) : [lineaVacia()])
@@ -95,20 +97,30 @@ export default function RemitoForm({
     setLineas(prev => prev.map((l, i) => i === idx ? { ...l, ...cambios } : l))
   }
 
-  async function guardarRemito() {
+  function guardarRemito() {
     if (!numero.trim() || !fecha) { setError('Completá número y fecha'); return }
     const filas = lineas.filter(l => l.descripcion.trim() && l.cantidad > 0)
     if (!filas.length) { setError('Agregá al menos un ítem con cantidad'); return }
 
-    let remitoAReemplazar = remitoEditando?.id ?? null
+    const remitoAReemplazar = remitoEditando?.id ?? null
     if (!remitoAReemplazar) {
       const existente = pedido.compras_remitos.find(r => r.numero === numero.trim())
       if (existente) {
-        if (!confirm(`Ya existe el remito ${numero} en este pedido. ¿Sobrescribirlo?`)) return
-        remitoAReemplazar = existente.id
+        confirmar({
+          titulo: 'Remito duplicado',
+          mensaje: `Ya existe el remito ${numero} en este pedido. ¿Sobrescribirlo?`,
+          textoConfirmar: 'Sobrescribir',
+          peligroso: true,
+          onConfirmar: () => ejecutarGuardado(existente.id),
+        })
+        return
       }
     }
+    ejecutarGuardado(remitoAReemplazar)
+  }
 
+  function ejecutarGuardado(remitoAReemplazar: string | null) {
+    const filas = lineas.filter(l => l.descripcion.trim() && l.cantidad > 0)
     setError('')
     startTransition(async () => {
       if (remitoAReemplazar) {
@@ -226,6 +238,8 @@ export default function RemitoForm({
           Cancelar
         </button>
       </div>
+
+      {confirmDialog}
     </div>
   )
 }
