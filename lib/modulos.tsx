@@ -54,6 +54,7 @@ export const MODULOS: Modulo[] = [
   { key: 'compras-solicitudes', label: 'Solicitudes', icon: <Mail size={16} />, href: '/admin/compras/solicitudes', section: 'Compras' },
   { key: 'compras-pedido-base', label: 'Pedido base', icon: <FolderOpen size={16} />, href: '/admin/compras/pedido-base', section: 'Compras' },
   { key: 'compras-conteos', label: 'Control de Stock', icon: <ClipboardCheck size={16} />, href: '/admin/compras/conteos', section: 'Compras' },
+  { key: 'compras-facturacion', label: 'Datos de facturación', icon: <Receipt size={16} />, href: '/admin/compras/facturacion', section: 'Compras', soloAdmin: true },
 
   { key: 'tareas', label: 'Tareas', icon: <ListTodo size={16} />, href: '/tareas' },
 ]

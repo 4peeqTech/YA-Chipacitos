@@ -14,10 +14,19 @@ interface Plantilla {
   es_default: boolean
 }
 
+interface LocalFacturacion {
+  id: string
+  nombre: string
+  sucursal: string
+  razon_social: string
+  cuit: string
+  direccion: string
+}
+
 interface Proveedor {
   id: string
   nombre: string
-  local: string | null
+  local_facturacion_id: string | null
   contacto_nombre: string | null
   contacto_telefono: string | null
   maneja_stock: boolean
@@ -49,6 +58,7 @@ interface PedidoItem {
 interface Pedido {
   id: string
   proveedor_id: string
+  local_facturacion_id: string | null
   estado: 'borrador' | 'enviado' | 'cerrado'
   mensaje: string | null
   created_at: string
@@ -77,6 +87,7 @@ export default function PedidosClient({
   pedidosIniciales,
   usuarioId,
   plantillas,
+  localesFacturacion,
 }: {
   proveedores: Proveedor[]
   itemsCatalogo: CompraItem[]
@@ -84,6 +95,7 @@ export default function PedidosClient({
   pedidosIniciales: Pedido[]
   usuarioId: string
   plantillas: Plantilla[]
+  localesFacturacion: LocalFacturacion[]
 }) {
   const supabase = createClient()
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
@@ -96,6 +108,7 @@ export default function PedidosClient({
   const [pedidoEditando, setPedidoEditando] = useState<Pedido | null>(null)
   const [itemsEditor, setItemsEditor] = useState<ItemEditor[]>([])
   const [plantillaId, setPlantillaId] = useState('')
+  const [localId, setLocalId] = useState('')
   const [mensajeCopiado, setMensajeCopiado] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -159,6 +172,7 @@ export default function PedidosClient({
         .map(i => ({ item_id: i.item_id, descripcion: i.descripcion, unidad: i.unidad, cantidad: i.cantidad }))
     )
     setPlantillaId(plantillas.find(p => p.es_default)?.id ?? plantillas[0]?.id ?? '')
+    setLocalId(pedido.local_facturacion_id ?? pedido.proveedores.local_facturacion_id ?? '')
     setError('')
     setMensajeCopiado(false)
   }
@@ -210,7 +224,7 @@ export default function PedidosClient({
     startTransition(async () => {
       const { data: pedido, error: errPedido } = await supabase
         .from('compras_pedidos')
-        .insert([{ proveedor_id: proveedor.id, estado: 'borrador', creado_por: usuarioId }])
+        .insert([{ proveedor_id: proveedor.id, local_facturacion_id: proveedor.local_facturacion_id, estado: 'borrador', creado_por: usuarioId }])
         .select()
         .single()
       if (errPedido) { setError(errPedido.message); return }
@@ -239,26 +253,27 @@ export default function PedidosClient({
       if (!itemsGuardados) return
       if (!itemsGuardados.length) { setError('Agregá al menos un ítem antes de generar el mensaje'); return }
 
+      const local = localesFacturacion.find(l => l.id === localId) ?? null
       const plantilla = plantillas.find(p => p.id === plantillaId)
       const mensaje = plantilla
         ? renderPlantilla(plantilla.cuerpo, {
             proveedorNombre: pedidoEditando.proveedores.nombre,
             contactoNombre: pedidoEditando.proveedores.contacto_nombre,
-            local: pedidoEditando.proveedores.local,
+            local,
             items: itemsGuardados,
           })
-        : construirMensajePedido(pedidoEditando.proveedores.nombre, pedidoEditando.proveedores.local, itemsGuardados)
+        : construirMensajePedido(pedidoEditando.proveedores.nombre, local, itemsGuardados)
 
       const { data, error: errUpdate } = await supabase
         .from('compras_pedidos')
-        .update({ mensaje })
+        .update({ mensaje, local_facturacion_id: localId || null })
         .eq('id', pedidoEditando.id)
         .select()
         .single()
       if (errUpdate) { setError(errUpdate.message); return }
 
-      setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, mensaje: data.mensaje } : p))
-      setPedidoEditando(prev => prev ? { ...prev, mensaje: data.mensaje } : prev)
+      setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, mensaje: data.mensaje, local_facturacion_id: data.local_facturacion_id } : p))
+      setPedidoEditando(prev => prev ? { ...prev, mensaje: data.mensaje, local_facturacion_id: data.local_facturacion_id } : prev)
       setMensajeCopiado(false)
     })
   }
@@ -384,10 +399,24 @@ export default function PedidosClient({
                 {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.es_default ? ' (default)' : ''}</option>)}
               </select>
             )}
+            <select
+              value={localId}
+              onChange={e => setLocalId(e.target.value)}
+              disabled={pedidoEditando.estado === 'cerrado'}
+              className={`${inputClass} w-auto disabled:opacity-40`}
+              title="Facturar a"
+            >
+              <option value="">Sin asignar</option>
+              {localesFacturacion.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+            </select>
             <button onClick={generarMensaje} disabled={isPending || pedidoEditando.estado === 'cerrado'} className="bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
               Generar mensaje
             </button>
           </div>
+
+          {!localId && (
+            <p className="text-yellow-400 text-sm">El mensaje va a salir sin bloque de entrega ni de facturación — elegí un local en &quot;Facturar a&quot; si corresponde.</p>
+          )}
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
 

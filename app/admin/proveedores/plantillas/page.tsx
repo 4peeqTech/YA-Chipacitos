@@ -10,10 +10,10 @@ export default async function PlantillasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: plantillas } = await supabase
-    .from('compras_plantillas_mensaje')
-    .select('*')
-    .order('orden')
+  const [{ data: plantillas }, { data: locales }] = await Promise.all([
+    supabase.from('compras_plantillas_mensaje').select('*').order('orden'),
+    supabase.from('locales_facturacion').select('*').eq('activo', true).order('orden'),
+  ])
 
-  return <PlantillasClient plantillasIniciales={plantillas ?? []} />
+  return <PlantillasClient plantillasIniciales={plantillas ?? []} localesFacturacion={locales ?? []} />
 }

@@ -9,9 +9,10 @@ export default async function ProveedoresPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: proveedores }, { data: itemsProveedores }] = await Promise.all([
+  const [{ data: proveedores }, { data: itemsProveedores }, { data: locales }] = await Promise.all([
     supabase.from('proveedores').select('*').order('nombre'),
     supabase.from('compras_item_proveedores').select('proveedor_id').eq('activo', true),
+    supabase.from('locales_facturacion').select('id, nombre').eq('activo', true).order('orden'),
   ])
 
   const proveedorIdsConInsumos = [...new Set((itemsProveedores ?? []).map(ip => ip.proveedor_id))]
@@ -20,6 +21,7 @@ export default async function ProveedoresPage() {
     <ProveedoresClient
       proveedoresIniciales={proveedores ?? []}
       proveedorIdsConInsumos={proveedorIdsConInsumos}
+      localesFacturacion={locales ?? []}
     />
   )
 }

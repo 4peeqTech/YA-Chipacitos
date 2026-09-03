@@ -39,7 +39,12 @@ interface Proveedor {
   notas: string | null
   estado: 'activo' | 'archivado'
   maneja_stock: boolean
-  local: string | null
+  local_facturacion_id: string | null
+}
+
+interface LocalFacturacion {
+  id: string
+  nombre: string
 }
 
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
@@ -59,15 +64,17 @@ const emptyForm = (): Partial<Proveedor> => ({
   notas: '',
   estado: 'activo',
   maneja_stock: false,
-  local: null,
+  local_facturacion_id: null,
 })
 
 export default function ProveedoresClient({
   proveedoresIniciales,
   proveedorIdsConInsumos,
+  localesFacturacion,
 }: {
   proveedoresIniciales: Proveedor[]
   proveedorIdsConInsumos: string[]
+  localesFacturacion: LocalFacturacion[]
 }) {
   const supabase = createClient()
   const [proveedores, setProveedores] = useState<Proveedor[]>(proveedoresIniciales)
@@ -329,11 +336,10 @@ export default function ProveedoresClient({
             </div>
 
             <div>
-              <label className={labelClass}>Local (facturación/entrega)</label>
-              <select className={inputClass} value={form.local ?? ''} onChange={e => setForm(f => ({...f, local: e.target.value || null}))}>
+              <label className={labelClass}>Local de facturación por defecto</label>
+              <select className={inputClass} value={form.local_facturacion_id ?? ''} onChange={e => setForm(f => ({...f, local_facturacion_id: e.target.value || null}))}>
                 <option value="">Sin asignar</option>
-                <option value="paraguay">Paraguay 388</option>
-                <option value="lagrana">Gdor. Lagraña 388</option>
+                {localesFacturacion.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
               </select>
             </div>
           </div>

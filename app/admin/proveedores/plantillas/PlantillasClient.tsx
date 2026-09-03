@@ -3,10 +3,10 @@
 import { useRef, useState, useTransition } from 'react'
 import {
   Pencil, Plus, Star, Trash2,
-  Truck, User, Package, CalendarDays, MapPin, Receipt, Store, CreditCard,
+  Truck, User, Package, CalendarDays, MapPin, Receipt, Store, CreditCard, Building2, Maximize2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { renderPlantilla, type ContextoMensaje } from '@/lib/compras/pedidoMensaje'
+import { renderPlantilla, BLOQUE_ENTREGA, BLOQUE_FACTURACION, type ContextoMensaje, type DatosLocal } from '@/lib/compras/pedidoMensaje'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
@@ -20,23 +20,32 @@ interface Plantilla {
   orden: number
 }
 
+interface LocalFacturacion {
+  id: string
+  nombre: string
+  sucursal: string
+  razon_social: string
+  cuit: string
+  direccion: string
+}
+
 const VARIABLES: { key: string; label: string; desc: string; icon: typeof Truck }[] = [
   { key: 'proveedor', label: 'Proveedor', desc: 'Nombre del proveedor (mayúsculas)', icon: Truck },
   { key: 'contacto', label: 'Contacto', desc: 'Contacto del proveedor', icon: User },
   { key: 'items', label: 'Detalle del pedido', desc: 'Lista de ítems del pedido', icon: Package },
   { key: 'fecha', label: 'Fecha', desc: 'Fecha de hoy', icon: CalendarDays },
   { key: 'dia', label: 'Día', desc: 'Día de la semana', icon: CalendarDays },
-  { key: 'entrega', label: 'Entrega', desc: 'Bloque de dirección de entrega (si el proveedor tiene local asignado)', icon: MapPin },
-  { key: 'facturacion', label: 'Facturación', desc: 'Bloque de datos de facturación (si el proveedor tiene local asignado)', icon: Receipt },
+  { key: 'entrega', label: 'Entrega', desc: 'Bloque de dirección de entrega (si el pedido tiene local asignado)', icon: MapPin },
+  { key: 'facturacion', label: 'Facturación', desc: 'Bloque de datos de facturación (si el pedido tiene local asignado)', icon: Receipt },
   { key: 'local_suc', label: 'Sucursal', desc: 'Nombre de la sucursal del local', icon: Store },
   { key: 'local_direccion', label: 'Dirección del local', desc: 'Dirección del local', icon: MapPin },
   { key: 'local_cuit', label: 'CUIT del local', desc: 'CUIT del local', icon: CreditCard },
+  { key: 'razon_social', label: 'Razón social', desc: 'Razón social del local', icon: Building2 },
 ]
 
-const EJEMPLO: ContextoMensaje = {
+const EJEMPLO_BASE = {
   proveedorNombre: 'Distribuidora Ejemplo',
   contactoNombre: 'Juan Pérez',
-  local: 'paraguay',
   items: [
     { descripcion: 'Harina 000', unidad: 'kg', cantidad: 25 },
     { descripcion: 'Huevos', unidad: 'cajón', cantidad: 2 },
@@ -105,7 +114,13 @@ function posicionDeDrop(textarea: HTMLTextAreaElement, clientX: number, clientY:
   return Math.max(0, Math.min(indice, textarea.value.length))
 }
 
-export default function PlantillasClient({ plantillasIniciales }: { plantillasIniciales: Plantilla[] }) {
+export default function PlantillasClient({
+  plantillasIniciales,
+  localesFacturacion,
+}: {
+  plantillasIniciales: Plantilla[]
+  localesFacturacion: LocalFacturacion[]
+}) {
   const supabase = createClient()
   const toast = useToasts()
   const [plantillas, setPlantillas] = useState<Plantilla[]>(plantillasIniciales)
@@ -115,6 +130,7 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
   const [eliminando, setEliminando] = useState<Plantilla | null>(null)
   const [isPending, startTransition] = useTransition()
   const [textareaDragOver, setTextareaDragOver] = useState(false)
+  const [localPreviewId, setLocalPreviewId] = useState(localesFacturacion[0]?.id ?? '')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   // Recuerda dónde estaba el cursor la última vez que el usuario tocó el textarea,
   // así un clic en una variable inserta ahí aunque el foco haya pasado al botón.
@@ -162,6 +178,11 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
   function insertarVariable(key: string) {
     const actual = form.cuerpo ?? ''
     insertarTokenEn(`{{${key}}}`, cursorPos.current ?? actual.length)
+  }
+
+  function expandirBloque(token: 'entrega' | 'facturacion') {
+    const bloque = (token === 'entrega' ? BLOQUE_ENTREGA : BLOQUE_FACTURACION).replace(/^\n\n/, '')
+    setForm(f => ({ ...f, cuerpo: (f.cuerpo ?? '').replace(`{{${token}}}`, bloque) }))
   }
 
   function soltarVariable(e: React.DragEvent<HTMLTextAreaElement>) {
@@ -245,7 +266,10 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
     })
   }
 
-  const preview = form.cuerpo?.trim() ? renderPlantilla(form.cuerpo, EJEMPLO) : ''
+  const localPreview: DatosLocal | null = localesFacturacion.find(l => l.id === localPreviewId) ?? null
+  const ejemplo: ContextoMensaje = { ...EJEMPLO_BASE, local: localPreview }
+  const preview = form.cuerpo?.trim() ? renderPlantilla(form.cuerpo, ejemplo) : ''
+  const esBorrador = !!editando && form.cuerpo !== editando.cuerpo
 
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
   const labelClass = "flex items-center text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
@@ -357,6 +381,26 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
                 </button>
               ))}
             </div>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              <button
+                type="button"
+                disabled={!form.cuerpo?.includes('{{entrega}}')}
+                onClick={() => expandirBloque('entrega')}
+                title="Reemplaza {{entrega}} por su formato literal, editable en el cuerpo"
+                className="flex items-center gap-1.5 text-xs text-[#ccc] hover:text-[#e8c547] disabled:opacity-30 disabled:hover:text-[#ccc] bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#e8c547] rounded-lg px-2.5 py-1.5 transition-colors"
+              >
+                <Maximize2 size={13} /> Expandir bloque de entrega
+              </button>
+              <button
+                type="button"
+                disabled={!form.cuerpo?.includes('{{facturacion}}')}
+                onClick={() => expandirBloque('facturacion')}
+                title="Reemplaza {{facturacion}} por su formato literal, editable en el cuerpo"
+                className="flex items-center gap-1.5 text-xs text-[#ccc] hover:text-[#e8c547] disabled:opacity-30 disabled:hover:text-[#ccc] bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#e8c547] rounded-lg px-2.5 py-1.5 transition-colors"
+              >
+                <Maximize2 size={13} /> Expandir bloque de facturación
+              </button>
+            </div>
           </div>
 
           <div>
@@ -377,7 +421,20 @@ export default function PlantillasClient({ plantillasIniciales }: { plantillasIn
           </div>
 
           <div>
-            <label className={labelClass}>Vista previa (con datos de ejemplo)</label>
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+              <label className="flex items-center text-xs font-semibold text-[#888] uppercase tracking-wider">
+                Vista previa (con datos de ejemplo){esBorrador && <span className="ml-1.5 text-[#e8c547] normal-case tracking-normal">— borrador sin guardar</span>}
+              </label>
+              <select
+                value={localPreviewId}
+                onChange={e => setLocalPreviewId(e.target.value)}
+                className={`${inputClass} w-auto text-xs py-1`}
+                title="Ver como"
+              >
+                <option value="">Ver como: Sin asignar</option>
+                {localesFacturacion.map(l => <option key={l.id} value={l.id}>Ver como: {l.nombre}</option>)}
+              </select>
+            </div>
             <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4">
               <pre className="text-[#e0e0e0] text-sm whitespace-pre-wrap font-sans">{preview || 'Escribí el cuerpo para ver la vista previa.'}</pre>
             </div>
