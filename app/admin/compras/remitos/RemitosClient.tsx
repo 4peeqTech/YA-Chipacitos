@@ -1,43 +1,67 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
-import { ArrowRight, PackageOpen } from 'lucide-react'
+import { PackageOpen, Pencil, Plus, Trash2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import Modal from '@/components/ui/Modal'
+import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
+import RemitoForm, { type PedidoConItems } from './RemitoForm'
+import { revertirYBorrar } from '@/lib/compras/stockRemito'
+import type { Remito } from '@/lib/compras/tipos'
 
-interface RemitoItemRow {
+interface RemitoRow extends Remito {
+  compras_pedidos: { proveedores: { nombre: string } | null } | null
+}
+
+interface PedidoItemPD {
   id: string
+  item_id: string | null
   descripcion: string
   cantidad: number
-  precio: number | null
+  orden: number
 }
 
-interface RemitoRow {
+interface PedidoOption {
   id: string
-  pedido_id: string
-  numero: string
-  fecha: string
-  created_at: string
-  compras_pedidos: { proveedor_id: string; proveedores: { nombre: string } | null } | null
-  compras_remito_items: RemitoItemRow[]
+  estado: 'enviado' | 'cerrado'
+  enviado_en: string | null
+  proveedores: { nombre: string } | null
+  compras_pedido_items: PedidoItemPD[]
 }
 
-type Columna = 'proveedor' | 'numero' | 'fecha' | 'lineas'
+type Columna = 'proveedor' | 'numero' | 'fecha' | 'lineas' | 'total'
 
 interface PedidoSinRemito {
   id: string
   proveedorNombre: string
 }
 
+function calcularTotal(items: RemitoRow['compras_remito_items']): number {
+  return items.reduce((total, i) => total + (i.precio != null ? i.cantidad * i.precio : 0), 0)
+}
+
 export default function RemitosClient({
   remitosIniciales,
+  pedidos,
   pedidosSinRemito,
+  usuarioId,
+  pedidoPreseleccionado,
 }: {
   remitosIniciales: RemitoRow[]
+  pedidos: PedidoOption[]
   pedidosSinRemito: PedidoSinRemito[]
+  usuarioId: string
+  pedidoPreseleccionado?: string
 }) {
+  const supabase = createClient()
+  const [remitos, setRemitos] = useState(remitosIniciales)
   const [filtro, setFiltro] = useState('')
   const [sortCampo, setSortCampo] = useState<Columna>('fecha')
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
+
+  const [modalAbierto, setModalAbierto] = useState(!!pedidoPreseleccionado)
+  const [pedidoId, setPedidoId] = useState(pedidoPreseleccionado ?? '')
+  const [remitoEditando, setRemitoEditando] = useState<Remito | null>(null)
 
   function ordenarPor(campo: Columna) {
     if (campo === sortCampo) setSortDir(d => (d === 1 ? -1 : 1))
@@ -47,11 +71,11 @@ export default function RemitosClient({
   const filtrados = useMemo(() => {
     const texto = filtro.trim().toLowerCase()
     const porTexto = texto
-      ? remitosIniciales.filter(r =>
+      ? remitos.filter(r =>
           r.numero.toLowerCase().includes(texto) ||
           (r.compras_pedidos?.proveedores?.nombre ?? '').toLowerCase().includes(texto)
         )
-      : remitosIniciales
+      : remitos
 
     return [...porTexto].sort((a, b) => {
       let va: string | number
@@ -65,6 +89,9 @@ export default function RemitosClient({
       } else if (sortCampo === 'lineas') {
         va = a.compras_remito_items.length
         vb = b.compras_remito_items.length
+      } else if (sortCampo === 'total') {
+        va = calcularTotal(a.compras_remito_items)
+        vb = calcularTotal(b.compras_remito_items)
       } else {
         va = a.fecha
         vb = b.fecha
@@ -73,37 +100,97 @@ export default function RemitosClient({
       if (va > vb) return sortDir
       return 0
     })
-  }, [remitosIniciales, filtro, sortCampo, sortDir])
+  }, [remitos, filtro, sortCampo, sortDir])
 
   function flecha(campo: Columna) {
     return campo === sortCampo ? (sortDir === 1 ? ' ▲' : ' ▼') : ''
+  }
+
+  const opcionesPedido: OpcionSelect[] = pedidos.map(p => ({
+    value: p.id,
+    label: `${p.proveedores?.nombre ?? '—'} — ${p.enviado_en ? new Date(p.enviado_en).toLocaleDateString('es-AR') : 's/f'}`,
+    grupo: p.estado === 'enviado' ? 'Enviados' : 'Cerrados',
+  }))
+
+  const pedidoSeleccionado = pedidos.find(p => p.id === pedidoId) ?? null
+
+  const pedidoParaForm: PedidoConItems | null = pedidoSeleccionado
+    ? {
+        id: pedidoSeleccionado.id,
+        compras_pedido_items: pedidoSeleccionado.compras_pedido_items,
+        compras_remitos: remitos.filter(r => r.pedido_id === pedidoSeleccionado.id),
+      }
+    : null
+
+  function abrirModalAlta() {
+    setPedidoId('')
+    setRemitoEditando(null)
+    setModalAbierto(true)
+  }
+
+  function abrirModalConPedido(id: string) {
+    setPedidoId(id)
+    setRemitoEditando(null)
+    setModalAbierto(true)
+  }
+
+  function abrirEdicion(remito: RemitoRow) {
+    setPedidoId(remito.pedido_id)
+    setRemitoEditando(remito)
+    setModalAbierto(true)
+  }
+
+  function cerrarModal() {
+    setModalAbierto(false)
+    setRemitoEditando(null)
+  }
+
+  function onGuardado(remito: Remito, reemplazoId: string | null) {
+    setRemitos(prev => {
+      const proveedores = pedidos.find(p => p.id === remito.pedido_id)?.proveedores ?? null
+      const fila: RemitoRow = { ...remito, compras_pedidos: { proveedores } }
+      return [...prev.filter(r => r.id !== reemplazoId), fila]
+    })
+    cerrarModal()
+  }
+
+  async function borrarRemito(remito: RemitoRow) {
+    if (!confirm(`¿Borrar el remito ${remito.numero}?`)) return
+    await revertirYBorrar(supabase, remito, usuarioId)
+    setRemitos(prev => prev.filter(r => r.id !== remito.id))
   }
 
   const thClass = "px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider cursor-pointer select-none"
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#f0f0f0]">Remitos</h1>
-        <p className="text-[#888] text-sm mt-0.5">Listado de todos los remitos registrados, de todos los proveedores.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[#f0f0f0]">Remitos</h1>
+          <p className="text-[#888] text-sm mt-0.5">Cargá los remitos que llegan y asignalos al pedido correspondiente.</p>
+        </div>
+        <button onClick={abrirModalAlta} className="flex items-center gap-1.5 bg-[#e8c547] hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
+          <Plus size={16} /> Cargar remito
+        </button>
       </div>
 
       {pedidosSinRemito.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-yellow-800 bg-yellow-900/20 px-4 py-3">
           <PackageOpen size={18} className="text-yellow-400 shrink-0" />
-          <p className="flex-1 min-w-[200px] text-sm text-yellow-100">
-            <span className="font-semibold">{pedidosSinRemito.length} pedido{pedidosSinRemito.length === 1 ? '' : 's'} enviado{pedidosSinRemito.length === 1 ? '' : 's'}</span>{' '}
-            todavía sin remito registrado
-            {pedidosSinRemito.length <= 4 && (
-              <span className="text-yellow-300/80"> — {pedidosSinRemito.map(p => p.proveedorNombre).join(', ')}</span>
-            )}
+          <p className="text-sm font-semibold text-yellow-100 shrink-0">
+            {pedidosSinRemito.length} pedido{pedidosSinRemito.length === 1 ? '' : 's'} sin remito:
           </p>
-          <Link
-            href="/admin/compras/pedidos"
-            className="shrink-0 flex items-center gap-1.5 text-sm font-semibold text-yellow-300 hover:text-yellow-200 transition-colors"
-          >
-            Ir a Pedidos <ArrowRight size={14} />
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {pedidosSinRemito.map(p => (
+              <button
+                key={p.id}
+                onClick={() => abrirModalConPedido(p.id)}
+                className="text-xs font-medium text-yellow-200 bg-yellow-900/40 hover:bg-yellow-900/60 border border-yellow-800 rounded-full px-3 py-1 transition-colors"
+              >
+                {p.proveedorNombre}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -127,6 +214,8 @@ export default function RemitosClient({
                   <th className={thClass} onClick={() => ordenarPor('numero')}>N° Remito{flecha('numero')}</th>
                   <th className={thClass} onClick={() => ordenarPor('fecha')}>Fecha{flecha('fecha')}</th>
                   <th className={thClass} onClick={() => ordenarPor('lineas')}>Líneas{flecha('lineas')}</th>
+                  <th className={thClass} onClick={() => ordenarPor('total')}>Total{flecha('total')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#2a2a2a]">
@@ -136,6 +225,27 @@ export default function RemitosClient({
                     <td className="px-4 py-3 text-[#888]">{r.numero}</td>
                     <td className="px-4 py-3 text-[#888]">{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td>
                     <td className="px-4 py-3 text-[#888]">{r.compras_remito_items.length}</td>
+                    <td className="px-4 py-3 text-[#888]">{calcularTotal(r.compras_remito_items).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex gap-1 justify-end">
+                        <button
+                          onClick={() => abrirEdicion(r)}
+                          title="Editar remito"
+                          aria-label={`Editar remito ${r.numero}`}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#e8c547] hover:bg-[#2a2a2a] transition-colors"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => borrarRemito(r)}
+                          title="Borrar remito"
+                          aria-label={`Borrar remito ${r.numero}`}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-red-400 hover:bg-[#2a2a2a] transition-colors"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -143,6 +253,34 @@ export default function RemitosClient({
           </div>
         )}
       </div>
+
+      <Modal open={modalAbierto} onClose={cerrarModal} title={remitoEditando ? `Editar remito N° ${remitoEditando.numero}` : 'Cargar remito'} size="xl">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1">Pedido</label>
+            <SelectBuscador
+              value={pedidoId}
+              onChange={setPedidoId}
+              opciones={opcionesPedido}
+              placeholderVacio="Elegí un pedido..."
+              disabled={!!remitoEditando}
+            />
+          </div>
+
+          {pedidoParaForm ? (
+            <RemitoForm
+              key={remitoEditando?.id ?? pedidoParaForm.id}
+              pedido={pedidoParaForm}
+              usuarioId={usuarioId}
+              remitoEditando={remitoEditando}
+              onGuardado={onGuardado}
+              onCancelar={cerrarModal}
+            />
+          ) : (
+            <p className="text-[#666] text-sm py-6 text-center">Elegí un pedido para empezar a cargar el remito.</p>
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

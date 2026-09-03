@@ -8,8 +8,8 @@ interface Props {
   onClose: () => void
   title: string
   accent?: 'gold' | 'red'
-  /** Ancho máximo del modal. 'lg'/'xl' para formularios con varios campos. */
-  size?: 'md' | 'lg' | 'xl'
+  /** Ancho máximo del modal. 'lg'/'xl' para formularios con varios campos, '2xl' para layouts de dos columnas. */
+  size?: 'md' | 'lg' | 'xl' | '2xl'
   children: React.ReactNode
 }
 
@@ -17,6 +17,7 @@ const MAX_WIDTH: Record<NonNullable<Props['size']>, string> = {
   md: 'max-w-md',
   lg: 'max-w-2xl',
   xl: 'max-w-3xl',
+  '2xl': 'max-w-5xl',
 }
 
 export default function Modal({ open, onClose, title, accent = 'gold', size = 'md', children }: Props) {

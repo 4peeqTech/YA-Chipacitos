@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Lock, Pencil, Plus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ArrowRight, Check, ListChecks, Lock, MessageSquare, Pencil, Plus, RefreshCw, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { construirMensajePedido, renderPlantilla, linkWhatsApp } from '@/lib/compras/pedidoMensaje'
 import Modal from '@/components/ui/Modal'
-import RemitosPedido, { type Remito } from './RemitosPedido'
+import type { Remito } from '@/lib/compras/tipos'
+import ResumenRemitos from './ResumenRemitos'
 
 interface Plantilla {
   id: string
@@ -98,6 +101,7 @@ export default function PedidosClient({
   localesFacturacion: LocalFacturacion[]
 }) {
   const supabase = createClient()
+  const router = useRouter()
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
   const [filtro, setFiltro] = useState<FiltroPedidos>('activos')
   const [modalCrear, setModalCrear] = useState(false)
@@ -109,7 +113,8 @@ export default function PedidosClient({
   const [itemsEditor, setItemsEditor] = useState<ItemEditor[]>([])
   const [plantillaId, setPlantillaId] = useState('')
   const [localId, setLocalId] = useState('')
-  const [mensajeCopiado, setMensajeCopiado] = useState(false)
+  const [envioPreparado, setEnvioPreparado] = useState(false)
+  const [copiado, setCopiado] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -174,18 +179,22 @@ export default function PedidosClient({
     setPlantillaId(plantillas.find(p => p.es_default)?.id ?? plantillas[0]?.id ?? '')
     setLocalId(pedido.local_facturacion_id ?? pedido.proveedores.local_facturacion_id ?? '')
     setError('')
-    setMensajeCopiado(false)
+    setEnvioPreparado(false)
+    setCopiado(false)
   }
 
   function cerrarEditor() {
     setPedidoEditando(null)
     setItemsEditor([])
-    setMensajeCopiado(false)
+    setEnvioPreparado(false)
+    setCopiado(false)
   }
 
-  async function guardarItems(pedidoOverride?: Pedido, itemsOverride?: ItemEditor[]): Promise<PedidoItem[] | null> {
+  async function guardarItems(pedidoOverride?: Pedido, itemsOverride?: ItemEditor[], opts?: { confirmarRemitos?: boolean }): Promise<PedidoItem[] | null> {
     const pedido = pedidoOverride ?? pedidoEditando
     if (!pedido) return null
+    if (opts?.confirmarRemitos && pedido.compras_remitos.length > 0 &&
+        !confirm('Este pedido ya tiene remitos cargados. Reguardar los ítems va a desvincular las líneas de los remitos. ¿Continuar?')) return null
     setError('')
 
     const fuente = itemsOverride ?? itemsEditor
@@ -274,14 +283,20 @@ export default function PedidosClient({
 
       setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, mensaje: data.mensaje, local_facturacion_id: data.local_facturacion_id } : p))
       setPedidoEditando(prev => prev ? { ...prev, mensaje: data.mensaje, local_facturacion_id: data.local_facturacion_id } : prev)
-      setMensajeCopiado(false)
+      setEnvioPreparado(false)
+      setCopiado(false)
     })
   }
 
-  function copiarMensaje() {
+  async function copiarMensaje() {
     if (!pedidoEditando?.mensaje) return
-    navigator.clipboard.writeText(pedidoEditando.mensaje)
-    setMensajeCopiado(true)
+    try {
+      await navigator.clipboard.writeText(pedidoEditando.mensaje)
+      setCopiado(true)
+      setEnvioPreparado(true)
+    } catch {
+      setError('No se pudo copiar el mensaje al portapapeles')
+    }
   }
 
   async function marcarComoEnviado() {
@@ -295,14 +310,16 @@ export default function PedidosClient({
     if (err) { setError(err.message); return }
 
     setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, ...data } : p))
-    setPedidoEditando(prev => prev ? { ...prev, ...data } : prev)
+    const pedidoId = pedidoEditando.id
+    cerrarEditor()
+    router.push(`/admin/compras/remitos?pedido=${pedidoId}`)
   }
 
-  async function enviarWhatsApp() {
+  function enviarWhatsApp() {
     if (!pedidoEditando?.mensaje) return
     const url = linkWhatsApp(pedidoEditando.proveedores.contacto_telefono, pedidoEditando.mensaje)
     window.open(url, '_blank')
-    await marcarComoEnviado()
+    setEnvioPreparado(true)
   }
 
   async function cerrarPedido(pedido: Pedido) {
@@ -317,11 +334,6 @@ export default function PedidosClient({
 
     setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, ...data } : p))
     if (pedidoEditando?.id === pedido.id) setPedidoEditando(prev => prev ? { ...prev, ...data } : prev)
-  }
-
-  function actualizarRemitos(pedidoId: string, remitos: Remito[]) {
-    setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, compras_remitos: remitos } : p))
-    setPedidoEditando(prev => prev && prev.id === pedidoId ? { ...prev, compras_remitos: remitos } : prev)
   }
 
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
@@ -347,116 +359,168 @@ export default function PedidosClient({
 
       {error && !modalCrear && <p className="text-red-400 text-sm">{error}</p>}
 
-      <Modal open={!!pedidoEditando} onClose={cerrarEditor} title={pedidoEditando ? `Pedido a ${pedidoEditando.proveedores.nombre}` : ''} size="xl">
+      <Modal open={!!pedidoEditando} onClose={cerrarEditor} title={pedidoEditando ? `Pedido a ${pedidoEditando.proveedores.nombre}` : ''} size="2xl">
         {pedidoEditando && (
-          <div className="space-y-4">
-          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClass[pedidoEditando.estado]}`}>{pedidoEditando.estado}</span>
-
-          <div className="space-y-2">
-            {itemsEditor.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0"
-                  className={`${inputClass} w-24`}
-                  value={item.cantidad === 0 ? '' : item.cantidad}
-                  onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, cantidad: Number(e.target.value) } : it))}
-                />
-                <input
-                  type="text"
-                  className={`${inputClass} w-24`}
-                  placeholder="Unidad"
-                  value={item.unidad ?? ''}
-                  onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, unidad: e.target.value } : it))}
-                />
-                <input
-                  type="text"
-                  className={inputClass}
-                  placeholder="Descripción"
-                  value={item.descripcion}
-                  onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, descripcion: e.target.value } : it))}
-                />
-                <button onClick={() => setItemsEditor(prev => prev.filter((_, i) => i !== idx))} className="text-[#888] hover:text-red-400 text-lg px-2">✕</button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <section className="space-y-3 lg:max-h-[62vh] lg:overflow-y-auto lg:pr-2 scrollbar-thin">
+              <div className="flex items-center gap-2">
+                <ListChecks size={16} className="text-[#e8c547]" />
+                <h4 className="font-bold text-sm text-[#f0f0f0]">Ítems del pedido</h4>
+                <span className="text-xs text-[#666]">({itemsEditor.length})</span>
+                <span className={`ml-auto inline-block px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClass[pedidoEditando.estado]}`}>{pedidoEditando.estado}</span>
               </div>
-            ))}
-          </div>
 
-          <div className="flex gap-3 flex-wrap">
-            <button onClick={() => setItemsEditor(prev => [...prev, { item_id: null, descripcion: '', unidad: '', cantidad: 0 }])} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-              + Agregar ítem
-            </button>
-            <button onClick={() => guardarItems()} disabled={isPending} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-              Guardar ítems
-            </button>
-            {plantillas.length > 0 && (
-              <select
-                value={plantillaId}
-                onChange={e => setPlantillaId(e.target.value)}
-                disabled={pedidoEditando.estado === 'cerrado'}
-                className={`${inputClass} w-auto disabled:opacity-40`}
+              {itemsEditor.length === 0 ? (
+                <p className="text-[#888] text-sm py-6 text-center">Todavía no hay ítems.</p>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 px-0.5">
+                    <span className="w-16 text-xs font-semibold text-[#888] uppercase tracking-wider">Cant.</span>
+                    <span className="w-20 text-xs font-semibold text-[#888] uppercase tracking-wider">Unidad</span>
+                    <span className="flex-1 text-xs font-semibold text-[#888] uppercase tracking-wider">Descripción</span>
+                  </div>
+                  {itemsEditor.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0"
+                        className={`${inputClass} w-16`}
+                        value={item.cantidad === 0 ? '' : item.cantidad}
+                        onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, cantidad: Number(e.target.value) } : it))}
+                      />
+                      <input
+                        type="text"
+                        className={`${inputClass} w-20`}
+                        placeholder="Unidad"
+                        value={item.unidad ?? ''}
+                        onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, unidad: e.target.value } : it))}
+                      />
+                      <input
+                        type="text"
+                        className={inputClass}
+                        placeholder="Descripción"
+                        value={item.descripcion}
+                        onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, descripcion: e.target.value } : it))}
+                      />
+                      <button
+                        onClick={() => setItemsEditor(prev => prev.filter((_, i) => i !== idx))}
+                        title="Quitar ítem"
+                        aria-label="Quitar ítem"
+                        className="text-[#888] hover:text-red-400 px-1"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-3 flex-wrap">
+                <button onClick={() => setItemsEditor(prev => [...prev, { item_id: null, descripcion: '', unidad: '', cantidad: 0 }])} className="flex items-center gap-1.5 bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
+                  <Plus size={16} /> Agregar ítem
+                </button>
+                <button onClick={() => guardarItems(undefined, undefined, { confirmarRemitos: true })} disabled={isPending} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
+                  Guardar ítems
+                </button>
+              </div>
+
+              <ResumenRemitos pedido={pedidoEditando} />
+            </section>
+
+            <section className="space-y-3 lg:max-h-[62vh] lg:overflow-y-auto lg:pl-5 lg:border-l lg:border-[#2a2a2a] scrollbar-thin">
+              <div className="flex items-center gap-2">
+                <MessageSquare size={16} className="text-[#e8c547]" />
+                <h4 className="font-bold text-sm text-[#f0f0f0]">Mensaje de WhatsApp</h4>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Plantilla de mensaje</label>
+                  <select
+                    value={plantillaId}
+                    onChange={e => setPlantillaId(e.target.value)}
+                    disabled={pedidoEditando.estado === 'cerrado' || plantillas.length === 0}
+                    className={`${inputClass} disabled:opacity-40`}
+                  >
+                    {plantillas.length === 0 && <option value="">Sin plantillas</option>}
+                    {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.es_default ? ' (default)' : ''}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Facturar a</label>
+                  <select
+                    value={localId}
+                    onChange={e => setLocalId(e.target.value)}
+                    disabled={pedidoEditando.estado === 'cerrado'}
+                    className={`${inputClass} disabled:opacity-40`}
+                  >
+                    <option value="">Sin asignar</option>
+                    {localesFacturacion.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                onClick={generarMensaje}
+                disabled={isPending || pedidoEditando.estado === 'cerrado'}
+                className="w-full flex items-center justify-center gap-1.5 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all"
               >
-                {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.es_default ? ' (default)' : ''}</option>)}
-              </select>
-            )}
-            <select
-              value={localId}
-              onChange={e => setLocalId(e.target.value)}
-              disabled={pedidoEditando.estado === 'cerrado'}
-              className={`${inputClass} w-auto disabled:opacity-40`}
-              title="Facturar a"
-            >
-              <option value="">Sin asignar</option>
-              {localesFacturacion.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
-            </select>
-            <button onClick={generarMensaje} disabled={isPending || pedidoEditando.estado === 'cerrado'} className="bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-              Generar mensaje
-            </button>
-          </div>
+                {pedidoEditando.mensaje && <RefreshCw size={16} />}
+                {pedidoEditando.mensaje ? 'Regenerar mensaje' : 'Generar mensaje'}
+              </button>
 
-          {!localId && (
-            <p className="text-yellow-400 text-sm">El mensaje va a salir sin bloque de entrega ni de facturación — elegí un local en &quot;Facturar a&quot; si corresponde.</p>
-          )}
+              {!localId && (
+                <p className="text-yellow-400 text-sm">El mensaje va a salir sin bloque de entrega ni de facturación — elegí un local en &quot;Facturar a&quot; si corresponde.</p>
+              )}
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+              {error && <p className="text-red-400 text-sm">{error}</p>}
 
-          {pedidoEditando.mensaje && (
-            <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
-              <pre className="text-[#e0e0e0] text-sm whitespace-pre-wrap font-sans">{pedidoEditando.mensaje}</pre>
+              {pedidoEditando.mensaje ? (
+                <pre className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4 text-[#e0e0e0] text-sm whitespace-pre-wrap font-sans">{pedidoEditando.mensaje}</pre>
+              ) : (
+                <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4">
+                  <p className="text-[#666] text-sm">Generá el mensaje para verlo acá.</p>
+                </div>
+              )}
+
               <div className="flex gap-3 flex-wrap">
                 <button
                   onClick={copiarMensaje}
-                  className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all"
+                  disabled={!pedidoEditando.mensaje}
+                  className="bg-[#2a2a2a] hover:bg-[#333] disabled:opacity-40 text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all"
                 >
-                  {mensajeCopiado ? '✓ Copiado' : 'Copiar mensaje'}
+                  {copiado ? '✓ Copiado' : 'Copiar mensaje'}
                 </button>
                 <button
                   onClick={enviarWhatsApp}
-                  disabled={pedidoEditando.estado === 'cerrado'}
+                  disabled={!pedidoEditando.mensaje || pedidoEditando.estado === 'cerrado'}
                   className="bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white font-semibold text-sm py-2 px-4 rounded-xl transition-all"
                 >
                   Enviar por WhatsApp
                 </button>
-                {mensajeCopiado && (
+                {pedidoEditando.estado !== 'borrador' ? (
+                  <button disabled className="flex items-center gap-1.5 bg-[#e8c547] opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl">
+                    <Check size={16} /> Enviado
+                  </button>
+                ) : (
                   <button
                     onClick={marcarComoEnviado}
-                    disabled={pedidoEditando.estado === 'cerrado'}
+                    disabled={!envioPreparado}
                     className="bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all"
                   >
                     Marcar como enviado
                   </button>
                 )}
               </div>
-            </div>
-          )}
-
-          {pedidoEditando.estado !== 'borrador' && (
-            <RemitosPedido
-              pedido={pedidoEditando}
-              usuarioId={usuarioId}
-              onRemitosChange={remitos => actualizarRemitos(pedidoEditando.id, remitos)}
-            />
-          )}
+              {pedidoEditando.estado !== 'borrador' ? (
+                <Link href={`/admin/compras/remitos?pedido=${pedidoEditando.id}`} className="inline-flex items-center gap-1 text-sm text-[#e8c547] hover:opacity-80 transition-opacity">
+                  Ir a remitos <ArrowRight size={14} />
+                </Link>
+              ) : !envioPreparado && (
+                <p className="text-[#666] text-xs">Copiá el mensaje o mandalo por WhatsApp para habilitarlo.</p>
+              )}
+            </section>
           </div>
         )}
       </Modal>
