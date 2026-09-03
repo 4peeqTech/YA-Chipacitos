@@ -28,6 +28,7 @@ interface SolicitudItem {
   cantidad_sugerida: number
   cantidad_ajustada: number
   incluir: boolean
+  orden: number
 }
 
 export interface Solicitud {
@@ -111,7 +112,7 @@ export default function SolicitudesClient({
 
   function abrir(s: Solicitud) {
     setAbiertaId(s.id)
-    setItems([...s.compras_solicitud_items].sort((a, b) => a.descripcion.localeCompare(b.descripcion)))
+    setItems([...s.compras_solicitud_items].sort((a, b) => (a.orden - b.orden) || a.descripcion.localeCompare(b.descripcion)))
     setGuardado('idle')
   }
 

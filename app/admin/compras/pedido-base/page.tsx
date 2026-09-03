@@ -10,7 +10,7 @@ export default async function PedidoBasePage() {
   if (!user) redirect('/login')
 
   const [{ data: plantilla }, { data: proveedores }, { data: items }] = await Promise.all([
-    supabase.from('compras_plantilla_base').select('*').order('orden'),
+    supabase.from('compras_plantilla_base').select('*').order('orden').order('descripcion'),
     supabase.from('proveedores').select('id, nombre').eq('estado', 'activo').order('nombre'),
     supabase
       .from('compras_items')
