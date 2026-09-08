@@ -1,10 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ClipboardCheck, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { ModoCalculo, Redondeo } from '@/lib/fabrica/calculoSugerido'
 import Modal from '@/components/ui/Modal'
+import SearchInput from '@/components/ui/SearchInput'
+import DateRangeInputs from '@/components/ui/DateRangeInputs'
+import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { IconoRenderer } from '@/components/ui/IconoPicker'
 import { MODO_LABEL } from '@/app/admin/compras/insumos/listas-conteo/ConteosClient'
 import { REDONDEO_LABEL } from '@/app/admin/compras/insumos/InsumosClient'
@@ -49,8 +52,22 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
   const [abiertoId, setAbiertoId] = useState<string | null>(null)
   const [detalle, setDetalle] = useState<DetalleItem[]>([])
   const [cargando, setCargando] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
 
   const abierto = conteosIniciales.find(c => c.id === abiertoId) ?? null
+
+  const hayFiltros = !!busqueda || !!desde || !!hasta
+  function limpiarFiltros() { setBusqueda(''); setDesde(''); setHasta('') }
+
+  const conteosFiltrados = useMemo(() => conteosIniciales.filter(c => {
+    const matchBusqueda = c.definicion_nombre.toLowerCase().includes(busqueda.toLowerCase())
+    const fechaCierre = c.cerrado_en.slice(0, 10)
+    const matchDesde = !desde || fechaCierre >= desde
+    const matchHasta = !hasta || fechaCierre <= hasta
+    return matchBusqueda && matchDesde && matchHasta
+  }), [conteosIniciales, busqueda, desde, hasta])
 
   async function abrir(conteo: ConteoHistorial) {
     setAbiertoId(conteo.id)
@@ -75,6 +92,12 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
         <p className="text-muted text-sm mt-0.5">Historial de conteos cerrados: qué había, qué pedía la receta y qué se sugirió.</p>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar por conteo..." className="w-64" />
+        <DateRangeInputs desde={desde} hasta={hasta} onChangeDesde={setDesde} onChangeHasta={setHasta} />
+        <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
+      </div>
+
       <div className="rounded-2xl border border-border overflow-hidden">
         <table className="w-full">
           <thead className="bg-surface2 border-b border-border">
@@ -86,9 +109,9 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {conteosIniciales.length === 0 ? (
-              <tr><td colSpan={4} className="p-8 text-center text-sm text-muted">Todavía no hay conteos cerrados.</td></tr>
-            ) : conteosIniciales.map(c => (
+            {conteosFiltrados.length === 0 ? (
+              <tr><td colSpan={4} className="p-8 text-center text-sm text-muted">{conteosIniciales.length === 0 ? 'Todavía no hay conteos cerrados.' : 'Ningún conteo coincide con los filtros.'}</td></tr>
+            ) : conteosFiltrados.map(c => (
               <tr key={c.id} onClick={() => abrir(c)} className="hover:bg-surface2 transition-colors cursor-pointer">
                 <td className="px-4 py-3 text-text font-medium">
                   <span className="flex items-center gap-2">
@@ -115,35 +138,41 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
               {abierto.masas_proyectadas != null && <> · {abierto.masas_proyectadas} masas proyectadas</>}
             </p>
 
-            <div className="rounded-xl border border-border overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto_auto_auto_1.4fr] gap-3 px-4 py-2.5 bg-surface2 text-[11px] font-semibold text-muted uppercase tracking-wider">
-                <span>Insumo</span>
-                <span className="text-right">Contado</span>
-                <span className="text-right">Necesidad</span>
-                <span className="text-right">Sugerido</span>
-                <span>Regla aplicada</span>
-              </div>
-              <div className="divide-y divide-border">
-                {cargando ? (
-                  <p className="p-6 text-center text-sm text-muted">Cargando…</p>
-                ) : detalle.length === 0 ? (
-                  <p className="p-6 text-center text-sm text-muted">Este conteo no tiene ítems.</p>
-                ) : detalle.map(d => (
-                  <div key={d.id} className="grid grid-cols-[1fr_auto_auto_auto_1.4fr] items-center gap-3 px-4 py-2.5">
-                    <p className="text-sm text-text truncate">{d.compras_items?.nombre ?? '—'}</p>
-                    <p className="text-sm text-muted text-right">{d.cantidad} {d.compras_items?.unidad}</p>
-                    <p className="text-sm text-muted text-right">{d.necesidad}</p>
-                    <p className="text-sm text-text font-medium text-right">{d.sugerido}</p>
-                    <p className="text-xs text-muted">
-                      {MODO_LABEL[d.modo_calculo]}
-                      {d.modo_calculo === 'meta_semanal' && ` (meta ${d.meta})`}
-                      {d.modo_calculo === 'cantidad_fija' && ` (${d.cantidad_fija})`}
-                      {d.modo_calculo === 'por_masa' && ` (${d.cantidad_por_masa}/masa)`}
-                      {' · '}{REDONDEO_LABEL[d.redondeo]}
-                    </p>
-                  </div>
-                ))}
-              </div>
+            <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
+              {cargando ? (
+                <p className="p-6 text-center text-sm text-muted">Cargando…</p>
+              ) : detalle.length === 0 ? (
+                <p className="p-6 text-center text-sm text-muted">Este conteo no tiene ítems.</p>
+              ) : (
+                <table className="w-full">
+                  <thead className="bg-surface2 border-b border-border">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Insumo</th>
+                      <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-muted uppercase tracking-wider">Contado</th>
+                      <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-muted uppercase tracking-wider">Necesidad</th>
+                      <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-muted uppercase tracking-wider">Sugerido</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-muted uppercase tracking-wider min-w-55">Regla aplicada</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {detalle.map(d => (
+                      <tr key={d.id}>
+                        <td className="px-4 py-3 text-sm text-text align-top">{d.compras_items?.nombre ?? '—'}</td>
+                        <td className="px-4 py-3 text-sm text-muted text-right align-top whitespace-nowrap">{d.cantidad} {d.compras_items?.unidad}</td>
+                        <td className="px-4 py-3 text-sm text-muted text-right align-top whitespace-nowrap">{d.necesidad}</td>
+                        <td className="px-4 py-3 text-sm text-text font-medium text-right align-top whitespace-nowrap">{d.sugerido}</td>
+                        <td className="px-4 py-3 text-xs text-muted align-top leading-relaxed">
+                          {MODO_LABEL[d.modo_calculo]}
+                          {d.modo_calculo === 'meta_semanal' && ` (meta ${d.meta})`}
+                          {d.modo_calculo === 'cantidad_fija' && ` (${d.cantidad_fija})`}
+                          {d.modo_calculo === 'por_masa' && ` (${d.cantidad_por_masa}/masa)`}
+                          <br />{REDONDEO_LABEL[d.redondeo]}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}

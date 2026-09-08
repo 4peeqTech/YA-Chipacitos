@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import SearchInput from '@/components/ui/SearchInput'
+import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 
 function formatearRelativo(iso: string) {
   const segundos = (Date.now() - new Date(iso).getTime()) / 1000
@@ -54,8 +56,16 @@ export default function StockClient({
   const [guardandoId, setGuardandoId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [, startTransition] = useTransition()
+  const [busqueda, setBusqueda] = useState('')
+  const [soloBajo, setSoloBajo] = useState(false)
 
-  const items = useMemo(() => [...itemsIniciales].sort((a, b) => a.nombre.localeCompare(b.nombre)), [itemsIniciales])
+  const hayFiltros = !!busqueda || soloBajo
+  function limpiarFiltros() { setBusqueda(''); setSoloBajo(false) }
+
+  const items = useMemo(() => [...itemsIniciales]
+    .filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    .filter(i => !soloBajo || (stockPorItem[i.id]?.cantidad ?? 0) < i.stock_minimo)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre)), [itemsIniciales, busqueda, soloBajo, stockPorItem])
 
   async function guardarCantidad(itemId: string) {
     const cantidad = Number(cantidadesForm[itemId])
@@ -99,9 +109,22 @@ export default function StockClient({
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
 
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar insumo..." className="w-64" />
+        <button
+          onClick={() => setSoloBajo(v => !v)}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${soloBajo ? 'bg-accent text-black' : 'bg-surface2 text-muted hover:text-text'}`}
+        >
+          Solo bajo stock
+        </button>
+        <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
+      </div>
+
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-        {items.length === 0 ? (
+        {itemsIniciales.length === 0 ? (
           <p className="p-8 text-center text-[#888]">No hay insumos activos. Cargalos primero en Insumos.</p>
+        ) : items.length === 0 ? (
+          <p className="p-8 text-center text-[#888]">Ningún insumo coincide con los filtros.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

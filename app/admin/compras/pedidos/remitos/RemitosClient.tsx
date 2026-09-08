@@ -5,6 +5,9 @@ import { PackageOpen, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
 import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
+import SearchInput from '@/components/ui/SearchInput'
+import DateRangeInputs from '@/components/ui/DateRangeInputs'
+import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useConfirm } from '@/components/ui/ConfirmDialog'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 import RemitoForm, { type PedidoConItems } from './RemitoForm'
@@ -60,6 +63,8 @@ export default function RemitosClient({
   const toast = useToasts()
   const [remitos, setRemitos] = useState(remitosIniciales)
   const [filtro, setFiltro] = useState('')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
   const [sortCampo, setSortCampo] = useState<Columna>('fecha')
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
 
@@ -72,14 +77,18 @@ export default function RemitosClient({
     else { setSortCampo(campo); setSortDir(1) }
   }
 
+  const hayFiltros = !!filtro || !!desde || !!hasta
+  function limpiarFiltros() { setFiltro(''); setDesde(''); setHasta('') }
+
   const filtrados = useMemo(() => {
     const texto = filtro.trim().toLowerCase()
-    const porTexto = texto
-      ? remitos.filter(r =>
-          r.numero.toLowerCase().includes(texto) ||
-          (r.compras_pedidos?.proveedores?.nombre ?? '').toLowerCase().includes(texto)
-        )
-      : remitos
+    const porTexto = remitos
+      .filter(r => !texto ||
+        r.numero.toLowerCase().includes(texto) ||
+        (r.compras_pedidos?.proveedores?.nombre ?? '').toLowerCase().includes(texto)
+      )
+      .filter(r => !desde || r.fecha >= desde)
+      .filter(r => !hasta || r.fecha <= hasta)
 
     return [...porTexto].sort((a, b) => {
       let va: string | number
@@ -208,17 +217,15 @@ export default function RemitosClient({
         </div>
       )}
 
-      <input
-        type="text"
-        placeholder="Filtrar por N° de remito o proveedor..."
-        value={filtro}
-        onChange={e => setFiltro(e.target.value)}
-        className="w-full max-w-md bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput value={filtro} onChange={setFiltro} placeholder="Filtrar por N° de remito o proveedor..." className="w-72" />
+        <DateRangeInputs desde={desde} hasta={hasta} onChangeDesde={setDesde} onChangeHasta={setHasta} />
+        <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
+      </div>
 
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
         {filtrados.length === 0 ? (
-          <p className="p-8 text-center text-[#888]">No hay remitos registrados.</p>
+          <p className="p-8 text-center text-[#888]">{remitos.length === 0 ? 'No hay remitos registrados.' : 'Ningún remito coincide con los filtros.'}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

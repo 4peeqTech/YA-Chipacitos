@@ -8,6 +8,8 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { normalizarTelefonoAR, formatearTelefono } from '@/lib/compras/telefono'
 import Modal from '@/components/ui/Modal'
+import SearchInput from '@/components/ui/SearchInput'
+import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 
 interface InsumoAsociado {
   itemId: string
@@ -100,6 +102,9 @@ export default function ProveedoresClient({
     const matchInsumos = !soloSinInsumos || !idsConInsumos.has(p.id)
     return matchEstado && matchBusqueda && matchInsumos
   })
+
+  const hayFiltros = !!busqueda || filtro !== 'activo' || soloSinInsumos
+  function limpiarFiltros() { setBusqueda(''); setFiltro('activo'); setSoloSinInsumos(false) }
 
   async function abrirFicha(p: Proveedor) {
     setFicha(p)
@@ -240,14 +245,8 @@ export default function ProveedoresClient({
       </div>
 
       {/* Filtros */}
-      <div className="flex gap-3 flex-wrap">
-        <input
-          type="text"
-          placeholder="Buscar proveedor..."
-          value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
-          className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#e8c547] w-64"
-        />
+      <div className="flex gap-3 flex-wrap items-center">
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar proveedor..." className="w-64" />
         {(['activo', 'archivado', 'todos'] as FiltroEstado[]).map(f => (
           <button
             key={f}
@@ -264,6 +263,7 @@ export default function ProveedoresClient({
         >
           Sin insumos asociados
         </button>
+        <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
       </div>
 
       {/* Form modal */}

@@ -115,6 +115,16 @@ input:-webkit-autofill:focus {
 /* ── Tema claro ────────────────────────────────────────────── */
 html.light {
   color-scheme: light;
+  /* Redefine los tokens de @theme inline (arriba) para que las clases
+     semánticas (bg-surface, text-muted, border-border, etc.) reaccionen
+     solas al toggle de tema — el resto de este bloque son overrides por
+     atributo para el código viejo que todavía usa hex crudo (bg-[#1a1a1a]). */
+  --color-bg:      #f0f2f5;
+  --color-surface: #ffffff;
+  --color-surface2: #efefef;
+  --color-border:  #d5d5d5;
+  --color-text:    #111111;
+  --color-muted:   #666666;
 }
 html.light body {
   background: #f0f2f5;

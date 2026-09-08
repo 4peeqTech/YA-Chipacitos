@@ -6,6 +6,9 @@ import { ArrowRight, Check, ListChecks, Lock, MessageSquare, Plus, RefreshCw, X 
 import { createClient } from '@/lib/supabase/client'
 import { construirMensajePedido, renderPlantilla, linkWhatsApp } from '@/lib/compras/pedidoMensaje'
 import Modal from '@/components/ui/Modal'
+import SearchInput from '@/components/ui/SearchInput'
+import DateRangeInputs from '@/components/ui/DateRangeInputs'
+import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useConfirm } from '@/components/ui/ConfirmDialog'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 import type { Remito } from '@/lib/compras/tipos'
@@ -106,6 +109,9 @@ export default function PedidosClient({
   const toast = useToasts()
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
   const [filtro, setFiltro] = useState<FiltroPedidos>('activos')
+  const [busqueda, setBusqueda] = useState('')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
   const [modalCrear, setModalCrear] = useState(false)
   const [proveedorModal, setProveedorModal] = useState('')
   const [filasModal, setFilasModal] = useState<FilaCatalogo[]>([])
@@ -122,9 +128,14 @@ export default function PedidosClient({
 
   const stockPorItem = Object.fromEntries(stockInicial.map(s => [s.item_id, s.cantidad]))
 
-  const pedidosFiltrados = pedidos.filter(p =>
-    filtro === 'todos' ? true : p.estado === 'borrador' || p.estado === 'enviado'
-  )
+  const pedidosFiltrados = pedidos
+    .filter(p => filtro === 'todos' ? true : p.estado === 'borrador' || p.estado === 'enviado')
+    .filter(p => p.proveedores.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    .filter(p => !desde || p.created_at.slice(0, 10) >= desde)
+    .filter(p => !hasta || p.created_at.slice(0, 10) <= hasta)
+
+  const hayFiltros = !!busqueda || !!desde || !!hasta
+  function limpiarFiltros() { setBusqueda(''); setDesde(''); setHasta('') }
 
   function filasParaProveedor(proveedorId: string): FilaCatalogo[] {
     const proveedor = proveedores.find(p => p.id === proveedorId)
@@ -561,9 +572,15 @@ export default function PedidosClient({
         ))}
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar por proveedor..." className="w-64" />
+        <DateRangeInputs desde={desde} hasta={hasta} onChangeDesde={setDesde} onChangeHasta={setHasta} />
+        <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
+      </div>
+
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
         {pedidosFiltrados.length === 0 ? (
-          <p className="p-8 text-center text-[#888]">No hay pedidos</p>
+          <p className="p-8 text-center text-[#888]">{pedidos.length === 0 ? 'No hay pedidos' : 'Ningún pedido coincide con los filtros'}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

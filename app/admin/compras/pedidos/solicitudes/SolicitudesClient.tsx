@@ -9,6 +9,8 @@ import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
+import DateRangeInputs from '@/components/ui/DateRangeInputs'
+import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 interface ConteoRef {
@@ -83,6 +85,8 @@ export default function SolicitudesClient({
 
   const [solicitudes, setSolicitudes] = useState(solicitudesIniciales)
   const [filtro, setFiltro] = useState<'abiertas' | 'todas'>('abiertas')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
   const [abiertaId, setAbiertaId] = useState<string | null>(null)
   const [items, setItems] = useState<SolicitudItem[]>([])
   const [guardado, setGuardado] = useState<'idle' | 'guardando' | 'guardado'>('idle')
@@ -102,7 +106,13 @@ export default function SolicitudesClient({
   }
 
   const pendientes = solicitudes.filter(s => s.estado === 'abierta').length
-  const lista = solicitudes.filter(s => filtro === 'todas' || s.estado === 'abierta')
+  const lista = solicitudes
+    .filter(s => filtro === 'todas' || s.estado === 'abierta')
+    .filter(s => !desde || s.created_at.slice(0, 10) >= desde)
+    .filter(s => !hasta || s.created_at.slice(0, 10) <= hasta)
+
+  const hayFiltros = !!desde || !!hasta
+  function limpiarFiltros() { setDesde(''); setHasta('') }
 
   function marcarGuardado() {
     setGuardado('guardando')
@@ -211,11 +221,16 @@ export default function SolicitudesClient({
         ))}
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <DateRangeInputs desde={desde} hasta={hasta} onChangeDesde={setDesde} onChangeHasta={setHasta} />
+        <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
+      </div>
+
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
         {lista.length === 0 ? (
           <p className="p-8 text-center text-[#888] text-sm flex flex-col items-center gap-2">
             <History size={20} className="text-[#444]" />
-            {filtro === 'abiertas' ? 'No hay solicitudes pendientes de revisión.' : 'Todavía no hay solicitudes.'}
+            {hayFiltros ? 'Ninguna solicitud coincide con el rango de fechas.' : filtro === 'abiertas' ? 'No hay solicitudes pendientes de revisión.' : 'Todavía no hay solicitudes.'}
           </p>
         ) : (
           <div className="divide-y divide-[#1a1a1a]">

@@ -9,6 +9,7 @@ import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
 import SelectBuscador from '@/components/ui/SelectBuscador'
+import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 interface ProveedorOption {
@@ -108,6 +109,9 @@ export default function InsumosClient({
       return matchEstado && matchCategoria && matchBusqueda
     })
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+  const hayFiltros = !!busqueda || categoriaFiltro !== 'todas' || filtro !== 'activo'
+  function limpiarFiltros() { setBusqueda(''); setCategoriaFiltro('todas'); setFiltro('activo') }
 
   function abrirCrear() {
     setForm(emptyForm())
@@ -264,6 +268,7 @@ export default function InsumosClient({
             {f}
           </button>
         ))}
+        <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
       </div>
 
       <div className="flex gap-2 flex-wrap">
