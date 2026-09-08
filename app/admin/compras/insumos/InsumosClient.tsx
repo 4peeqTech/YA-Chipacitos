@@ -44,7 +44,7 @@ interface CompraItem {
 
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
 
-const REDONDEO_LABEL: Record<Redondeo, string> = {
+export const REDONDEO_LABEL: Record<Redondeo, string> = {
   estandar: 'Estándar (redondeo al medio)',
   siempre_arriba: 'Siempre hacia arriba',
   siempre_abajo: 'Siempre hacia abajo',

@@ -65,7 +65,7 @@ const MODULO_LABEL: Record<string, string> = {
   fabrica: 'Fábrica',
 }
 
-const MODO_LABEL: Record<ModoCalculo, string> = {
+export const MODO_LABEL: Record<ModoCalculo, string> = {
   por_masa: 'Por masa (receta × proyección)',
   meta_semanal: 'Meta del período (piso fijo)',
   cantidad_fija: 'Cantidad fija',
