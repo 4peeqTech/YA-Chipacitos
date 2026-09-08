@@ -3,6 +3,18 @@
 import { useMemo, useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+function formatearRelativo(iso: string) {
+  const segundos = (Date.now() - new Date(iso).getTime()) / 1000
+  if (segundos < 60) return 'recién'
+  const minutos = Math.floor(segundos / 60)
+  if (minutos < 60) return `hace ${minutos} min`
+  const horas = Math.floor(minutos / 60)
+  if (horas < 24) return `hace ${horas} h`
+  const dias = Math.floor(horas / 24)
+  if (dias < 30) return `hace ${dias} d`
+  return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+}
+
 interface CompraItem {
   id: string
   nombre: string
@@ -15,16 +27,19 @@ interface StockActual {
   cantidad: number
   actualizado_en: string
   actualizado_por: string | null
+  actualizado_por_nombre: string | null
 }
 
 export default function StockClient({
   itemsIniciales,
   stockInicial,
   usuarioId,
+  usuarioNombre,
 }: {
   itemsIniciales: CompraItem[]
   stockInicial: StockActual[]
   usuarioId: string
+  usuarioNombre: string
 }) {
   const supabase = createClient()
   const [stockPorItem, setStockPorItem] = useState<Record<string, StockActual>>(
@@ -63,7 +78,7 @@ export default function StockClient({
 
       setGuardandoId(null)
       if (err) { setError(err.message); return }
-      setStockPorItem(prev => ({ ...prev, [itemId]: data }))
+      setStockPorItem(prev => ({ ...prev, [itemId]: { ...data, actualizado_por_nombre: usuarioNombre } }))
 
       if (delta !== 0) {
         await supabase.from('compras_stock_movimientos').insert(
@@ -97,12 +112,15 @@ export default function StockClient({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Stock mínimo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Cantidad actual</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Últ. actualización</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Por</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#2a2a2a]">
                 {items.map(i => {
-                  const cantidadGuardada = stockPorItem[i.id]?.cantidad ?? 0
+                  const stock = stockPorItem[i.id]
+                  const cantidadGuardada = stock?.cantidad ?? 0
                   const bajo = cantidadGuardada < i.stock_minimo
                   return (
                     <tr key={i.id} className="hover:bg-[#1a1a1a] transition-colors">
@@ -124,6 +142,8 @@ export default function StockClient({
                           {bajo ? 'Bajo' : 'OK'}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-[#888] hidden md:table-cell">{stock ? formatearRelativo(stock.actualizado_en) : '—'}</td>
+                      <td className="px-4 py-3 text-[#888] hidden md:table-cell">{stock?.actualizado_por_nombre ?? '—'}</td>
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => guardarCantidad(i.id)}

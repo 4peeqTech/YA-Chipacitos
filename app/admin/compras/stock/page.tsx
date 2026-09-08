@@ -9,10 +9,18 @@ export default async function StockPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: items }, { data: stock }] = await Promise.all([
+  const [{ data: items }, { data: stock }, { data: perfil }] = await Promise.all([
     supabase.from('compras_items').select('*').eq('estado', 'activo').order('nombre'),
-    supabase.from('compras_stock_actual').select('*'),
+    supabase.from('v_compras_stock_actual').select('*'),
+    supabase.from('profiles').select('nombre').eq('id', user.id).single(),
   ])
 
-  return <StockClient itemsIniciales={items ?? []} stockInicial={stock ?? []} usuarioId={user.id} />
+  return (
+    <StockClient
+      itemsIniciales={items ?? []}
+      stockInicial={stock ?? []}
+      usuarioId={user.id}
+      usuarioNombre={perfil?.nombre ?? '—'}
+    />
+  )
 }

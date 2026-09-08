@@ -3,8 +3,9 @@
 import { Fragment, useState } from 'react'
 import { calcularMovimientoPorInsumo, type MovimientoReporte } from '@/lib/compras/reportes'
 
-const TIPO_LABEL: Record<'entrada_remito' | 'ajuste_manual', string> = {
+const TIPO_LABEL: Record<MovimientoReporte['tipo'], string> = {
   entrada_remito: 'Entrada (remito)',
+  conteo_fabrica: 'Conteo de fábrica',
   ajuste_manual: 'Ajuste manual',
 }
 
@@ -39,6 +40,7 @@ export default function MovimientoStock({
               <th className={thClass}>Insumo</th>
               <th className={thClass}>Proveedor</th>
               <th className={thClass}>Entradas (remito)</th>
+              <th className={thClass}>Conteos de fábrica</th>
               <th className={thClass}>Ajustes manuales</th>
               <th className={thClass}>Balance del período</th>
               <th className={thClass}>Stock actual</th>
@@ -56,19 +58,21 @@ export default function MovimientoStock({
                   </td>
                   <td className="px-4 py-3 text-[#888]">{f.proveedorNombre}</td>
                   <td className="px-4 py-3 text-[#888]">{f.entradas}</td>
+                  <td className="px-4 py-3 text-[#888]">{f.conteosFabrica}</td>
                   <td className="px-4 py-3 text-[#888]">{f.ajustes}</td>
                   <td className="px-4 py-3 text-[#f0f0f0]">{f.balance}</td>
                   <td className="px-4 py-3 text-[#888]">{f.stockActual}</td>
                 </tr>
                 {expandidoId === f.itemId && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-3 bg-[#0a0a0a]">
+                    <td colSpan={7} className="px-4 py-3 bg-[#0a0a0a]">
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-[#888]">
                             <th className="text-left py-1 pr-3">Fecha</th>
                             <th className="text-left py-1 pr-3">Tipo</th>
-                            <th className="text-left py-1">Delta</th>
+                            <th className="text-left py-1 pr-3">Delta</th>
+                            <th className="text-left py-1">Por</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -76,7 +80,8 @@ export default function MovimientoStock({
                             <tr key={m.movimientoId} className="text-[#ccc]">
                               <td className="py-1 pr-3">{new Date(m.fecha).toLocaleString('es-AR')}</td>
                               <td className="py-1 pr-3">{TIPO_LABEL[m.tipo]}</td>
-                              <td className="py-1">{m.delta}</td>
+                              <td className="py-1 pr-3">{m.delta}</td>
+                              <td className="py-1">{m.creadoPorNombre ?? '—'}</td>
                             </tr>
                           ))}
                         </tbody>

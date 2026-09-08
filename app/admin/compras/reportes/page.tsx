@@ -27,8 +27,8 @@ export default async function ReportesPage() {
       .select('*, proveedores(nombre), compras_remitos(id, numero, fecha, compras_remito_items(descripcion, cantidad, precio))')
       .order('created_at', { ascending: false }),
     supabase
-      .from('compras_stock_movimientos')
-      .select('*, compras_items(nombre)')
+      .from('v_compras_stock_movimientos')
+      .select('*')
       .order('created_at', { ascending: false }),
     supabase.from('compras_stock_actual').select('item_id, cantidad'),
     supabase

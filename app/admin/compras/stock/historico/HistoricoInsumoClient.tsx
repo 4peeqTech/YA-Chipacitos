@@ -96,7 +96,7 @@ export default function HistoricoInsumoClient({ itemsCatalogo }: { itemsCatalogo
         .eq('item_id', id),
       supabase
         .from('compras_stock_movimientos')
-        .select('id, item_id, delta, tipo, remito_id, created_at, compras_items(nombre)')
+        .select('id, item_id, delta, tipo, remito_id, conteo_id, created_at')
         .eq('item_id', id)
         .eq('tipo', 'entrada_remito')
         .order('created_at'),

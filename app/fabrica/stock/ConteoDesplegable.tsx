@@ -128,7 +128,7 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
       if (errStock) { toast.error('No se pudo guardar el stock'); return }
       if (delta !== 0) {
         await supabase.from('compras_stock_movimientos').insert(
-          { item_id: itemId, delta, tipo: 'ajuste_manual', creado_por: usuarioId }
+          { item_id: itemId, delta, tipo: 'conteo_fabrica', conteo_id: conteo.id, creado_por: usuarioId }
         )
       }
       const { error: errItem } = await supabase.from('fabrica_conteo_items').update({ cantidad }).eq('id', conteoItemId)

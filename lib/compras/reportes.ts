@@ -132,22 +132,27 @@ export function calcularHistorialPedidos(pedidos: PedidoReporte[]): HistorialPed
   })
 }
 
+export type TipoMovimiento = 'entrada_remito' | 'ajuste_manual' | 'conteo_fabrica'
+
 export interface MovimientoReporte {
   id: string
   item_id: string
   delta: number
-  tipo: 'entrada_remito' | 'ajuste_manual'
+  tipo: TipoMovimiento
   remito_id: string | null
+  conteo_id: string | null
   created_at: string
-  compras_items: { nombre: string } | null
+  item_nombre: string | null
+  creado_por_nombre: string | null
 }
 
 export interface MovimientoDetalle {
   movimientoId: string
   fecha: string
-  tipo: 'entrada_remito' | 'ajuste_manual'
+  tipo: TipoMovimiento
   delta: number
   remitoId: string | null
+  creadoPorNombre: string | null
 }
 
 export interface MovimientoInsumo {
@@ -155,6 +160,7 @@ export interface MovimientoInsumo {
   itemNombre: string
   proveedorNombre: string
   entradas: number
+  conteosFabrica: number
   ajustes: number
   balance: number
   stockActual: number
@@ -180,9 +186,10 @@ export function calcularMovimientoPorInsumo(
     if (!grupo) {
       grupo = {
         itemId: mov.item_id,
-        itemNombre: mov.compras_items?.nombre ?? '—',
+        itemNombre: mov.item_nombre ?? '—',
         proveedorNombre: proveedorPorItem[mov.item_id] ?? '—',
         entradas: 0,
+        conteosFabrica: 0,
         ajustes: 0,
         balance: 0,
         stockActual: stockActualPorItem[mov.item_id] ?? 0,
@@ -192,6 +199,7 @@ export function calcularMovimientoPorInsumo(
     }
 
     if (mov.tipo === 'entrada_remito') grupo.entradas += mov.delta
+    else if (mov.tipo === 'conteo_fabrica') grupo.conteosFabrica += mov.delta
     else grupo.ajustes += mov.delta
     grupo.balance += mov.delta
 
@@ -201,6 +209,7 @@ export function calcularMovimientoPorInsumo(
       tipo: mov.tipo,
       delta: mov.delta,
       remitoId: mov.remito_id,
+      creadoPorNombre: mov.creado_por_nombre,
     })
   }
 
