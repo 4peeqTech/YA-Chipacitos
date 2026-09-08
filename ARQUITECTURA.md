@@ -222,7 +222,7 @@ integraciones_ventas · integraciones_cajas                        (sección Int
 catalogo · mapeos · usuarios · roles · plan_cuentas ·
   proveedores · cajas · formas_pago                                (sección Parámetros)
 compras-insumos · compras-stock · compras-pedidos ·
-  compras-remitos · compras-reportes                              (sección Compras)
+  compras-reportes                                                (sección Compras)
 tareas
 ```
 
@@ -264,16 +264,24 @@ tareas
 | `/admin/mapeos` | Server + Client | nombres distintos de `ventas_posberry` (limit 5000) + mapeos + productos | Catálogo |
 | `/admin/usuarios` | Server + Client | `profiles` (limit 500) + `roles` + emails vía **service role** | Usuarios |
 | `/admin/roles` | Server + Client | `roles` + conteo de usuarios por rol | Usuarios |
-| `/admin/proveedores` | Server + Client | `proveedores` | Compras |
 | `/admin/plan-cuentas` | Client | `/api/plan-cuentas` | Gastos |
 | `/admin/cajas` | Client | `TablaMaestra` → `/api/cajas` | Gastos |
 | `/admin/formas-pago` | Client | `TablaMaestra` → `/api/formas-pago` | Gastos |
-| **Admin — Compras** | | | |
+| **Admin — Compras** (tabs anidadas bajo `insumos`, `stock`, `pedidos`) | | | |
 | `/admin/compras/insumos` | Server + Client | `compras_items` + proveedores con `maneja_stock` | Compras |
+| `/admin/compras/insumos/listas-conteo` | Server + Client | `fabrica_conteo_definiciones` + `fabrica_conteo_definicion_items` + catálogo | Compras |
 | `/admin/compras/stock` | Server + Client | `compras_items` activos + `compras_stock_actual` | Compras |
+| `/admin/compras/stock/conteos` | — | placeholder (Fase 5) | Compras |
+| `/admin/compras/stock/historico` | — | placeholder (Fase 6) | Compras |
 | `/admin/compras/pedidos` | Server + Client | proveedores + catálogo + stock + pedidos con remitos anidados | Compras |
-| `/admin/compras/remitos` | Server + Client | `compras_remitos` con pedido/proveedor/ítems | Compras |
+| `/admin/compras/pedidos/solicitudes` | Server + Client | `compras_solicitudes` con conteo/ítems | Compras |
+| `/admin/compras/pedidos/remitos` | Server + Client | `compras_remitos` con pedido/proveedor/ítems | Compras |
+| `/admin/compras/pedidos/base` | Server + Client | `compras_plantilla_base` + proveedores + catálogo | Compras |
 | `/admin/compras/reportes` | Server + Client | remitos + pedidos + movimientos + stock (4 queries) | Compras |
+| **Admin — Proveedores** (tabs anidadas, todas `soloAdmin`) | | | |
+| `/admin/proveedores` | Server + Client | `proveedores` | Proveedores |
+| `/admin/proveedores/facturacion` | Server + Client | `locales_facturacion` | Proveedores |
+| `/admin/proveedores/plantillas` | Server + Client | `compras_plantillas_mensaje` + `locales_facturacion` | Proveedores |
 | **Tareas** | | | |
 | `/tareas` | Server + Client | `tareas` propias/asignadas + `perfiles` con acceso | Tareas |
 | `/tareas/todas` | Server + Client | **todas** las tareas vía service role — solo 1 usuario hardcodeado | Tareas |
@@ -703,6 +711,31 @@ escritos en [docs/superpowers/](docs/superpowers/). Reemplaza un HTML legacy
 └──────────────────────────────────────────────────────────────────┘
 ```
 
+#### Pantallas agregadas después de las 4 fases originales
+
+El diagrama de arriba documenta el flujo *manual* (Compras arma el pedido a mano). Sobre
+eso se sumaron, sin cambiar el modelo de fases:
+
+- **Solicitudes** (`/admin/compras/pedidos/solicitudes`, tabla `compras_solicitudes` +
+  `compras_solicitud_items`): la bandeja donde caen las solicitudes generadas por Fábrica
+  al cerrar un conteo semanal (`tipo='complementario'`) o por un pedido base
+  (`tipo='base'`). Convertir una solicitud (`convertir_solicitud_a_pedidos()`) crea los
+  `compras_pedidos` en borrador agrupados por proveedor.
+- **Pedido base** (`/admin/compras/pedidos/base`, tabla `compras_plantilla_base`): plantilla
+  fija de ítems recurrentes; `generar_solicitud_base()` crea una `compras_solicitudes`
+  tipo `base` a partir de ella.
+- **Listas de conteo** (`/admin/compras/insumos/listas-conteo`): el CRUD de *definiciones*
+  de conteo (`fabrica_conteo_definiciones` / `fabrica_conteo_definicion_items`) que arman
+  los desplegables de `/fabrica/stock` — el conteo en sí ocurre en Fábrica, no acá (ver
+  [§5.9](#59-módulo-fábrica)).
+- **Datos de facturación** (`/admin/proveedores/facturacion`, tabla `locales_facturacion`):
+  CUIT/razón social por local, consumidos por `construirMensajePedido()`.
+
+Todo esto vive bajo `/admin/compras/*` y `/admin/proveedores/*` con navegación por **tabs
+anidadas** (rutas reales, no estado de cliente) agrupadas en 5 entradas de sidebar:
+Insumos, Stock, Pedidos, Reportes (Compras) y Proveedores — ver el componente
+[Tabs.tsx](components/ui/Tabs.tsx) y el mapa de rutas en [§4](#4-mapa-de-rutas).
+
 > **Corrección de agosto 2026:** `compras_items` pasó a ser exclusivamente el
 > catálogo de **insumos de depósito** (Bolsaplast y el resto de los proveedores
 > importados — bolsas, papel, limpieza). La materia prima real de producción
@@ -756,7 +789,9 @@ La tabla **arranca vacía** — no hubo reconstrucción retroactiva, porque
 #### Tablas involucradas
 
 `proveedores` · `compras_items` · `compras_stock_actual` · `compras_stock_movimientos` ·
-`compras_pedidos` · `compras_pedido_items` · `compras_remitos` · `compras_remito_items`
+`compras_pedidos` · `compras_pedido_items` · `compras_remitos` · `compras_remito_items` ·
+`compras_solicitudes` · `compras_solicitud_items` · `compras_plantilla_base` ·
+`locales_facturacion` · `compras_plantillas_mensaje`
 
 ---
 
