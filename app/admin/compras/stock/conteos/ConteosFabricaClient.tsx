@@ -9,6 +9,7 @@ import SearchInput from '@/components/ui/SearchInput'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { IconoRenderer } from '@/components/ui/IconoPicker'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 import { MODO_LABEL } from '@/app/admin/compras/insumos/listas-conteo/ConteosClient'
 import { REDONDEO_LABEL } from '@/app/admin/compras/insumos/InsumosClient'
 
@@ -34,6 +35,7 @@ interface DetalleItem {
   meta: number
   cantidad_fija: number
   cantidad_por_masa: number
+  cantidad_por_unidad: number
   redondeo: Redondeo
   compras_items: { nombre: string; unidad: string } | null
 }
@@ -74,7 +76,7 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
     setCargando(true)
     const { data } = await supabase
       .from('fabrica_conteo_items')
-      .select('id, cantidad, necesidad, sugerido, modo_calculo, meta, cantidad_fija, cantidad_por_masa, redondeo, compras_items(nombre, unidad)')
+      .select('id, cantidad, necesidad, sugerido, modo_calculo, meta, cantidad_fija, cantidad_por_masa, cantidad_por_unidad, redondeo, compras_items(nombre, unidad)')
       .eq('conteo_id', conteo.id)
     setDetalle(((data ?? []) as unknown as DetalleItem[]).sort((a, b) => (a.compras_items?.nombre ?? '').localeCompare(b.compras_items?.nombre ?? '')))
     setCargando(false)
@@ -133,9 +135,14 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
       <Modal open={!!abierto} onClose={cerrar} title={abierto?.definicion_nombre ?? ''} size="xl">
         {abierto && (
           <div className="space-y-4">
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted flex items-center gap-1">
               Ventana {formatearFecha(abierto.semana_desde)} — {formatearFecha(abierto.semana_hasta)} · cerrado {formatearFechaHora(abierto.cerrado_en)} por {abierto.cerrado_por_nombre ?? '—'}
-              {abierto.masas_proyectadas != null && <> · {abierto.masas_proyectadas} masas proyectadas</>}
+              {abierto.masas_proyectadas != null && (
+                <>
+                  · {abierto.masas_proyectadas} masas proyectadas
+                  <HelpTooltip text="Lo carga Fábrica a mano en /fabrica/stock: cuántas masas (batches de producción) proyecta hacer en esta ventana. De ahí sale la Necesidad de cada insumo (cantidad por masa × masas proyectadas) — no es un cálculo automático del sistema." />
+                </>
+              )}
             </p>
 
             <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
@@ -149,7 +156,12 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
                     <tr>
                       <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Insumo</th>
                       <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-muted uppercase tracking-wider">Contado</th>
-                      <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-muted uppercase tracking-wider">Necesidad</th>
+                      <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-muted uppercase tracking-wider">
+                        <span className="inline-flex items-center gap-1 justify-end">
+                          Necesidad
+                          <HelpTooltip text="Lo que pide la receta (cantidad por masa × masas proyectadas), en la unidad de la receta — no en la unidad de compra. Por eso el número no es directamente comparable con Contado/Sugerido; la equivalencia aproximada en unidad de compra va abajo, entre paréntesis." />
+                        </span>
+                      </th>
                       <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-muted uppercase tracking-wider">Sugerido</th>
                       <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-muted uppercase tracking-wider min-w-55">Regla aplicada</th>
                     </tr>
@@ -159,7 +171,12 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
                       <tr key={d.id}>
                         <td className="px-4 py-3 text-sm text-text align-top">{d.compras_items?.nombre ?? '—'}</td>
                         <td className="px-4 py-3 text-sm text-muted text-right align-top whitespace-nowrap">{d.cantidad} {d.compras_items?.unidad}</td>
-                        <td className="px-4 py-3 text-sm text-muted text-right align-top whitespace-nowrap">{d.necesidad}</td>
+                        <td className="px-4 py-3 text-sm text-muted text-right align-top whitespace-nowrap">
+                          {d.necesidad}
+                          {d.cantidad_por_unidad > 0 && (
+                            <span className="block text-xs text-[#666]">≈ {(d.necesidad / d.cantidad_por_unidad).toFixed(1)} {d.compras_items?.unidad}</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm text-text font-medium text-right align-top whitespace-nowrap">{d.sugerido}</td>
                         <td className="px-4 py-3 text-xs text-muted align-top leading-relaxed">
                           {MODO_LABEL[d.modo_calculo]}
