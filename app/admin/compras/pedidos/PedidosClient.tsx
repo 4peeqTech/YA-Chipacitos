@@ -538,7 +538,7 @@ export default function PedidosClient({
                 )}
               </div>
               {pedidoEditando.estado !== 'borrador' ? (
-                <Link href={`/admin/compras/remitos?pedido=${pedidoEditando.id}`} className="inline-flex items-center gap-1 text-sm text-[#e8c547] hover:opacity-80 transition-opacity">
+                <Link href={`/admin/compras/pedidos/remitos?pedido=${pedidoEditando.id}`} className="inline-flex items-center gap-1 text-sm text-[#e8c547] hover:opacity-80 transition-opacity">
                   Ir a remitos <ArrowRight size={14} />
                 </Link>
               ) : !envioPreparado && (

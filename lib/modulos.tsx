@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Wallet, Clock, BarChart3, Landmark,
   RefreshCw, TrendingUp, Receipt,
   Package, Link2, Users, Shield, ClipboardList, CreditCard, Factory,
-  Truck, MessageSquare, ShoppingBasket, Inbox, Mail, FolderOpen, ClipboardCheck, ListTodo,
+  Truck, MessageSquare, ShoppingBasket, ClipboardCheck, ListTodo,
 } from 'lucide-react'
 
 export interface Modulo {
@@ -50,9 +50,6 @@ export const MODULOS: Modulo[] = [
   { key: 'compras-insumos', label: 'Insumos', icon: <ShoppingBasket size={16} />, href: '/admin/compras/insumos', section: 'Compras' },
   { key: 'compras-stock',   label: 'Stock',   icon: <Package size={16} />, href: '/admin/compras/stock',   section: 'Compras' },
   { key: 'compras-pedidos', label: 'Pedidos', icon: <ClipboardList size={16} />, href: '/admin/compras/pedidos', section: 'Compras' },
-  { key: 'compras-remitos', label: 'Remitos', icon: <Inbox size={16} />, href: '/admin/compras/remitos', section: 'Compras' },
-  { key: 'compras-solicitudes', label: 'Solicitudes', icon: <Mail size={16} />, href: '/admin/compras/solicitudes', section: 'Compras' },
-  { key: 'compras-pedido-base', label: 'Pedido base', icon: <FolderOpen size={16} />, href: '/admin/compras/pedido-base', section: 'Compras' },
   { key: 'compras-conteos', label: 'Control de Stock', icon: <ClipboardCheck size={16} />, href: '/admin/compras/conteos', section: 'Compras' },
   { key: 'compras-facturacion', label: 'Datos de facturación', icon: <Receipt size={16} />, href: '/admin/compras/facturacion', section: 'Compras', soloAdmin: true },
 

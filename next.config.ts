@@ -35,6 +35,21 @@ const nextConfig: NextConfig = {
         destination: '/fabrica/registro/congelados',
         permanent: true,
       },
+      {
+        source: '/admin/compras/solicitudes',
+        destination: '/admin/compras/pedidos/solicitudes',
+        permanent: true,
+      },
+      {
+        source: '/admin/compras/remitos',
+        destination: '/admin/compras/pedidos/remitos',
+        permanent: true,
+      },
+      {
+        source: '/admin/compras/pedido-base',
+        destination: '/admin/compras/pedidos/base',
+        permanent: true,
+      },
     ]
   },
 }

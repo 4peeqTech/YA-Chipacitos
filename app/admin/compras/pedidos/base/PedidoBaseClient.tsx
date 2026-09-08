@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { ClipboardList, GripVertical, Pencil, Plus, Send, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
@@ -145,7 +144,6 @@ export default function PedidoBaseClient({
   itemsCatalogo: CatalogoItem[]
 }) {
   const supabase = createClient()
-  const router = useRouter()
   const toast = useToasts()
 
   const [lineas, setLineas] = useState(plantillaInicial)
@@ -249,8 +247,7 @@ export default function PedidoBaseClient({
     const { error } = await supabase.rpc('generar_solicitud_base')
     setGenerando(false)
     if (error) { toast.error(error.message || 'No se pudo generar el pedido base'); return }
-    toast.success('Solicitud del pedido base creada')
-    router.push('/admin/compras/solicitudes')
+    toast.success('Solicitud del pedido base creada — revisala en la tab Solicitudes')
   }
 
   const sensors = useSensors(

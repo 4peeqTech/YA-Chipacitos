@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       userIds,
       title: '🏭 Nueva solicitud de Fábrica',
       body: 'Fábrica cerró el conteo semanal y pide revisar la compra complementaria.',
-      url: '/admin/compras/solicitudes',
+      url: '/admin/compras/pedidos/solicitudes',
       tipo: 'solicitud_fabrica',
     })
     return NextResponse.json(resultado)

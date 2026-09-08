@@ -60,7 +60,7 @@ export default function ResumenRemitos({ pedido }: { pedido: PedidoPD }) {
       )}
 
       <Link
-        href={`/admin/compras/remitos?pedido=${pedido.id}`}
+        href={`/admin/compras/pedidos/remitos?pedido=${pedido.id}`}
         className="inline-flex items-center gap-1 text-sm text-[#e8c547] hover:opacity-80 transition-opacity"
       >
         {hayRemitos ? 'Ver / editar remitos' : 'Cargar remito'} <ArrowRight size={14} />

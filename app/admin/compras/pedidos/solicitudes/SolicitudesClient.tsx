@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   Inbox, ClipboardList, TrendingUp, Truck, ChevronRight,
   Ban, Send, History, Scale,
@@ -27,6 +26,7 @@ interface SolicitudItem {
   unidad: string | null
   cantidad_sugerida: number
   cantidad_ajustada: number
+  stock_actual: number | null
   incluir: boolean
   orden: number
 }
@@ -79,7 +79,6 @@ export default function SolicitudesClient({
   proveedoresPorItem: Record<string, string[]>
 }) {
   const supabase = createClient()
-  const router = useRouter()
   const toast = useToasts()
 
   const [solicitudes, setSolicitudes] = useState(solicitudesIniciales)
@@ -164,9 +163,10 @@ export default function SolicitudesClient({
     const { data: creados, error } = await supabase.rpc('convertir_solicitud_a_pedidos', { p_solicitud_id: abierta.id })
     setProcesando(false)
     if (error) { toast.error(error.message || 'No se pudieron generar los pedidos'); return }
-    toast.success(`${creados} pedido${creados === 1 ? '' : 's'} en borrador, listos para revisar`)
+    setSolicitudes(prev => prev.map(s => s.id === abierta.id ? { ...s, estado: 'convertida' } : s))
+    toast.success(`${creados} pedido${creados === 1 ? '' : 's'} en borrador — revisalos en la tab Pedidos`)
     setConfirmando(null)
-    router.push('/admin/compras/pedidos')
+    cerrar()
   }
 
   async function confirmarDescartar() {
@@ -257,14 +257,15 @@ export default function SolicitudesClient({
               <div className="flex items-center gap-2 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-4 py-3">
                 <Scale size={16} className="text-[#e8c547] shrink-0" />
                 <p className="text-sm text-[#ccc]">
-                  Masas proyectadas (martes a viernes): <span className="text-[#f0f0f0] font-bold">{abierta.fabrica_conteos.masas_proyectadas}</span>
+                  Masas proyectadas ({formatearFechaCorta(abierta.fabrica_conteos.semana_desde)} a {formatearFechaCorta(abierta.fabrica_conteos.semana_hasta)}): <span className="text-[#f0f0f0] font-bold">{abierta.fabrica_conteos.masas_proyectadas}</span>
                 </p>
               </div>
             )}
 
             <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-2.5 bg-[#1a1a1a] text-[11px] font-semibold text-[#888] uppercase tracking-wider">
+              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 px-4 py-2.5 bg-[#1a1a1a] text-[11px] font-semibold text-[#888] uppercase tracking-wider">
                 <span>Ítem</span>
+                <span className="hidden sm:flex items-center gap-1">Stock al contar<HelpTooltip text="Lo que había en stock cuando se cerró el conteo que generó esta solicitud — el contexto para decidir el ajuste." /></span>
                 <span className="flex items-center gap-1">Ajustada<HelpTooltip text="Arrancó con el sugerido calculado al cerrar el conteo (o la cantidad de la plantilla, si es pedido base). Podés cambiarlo antes de generar los pedidos." /></span>
                 <span className="hidden sm:block">Proveedor</span>
                 <span>Incluir</span>
@@ -273,11 +274,12 @@ export default function SolicitudesClient({
                 {items.length === 0 ? (
                   <p className="p-6 text-center text-sm text-[#666]">Esta solicitud no tiene líneas.</p>
                 ) : items.map(i => (
-                  <div key={i.id} className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 px-4 py-2.5 ${!i.incluir ? 'opacity-40' : ''}`}>
+                  <div key={i.id} className={`grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-3 px-4 py-2.5 ${!i.incluir ? 'opacity-40' : ''}`}>
                     <div className="min-w-0">
                       <p className="text-sm text-[#f0f0f0] truncate">{i.descripcion}</p>
                       <p className="text-xs text-[#666]">sugerido {i.cantidad_sugerida} {i.unidad}</p>
                     </div>
+                    <p className="hidden sm:block text-sm text-[#888] text-right">{i.stock_actual ?? '—'} {i.stock_actual != null ? i.unidad : ''}</p>
                     <InputNumero
                       placeholder="0"
                       value={i.cantidad_ajustada === 0 ? null : i.cantidad_ajustada}
