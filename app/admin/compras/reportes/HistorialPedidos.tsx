@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState } from 'react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { calcularHistorialPedidos, type PedidoReporte } from '@/lib/compras/reportes'
 
 function money(n: number): string {
@@ -11,6 +12,28 @@ const ESTADO_BADGE: Record<PedidoReporte['estado'], string> = {
   borrador: 'bg-[#2a2a2a] text-[#ccc]',
   enviado: 'bg-yellow-900/50 text-yellow-300',
   cerrado: 'bg-green-900/50 text-green-300',
+}
+
+const ESTADO_COLOR: Record<PedidoReporte['estado'], string> = {
+  borrador: '#888888',
+  enviado: '#f0a030',
+  cerrado: '#56d68a',
+}
+
+const ESTADO_LABEL: Record<PedidoReporte['estado'], string> = {
+  borrador: 'Borrador',
+  enviado: 'Enviado',
+  cerrado: 'Cerrado',
+}
+
+function ChartTooltip({ active, payload }: { active?: boolean; payload?: { payload: { estado: string; cantidad: number } }[] }) {
+  if (!active || !payload?.length) return null
+  const f = payload[0].payload
+  return (
+    <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
+      <p className="text-text font-medium">{f.estado}: {f.cantidad}</p>
+    </div>
+  )
 }
 
 export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[] }) {
@@ -27,8 +50,30 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
     )
   }
 
+  const datosChart = (['borrador', 'enviado', 'cerrado'] as const).map(estado => ({
+    estado: ESTADO_LABEL[estado],
+    cantidad: filas.filter(f => f.estado === estado).length,
+    color: ESTADO_COLOR[estado],
+  }))
+
   return (
-    <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
+    <div className="space-y-4">
+      <div className="bg-surface border border-border rounded-xl p-4">
+        <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">Pedidos por estado</p>
+        <ResponsiveContainer width="100%" height={140}>
+          <BarChart data={datosChart} layout="vertical" margin={{ left: 8, right: 24 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" horizontal={false} />
+            <XAxis type="number" allowDecimals={false} tick={{ fill: '#888', fontSize: 11 }} axisLine={{ stroke: '#2a2a2a' }} tickLine={false} />
+            <YAxis type="category" dataKey="estado" width={70} tick={{ fill: '#ccc', fontSize: 12 }} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,.04)' }} />
+            <Bar dataKey="cantidad" radius={[0, 4, 4, 0]} maxBarSize={22}>
+              {datosChart.map(d => <Cell key={d.estado} fill={d.color} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
@@ -95,6 +140,7 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
             ))}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   )

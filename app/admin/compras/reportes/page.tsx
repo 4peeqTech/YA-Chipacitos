@@ -39,12 +39,14 @@ export default async function ReportesPage() {
       .select('item_id, cantidad, compras_pedidos(solicitud_id)'),
     // v_compras_items evita depender de compras_items.proveedor_id (1:N, en desuso
     // desde que existe compras_item_proveedores) solo para mostrar el proveedor principal acá.
-    supabase.from('v_compras_items').select('id, proveedor_principal_nombre'),
+    supabase.from('v_compras_items').select('id, proveedor_principal_nombre, stock_minimo').eq('estado', 'activo'),
   ])
 
   const proveedorPorItem: Record<string, string> = {}
+  const stockMinimoPorItem: Record<string, number> = {}
   for (const v of vItems ?? []) {
     proveedorPorItem[v.id] = v.proveedor_principal_nombre ?? '—'
+    stockMinimoPorItem[v.id] = v.stock_minimo
   }
 
   return (
@@ -56,6 +58,7 @@ export default async function ReportesPage() {
       solicitudItemsIniciales={(solicitudItems ?? []) as any}
       pedidoItemsIniciales={(pedidoItems ?? []) as any}
       proveedorPorItem={proveedorPorItem}
+      stockMinimoPorItem={stockMinimoPorItem}
     />
   )
 }

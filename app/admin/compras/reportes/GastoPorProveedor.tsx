@@ -1,10 +1,22 @@
 'use client'
 
 import { Fragment, useState } from 'react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { calcularGastoPorProveedor, type RemitoReporte } from '@/lib/compras/reportes'
 
 function money(n: number): string {
   return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function ChartTooltip({ active, payload }: { active?: boolean; payload?: { payload: { proveedorNombre: string; gastoTotal: number } }[] }) {
+  if (!active || !payload?.length) return null
+  const f = payload[0].payload
+  return (
+    <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
+      <p className="text-text font-medium">{f.proveedorNombre}</p>
+      <p className="text-accent font-semibold">${money(f.gastoTotal)}</p>
+    </div>
+  )
 }
 
 export default function GastoPorProveedor({ remitos }: { remitos: RemitoReporte[] }) {
@@ -22,8 +34,24 @@ export default function GastoPorProveedor({ remitos }: { remitos: RemitoReporte[
     )
   }
 
+  const datosChart = [...filas].sort((a, b) => b.gastoTotal - a.gastoTotal).slice(0, 8).reverse()
+
   return (
-    <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
+    <div className="space-y-4">
+      <div className="bg-surface border border-border rounded-xl p-4">
+        <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">Gasto por proveedor (top {datosChart.length})</p>
+        <ResponsiveContainer width="100%" height={Math.max(180, datosChart.length * 36)}>
+          <BarChart data={datosChart} layout="vertical" margin={{ left: 8, right: 24 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" horizontal={false} />
+            <XAxis type="number" tick={{ fill: '#888', fontSize: 11 }} axisLine={{ stroke: '#2a2a2a' }} tickLine={false} />
+            <YAxis type="category" dataKey="proveedorNombre" width={120} tick={{ fill: '#ccc', fontSize: 12 }} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(232,197,71,.08)' }} />
+            <Bar dataKey="gastoTotal" fill="#e8c547" radius={[0, 4, 4, 0]} maxBarSize={22} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
@@ -88,6 +116,7 @@ export default function GastoPorProveedor({ remitos }: { remitos: RemitoReporte[
             </tr>
           </tfoot>
         </table>
+      </div>
       </div>
     </div>
   )

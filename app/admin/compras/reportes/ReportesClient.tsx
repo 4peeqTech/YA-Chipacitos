@@ -1,8 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { BarChart3, Wallet, ClipboardList, Inbox, TriangleAlert, Package, Scale } from 'lucide-react'
 import { calcularRangoPreset, fechaEnRango, type PresetRango, type RangoFechas } from '@/lib/compras/rangoFechas'
-import type { RemitoReporte, PedidoReporte, MovimientoReporte, SolicitudItemReporte, PedidoItemCompradoReporte } from '@/lib/compras/reportes'
+import { calcularGastoPorProveedor, type RemitoReporte, type PedidoReporte, type MovimientoReporte, type SolicitudItemReporte, type PedidoItemCompradoReporte } from '@/lib/compras/reportes'
+import KpiCard from '@/components/ui/KpiCard'
 import GastoPorProveedor from './GastoPorProveedor'
 import HistorialPedidos from './HistorialPedidos'
 import MovimientoStock from './MovimientoStock'
@@ -16,6 +18,10 @@ interface StockActualRow {
   cantidad: number
 }
 
+function money(n: number): string {
+  return n.toLocaleString('es-AR', { maximumFractionDigits: 0 })
+}
+
 export default function ReportesClient({
   remitosIniciales,
   pedidosIniciales,
@@ -24,6 +30,7 @@ export default function ReportesClient({
   solicitudItemsIniciales,
   pedidoItemsIniciales,
   proveedorPorItem,
+  stockMinimoPorItem,
 }: {
   remitosIniciales: RemitoReporte[]
   pedidosIniciales: PedidoReporte[]
@@ -32,6 +39,7 @@ export default function ReportesClient({
   solicitudItemsIniciales: SolicitudItemReporte[]
   pedidoItemsIniciales: PedidoItemCompradoReporte[]
   proveedorPorItem: Record<string, string>
+  stockMinimoPorItem: Record<string, number>
 }) {
   const [tab, setTab] = useState<Tab>('gasto')
   const [preset, setPreset] = useState<PresetUI>('mes_actual')
@@ -59,11 +67,20 @@ export default function ReportesClient({
     [stockInicial]
   )
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'gasto', label: 'Gasto por proveedor' },
-    { key: 'historial', label: 'Historial de pedidos y remitos' },
-    { key: 'stock', label: 'Movimiento de stock' },
-    { key: 'sugerido', label: 'Sugerido vs. comprado' },
+  const gastoTotalPeriodo = useMemo(
+    () => calcularGastoPorProveedor(remitosFiltrados).reduce((total, f) => total + f.gastoTotal, 0),
+    [remitosFiltrados]
+  )
+  const insumosConStockBajo = useMemo(
+    () => Object.entries(stockMinimoPorItem).filter(([itemId, minimo]) => (stockActualPorItem[itemId] ?? 0) < minimo).length,
+    [stockMinimoPorItem, stockActualPorItem]
+  )
+
+  const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
+    { key: 'gasto', label: 'Gasto por proveedor', icon: <Wallet size={14} /> },
+    { key: 'historial', label: 'Historial de pedidos y remitos', icon: <ClipboardList size={14} /> },
+    { key: 'stock', label: 'Movimiento de stock', icon: <Package size={14} /> },
+    { key: 'sugerido', label: 'Sugerido vs. comprado', icon: <Scale size={14} /> },
   ]
 
   const presets: { key: PresetUI; label: string }[] = [
@@ -77,8 +94,21 @@ export default function ReportesClient({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#f0f0f0]">Reportes</h1>
-        <p className="text-[#888] text-sm mt-0.5">Gasto, historial de pedidos/remitos y movimiento de stock del período elegido.</p>
+        <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-text"><BarChart3 size={22} className="text-accent" /> Reportes</h1>
+        <p className="text-muted text-sm mt-0.5">Gasto, historial de pedidos/remitos y movimiento de stock del período elegido.</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard icon={<Wallet size={18} />} label="Gasto del período" value={`$${money(gastoTotalPeriodo)}`} tono="neutro" />
+        <KpiCard icon={<ClipboardList size={18} />} label="Pedidos del período" value={String(pedidosFiltrados.length)} detalle={`${pedidosFiltrados.filter(p => p.estado === 'cerrado').length} cerrados`} tono="neutro" />
+        <KpiCard icon={<Inbox size={18} />} label="Remitos del período" value={String(remitosFiltrados.length)} tono="neutro" />
+        <KpiCard
+          icon={<TriangleAlert size={18} />}
+          label="Insumos con stock bajo"
+          value={String(insumosConStockBajo)}
+          detalle="ahora, no solo el período"
+          tono={insumosConStockBajo > 0 ? 'alerta' : 'exito'}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -86,8 +116,9 @@ export default function ReportesClient({
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === t.key ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'}`}
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === t.key ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'}`}
           >
+            {t.icon}
             {t.label}
           </button>
         ))}
