@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Wallet, Clock, BarChart3, Landmark,
   RefreshCw, TrendingUp, Receipt,
   Package, Link2, Users, Shield, ClipboardList, CreditCard, Factory,
-  Truck, MessageSquare, ShoppingBasket, ListTodo,
+  Truck, ShoppingBasket, ListTodo,
 } from 'lucide-react'
 
 export interface Modulo {
@@ -44,13 +44,12 @@ export const MODULOS: Modulo[] = [
   { key: 'formas_pago',  label: 'Formas de pago',  icon: <CreditCard size={16} />, href: '/admin/formas-pago',  section: 'Parámetros' },
   { key: 'fabrica_parametros', label: 'Fábrica', icon: <Factory size={16} />, href: '/admin/fabrica-parametros', section: 'Parámetros', soloAdmin: true },
 
-  { key: 'proveedores',            label: 'Proveedores', icon: <Truck size={16} />, href: '/admin/proveedores',            section: 'Proveedores', soloAdmin: true },
-  { key: 'proveedores_plantillas', label: 'Plantillas WPP', icon: <MessageSquare size={16} />, href: '/admin/proveedores/plantillas', section: 'Proveedores', soloAdmin: true },
+  { key: 'proveedores', label: 'Proveedores', icon: <Truck size={16} />, href: '/admin/proveedores', section: 'Proveedores', soloAdmin: true },
 
-  { key: 'compras-insumos', label: 'Insumos', icon: <ShoppingBasket size={16} />, href: '/admin/compras/insumos', section: 'Compras' },
-  { key: 'compras-stock',   label: 'Stock',   icon: <Package size={16} />, href: '/admin/compras/stock',   section: 'Compras' },
-  { key: 'compras-pedidos', label: 'Pedidos', icon: <ClipboardList size={16} />, href: '/admin/compras/pedidos', section: 'Compras' },
-  { key: 'compras-facturacion', label: 'Datos de facturación', icon: <Receipt size={16} />, href: '/admin/compras/facturacion', section: 'Compras', soloAdmin: true },
+  { key: 'compras-insumos',  label: 'Insumos',  icon: <ShoppingBasket size={16} />, href: '/admin/compras/insumos',  section: 'Compras' },
+  { key: 'compras-stock',    label: 'Stock',    icon: <Package size={16} />, href: '/admin/compras/stock',    section: 'Compras' },
+  { key: 'compras-pedidos',  label: 'Pedidos',  icon: <ClipboardList size={16} />, href: '/admin/compras/pedidos',  section: 'Compras' },
+  { key: 'compras-reportes', label: 'Reportes', icon: <BarChart3 size={16} />, href: '/admin/compras/reportes', section: 'Compras' },
 
   { key: 'tareas', label: 'Tareas', icon: <ListTodo size={16} />, href: '/tareas' },
 ]

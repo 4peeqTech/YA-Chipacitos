@@ -55,6 +55,11 @@ const nextConfig: NextConfig = {
         destination: '/admin/compras/insumos/listas-conteo',
         permanent: true,
       },
+      {
+        source: '/admin/compras/facturacion',
+        destination: '/admin/proveedores/facturacion',
+        permanent: true,
+      },
     ]
   },
 }
