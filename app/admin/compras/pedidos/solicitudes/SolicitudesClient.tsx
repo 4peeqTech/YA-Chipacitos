@@ -277,49 +277,65 @@ export default function SolicitudesClient({
               </div>
             )}
 
-            <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 px-4 py-2.5 bg-[#1a1a1a] text-[11px] font-semibold text-[#888] uppercase tracking-wider">
-                <span>Ítem</span>
-                <span className="hidden sm:flex items-center gap-1">Stock al contar<HelpTooltip text="Lo que había en stock cuando se cerró el conteo que generó esta solicitud — el contexto para decidir el ajuste." /></span>
-                <span className="flex items-center gap-1">Ajustada<HelpTooltip text="Arrancó con el sugerido calculado al cerrar el conteo (o la cantidad de la plantilla, si es pedido base). Podés cambiarlo antes de generar los pedidos." /></span>
-                <span className="hidden sm:block">Proveedor</span>
-                <span>Incluir</span>
-              </div>
-              <div className="divide-y divide-[#1a1a1a]">
-                {items.length === 0 ? (
-                  <p className="p-6 text-center text-sm text-[#666]">Esta solicitud no tiene líneas.</p>
-                ) : items.map(i => (
-                  <div key={i.id} className={`grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-3 px-4 py-2.5 ${!i.incluir ? 'opacity-40' : ''}`}>
-                    <div className="min-w-0">
-                      <p className="text-sm text-[#f0f0f0] truncate">{i.descripcion}</p>
-                      <p className="text-xs text-[#666]">sugerido {i.cantidad_sugerida} {i.unidad}</p>
-                    </div>
-                    <p className="hidden sm:block text-sm text-[#888] text-right">{i.stock_actual ?? '—'} {i.stock_actual != null ? i.unidad : ''}</p>
-                    <InputNumero
-                      placeholder="0"
-                      value={i.cantidad_ajustada === 0 ? null : i.cantidad_ajustada}
-                      disabled={abierta.estado !== 'abierta'}
-                      onChange={v => actualizarCantidad(i.id, v ?? 0)}
-                      className={inputClass}
-                    />
-                    <select
-                      value={i.proveedor_id}
-                      disabled={abierta.estado !== 'abierta'}
-                      onChange={e => cambiarProveedor(i.id, e.target.value)}
-                      className={`hidden sm:block ${selectClass}`}
-                    >
-                      {proveedoresParaItem(i.item_id).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                    </select>
-                    <input
-                      type="checkbox"
-                      checked={i.incluir}
-                      disabled={abierta.estado !== 'abierta'}
-                      onChange={() => toggleIncluir(i.id)}
-                      className="w-4 h-4 accent-[#e8c547] cursor-pointer disabled:cursor-not-allowed justify-self-center"
-                    />
-                  </div>
-                ))}
-              </div>
+            <div className="rounded-xl border border-[#2a2a2a] overflow-hidden overflow-x-auto">
+              {items.length === 0 ? (
+                <p className="p-6 text-center text-sm text-[#666]">Esta solicitud no tiene líneas.</p>
+              ) : (
+                <table className="w-full">
+                  <thead className="bg-surface2">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#888] uppercase tracking-wider">Ítem</th>
+                      <th className="hidden sm:table-cell px-4 py-2.5 text-right text-[11px] font-semibold text-[#888] uppercase tracking-wider">
+                        <span className="inline-flex items-center gap-1">Stock al contar<HelpTooltip text="Lo que había en stock cuando se cerró el conteo que generó esta solicitud — el contexto para decidir el ajuste." /></span>
+                      </th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#888] uppercase tracking-wider">
+                        <span className="inline-flex items-center gap-1">Ajustada<HelpTooltip text="Arrancó con el sugerido calculado al cerrar el conteo (o la cantidad de la plantilla, si es pedido base). Podés cambiarlo antes de generar los pedidos." /></span>
+                      </th>
+                      <th className="hidden sm:table-cell px-4 py-2.5 text-left text-[11px] font-semibold text-[#888] uppercase tracking-wider">Proveedor</th>
+                      <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-[#888] uppercase tracking-wider">Incluir</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface2">
+                    {items.map(i => (
+                      <tr key={i.id} className={!i.incluir ? 'opacity-40' : ''}>
+                        <td className="px-4 py-2.5 min-w-40">
+                          <p className="text-sm text-text truncate">{i.descripcion}</p>
+                          <p className="text-xs text-[#666]">sugerido {i.cantidad_sugerida} {i.unidad}</p>
+                        </td>
+                        <td className="hidden sm:table-cell px-4 py-2.5 text-sm text-[#888] text-right whitespace-nowrap">{i.stock_actual ?? '—'} {i.stock_actual != null ? i.unidad : ''}</td>
+                        <td className="px-4 py-2.5">
+                          <InputNumero
+                            placeholder="0"
+                            value={i.cantidad_ajustada === 0 ? null : i.cantidad_ajustada}
+                            disabled={abierta.estado !== 'abierta'}
+                            onChange={v => actualizarCantidad(i.id, v ?? 0)}
+                            className={inputClass}
+                          />
+                        </td>
+                        <td className="hidden sm:table-cell px-4 py-2.5">
+                          <select
+                            value={i.proveedor_id}
+                            disabled={abierta.estado !== 'abierta'}
+                            onChange={e => cambiarProveedor(i.id, e.target.value)}
+                            className={selectClass}
+                          >
+                            {proveedoresParaItem(i.item_id).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={i.incluir}
+                            disabled={abierta.estado !== 'abierta'}
+                            onChange={() => toggleIncluir(i.id)}
+                            className="w-4 h-4 accent-accent cursor-pointer disabled:cursor-not-allowed"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
 
             {abierta.estado === 'abierta' && (
