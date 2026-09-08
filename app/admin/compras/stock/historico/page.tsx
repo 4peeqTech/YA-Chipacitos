@@ -1,13 +1,19 @@
-import { History } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import HistoricoInsumoClient from './HistoricoInsumoClient'
 
 export const metadata = { title: 'Histórico por insumo | YA! Chipacitos' }
 
-export default function HistoricoPorInsumoPage() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-surface py-20 text-center">
-      <History size={28} className="text-muted" />
-      <p className="text-text font-medium">Disponible próximamente</p>
-      <p className="text-muted text-sm max-w-sm">Acá vas a poder elegir un insumo y ver cómo evolucionó su stock contado a lo largo del tiempo.</p>
-    </div>
-  )
+export default async function HistoricoInsumoPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: items } = await supabase
+    .from('compras_items')
+    .select('id, nombre, unidad')
+    .eq('estado', 'activo')
+    .order('nombre')
+
+  return <HistoricoInsumoClient itemsCatalogo={items ?? []} />
 }
