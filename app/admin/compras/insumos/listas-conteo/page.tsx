@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ConteosClient from './ConteosClient'
 
-export const metadata = { title: 'Control de Stock | YA! Chipacitos' }
+export const metadata = { title: 'Listas de conteo | YA! Chipacitos' }
 
 export default async function ConteosPage() {
   const supabase = await createClient()

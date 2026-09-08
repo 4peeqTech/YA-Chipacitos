@@ -50,6 +50,11 @@ const nextConfig: NextConfig = {
         destination: '/admin/compras/pedidos/base',
         permanent: true,
       },
+      {
+        source: '/admin/compras/conteos',
+        destination: '/admin/compras/insumos/listas-conteo',
+        permanent: true,
+      },
     ]
   },
 }

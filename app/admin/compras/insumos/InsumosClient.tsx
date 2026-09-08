@@ -309,8 +309,8 @@ export default function InsumosClient({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Precio</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">
                     <span className="flex items-center gap-1">
-                      Control de Stock
-                      <HelpTooltip text="En qué controles de stock participa este insumo. Se gestiona desde Compras → Control de Stock." />
+                      Listas de conteo
+                      <HelpTooltip text="En qué listas de conteo participa este insumo. Se gestiona desde Insumos → Listas de conteo." />
                     </span>
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
@@ -329,7 +329,7 @@ export default function InsumosClient({
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.precio != null ? `$${i.precio.toLocaleString('es-AR')}` : '—'}</td>
                     <td className="px-4 py-3 text-[#888] hidden lg:table-cell text-xs">
                       {(conteosPorItem[i.id] ?? []).length > 0 ? (
-                        <Link href="/admin/compras/conteos" className="hover:text-[#e8c547] hover:underline">
+                        <Link href="/admin/compras/insumos/listas-conteo" className="hover:text-[#e8c547] hover:underline">
                           {conteosPorItem[i.id].join(', ')}
                         </Link>
                       ) : '—'}

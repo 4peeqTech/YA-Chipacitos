@@ -261,7 +261,7 @@ export default function ConteosClient({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-[#f0f0f0]"><ClipboardList size={22} className="text-[#e8c547]" /> Control de Stock</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-[#f0f0f0]"><ClipboardList size={22} className="text-[#e8c547]" /> Listas de conteo</h1>
           <p className="text-[#888] text-sm mt-0.5">{definiciones.filter(d => d.activo).length} activos · así se arman los desplegables de /fabrica/stock</p>
         </div>
         <button onClick={abrirCrearDef} className="flex items-center gap-1.5 bg-[#e8c547] hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
