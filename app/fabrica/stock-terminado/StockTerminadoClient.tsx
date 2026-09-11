@@ -10,6 +10,7 @@ import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { mensajeError } from '@/lib/errores'
 
 export type TipoMovimiento = 'produccion_embolsado' | 'salida_pedido' | 'ajuste_pedido' | 'ajuste_manual'
 
@@ -102,7 +103,7 @@ export default function StockTerminadoClient({
       p_delta_kg: delta,
     })
     if (error) {
-      toast.error(error.message || 'No se pudo ajustar el stock')
+      toast.error(mensajeError(error, 'No se pudo ajustar el stock terminado'))
       setGuardando(false)
       return
     }

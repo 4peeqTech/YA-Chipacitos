@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeError } from '@/lib/errores'
+import { useToasts, ToastStack } from '@/components/ui/Toast'
 import { PRIORIDAD_META, COLABORA_META, nombrePerfil, notificarTarea, insertarVineta } from './helpers'
 import type { Tarea, TareaComentario, TareaSubtarea, TareaHistorial, TareaAdjunto, PrioridadTarea, Turno, ColaboraTipo } from '@/lib/types'
 
@@ -310,6 +312,7 @@ function Historial({ tarea, perfiles }: { tarea: Tarea; perfiles: PerfilLite[] }
 // ── Adjuntos ──────────────────────────────────────────────────────────
 function Adjuntos({ tarea, userId }: { tarea: Tarea; userId: string }) {
   const [supabase] = useState(() => createClient())
+  const toast = useToasts()
   const [adjuntos, setAdjuntos] = useState<TareaAdjunto[]>([])
   const [subiendo, setSubiendo] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -336,7 +339,7 @@ function Adjuntos({ tarea, userId }: { tarea: Tarea; userId: string }) {
       if (dbErr) throw dbErr
       setAdjuntos(prev => [...prev, data])
     } catch (err) {
-      alert('Error al subir: ' + (err instanceof Error ? err.message : 'error desconocido'))
+      toast.error(mensajeError(err, 'No se pudo subir el archivo'))
     } finally {
       setSubiendo(false)
       if (inputRef.current) inputRef.current.value = ''
@@ -403,6 +406,8 @@ function Adjuntos({ tarea, userId }: { tarea: Tarea; userId: string }) {
           </div>
         ))}
       </div>
+
+      <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
   )
 }
@@ -516,7 +521,7 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
 
         onGuardado({ ...tarea, ...payload } as Tarea, 'editada')
       }
-    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar la tarea') }
+    } catch (e) { setError(mensajeError(e, 'No se pudo guardar la tarea')) }
     finally { setLoading(false) }
   }
 

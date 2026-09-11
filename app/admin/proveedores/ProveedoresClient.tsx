@@ -10,6 +10,7 @@ import { normalizarTelefonoAR, formatearTelefono } from '@/lib/compras/telefono'
 import Modal from '@/components/ui/Modal'
 import SearchInput from '@/components/ui/SearchInput'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
+import { mensajeError } from '@/lib/errores'
 
 interface InsumoAsociado {
   itemId: string
@@ -188,7 +189,7 @@ export default function ProveedoresClient({
           .insert([{ ...datos, estado: 'activo' }])
           .select()
           .single()
-        if (err) { setError(err.message); return }
+        if (err) { setError(mensajeError(err, 'No se pudo crear el proveedor')); return }
         setProveedores(prev => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)))
       } else if (editando) {
         const { data, error: err } = await supabase
@@ -197,7 +198,7 @@ export default function ProveedoresClient({
           .eq('id', editando.id)
           .select()
           .single()
-        if (err) { setError(err.message); return }
+        if (err) { setError(mensajeError(err, 'No se pudieron guardar los cambios del proveedor')); return }
         setProveedores(prev => prev.map(p => p.id === editando.id ? data : p))
       }
       cerrarForm()
@@ -212,14 +213,14 @@ export default function ProveedoresClient({
       .eq('id', p.id)
       .select()
       .single()
-    if (err) { setError(err.message); return }
+    if (err) { setError(mensajeError(err, 'No se pudo cambiar el estado del proveedor')); return }
     setProveedores(prev => prev.map(x => x.id === p.id ? data : x))
   }
 
   async function eliminar(p: Proveedor) {
     if (!confirm(`¿Eliminar "${p.nombre}"? Esta acción no se puede deshacer.`)) return
     const { error: err } = await supabase.from('proveedores').delete().eq('id', p.id)
-    if (err) { setError(err.message); return }
+    if (err) { setError(mensajeError(err, 'No se pudo eliminar el proveedor')); return }
     setProveedores(prev => prev.filter(x => x.id !== p.id))
   }
 

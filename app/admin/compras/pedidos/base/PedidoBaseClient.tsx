@@ -7,6 +7,7 @@ import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { mensajeError } from '@/lib/errores'
 import {
   DndContext,
   PointerSensor,
@@ -212,12 +213,12 @@ export default function PedidoBaseClient({
       if (creando) {
         const orden = Math.max(0, ...lineas.map(l => l.orden)) + 1
         const { data, error } = await supabase.from('compras_plantilla_base').insert([{ ...body, orden }]).select().single()
-        if (error) { toast.error(error.message); return }
+        if (error) { toast.error(mensajeError(error, 'No se pudo agregar la línea a la plantilla')); return }
         setLineas(prev => [...prev, data])
         toast.success('Línea agregada a la plantilla')
       } else if (editando) {
         const { data, error } = await supabase.from('compras_plantilla_base').update(body).eq('id', editando.id).select().single()
-        if (error) { toast.error(error.message); return }
+        if (error) { toast.error(mensajeError(error, 'No se pudo guardar la línea de la plantilla')); return }
         setLineas(prev => prev.map(l => l.id === editando.id ? data : l))
         toast.success('Cambios guardados')
       }
@@ -235,7 +236,7 @@ export default function PedidoBaseClient({
     if (!eliminando) return
     startTransition(async () => {
       const { error } = await supabase.from('compras_plantilla_base').delete().eq('id', eliminando.id)
-      if (error) { toast.error(error.message || 'No se pudo eliminar'); return }
+      if (error) { toast.error(mensajeError(error, 'No se pudo eliminar la línea de la plantilla')); return }
       setLineas(prev => prev.filter(l => l.id !== eliminando.id))
       toast.success('Línea eliminada')
       setEliminando(null)
@@ -246,7 +247,7 @@ export default function PedidoBaseClient({
     setGenerando(true)
     const { error } = await supabase.rpc('generar_solicitud_base')
     setGenerando(false)
-    if (error) { toast.error(error.message || 'No se pudo generar el pedido base'); return }
+    if (error) { toast.error(mensajeError(error, 'No se pudo generar el pedido base')); return }
     toast.success('Solicitud del pedido base creada — revisala en la tab Solicitudes')
   }
 

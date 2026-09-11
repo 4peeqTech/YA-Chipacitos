@@ -212,7 +212,7 @@ export async function POST(req: NextRequest) {
     const { error } = await admin
       .from('ventas_posberry')
       .insert(registrosUnicos)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) { console.error(error); return NextResponse.json({ error: 'No se pudieron importar las ventas' }, { status: 500 }) }
     importados = registrosUnicos.length
   }
 

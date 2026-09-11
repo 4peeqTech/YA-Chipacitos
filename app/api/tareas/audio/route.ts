@@ -89,7 +89,7 @@ Reglas:
 
     return NextResponse.json({ transcripcion, campos })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error desconocido'
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error('Error al procesar audio de tarea', err)
+    return NextResponse.json({ error: 'No se pudo procesar el audio' }, { status: 500 })
   }
 }

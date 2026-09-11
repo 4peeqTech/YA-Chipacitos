@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import InputNumero from '@/components/ui/InputNumero'
 import { RUBROS_CATEGORIAS, RUBROS, LOCALES, FORMAS_PAGO, ESTADOS_GASTO } from '@/lib/gastos-constants'
+import { mensajeError } from '@/lib/errores'
 
 interface Proveedor { id: string; nombre: string }
 interface Gasto {
@@ -99,7 +100,7 @@ export default function GastosClient() {
         .select('*, proveedores(nombre)')
         .single()
 
-      if (err) { setError(err.message); return }
+      if (err) { setError(mensajeError(err, 'No se pudo guardar el gasto')); return }
 
       setGastos(prev => [data, ...prev])
       setForm(emptyForm())

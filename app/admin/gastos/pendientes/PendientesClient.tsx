@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeError } from '@/lib/errores'
 
 interface GastoManual {
   _source: 'manual'
@@ -184,7 +185,7 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
 
       closeModal()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error desconocido')
+      setError(mensajeError(e, 'No se pudo marcar el gasto como pagado'))
     } finally {
       setSaving(false)
     }

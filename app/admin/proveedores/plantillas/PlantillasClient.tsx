@@ -10,6 +10,7 @@ import { renderPlantilla, BLOQUE_ENTREGA, BLOQUE_FACTURACION, type ContextoMensa
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { mensajeError } from '@/lib/errores'
 
 interface Plantilla {
   id: string
@@ -211,7 +212,7 @@ export default function PlantillasClient({
           .insert([{ nombre, cuerpo, es_default: false, activo: true, orden }])
           .select()
           .single()
-        if (error) { toast.error(error.message); return }
+        if (error) { toast.error(mensajeError(error, 'No se pudo crear la plantilla')); return }
         setPlantillas(prev => [...prev, data])
         toast.success('Plantilla creada')
       } else if (editando) {
@@ -221,7 +222,7 @@ export default function PlantillasClient({
           .eq('id', editando.id)
           .select()
           .single()
-        if (error) { toast.error(error.message); return }
+        if (error) { toast.error(mensajeError(error, 'No se pudieron guardar los cambios de la plantilla')); return }
         setPlantillas(prev => prev.map(p => p.id === editando.id ? data : p))
         toast.success('Cambios guardados')
       }
@@ -232,14 +233,14 @@ export default function PlantillasClient({
   async function marcarDefault(p: Plantilla) {
     if (p.es_default) return
     const { error: errUnset } = await supabase.from('compras_plantillas_mensaje').update({ es_default: false }).eq('es_default', true)
-    if (errUnset) { toast.error(errUnset.message); return }
+    if (errUnset) { toast.error(mensajeError(errUnset, 'No se pudo actualizar la plantilla default anterior')); return }
     const { data, error } = await supabase
       .from('compras_plantillas_mensaje')
       .update({ es_default: true, updated_at: new Date().toISOString() })
       .eq('id', p.id)
       .select()
       .single()
-    if (error) { toast.error(error.message); return }
+    if (error) { toast.error(mensajeError(error, 'No se pudo marcar la plantilla como default')); return }
     setPlantillas(prev => prev.map(x => x.id === p.id ? data : { ...x, es_default: false }))
     toast.success('Marcada como default')
   }
@@ -251,7 +252,7 @@ export default function PlantillasClient({
       .eq('id', p.id)
       .select()
       .single()
-    if (error) { toast.error(error.message); return }
+    if (error) { toast.error(mensajeError(error, 'No se pudo cambiar el estado de la plantilla')); return }
     setPlantillas(prev => prev.map(x => x.id === p.id ? data : x))
   }
 
@@ -259,7 +260,7 @@ export default function PlantillasClient({
     if (!eliminando) return
     startTransition(async () => {
       const { error } = await supabase.from('compras_plantillas_mensaje').delete().eq('id', eliminando.id)
-      if (error) { toast.error(error.message || 'No se pudo eliminar'); return }
+      if (error) { toast.error(mensajeError(error, 'No se pudo eliminar la plantilla')); return }
       setPlantillas(prev => prev.filter(p => p.id !== eliminando.id))
       toast.success('Plantilla eliminada')
       setEliminando(null)

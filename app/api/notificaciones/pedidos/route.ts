@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
     const resultado = await enviarPush({ userIds, title, body, url: url || urlDefault, tipo: 'pedido' })
     return NextResponse.json(resultado)
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('Error al notificar pedido', err)
+    return NextResponse.json({ error: 'No se pudo enviar la notificación' }, { status: 500 })
   }
 }

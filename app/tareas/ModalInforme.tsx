@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeError } from '@/lib/errores'
 import { BuscadorUsuario } from './ModalTarea'
 import GrabadorTexto from './GrabadorTexto'
 import { nombrePerfil, notificarTarea, duracionMin, fmtHoras, insertarVineta, DESTINATARIO_DEFAULT_INFORME_ID } from './helpers'
@@ -170,7 +171,7 @@ export default function ModalInforme({ informe, fecha, perfiles, userId, userNom
       if (err) throw err
       notificarTarea({ userIds: destinatarios, title: '📨 Informe del día', body: `${userNombre} envió su informe del ${fmtFecha(fecha)}`, url: '/tareas' })
       onCreado(data)
-    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo enviar el informe') }
+    } catch (e) { setError(mensajeError(e, 'No se pudo enviar el informe')) }
     finally { setGuardando(false) }
   }
 

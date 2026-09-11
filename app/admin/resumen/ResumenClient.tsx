@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { mensajeError } from '@/lib/errores'
 
 interface CatRow { categoria: string; total: number }
 interface VentaRow { producto: string; cantidad: number; importe: number }
@@ -50,7 +51,7 @@ export default function ResumenClient() {
       for (const d of json) exp[d.local] = true
       setExpandido(exp)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error desconocido')
+      setError(mensajeError(e, 'No se pudo cargar el resumen'))
     } finally {
       setLoading(false)
     }

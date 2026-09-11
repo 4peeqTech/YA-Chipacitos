@@ -129,34 +129,34 @@ export async function PATCH(req: NextRequest) {
   // Resetear contraseña
   if (password) {
     const { error } = await adminClient.auth.admin.updateUserById(id, { password })
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    if (error) { console.error(error); return NextResponse.json({ error: 'No se pudo cambiar la contraseña' }, { status: 400 }) }
     return NextResponse.json({ ok: true })
   }
 
   // Configurar WhatsApp
   if (whatsapp_phone !== undefined) {
     const { error } = await adminClient.from('profiles').update({ whatsapp_phone, whatsapp_apikey }).eq('id', id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    if (error) { console.error(error); return NextResponse.json({ error: 'No se pudo guardar el WhatsApp' }, { status: 400 }) }
     return NextResponse.json({ ok: true })
   }
 
   // Actualizar nombre_posberry
   if (nombre_posberry !== undefined) {
     const { error } = await adminClient.from('profiles').update({ nombre_posberry }).eq('id', id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    if (error) { console.error(error); return NextResponse.json({ error: 'No se pudo guardar el nombre de Posberry' }, { status: 400 }) }
     return NextResponse.json({ ok: true })
   }
 
   // Actualizar módulos permitidos
   if (modulos_permitidos !== undefined) {
     const { error } = await adminClient.from('profiles').update({ modulos_permitidos }).eq('id', id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    if (error) { console.error(error); return NextResponse.json({ error: 'No se pudieron guardar los módulos permitidos' }, { status: 400 }) }
     return NextResponse.json({ ok: true })
   }
 
   // Cambiar rol
   const { error } = await adminClient.from('profiles').update({ rol }).eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) { console.error(error); return NextResponse.json({ error: 'No se pudo cambiar el rol' }, { status: 400 }) }
 
   return NextResponse.json({ ok: true })
 }
@@ -179,10 +179,10 @@ export async function DELETE(req: NextRequest) {
   // pero no se borra nada — así se conserva el historial que referencia
   // a este usuario (pedidos, ventas, gastos, tareas, etc.)
   const { error: banError } = await adminClient.auth.admin.updateUserById(id, { ban_duration: '876000h' })
-  if (banError) return NextResponse.json({ error: banError.message }, { status: 400 })
+  if (banError) { console.error(banError); return NextResponse.json({ error: 'No se pudo eliminar el usuario' }, { status: 400 }) }
 
   const { error } = await adminClient.from('profiles').update({ estado: 'eliminado' }).eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) { console.error(error); return NextResponse.json({ error: 'No se pudo eliminar el usuario' }, { status: 400 }) }
 
   return NextResponse.json({ ok: true })
 }

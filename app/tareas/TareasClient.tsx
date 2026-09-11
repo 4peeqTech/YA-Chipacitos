@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeError } from '@/lib/errores'
+import { useToasts, ToastStack } from '@/components/ui/Toast'
 import {
   DndContext,
   DragOverlay,
@@ -296,6 +298,7 @@ interface TareasClientProps {
 export default function TareasClient({ userId, userNombre, tareas: initial, perfiles }: TareasClientProps) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
+  const toast = useToasts()
   const [tareas, setTareas] = useState<Tarea[]>(initial)
 
   // El server component (page.tsx) es la única fuente de verdad: cuando
@@ -471,7 +474,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
     const { error } = await supabase.from('tareas').update({ estado: nuevoEstado }).eq('id', tarea.id)
     if (error) {
       setTareas(prev => prev.map(t => t.id === tarea.id ? { ...t, estado: tarea.estado } : t))
-      alert('No se pudo cambiar el estado: ' + error.message)
+      toast.error(mensajeError(error, 'No se pudo cambiar el estado de la tarea'))
       return
     }
     await supabase.from('tarea_historial').insert([{
@@ -904,6 +907,8 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
           </div>
         </div>
       )}
+
+      <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
   )
 }

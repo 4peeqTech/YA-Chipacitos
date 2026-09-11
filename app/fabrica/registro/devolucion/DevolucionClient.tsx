@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
 import InputNumero from '@/components/ui/InputNumero'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { mensajeError } from '@/lib/errores'
 
 export interface Parametro {
   id: string
@@ -140,7 +141,7 @@ export default function DevolucionClient({
     })
 
     if (error) {
-      toast.error(error.message || 'No se pudo guardar la devolución')
+      toast.error(mensajeError(error, 'No se pudo guardar la devolución'))
       setGuardando(false)
       return
     }
@@ -168,7 +169,7 @@ export default function DevolucionClient({
     setEliminando(true)
     const { error } = await supabase.rpc('eliminar_devolucion_fabrica', { p_id: aEliminar.id })
     if (error) {
-      toast.error(error.message || 'No se pudo eliminar')
+      toast.error(mensajeError(error, 'No se pudo eliminar la devolución'))
       setEliminando(false)
       return
     }

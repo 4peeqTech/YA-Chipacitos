@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from 'react'
 import Link from 'next/link'
+import { mensajeError } from '@/lib/errores'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 interface Mensaje { role: 'user' | 'assistant'; content: string }
@@ -46,7 +47,7 @@ export default function AgenteClient({ userNombre, perfiles }: { userNombre: str
 
       setMensajes(m => [...m, { role: 'assistant', content: data.reply }])
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo consultar al agente')
+      setError(mensajeError(e, 'No se pudo consultar al agente'))
     } finally {
       setCargando(false)
     }

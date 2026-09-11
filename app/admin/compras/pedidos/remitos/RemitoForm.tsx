@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { sugerirPedidoItem } from '@/lib/compras/matchRemito'
 import { sumarStock, revertirYBorrar } from '@/lib/compras/stockRemito'
 import { useConfirm } from '@/components/ui/ConfirmDialog'
+import { mensajeError } from '@/lib/errores'
 import type { Remito } from '@/lib/compras/tipos'
 
 interface PedidoItemPD {
@@ -133,7 +134,7 @@ export default function RemitoForm({
         .insert([{ pedido_id: pedido.id, numero: numero.trim(), fecha, creado_por: usuarioId }])
         .select()
         .single()
-      if (errRemito) { setError(errRemito.message); return }
+      if (errRemito) { setError(mensajeError(errRemito, 'No se pudo guardar el remito')); return }
 
       const filasInsert = filas.map(l => ({
         remito_id: remito.id,
@@ -148,7 +149,7 @@ export default function RemitoForm({
         .from('compras_remito_items')
         .insert(filasInsert)
         .select()
-      if (errItems) { setError(errItems.message); return }
+      if (errItems) { setError(mensajeError(errItems, 'No se pudieron guardar los ítems del remito')); return }
 
       for (const item of itemsGuardados) {
         if (item.item_id) await sumarStock(supabase, item.item_id, item.cantidad, remito.id, usuarioId)

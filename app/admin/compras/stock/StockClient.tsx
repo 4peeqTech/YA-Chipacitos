@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import SearchInput from '@/components/ui/SearchInput'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
+import { mensajeError } from '@/lib/errores'
 
 function formatearRelativo(iso: string) {
   const segundos = (Date.now() - new Date(iso).getTime()) / 1000
@@ -87,7 +88,7 @@ export default function StockClient({
         .single()
 
       setGuardandoId(null)
-      if (err) { setError(err.message); return }
+      if (err) { setError(mensajeError(err, 'No se pudo guardar el stock del insumo')); return }
       setStockPorItem(prev => ({ ...prev, [itemId]: { ...data, actualizado_por_nombre: usuarioNombre } }))
 
       if (delta !== 0) {

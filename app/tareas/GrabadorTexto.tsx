@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { mensajeError } from '@/lib/errores'
 
 interface GrabadorTextoProps {
   onTranscripcion: (texto: string) => void
@@ -62,7 +63,7 @@ export default function GrabadorTexto({ onTranscripcion }: GrabadorTextoProps) {
       if (!res.ok) throw new Error(data.error || 'No se pudo transcribir')
       onTranscripcion(data.transcripcion)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo transcribir')
+      setError(mensajeError(e, 'No se pudo transcribir el audio'))
     } finally {
       setProcesando(false)
     }

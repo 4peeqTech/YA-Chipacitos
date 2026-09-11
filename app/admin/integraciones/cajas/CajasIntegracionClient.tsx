@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import Card from '@/components/ui/Card'
+import { mensajeError } from '@/lib/errores'
 
 interface FilaCaja {
   sucursal: string
@@ -42,7 +43,7 @@ export default function CajasIntegracionClient() {
       setCajasInfoDisponible(!!json.cajasInfoDisponible)
       setCargado(true)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error desconocido')
+      setError(mensajeError(e, 'No se pudo cargar la integración de cajas'))
     } finally {
       setLoading(false)
     }

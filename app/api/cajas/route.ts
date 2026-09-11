@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (error) return error
   const { nombre } = await req.json()
   const { data, error: e } = await supabase.from('cajas').insert({ nombre }).select().single()
-  if (e) return NextResponse.json({ error: e.message }, { status: 500 })
+  if (e) { console.error(e); return NextResponse.json({ error: 'No se pudo crear la caja' }, { status: 500 }) }
   return NextResponse.json(data)
 }
 export async function PATCH(req: NextRequest) {
@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest) {
   if (error) return error
   const { id, ...fields } = await req.json()
   const { data, error: e } = await supabase.from('cajas').update(fields).eq('id', id).select().single()
-  if (e) return NextResponse.json({ error: e.message }, { status: 500 })
+  if (e) { console.error(e); return NextResponse.json({ error: 'No se pudo actualizar la caja' }, { status: 500 }) }
   return NextResponse.json(data)
 }
 export async function DELETE(req: NextRequest) {
@@ -37,6 +37,6 @@ export async function DELETE(req: NextRequest) {
   if (error) return error
   const { id } = await req.json()
   const { error: e } = await supabase.from('cajas').delete().eq('id', id)
-  if (e) return NextResponse.json({ error: e.message }, { status: 500 })
+  if (e) { console.error(e); return NextResponse.json({ error: 'No se pudo eliminar la caja' }, { status: 500 }) }
   return NextResponse.json({ ok: true })
 }

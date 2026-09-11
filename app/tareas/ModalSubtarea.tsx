@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeError } from '@/lib/errores'
 import { PRIORIDAD_META } from './helpers'
 import type { Tarea, TareaSubtarea, Turno } from '@/lib/types'
 
@@ -46,7 +47,7 @@ export default function ModalSubtarea({ tareas, userId, fechaInicial, turnoInici
         .select().single()
       if (err) throw err
       onCreada(data)
-    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar la subtarea') }
+    } catch (e) { setError(mensajeError(e, 'No se pudo guardar la subtarea')) }
     finally { setLoading(false) }
   }
 

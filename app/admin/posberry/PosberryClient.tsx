@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
+import { mensajeError } from '@/lib/errores'
 
 interface Fila {
   idVenta: string
@@ -44,7 +45,7 @@ export default function PosberryClient() {
       setCargado(true)
       setPagina(1)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error desconocido')
+      setError(mensajeError(e, 'No se pudieron cargar los datos de Posberry'))
     } finally {
       setCargando(false)
     }

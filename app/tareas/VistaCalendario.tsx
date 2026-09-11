@@ -12,6 +12,8 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeError } from '@/lib/errores'
+import { useToasts, ToastStack } from '@/components/ui/Toast'
 import ModalSubtarea from './ModalSubtarea'
 import ModalInforme from './ModalInforme'
 import { PRIORIDAD_META, TURNO_META, notificarTarea, truncarTexto } from './helpers'
@@ -272,6 +274,7 @@ interface VistaCalendarioProps {
 
 export default function VistaCalendario({ tareas, perfiles, userId, userNombre, onEditarTarea, onNuevaTarea }: VistaCalendarioProps) {
   const [supabase] = useState(() => createClient())
+  const toast = useToasts()
   const [modoVista, setModoVista] = useState<ModoVista>('semana')
   const [fechaActual, setFechaActual] = useState(() => new Date())
   const [subtareas, setSubtareas] = useState<TareaSubtarea[]>([])
@@ -392,7 +395,7 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
     if (!tarea || (tarea.fecha_limite === nuevaFecha && tarea.turno === nuevoTurno)) return
     const anterior = tarea.fecha_limite
     const { error } = await supabase.from('tareas').update({ fecha_limite: nuevaFecha, turno: nuevoTurno }).eq('id', tareaId)
-    if (error) { alert('No se pudo mover la tarea: ' + error.message); return }
+    if (error) { toast.error(mensajeError(error, 'No se pudo mover la tarea')); return }
     await supabase.from('tarea_historial').insert([{
       tarea_id: tareaId, campo: 'fecha_limite',
       valor_anterior: anterior, valor_nuevo: nuevaFecha, autor_id: userId,
@@ -566,6 +569,8 @@ export default function VistaCalendario({ tareas, perfiles, userId, userNombre, 
           onEliminado={id => { setInformes(prev => prev.filter(i => i.id !== id)); setModalInforme(null) }}
         />
       )}
+
+      <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
   )
 }

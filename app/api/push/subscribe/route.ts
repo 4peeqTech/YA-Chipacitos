@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     .from('push_subscriptions')
     .upsert({ user_id: user.id, endpoint, p256dh, auth }, { onConflict: 'endpoint' })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) { console.error(error); return NextResponse.json({ error: 'No se pudo activar las notificaciones' }, { status: 400 }) }
   return NextResponse.json({ ok: true })
 }
 
@@ -57,6 +57,6 @@ export async function DELETE(request: NextRequest) {
     .eq('endpoint', endpoint)
     .eq('user_id', user.id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) { console.error(error); return NextResponse.json({ error: 'No se pudo desactivar las notificaciones' }, { status: 400 }) }
   return NextResponse.json({ ok: true })
 }

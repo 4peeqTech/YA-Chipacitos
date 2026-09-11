@@ -11,6 +11,7 @@ import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useConfirm } from '@/components/ui/ConfirmDialog'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { mensajeError } from '@/lib/errores'
 import type { Remito } from '@/lib/compras/tipos'
 import ResumenRemitos from './ResumenRemitos'
 
@@ -221,12 +222,12 @@ export default function PedidosClient({
       }))
 
     const { error: errDelete } = await supabase.from('compras_pedido_items').delete().eq('pedido_id', pedido.id)
-    if (errDelete) { setError(errDelete.message); return null }
+    if (errDelete) { setError(mensajeError(errDelete, 'No se pudieron guardar los ítems del pedido')); return null }
 
     let itemsGuardados: PedidoItem[] = []
     if (filas.length) {
       const { data, error: errInsert } = await supabase.from('compras_pedido_items').insert(filas).select()
-      if (errInsert) { setError(errInsert.message); return null }
+      if (errInsert) { setError(mensajeError(errInsert, 'No se pudieron guardar los ítems del pedido')); return null }
       itemsGuardados = data
     }
 
@@ -262,7 +263,7 @@ export default function PedidosClient({
         .insert([{ proveedor_id: proveedor.id, local_facturacion_id: proveedor.local_facturacion_id, estado: 'borrador', creado_por: usuarioId }])
         .select()
         .single()
-      if (errPedido) { setError(errPedido.message); return }
+      if (errPedido) { setError(mensajeError(errPedido, 'No se pudo crear el pedido')); return }
 
       const filasFinal: ItemEditor[] = [
         ...filasModal.filter(f => f.incluir && f.cantidad > 0).map(({ incluir, precioRef, ...resto }) => resto),
@@ -305,7 +306,7 @@ export default function PedidosClient({
         .eq('id', pedidoEditando.id)
         .select()
         .single()
-      if (errUpdate) { setError(errUpdate.message); return }
+      if (errUpdate) { setError(mensajeError(errUpdate, 'No se pudo generar el mensaje del pedido')); return }
 
       setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, mensaje: data.mensaje, local_facturacion_id: data.local_facturacion_id } : p))
       setPedidoEditando(prev => prev ? { ...prev, mensaje: data.mensaje, local_facturacion_id: data.local_facturacion_id } : prev)
@@ -333,7 +334,7 @@ export default function PedidosClient({
       .eq('id', pedidoEditando.id)
       .select()
       .single()
-    if (err) { setError(err.message); return }
+    if (err) { setError(mensajeError(err, 'No se pudo marcar el pedido como enviado')); return }
 
     setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, ...data } : p))
     cerrarEditor()
@@ -364,7 +365,7 @@ export default function PedidosClient({
       .eq('id', pedido.id)
       .select()
       .single()
-    if (err) { setError(err.message); return }
+    if (err) { setError(mensajeError(err, 'No se pudo cerrar el pedido')); return }
 
     setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, ...data } : p))
     if (pedidoEditando?.id === pedido.id) setPedidoEditando(prev => prev ? { ...prev, ...data } : prev)

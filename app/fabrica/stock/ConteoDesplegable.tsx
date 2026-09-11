@@ -11,6 +11,7 @@ import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
 import Collapsible from '@/components/ui/Collapsible'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { mensajeError } from '@/lib/errores'
 
 const DIA_NOMBRE = ['', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 const PERIODO_ABREV = { semanal: 'sem', quincenal: 'quinc', mensual: 'mes' } as const
@@ -165,7 +166,7 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
     setCerrando(true)
     const { data: solicitudId, error } = await supabase.rpc('cerrar_conteo_fabrica', { p_conteo_id: conteo.id })
     if (error) {
-      toast.error(error.message || 'No se pudo cerrar el conteo')
+      toast.error(mensajeError(error, 'No se pudo cerrar el conteo'))
       setCerrando(false)
       return
     }
@@ -186,7 +187,7 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
     const { error } = await supabase.rpc('eliminar_conteo_fabrica', { p_id: conteo.id })
     setBorrando(false)
     if (error) {
-      toast.error(error.message || 'No se pudo eliminar el conteo')
+      toast.error(mensajeError(error, 'No se pudo eliminar el conteo'))
       return
     }
     toast.success('Conteo eliminado')

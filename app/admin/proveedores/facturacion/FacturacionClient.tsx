@@ -5,6 +5,7 @@ import { Receipt, Plus, Pencil, Trash2, Store, Building2, CreditCard, MapPin, Ha
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { mensajeError } from '@/lib/errores'
 
 interface LocalFacturacion {
   id: string
@@ -79,7 +80,7 @@ export default function FacturacionClient({ localesIniciales }: { localesInicial
           .insert([{ ...datos, activo: true, orden }])
           .select()
           .single()
-        if (error) { toast.error(error.message); return }
+        if (error) { toast.error(mensajeError(error, 'No se pudo crear el local de facturación')); return }
         setLocales(prev => [...prev, data])
         toast.success('Local creado')
       } else if (editando) {
@@ -89,7 +90,7 @@ export default function FacturacionClient({ localesIniciales }: { localesInicial
           .eq('id', editando.id)
           .select()
           .single()
-        if (error) { toast.error(error.message); return }
+        if (error) { toast.error(mensajeError(error, 'No se pudieron guardar los cambios del local')); return }
         setLocales(prev => prev.map(l => l.id === editando.id ? data : l))
         toast.success('Cambios guardados')
       }
@@ -104,7 +105,7 @@ export default function FacturacionClient({ localesIniciales }: { localesInicial
       .eq('id', l.id)
       .select()
       .single()
-    if (error) { toast.error(error.message); return }
+    if (error) { toast.error(mensajeError(error, 'No se pudo cambiar el estado del local')); return }
     setLocales(prev => prev.map(x => x.id === l.id ? data : x))
   }
 
@@ -112,7 +113,7 @@ export default function FacturacionClient({ localesIniciales }: { localesInicial
     if (!eliminando) return
     startTransition(async () => {
       const { error } = await supabase.from('locales_facturacion').delete().eq('id', eliminando.id)
-      if (error) { toast.error(error.message || 'No se pudo eliminar'); return }
+      if (error) { toast.error(mensajeError(error, 'No se pudo eliminar el local')); return }
       setLocales(prev => prev.filter(l => l.id !== eliminando.id))
       toast.success('Local eliminado')
       setEliminando(null)

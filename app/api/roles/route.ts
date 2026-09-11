@@ -42,7 +42,8 @@ export async function POST(req: NextRequest) {
     .insert({ key, nombre: nombre.trim(), color: color || '#888888' })
     .select().single()
   if (e) {
-    const msg = e.code === '23505' ? `Ya existe un rol con la key "${key}"` : e.message
+    console.error(e)
+    const msg = e.code === '23505' ? `Ya existe un rol con la key "${key}"` : 'No se pudo crear el rol'
     return NextResponse.json({ error: msg }, { status: 400 })
   }
   return NextResponse.json(data)
@@ -63,7 +64,7 @@ export async function PATCH(req: NextRequest) {
   if (color !== undefined) fields.color = color
 
   const { data, error: e } = await supabase.from('roles').update(fields).eq('key', key).select().single()
-  if (e) return NextResponse.json({ error: e.message }, { status: 400 })
+  if (e) { console.error(e); return NextResponse.json({ error: 'No se pudo actualizar el rol' }, { status: 400 }) }
   return NextResponse.json(data)
 }
 
@@ -84,6 +85,6 @@ export async function DELETE(req: NextRequest) {
   }
 
   const { error: e } = await supabase.from('roles').delete().eq('key', key)
-  if (e) return NextResponse.json({ error: e.message }, { status: 400 })
+  if (e) { console.error(e); return NextResponse.json({ error: 'No se pudo eliminar el rol' }, { status: 400 }) }
   return NextResponse.json({ ok: true })
 }

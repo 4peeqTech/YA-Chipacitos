@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { mensajeError } from '@/lib/errores'
 
 interface Cuenta {
   id: string
@@ -64,7 +65,7 @@ export default function PlanCuentasClient() {
       const rubros = [...new Set((Array.isArray(data) ? data : []).map((c: Cuenta) => c.rubro))]
       setExpanded(new Set(rubros))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo cargar el plan de cuentas')
+      setError(mensajeError(e, 'No se pudo cargar el plan de cuentas'))
     } finally {
       setLoading(false)
     }

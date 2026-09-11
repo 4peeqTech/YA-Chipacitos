@@ -12,6 +12,7 @@ import InputNumero from '@/components/ui/InputNumero'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { mensajeError } from '@/lib/errores'
 
 interface ConteoRef {
   semana_desde: string
@@ -173,7 +174,7 @@ export default function SolicitudesClient({
     setProcesando(true)
     const { data: creados, error } = await supabase.rpc('convertir_solicitud_a_pedidos', { p_solicitud_id: abierta.id })
     setProcesando(false)
-    if (error) { toast.error(error.message || 'No se pudieron generar los pedidos'); return }
+    if (error) { toast.error(mensajeError(error, 'No se pudieron generar los pedidos')); return }
     setSolicitudes(prev => prev.map(s => s.id === abierta.id ? { ...s, estado: 'convertida' } : s))
     toast.success(`${creados} pedido${creados === 1 ? '' : 's'} en borrador — revisalos en la tab Pedidos`)
     setConfirmando(null)
@@ -185,7 +186,7 @@ export default function SolicitudesClient({
     setProcesando(true)
     const { error } = await supabase.rpc('descartar_solicitud', { p_solicitud_id: abierta.id, p_motivo: motivo.trim() || null })
     setProcesando(false)
-    if (error) { toast.error(error.message || 'No se pudo descartar la solicitud'); return }
+    if (error) { toast.error(mensajeError(error, 'No se pudo descartar la solicitud')); return }
     setSolicitudes(prev => prev.map(s => s.id === abierta.id ? { ...s, estado: 'descartada' } : s))
     fetch('/api/fabrica/solicitudes/descartada', {
       method: 'POST',

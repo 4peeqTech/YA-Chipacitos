@@ -10,6 +10,7 @@ import InputNumero from '@/components/ui/InputNumero'
 import SelectBuscador from '@/components/ui/SelectBuscador'
 import IconoPicker, { IconoRenderer } from '@/components/ui/IconoPicker'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { mensajeError } from '@/lib/errores'
 
 type Turno = 'manana' | 'tarde'
 type Periodicidad = 'semanal' | 'quincenal' | 'mensual'
@@ -154,12 +155,12 @@ export default function ConteosClient({
     startTransition(async () => {
       if (creandoDef) {
         const { data, error } = await supabase.from('fabrica_conteo_definiciones').insert([{ ...body, activo: true }]).select().single()
-        if (error) { toast.error(error.message); return }
+        if (error) { toast.error(mensajeError(error, 'No se pudo crear el conteo')); return }
         setDefiniciones(prev => [...prev, data])
         toast.success('Conteo creado')
       } else if (editandoDef) {
         const { data, error } = await supabase.from('fabrica_conteo_definiciones').update(body).eq('id', editandoDef.id).select().single()
-        if (error) { toast.error(error.message); return }
+        if (error) { toast.error(mensajeError(error, 'No se pudo guardar el conteo')); return }
         setDefiniciones(prev => prev.map(d => d.id === editandoDef.id ? data : d))
         toast.success('Cambios guardados')
       }
@@ -169,7 +170,7 @@ export default function ConteosClient({
 
   async function archivarDef(d: Definicion) {
     const { data, error } = await supabase.from('fabrica_conteo_definiciones').update({ activo: !d.activo }).eq('id', d.id).select().single()
-    if (error) { toast.error(error.message); return }
+    if (error) { toast.error(mensajeError(error, d.activo ? 'No se pudo desactivar el conteo' : 'No se pudo reactivar el conteo')); return }
     setDefiniciones(prev => prev.map(x => x.id === d.id ? data : x))
     toast.success(data.activo ? 'Conteo reactivado' : 'Conteo desactivado')
   }
@@ -221,13 +222,13 @@ export default function ConteosClient({
     startTransition(async () => {
       if (editandoItem) {
         const { data, error } = await supabase.from('fabrica_conteo_definicion_items').update(body).eq('id', editandoItem.id).select().single()
-        if (error) { toast.error(error.message); return }
+        if (error) { toast.error(mensajeError(error, 'No se pudo actualizar el ítem del conteo')); return }
         setItems(prev => prev.map(i => i.id === editandoItem.id ? data : i))
         toast.success('Ítem actualizado')
         cancelarEdicionItem()
       } else {
         const { data, error } = await supabase.from('fabrica_conteo_definicion_items').insert([{ ...body, definicion_id: gestionando.id, item_id: formItem.item_id, activo: true }]).select().single()
-        if (error) { toast.error(error.message); return }
+        if (error) { toast.error(mensajeError(error, 'No se pudo agregar el ítem al conteo')); return }
         setItems(prev => [...prev, data])
         setFormItem(emptyItemForm())
         setAgregandoItem(false)
@@ -240,7 +241,7 @@ export default function ConteosClient({
     if (!eliminandoItem) return
     startTransition(async () => {
       const { error } = await supabase.from('fabrica_conteo_definicion_items').delete().eq('id', eliminandoItem.id)
-      if (error) { toast.error(error.message || 'No se pudo quitar el ítem'); return }
+      if (error) { toast.error(mensajeError(error, 'No se pudo quitar el ítem del conteo')); return }
       setItems(prev => prev.filter(i => i.id !== eliminandoItem.id))
       toast.success('Ítem quitado del conteo')
       setEliminandoItem(null)

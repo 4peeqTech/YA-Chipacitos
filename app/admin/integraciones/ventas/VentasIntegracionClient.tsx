@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import Card from '@/components/ui/Card'
+import { mensajeError } from '@/lib/errores'
 
 interface Resumen {
   nombre: string
@@ -51,7 +52,7 @@ export default function VentasIntegracionClient() {
       setCargado(true)
       setPagina(1)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error desconocido')
+      setError(mensajeError(e, 'No se pudo cargar la comparación de ventas'))
     } finally {
       setLoading(false)
     }

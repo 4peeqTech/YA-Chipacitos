@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeError } from '@/lib/errores'
 import Card from '@/components/ui/Card'
 import SelectBuscador from '@/components/ui/SelectBuscador'
 
@@ -48,7 +49,7 @@ export default function ImportarClient({ urlInicial }: Props) {
     const { error: err } = await supabase.from('config').upsert({
       key: 'apps_script_url', value: urlInput.trim(), updated_at: new Date().toISOString()
     })
-    if (err) { setError(err.message); setGuardandoUrl(false); return }
+    if (err) { setError(mensajeError(err, 'No se pudo guardar la URL del script de importación')); setGuardandoUrl(false); return }
     setScriptUrl(urlInput.trim()); setShowSetup(false); setGuardandoUrl(false)
   }
 

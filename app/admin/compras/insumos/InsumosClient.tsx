@@ -11,6 +11,7 @@ import InputNumero from '@/components/ui/InputNumero'
 import SelectBuscador from '@/components/ui/SelectBuscador'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { mensajeError } from '@/lib/errores'
 
 interface ProveedorOption {
   id: string
@@ -171,18 +172,18 @@ export default function InsumosClient({
       let itemGuardado: Omit<CompraItem, 'compras_item_proveedores'>
       if (creando) {
         const { data, error: err } = await supabase.from('compras_items').insert([{ ...payload, estado: 'activo' }]).select().single()
-        if (err) { toast.error(err.message); return }
+        if (err) { toast.error(mensajeError(err, 'No se pudo crear el insumo')); return }
         itemGuardado = data
       } else if (editando) {
         const { data, error: err } = await supabase.from('compras_items').update(payload).eq('id', editando.id).select().single()
-        if (err) { toast.error(err.message); return }
+        if (err) { toast.error(mensajeError(err, 'No se pudo guardar el insumo')); return }
         itemGuardado = data
       } else {
         return
       }
 
       const { error: errDelete } = await supabase.from('compras_item_proveedores').delete().eq('item_id', itemGuardado.id)
-      if (errDelete) { toast.error(errDelete.message); return }
+      if (errDelete) { toast.error(mensajeError(errDelete, 'No se pudieron actualizar los proveedores del insumo')); return }
 
       const filasPivote = validas.map(p => ({
         item_id: itemGuardado.id,
@@ -195,7 +196,7 @@ export default function InsumosClient({
         .from('compras_item_proveedores')
         .insert(filasPivote)
         .select('proveedor_id, es_principal, precio_ref, codigo_proveedor')
-      if (errInsert) { toast.error(errInsert.message); return }
+      if (errInsert) { toast.error(mensajeError(errInsert, 'No se pudieron guardar los proveedores del insumo')); return }
 
       const itemFinal: CompraItem = { ...itemGuardado, compras_item_proveedores: pivoteGuardado ?? [] }
       if (creando) {
@@ -217,7 +218,7 @@ export default function InsumosClient({
       .eq('id', i.id)
       .select()
       .single()
-    if (err) { toast.error(err.message); return }
+    if (err) { toast.error(mensajeError(err, nuevoEstado === 'archivado' ? 'No se pudo archivar el insumo' : 'No se pudo reactivar el insumo')); return }
     setItems(prev => prev.map(x => x.id === i.id ? { ...x, ...data } : x))
     toast.success(nuevoEstado === 'archivado' ? 'Insumo archivado' : 'Insumo reactivado')
   }

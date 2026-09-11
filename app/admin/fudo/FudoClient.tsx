@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { mensajeError } from '@/lib/errores'
 
 type Tipo = 'expenses' | 'sales' | 'payments'
 
@@ -74,7 +75,7 @@ export default function FudoClient() {
       setItems(json.items ?? [])
       setFetched(true)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error desconocido')
+      setError(mensajeError(e, 'No se pudieron traer los datos de Fudo'))
     } finally {
       setLoading(false)
     }

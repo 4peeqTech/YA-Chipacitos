@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
     })
     return NextResponse.json(resultado)
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('Error al notificar solicitud nueva', err)
+    return NextResponse.json({ error: 'No se pudo enviar la notificación' }, { status: 500 })
   }
 }
