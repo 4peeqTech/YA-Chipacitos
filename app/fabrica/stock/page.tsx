@@ -161,6 +161,27 @@ export default async function FabricaStockPage() {
     historialPorDef.set(h.definicion_id, arr)
   }
 
+  // Conteos que Compras descartó: se muestran como cartel mientras el
+  // borrador vigente siga siendo el de esa misma ventana (semana_desde) —
+  // el cartel desaparece solo cuando Fábrica corrige y vuelve a cerrar.
+  const { data: descartadosData } = definiciones.length
+    ? await supabase
+        .from('fabrica_conteos')
+        .select('definicion_id, semana_desde, motivo_descarte, descartado_en')
+        .eq('estado', 'descartado')
+        .in('definicion_id', definiciones.map(d => d.id))
+        .order('descartado_en', { ascending: false })
+    : { data: [] }
+
+  const rechazoPorDef = new Map<string, { motivoDescarte: string | null; descartadoEn: string }>()
+  for (const d of descartadosData ?? []) {
+    const conteo = conteoPorDefinicion.get(d.definicion_id)
+    if (!conteo || conteo.semana_desde !== d.semana_desde) continue
+    if (!rechazoPorDef.has(d.definicion_id)) {
+      rechazoPorDef.set(d.definicion_id, { motivoDescarte: d.motivo_descarte, descartadoEn: d.descartado_en! })
+    }
+  }
+
   const definicionesUI: DefinicionConDatos[] = []
   for (const def of definiciones) {
     const conteo = conteoPorDefinicion.get(def.id)
@@ -199,6 +220,7 @@ export default async function FabricaStockPage() {
       conteo,
       items,
       historial: historialPorDef.get(def.id) ?? [],
+      rechazo: rechazoPorDef.get(def.id) ?? null,
     })
   }
 

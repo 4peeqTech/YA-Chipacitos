@@ -92,6 +92,7 @@ export default function SolicitudesClient({
   const [guardado, setGuardado] = useState<'idle' | 'guardando' | 'guardado'>('idle')
   const [confirmando, setConfirmando] = useState<'generar' | 'descartar' | null>(null)
   const [procesando, setProcesando] = useState(false)
+  const [motivo, setMotivo] = useState('')
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const abierta = solicitudes.find(s => s.id === abiertaId) ?? null
@@ -182,11 +183,16 @@ export default function SolicitudesClient({
   async function confirmarDescartar() {
     if (!abierta) return
     setProcesando(true)
-    const { error } = await supabase.rpc('descartar_solicitud', { p_solicitud_id: abierta.id })
+    const { error } = await supabase.rpc('descartar_solicitud', { p_solicitud_id: abierta.id, p_motivo: motivo.trim() || null })
     setProcesando(false)
     if (error) { toast.error(error.message || 'No se pudo descartar la solicitud'); return }
     setSolicitudes(prev => prev.map(s => s.id === abierta.id ? { ...s, estado: 'descartada' } : s))
-    toast.success('Solicitud descartada')
+    fetch('/api/fabrica/solicitudes/descartada', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ solicitudId: abierta.id }),
+    }).catch(() => { /* notificación best-effort */ })
+    toast.success('Solicitud descartada. Se le avisó a Fábrica.')
     setConfirmando(null)
     cerrar()
   }
@@ -360,7 +366,7 @@ export default function SolicitudesClient({
                     <Send size={16} /> Generar pedidos
                   </button>
                   <button
-                    onClick={() => setConfirmando('descartar')}
+                    onClick={() => { setMotivo(''); setConfirmando('descartar') }}
                     className="flex items-center justify-center gap-2 border border-[#2a2a2a] hover:border-red-800 hover:text-red-400 text-[#888] font-semibold text-sm py-3 px-4 rounded-xl transition-all"
                   >
                     <Ban size={16} /> Descartar
@@ -394,7 +400,18 @@ export default function SolicitudesClient({
       </Modal>
 
       <Modal open={confirmando === 'descartar'} onClose={() => !procesando && setConfirmando(null)} title="Descartar solicitud" accent="red">
-        <p className="text-sm text-[#888]">Esta acción no se puede deshacer. No se va a crear ningún pedido a partir de esta solicitud.</p>
+        <p className="text-sm text-[#888]">No se va a crear ningún pedido. Fábrica va a recibir el aviso y va a poder rehacer este conteo hoy mismo.</p>
+        <div className="mt-3">
+          <label className="block text-xs text-[#888] mb-1">Motivo (opcional) — se lo avisamos a Fábrica</label>
+          <textarea
+            value={motivo}
+            onChange={e => setMotivo(e.target.value)}
+            disabled={procesando}
+            placeholder="Ej: Faltó contar la cámara de arriba"
+            rows={2}
+            className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors disabled:opacity-40 resize-none"
+          />
+        </div>
         <div className="flex gap-2 pt-4">
           <button onClick={() => setConfirmando(null)} disabled={procesando} className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] transition-colors disabled:opacity-40">
             Cancelar

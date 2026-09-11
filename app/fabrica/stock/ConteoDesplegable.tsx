@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, TrendingUp, AlertTriangle, Trash2 } from 'lucide-react'
+import { Lock, TrendingUp, AlertTriangle, Trash2, TriangleAlert } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { calcularNecesidadYSugerido, type ModoCalculo, type Redondeo } from '@/lib/fabrica/calculoSugerido'
 import Card from '@/components/ui/Card'
@@ -35,7 +35,12 @@ export interface ConteoBorrador {
   semana_desde: string
   semana_hasta: string
   masas_proyectadas: number
-  estado: 'borrador' | 'cerrado'
+  estado: 'borrador' | 'cerrado' | 'descartado'
+}
+
+export interface ConteoRechazo {
+  motivoDescarte: string | null
+  descartadoEn: string
 }
 
 export interface ConteoHistorial {
@@ -59,6 +64,7 @@ export interface DefinicionConDatos {
   conteo: ConteoBorrador
   items: ItemConteoUI[]
   historial: ConteoHistorial[]
+  rechazo: ConteoRechazo | null
 }
 
 function formatearFechaConTurno(fecha: string, turno: 'manana' | 'tarde') {
@@ -95,6 +101,7 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
   const hoyIso = new Date().getDay() || 7
   const esHoy = hoyIso === definicion.diaSemana
   const cerradoEstaSemana = historial[0]?.semana_desde === conteo.semana_desde
+  const rechazoPendiente = !cerradoEstaSemana ? definicion.rechazo : null
 
   function marcarGuardado() {
     setGuardado('guardando')
@@ -192,7 +199,7 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
       titulo={definicion.nombre}
       subtitulo={`Se hace los ${DIA_NOMBRE[definicion.diaSemana]}`}
       icono={definicion.icono ?? undefined}
-      defaultOpen={esHoy}
+      defaultOpen={esHoy || !!rechazoPendiente}
       badge={
         <div className="flex items-center gap-1.5">
           {cerradoEstaSemana && <span className="text-[10px] font-bold text-[#56d68a]">✓ cerrado</span>}
@@ -213,6 +220,18 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
       {!esHoy && (
         <p className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-950/20 border border-amber-900/40 rounded-lg px-3 py-2">
           <AlertTriangle size={12} /> Este conteo se hace los {DIA_NOMBRE[definicion.diaSemana]}
+        </p>
+      )}
+
+      {rechazoPendiente && (
+        <p className="flex items-start gap-2 text-sm text-red-300 bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2.5">
+          <TriangleAlert size={16} className="shrink-0 mt-0.5 text-red-400" />
+          <span>
+            Compras descartó este conteo. Corregí lo que esté mal y volvé a cerrarlo.
+            {rechazoPendiente.motivoDescarte && (
+              <span className="block text-red-400/90 mt-0.5">Motivo: {rechazoPendiente.motivoDescarte}</span>
+            )}
+          </span>
         </p>
       )}
 
