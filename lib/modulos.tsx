@@ -42,7 +42,6 @@ export const MODULOS: Modulo[] = [
   { key: 'plan_cuentas', label: 'Plan de cuentas', icon: <ClipboardList size={16} />, href: '/admin/plan-cuentas', section: 'Parámetros' },
   { key: 'cajas',        label: 'Cajas',           icon: <Landmark size={16} />, href: '/admin/cajas',        section: 'Parámetros' },
   { key: 'formas_pago',  label: 'Formas de pago',  icon: <CreditCard size={16} />, href: '/admin/formas-pago',  section: 'Parámetros' },
-  { key: 'fabrica_parametros', label: 'Fábrica', icon: <Factory size={16} />, href: '/admin/fabrica-parametros', section: 'Parámetros', soloAdmin: true },
 
   { key: 'proveedores', label: 'Proveedores', icon: <Truck size={16} />, href: '/admin/proveedores', section: 'Proveedores', soloAdmin: true },
 
@@ -54,6 +53,8 @@ export const MODULOS: Modulo[] = [
   { key: 'fabrica-reportes',        label: 'Reportes',        icon: <BarChart3 size={16} />,   href: '/admin/fabrica/reportes',        section: 'Fábrica', soloAdmin: true },
   { key: 'fabrica-registros',       label: 'Registros',       icon: <ClipboardList size={16} />, href: '/admin/fabrica/registros',     section: 'Fábrica', soloAdmin: true },
   { key: 'fabrica-stock-terminado', label: 'Stock terminado', icon: <Boxes size={16} />,       href: '/admin/fabrica/stock-terminado', section: 'Fábrica', soloAdmin: true },
+  { key: 'fabrica-conteos',    label: 'Conteos',    icon: <ClipboardList size={16} />, href: '/admin/fabrica/conteos',    section: 'Fábrica' },
+  { key: 'fabrica_parametros', label: 'Parámetros', icon: <Factory size={16} />,       href: '/admin/fabrica/parametros', section: 'Fábrica', soloAdmin: true },
 
   { key: 'tareas', label: 'Tareas', icon: <ListTodo size={16} />, href: '/tareas' },
 ]

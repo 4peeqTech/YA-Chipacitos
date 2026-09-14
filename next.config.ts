@@ -60,6 +60,16 @@ const nextConfig: NextConfig = {
         destination: '/admin/proveedores/facturacion',
         permanent: true,
       },
+      {
+        source: '/admin/fabrica-parametros',
+        destination: '/admin/fabrica/parametros',
+        permanent: true,
+      },
+      {
+        source: '/admin/compras/stock/conteos',
+        destination: '/admin/fabrica/conteos',
+        permanent: true,
+      },
     ]
   },
 }
