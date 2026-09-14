@@ -7,12 +7,12 @@ import {
   calcularCumplimientoProyeccion, calcularKpisFabrica,
   type ProduccionFila, type EmbolsadoFila, type DevolucionFila, type ConteoSemana,
 } from '@/lib/fabrica/reportes'
-import KpisFabrica from './KpisFabrica'
-import ProduccionResumen from './ProduccionResumen'
-import EmbolsadoResumen from './EmbolsadoResumen'
-import DevolucionesResumen from './DevolucionesResumen'
-import RendimientoPorOperario from './RendimientoPorOperario'
-import CumplimientoProyeccion from './CumplimientoProyeccion'
+import KpisFabrica from '@/components/fabrica/reportes/KpisFabrica'
+import ProduccionResumen from '@/components/fabrica/reportes/ProduccionResumen'
+import EmbolsadoResumen from '@/components/fabrica/reportes/EmbolsadoResumen'
+import DevolucionesResumen from '@/components/fabrica/reportes/DevolucionesResumen'
+import RendimientoPorOperario from '@/components/fabrica/reportes/RendimientoPorOperario'
+import CumplimientoProyeccion from '@/components/fabrica/reportes/CumplimientoProyeccion'
 
 export type ProduccionFilaUI = ProduccionFila
 export type EmbolsadoFilaUI = EmbolsadoFila
