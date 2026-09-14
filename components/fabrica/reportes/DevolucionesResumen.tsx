@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Undo2, IceCreamCone, Ruler, Package, Recycle } from 'lucide-react'
+import { Undo2, IceCreamCone, Ruler, Package, Recycle, MessageSquareText } from 'lucide-react'
 import Card from '@/components/ui/Card'
+import Modal from '@/components/ui/Modal'
 import { agruparDevoluciones, type AgrupacionDevolucion, type DevolucionFila } from '@/lib/fabrica/reportes'
 
 const DIMENSIONES: { key: AgrupacionDevolucion; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
@@ -17,12 +18,21 @@ function formatKg(kg: number) {
   return `${kg.toLocaleString('es-AR', { maximumFractionDigits: 1 })} kg`
 }
 
+function formatFecha(fecha: string) {
+  return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[] }) {
   const [dimension, setDimension] = useState<AgrupacionDevolucion>('motivoNombre')
+  const [detalle, setDetalle] = useState<DevolucionFila | null>(null)
 
   const resumen = useMemo(() => agruparDevoluciones(filas, dimension), [filas, dimension])
   const total = useMemo(() => resumen.reduce((acc, r) => acc + r.cantidadKg, 0), [resumen])
   const maxKg = useMemo(() => Math.max(1, ...resumen.map(r => r.cantidadKg)), [resumen])
+  const individuales = useMemo(
+    () => [...filas].sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    [filas]
+  )
 
   return (
     <div className="space-y-3">
@@ -67,6 +77,53 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
           </Card>
         </div>
       )}
+
+      {individuales.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <p className="text-xs font-semibold text-[#888] uppercase tracking-wider px-1">Devoluciones del período</p>
+          <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
+            {individuales.map((d, i) => (
+              <div
+                key={d.id ?? i}
+                onClick={() => setDetalle(d)}
+                className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-[#1a1a1a] transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-[#f0f0f0] font-medium flex items-center gap-1.5 truncate">
+                    {d.destino === 'reinsercion' ? <Recycle size={13} className="text-[#666] shrink-0" /> : <Package size={13} className="text-[#666] shrink-0" />}
+                    <span className="truncate">{d.saborNombre !== 'Sin detalle' ? `${d.tamanioNombre} · ${d.saborNombre}` : d.motivoNombre}</span>
+                    {d.notas && <MessageSquareText size={12} className="text-[#e8c547] shrink-0" />}
+                  </p>
+                  <p className="text-xs text-[#666] mt-0.5">{formatFecha(d.fecha)} · {formatKg(d.cantidadKg)} · {d.motivoNombre}</p>
+                </div>
+              </div>
+            ))}
+          </Card>
+        </div>
+      )}
+
+      <Modal open={!!detalle} onClose={() => setDetalle(null)} title="Detalle de la devolución" size="md">
+        {detalle && (
+          <div className="space-y-3">
+            <p className="text-sm text-[#f0f0f0]">
+              <span className="font-semibold">{formatFecha(detalle.fecha)}</span> · {detalle.motivoNombre}
+            </p>
+            <p className="text-sm text-[#888] flex items-center gap-1.5">
+              {detalle.destino === 'reinsercion' ? <Recycle size={14} /> : <Package size={14} />}
+              {detalle.destino === 'reinsercion' ? 'Reinserción' : 'Pérdida'} · {formatKg(detalle.cantidadKg)}
+            </p>
+            {detalle.saborNombre !== 'Sin detalle' && (
+              <p className="text-sm text-[#888]">{detalle.tamanioNombre} · {detalle.saborNombre} · {detalle.presentacionNombre}</p>
+            )}
+            {detalle.notas && (
+              <div className="rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] p-3">
+                <p className="text-xs text-[#888] mb-1">Comentario</p>
+                <p className="text-sm text-[#f0f0f0] whitespace-pre-wrap">{detalle.notas}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

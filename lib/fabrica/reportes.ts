@@ -79,6 +79,9 @@ export interface DevolucionFila {
   presentacionNombre: string
   destino: 'reinsercion' | 'perdida'
   cantidadKg: number
+  /** Opcionales: no los mira agruparDevoluciones, solo el detalle individual en DevolucionesResumen. */
+  id?: string
+  notas?: string | null
 }
 
 export type AgrupacionDevolucion = 'motivoNombre' | 'saborNombre' | 'tamanioNombre' | 'presentacionNombre' | 'destino'

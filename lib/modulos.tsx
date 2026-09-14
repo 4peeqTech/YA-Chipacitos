@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Wallet, Clock, BarChart3, Landmark,
   RefreshCw, TrendingUp, Receipt,
   Package, Link2, Users, Shield, ClipboardList, CreditCard, Factory,
-  Truck, ShoppingBasket, ListTodo,
+  Truck, ShoppingBasket, ListTodo, Boxes,
 } from 'lucide-react'
 
 export interface Modulo {
@@ -50,6 +50,10 @@ export const MODULOS: Modulo[] = [
   { key: 'compras-stock',    label: 'Stock',    icon: <Package size={16} />, href: '/admin/compras/stock',    section: 'Compras' },
   { key: 'compras-pedidos',  label: 'Pedidos',  icon: <ClipboardList size={16} />, href: '/admin/compras/pedidos',  section: 'Compras' },
   { key: 'compras-reportes', label: 'Reportes', icon: <BarChart3 size={16} />, href: '/admin/compras/reportes', section: 'Compras' },
+
+  { key: 'fabrica-reportes',        label: 'Reportes',        icon: <BarChart3 size={16} />,   href: '/admin/fabrica/reportes',        section: 'Fábrica', soloAdmin: true },
+  { key: 'fabrica-registros',       label: 'Registros',       icon: <ClipboardList size={16} />, href: '/admin/fabrica/registros',     section: 'Fábrica', soloAdmin: true },
+  { key: 'fabrica-stock-terminado', label: 'Stock terminado', icon: <Boxes size={16} />,       href: '/admin/fabrica/stock-terminado', section: 'Fábrica', soloAdmin: true },
 
   { key: 'tareas', label: 'Tareas', icon: <ListTodo size={16} />, href: '/tareas' },
 ]
