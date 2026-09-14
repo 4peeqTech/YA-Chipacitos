@@ -24,11 +24,12 @@ export default async function FabricaDevolucionPage({
       supabase
         .from('fabrica_devoluciones')
         .select(`
-          id, fecha, cantidad_kg, destino, notas,
+          id, fecha, cantidad_kg, destino, notas, created_at,
           sabor:fabrica_sabores(nombre),
           tamanio:fabrica_tamanios(nombre),
           presentacion:fabrica_presentaciones(nombre),
-          motivo:fabrica_devolucion_motivos(nombre)
+          motivo:fabrica_devolucion_motivos(nombre),
+          cargado_por:profiles(nombre)
         `)
         .eq('fecha', dia)
         .order('created_at', { ascending: false }),
@@ -60,6 +61,8 @@ export default async function FabricaDevolucionPage({
         tamanioNombre: d.tamanio?.nombre ?? null,
         presentacionNombre: d.presentacion?.nombre ?? null,
         motivoNombre: d.motivo?.nombre ?? '—',
+        createdAt: d.created_at,
+        cargadoPor: d.cargado_por?.nombre ?? null,
       })) as DevolucionRegistro[]}
     />
   )

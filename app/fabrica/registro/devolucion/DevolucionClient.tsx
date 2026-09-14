@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Undo2, Recycle, Trash2, Save } from 'lucide-react'
+import { Undo2, Recycle, Trash2, Save, MessageSquareText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import SelectorDia from '@/components/fabrica/SelectorDia'
 import Card from '@/components/ui/Card'
@@ -35,6 +35,8 @@ export interface DevolucionRegistro {
   tamanioNombre: string | null
   presentacionNombre: string | null
   motivoNombre: string
+  createdAt: string
+  cargadoPor: string | null
 }
 
 const chipBase = 'px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border'
@@ -84,6 +86,7 @@ export default function DevolucionClient({
   const [guardando, setGuardando] = useState(false)
   const [aEliminar, setAEliminar] = useState<DevolucionRegistro | null>(null)
   const [eliminando, setEliminando] = useState(false)
+  const [detalle, setDetalle] = useState<DevolucionRegistro | null>(null)
 
   const listaDia = useMemo(
     () => devoluciones.filter(d => d.fecha === dia),
@@ -156,6 +159,8 @@ export default function DevolucionClient({
       tamanioNombre: pideDetalle ? (tamanios.find(t => t.id === tamanioId)?.nombre ?? null) : null,
       presentacionNombre: pideDetalle ? (presentaciones.find(p => p.id === presentacionId)?.nombre ?? null) : null,
       motivoNombre: motivo.nombre,
+      createdAt: new Date().toISOString(),
+      cargadoPor: null,
     }
 
     setDevoluciones(prev => [nuevaEntrada, ...prev])
@@ -328,20 +333,21 @@ export default function DevolucionClient({
         ) : (
           <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
             {listaDia.map(d => (
-              <div key={d.id} className="px-4 py-3 flex items-center gap-3">
+              <div key={d.id} onClick={() => setDetalle(d)} className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-[#1a1a1a] transition-colors">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f0] font-medium flex items-center gap-1.5">
                     {d.destino === 'reinsercion' ? <Recycle size={13} className="text-[#666]" /> : <Trash2 size={13} className="text-[#666]" />}
                     {d.saborNombre ? `${d.tamanioNombre} · ${d.saborNombre}` : d.motivoNombre}
+                    {d.notas && <MessageSquareText size={13} className="text-[#e8c547] shrink-0" />}
                   </p>
                   <p className="text-xs text-[#666] mt-0.5">
                     {d.saborNombre
                       ? `${d.cantidadKg} kg · ${d.presentacionNombre} · ${d.motivoNombre}`
-                      : `${d.cantidadKg != null ? `${d.cantidadKg} kg · ` : ''}sin detalle`}
+                      : `${d.cantidadKg != null ? `${d.cantidadKg} kg · ` : ''}${d.motivoNombre}`}
                   </p>
                 </div>
                 <button
-                  onClick={() => setAEliminar(d)}
+                  onClick={e => { e.stopPropagation(); setAEliminar(d) }}
                   aria-label="Eliminar"
                   className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-red-400 rounded-lg hover:bg-[#1a1a1a] transition-colors"
                 >
@@ -365,6 +371,33 @@ export default function DevolucionClient({
             {eliminando ? 'Eliminando...' : 'Eliminar'}
           </button>
         </div>
+      </Modal>
+
+      <Modal open={!!detalle} onClose={() => setDetalle(null)} title="Detalle de la devolución" size="md">
+        {detalle && (
+          <div className="space-y-3">
+            <p className="text-sm text-[#f0f0f0]">
+              <span className="font-semibold">{new Date(detalle.fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}</span> · {detalle.motivoNombre}
+            </p>
+            <p className="text-sm text-[#888] flex items-center gap-1.5">
+              {detalle.destino === 'reinsercion' ? <Recycle size={14} /> : <Trash2 size={14} />}
+              {detalle.destino === 'reinsercion' ? 'Reinserción' : 'Pérdida'}
+              {detalle.cantidadKg != null && ` · ${detalle.cantidadKg} kg`}
+            </p>
+            {detalle.saborNombre && (
+              <p className="text-sm text-[#888]">{detalle.tamanioNombre} · {detalle.saborNombre} · {detalle.presentacionNombre}</p>
+            )}
+            {detalle.notas && (
+              <div className="rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] p-3">
+                <p className="text-xs text-[#888] mb-1">Comentario</p>
+                <p className="text-sm text-[#f0f0f0] whitespace-pre-wrap">{detalle.notas}</p>
+              </div>
+            )}
+            <p className="text-[11px] text-[#666] pt-1">
+              Cargado por {detalle.cargadoPor ?? '—'} · {new Date(detalle.createdAt).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        )}
       </Modal>
 
       <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
