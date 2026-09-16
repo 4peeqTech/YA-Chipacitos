@@ -44,3 +44,6 @@ docs/qa-credenciales-dev.md
 next-env.d.ts
 
 .vercel
+
+# artefactos de playwright-mcp (screenshots, snapshots, logs de consola)
+.playwright-mcp/
