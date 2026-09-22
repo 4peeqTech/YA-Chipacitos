@@ -30,7 +30,7 @@ export default function Modal({ open, onClose, title, accent = 'gold', size = 'm
 
   if (!open) return null
 
-  const accentBorder = accent === 'red' ? 'border-t-red-500' : 'border-t-[#e8c547]'
+  const accentBorder = accent === 'red' ? 'border-t-red-500' : 'border-t-accent'
 
   return (
     <div
@@ -38,15 +38,15 @@ export default function Modal({ open, onClose, title, accent = 'gold', size = 'm
       onClick={onClose}
     >
       <div
-        className={`bg-[#111111] border border-[#2a2a2a] border-t-2 ${accentBorder} rounded-2xl w-full ${MAX_WIDTH[size]} max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden p-6 space-y-4`}
+        className={`bg-surface border border-border border-t-2 ${accentBorder} rounded-2xl w-full ${MAX_WIDTH[size]} max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden p-6 space-y-4 shadow-modal`}
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-lg text-[#f0f0f0]">{title}</h3>
-          <button onClick={onClose} aria-label="Cerrar" className="text-[#666] hover:text-[#f0f0f0] w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#1a1a1a] transition-colors">
+          <h3 className="font-bold text-lg text-text">{title}</h3>
+          <button onClick={onClose} aria-label="Cerrar" className="text-faint hover:text-text w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface2 transition-colors">
             <X size={18} />
           </button>
         </div>

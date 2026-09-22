@@ -13,6 +13,26 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // Nunca confirm()/alert() nativos — en toda la app, no solo lo migrado.
+  {
+    rules: {
+      "no-restricted-globals": ["error",
+        { name: "confirm", message: "Usá useConfirmar() de components/ui/ProveedorUI." },
+        { name: "alert",   message: "Usá useToast() de components/ui/ProveedorUI." },
+      ],
+    },
+  },
+  // Hex crudo prohibido — este bloque crece a medida que se tokeniza cada
+  // módulo (ver Bloque 0/F0.1 del roadmap). Hoy: components/ui, components/layout.
+  {
+    files: ["components/ui/**/*.tsx", "components/layout/**/*.tsx"],
+    rules: {
+      "no-restricted-syntax": ["error", {
+        selector: "JSXAttribute[name.name='className'] Literal[value=/-\\[#[0-9a-fA-F]{3,8}\\]/]",
+        message: "Usá tokens de @theme inline (bg-surface, text-muted, …), no hex crudo.",
+      }],
+    },
+  },
 ]);
 
 export default eslintConfig;

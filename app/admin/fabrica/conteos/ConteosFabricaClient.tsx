@@ -10,8 +10,7 @@ import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { IconoRenderer } from '@/components/ui/IconoPicker'
 import HelpTooltip from '@/components/ui/HelpTooltip'
-import { MODO_LABEL } from '@/app/admin/compras/insumos/listas-conteo/ConteosClient'
-import { REDONDEO_LABEL } from '@/app/admin/compras/insumos/InsumosClient'
+import { MODO_LABEL, REDONDEO_LABEL } from '@/lib/estados'
 
 interface ConteoHistorial {
   id: string

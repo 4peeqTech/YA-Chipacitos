@@ -98,44 +98,44 @@ export default function NotificationBell() {
     <div className="relative shrink-0" ref={panelRef}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative text-[#888] hover:text-[#e8c547] transition-colors shrink-0 w-8 h-8 flex items-center justify-center"
+        className="relative text-muted hover:text-accent transition-colors shrink-0 w-8 h-8 flex items-center justify-center"
         title="Notificaciones"
         aria-label="Notificaciones"
       >
         <Bell size={18} />
         {noLeidas > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[#e84210] text-white text-[9px] font-bold flex items-center justify-center leading-none">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center leading-none">
             {noLeidas > 9 ? '9+' : noLeidas}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] w-80 max-w-[90vw] max-h-[70vh] overflow-y-auto bg-[#111111] border border-[#2a2a2a] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,.6)] z-[60]">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-[#2a2a2a] sticky top-0 bg-[#111111]">
-            <span className="text-xs font-semibold text-[#f0f0f0]">Notificaciones</span>
+        <div className="absolute right-0 top-[calc(100%+8px)] w-80 max-w-[90vw] max-h-[70vh] overflow-y-auto bg-surface border border-border rounded-lg shadow-modal z-[60]">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border sticky top-0 bg-surface">
+            <span className="text-xs font-semibold text-text">Notificaciones</span>
             {noLeidas > 0 && (
-              <button onClick={marcarTodasLeidas} className="text-[10px] text-[#e8c547] hover:underline">
+              <button onClick={marcarTodasLeidas} className="text-3xs text-accent hover:underline">
                 Marcar todas leídas
               </button>
             )}
           </div>
 
           {items.length === 0 ? (
-            <p className="px-3 py-6 text-center text-xs text-[#888]">Sin notificaciones</p>
+            <p className="px-3 py-6 text-center text-xs text-muted">Sin notificaciones</p>
           ) : (
             items.map(n => (
               <button
                 key={n.id}
                 onClick={() => abrirNotificacion(n)}
-                className={`w-full text-left px-3 py-2.5 border-b border-[#1a1a1a] last:border-b-0 hover:bg-[#1a1a1a] transition-colors ${n.leida ? 'opacity-60' : ''}`}
+                className={`w-full text-left px-3 py-2.5 border-b border-surface2 last:border-b-0 hover:bg-surface2 transition-colors ${n.leida ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-start gap-2">
-                  {!n.leida && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#e8c547] shrink-0" />}
+                  {!n.leida && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent shrink-0" />}
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-[#f0f0f0] truncate">{n.titulo}</p>
-                    {n.cuerpo && <p className="text-[11px] text-[#888] line-clamp-2">{n.cuerpo}</p>}
-                    <p className="text-[10px] text-[#666] mt-0.5">{formatearFecha(n.created_at)}</p>
+                    <p className="text-xs font-medium text-text truncate">{n.titulo}</p>
+                    {n.cuerpo && <p className="text-2xs text-muted line-clamp-2">{n.cuerpo}</p>}
+                    <p className="text-3xs text-faint mt-0.5">{formatearFecha(n.created_at)}</p>
                   </div>
                 </div>
               </button>

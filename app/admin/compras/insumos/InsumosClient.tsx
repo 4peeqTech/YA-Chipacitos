@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Archive, ArchiveRestore, Pencil, Plus, Search, Star, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Redondeo } from '@/lib/fabrica/calculoSugerido'
+import { REDONDEO_LABEL } from '@/lib/estados'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
@@ -45,13 +46,6 @@ interface CompraItem {
 }
 
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
-
-export const REDONDEO_LABEL: Record<Redondeo, string> = {
-  estandar: 'Estándar (redondeo al medio)',
-  siempre_arriba: 'Siempre hacia arriba',
-  siempre_abajo: 'Siempre hacia abajo',
-  sin_calculo: 'Sin cálculo (solo stock)',
-}
 
 const emptyForm = (): Partial<CompraItem> => ({
   categoria_id: null,

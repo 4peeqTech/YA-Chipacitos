@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
-
-type Tono = 'neutro' | 'exito' | 'alerta' | 'peligro'
+import type { Tono } from '@/lib/estados'
 
 const TONO_ICONO: Record<Tono, string> = {
-  neutro: 'text-accent bg-accent/10',
-  exito: 'text-[#56d68a] bg-[#56d68a]/10',
-  alerta: 'text-[#f0a030] bg-[#f0a030]/10',
-  peligro: 'text-red-400 bg-red-400/10',
+  neutro: 'text-accent bg-accent-bg',
+  exito: 'text-success bg-green-bg',
+  alerta: 'text-warning bg-warning-bg',
+  peligro: 'text-brand-red bg-danger-bg',
+  info: 'text-info bg-info-bg',
 }
 
 export default function KpiCard({

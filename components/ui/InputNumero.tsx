@@ -2,9 +2,9 @@
 
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { parseDecimal } from '@/lib/numeros'
+import { controlClass } from './Field'
 
-export const inputNumeroClass =
-  "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
+export const inputNumeroClass = controlClass
 
 interface Props {
   value: number | null

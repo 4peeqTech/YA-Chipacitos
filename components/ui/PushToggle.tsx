@@ -96,14 +96,14 @@ export default function PushToggle({
 
   if (notifPermiso === 'default') {
     return (
-      <div className="bg-[rgba(232,197,71,.08)] border border-[#e8c547]/30 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="bg-accent-bg border border-accent/30 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1">
-          <p className="text-sm font-semibold text-[#e8c547]">{tituloActivar}</p>
-          <p className="text-xs text-[#888] mt-0.5">{descripcionActivar}</p>
+          <p className="text-sm font-semibold text-accent">{tituloActivar}</p>
+          <p className="text-xs text-muted mt-0.5">{descripcionActivar}</p>
         </div>
         <button
           onClick={activar}
-          className="shrink-0 bg-[#e8c547] text-black text-xs font-['Syne'] font-bold px-4 py-2 rounded-lg whitespace-nowrap"
+          className="shrink-0 bg-accent text-black text-xs font-['Syne'] font-bold px-4 py-2 rounded-lg whitespace-nowrap"
         >
           Activar
         </button>
@@ -113,7 +113,7 @@ export default function PushToggle({
 
   if (notifPermiso === 'denied') {
     return (
-      <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3 text-xs text-[#555]">
+      <div className="bg-surface2 border border-border rounded-xl px-4 py-3 text-xs text-faint">
         🔕 Notificaciones bloqueadas en este browser. Para activarlas, hacé clic en el candado de la barra de dirección.
       </div>
     )
@@ -121,17 +121,17 @@ export default function PushToggle({
 
   if (notifPermiso === 'granted') {
     return (
-      <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="bg-surface2 border border-border rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1">
-          <p className="text-sm font-semibold text-[#f0f0f0]">
+          <p className="text-sm font-semibold text-text">
             {pushActivo ? '🔔 Aviso persistente activado' : '🔕 Aviso persistente desactivado'}
           </p>
-          <p className="text-xs text-[#888] mt-0.5">{pushActivo ? descripcionActiva : descripcionInactiva}</p>
+          <p className="text-xs text-muted mt-0.5">{pushActivo ? descripcionActiva : descripcionInactiva}</p>
         </div>
         <button
           onClick={pushActivo ? desactivar : activar}
           className={`shrink-0 text-xs font-['Syne'] font-bold px-4 py-2 rounded-lg whitespace-nowrap ${
-            pushActivo ? 'bg-[#2a2a2a] text-[#f0f0f0]' : 'bg-[#e8c547] text-black'
+            pushActivo ? 'bg-border text-text' : 'bg-accent text-black'
           }`}
         >
           {pushActivo ? 'Desactivar' : 'Activar'}

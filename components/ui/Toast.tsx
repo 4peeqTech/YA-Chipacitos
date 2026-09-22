@@ -41,7 +41,7 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }
   return (
     <div
       role="status"
-      className={`flex items-start gap-2.5 rounded-xl border border-border bg-surface text-text px-4 py-3 shadow-[0_8px_32px_rgba(0,0,0,.6)] transition-all duration-200 ease-out ${
+      className={`flex items-start gap-2.5 rounded-xl border border-border bg-surface text-text px-4 py-3 shadow-modal transition-all duration-200 ease-out ${
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       }`}
     >
@@ -49,7 +49,7 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }
         {isSuccess ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}
       </span>
       <p className="text-sm flex-1">{toast.message}</p>
-      <button onClick={onDismiss} aria-label="Cerrar notificación" className="text-[#888] hover:text-text shrink-0">
+      <button onClick={onDismiss} aria-label="Cerrar notificación" className="text-muted hover:text-text shrink-0">
         <X size={16} />
       </button>
     </div>

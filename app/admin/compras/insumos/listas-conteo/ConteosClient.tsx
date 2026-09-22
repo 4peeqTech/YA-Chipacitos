@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { ClipboardList, Pencil, Plus, Settings2, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { ModoCalculo } from '@/lib/fabrica/calculoSugerido'
+import { MODO_LABEL } from '@/lib/estados'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
@@ -64,12 +65,6 @@ const PERIODO_LABEL: Record<Periodicidad, string> = {
 
 const MODULO_LABEL: Record<string, string> = {
   fabrica: 'Fábrica',
-}
-
-export const MODO_LABEL: Record<ModoCalculo, string> = {
-  por_masa: 'Por masa (receta × proyección)',
-  meta_semanal: 'Meta del período (piso fijo)',
-  cantidad_fija: 'Cantidad fija',
 }
 
 const emptyDefForm = (): Partial<Definicion> => ({

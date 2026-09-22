@@ -48,20 +48,20 @@ export default function InstallPrompt() {
   if (!visible) return null
 
   return (
-    <div className="lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[500] bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-2xl px-4 py-3 shadow-lg flex items-center gap-3 max-w-[92vw]">
+    <div className="lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[500] bg-surface border border-border border-t-2 border-t-accent rounded-2xl px-4 py-3 shadow-lg flex items-center gap-3 max-w-[92vw]">
       {iosHint ? (
-        <p className="text-xs text-[#f0f0f0]">
+        <p className="text-xs text-text">
           📲 Para instalar: tocá <strong>Compartir</strong> y después <strong>"Agregar a pantalla de inicio"</strong>
         </p>
       ) : (
         <>
-          <p className="text-xs text-[#f0f0f0] flex-1 whitespace-nowrap">📲 Instalá la app en tu celular</p>
-          <button onClick={instalar} className="bg-[#e8c547] text-black text-xs font-['Syne'] font-bold px-3 py-1.5 rounded-lg cursor-pointer shrink-0">
+          <p className="text-xs text-text flex-1 whitespace-nowrap">📲 Instalá la app en tu celular</p>
+          <button onClick={instalar} className="bg-accent text-black text-xs font-['Syne'] font-bold px-3 py-1.5 rounded-lg cursor-pointer shrink-0">
             Instalar
           </button>
         </>
       )}
-      <button onClick={() => setVisible(false)} className="text-[#888] text-sm cursor-pointer shrink-0">✕</button>
+      <button onClick={() => setVisible(false)} className="text-muted text-sm cursor-pointer shrink-0">✕</button>
     </div>
   )
 }

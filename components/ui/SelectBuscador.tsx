@@ -74,9 +74,9 @@ export default function SelectBuscador({
         onClick={() => setAbierto(!abierto)}
         className={`w-full flex items-center justify-between border rounded-lg px-3 py-2 text-sm text-left transition-colors focus:outline-none disabled:opacity-50 ${
           value
-            ? 'border-[#56d68a] bg-[rgba(86,214,138,.1)] text-[#56d68a] font-medium'
-            : 'border-[#2a2a2a] bg-[#1a1a1a] text-[#888]'
-        } ${abierto ? 'ring-2 ring-[#e8c547]/20 border-[#e8c547]' : ''}`}
+            ? 'border-success bg-green-bg text-success font-medium'
+            : 'border-border bg-surface2 text-muted'
+        } ${abierto ? 'ring-2 ring-accent/20 border-accent' : ''}`}
       >
         <span className="truncate">{seleccionado ? seleccionado.label : placeholderVacio}</span>
         <svg className={`w-4 h-4 shrink-0 ml-2 transition-transform ${abierto ? 'rotate-180' : ''}`}
@@ -87,11 +87,11 @@ export default function SelectBuscador({
 
       {/* Dropdown */}
       {abierto && (
-        <div className="absolute z-50 mt-1 w-full min-w-[200px] bg-[#111111] border border-[#2a2a2a] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,.6)] overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full min-w-[200px] bg-surface border border-border rounded-xl shadow-modal overflow-hidden">
           {/* Buscador */}
-          <div className="p-2 border-b border-[#2a2a2a]">
-            <div className="flex items-center gap-2 bg-[#1a1a1a] rounded-lg px-3 py-1.5">
-              <svg className="w-3.5 h-3.5 text-[#888] shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <div className="p-2 border-b border-border">
+            <div className="flex items-center gap-2 bg-surface2 rounded-lg px-3 py-1.5">
+              <svg className="w-3.5 h-3.5 text-muted shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
               </svg>
               <input
@@ -99,10 +99,10 @@ export default function SelectBuscador({
                 value={busqueda}
                 onChange={e => setBusqueda(e.target.value)}
                 placeholder="Buscar..."
-                className="flex-1 bg-transparent text-xs focus:outline-none text-[#f0f0f0] placeholder:text-[#888]"
+                className="flex-1 bg-transparent text-xs focus:outline-none text-text placeholder:text-muted"
               />
               {busqueda && (
-                <button onClick={() => setBusqueda('')} className="text-[#888] hover:text-[#f0f0f0] text-sm leading-none">×</button>
+                <button onClick={() => setBusqueda('')} className="text-muted hover:text-text text-sm leading-none">×</button>
               )}
             </div>
           </div>
@@ -113,18 +113,18 @@ export default function SelectBuscador({
             <button
               type="button"
               onClick={() => seleccionar('')}
-              className={`w-full text-left px-3 py-2 text-xs text-[#888] hover:bg-[#1a1a1a] transition-colors ${!value ? 'bg-[#1a1a1a] font-medium' : ''}`}
+              className={`w-full text-left px-3 py-2 text-xs text-muted hover:bg-surface2 transition-colors ${!value ? 'bg-surface2 font-medium' : ''}`}
             >
               {placeholderVacio}
             </button>
 
             {opcionesFiltradas.length === 0 ? (
-              <p className="text-xs text-[#888] text-center py-4">Sin resultados</p>
+              <p className="text-xs text-muted text-center py-4">Sin resultados</p>
             ) : grupos.length > 0 ? (
               <>
                 {grupos.map(grupo => (
                   <div key={grupo}>
-                    <p className="px-3 py-1.5 text-[10px] font-semibold text-[#e8c547] uppercase tracking-wider bg-[#1a1a1a] border-t border-[#2a2a2a]">
+                    <p className="px-3 py-1.5 text-3xs font-semibold text-accent uppercase tracking-wider bg-surface2 border-t border-border">
                       {grupo}
                     </p>
                     {opcionesFiltradas.filter(o => o.grupo === grupo).map(o => (
@@ -132,8 +132,8 @@ export default function SelectBuscador({
                         key={o.value}
                         type="button"
                         onClick={() => seleccionar(o.value)}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-[#1a1a1a] transition-colors ${
-                          value === o.value ? 'bg-[rgba(86,214,138,.1)] text-[#56d68a] font-medium' : 'text-[#f0f0f0]'
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-surface2 transition-colors ${
+                          value === o.value ? 'bg-green-bg text-success font-medium' : 'text-text'
                         }`}
                       >
                         {value === o.value && <span className="mr-1.5">✓</span>}
@@ -147,8 +147,8 @@ export default function SelectBuscador({
                     key={o.value}
                     type="button"
                     onClick={() => seleccionar(o.value)}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-[#1a1a1a] transition-colors ${
-                      value === o.value ? 'bg-[rgba(86,214,138,.1)] text-[#56d68a] font-medium' : 'text-[#f0f0f0]'
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-surface2 transition-colors ${
+                      value === o.value ? 'bg-green-bg text-success font-medium' : 'text-text'
                     }`}
                   >
                     {value === o.value && <span className="mr-1.5">✓</span>}
@@ -162,8 +162,8 @@ export default function SelectBuscador({
                   key={o.value}
                   type="button"
                   onClick={() => seleccionar(o.value)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-[#1a1a1a] transition-colors ${
-                    value === o.value ? 'bg-[rgba(86,214,138,.1)] text-[#56d68a] font-medium' : 'text-[#f0f0f0]'
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-surface2 transition-colors ${
+                    value === o.value ? 'bg-green-bg text-success font-medium' : 'text-text'
                   }`}
                 >
                   {value === o.value && <span className="mr-1.5">✓</span>}

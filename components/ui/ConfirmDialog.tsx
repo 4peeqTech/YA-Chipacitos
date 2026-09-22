@@ -27,15 +27,15 @@ export function useConfirm() {
 
   const dialog = (
     <Modal open={!!opciones} onClose={cerrar} title={opciones?.titulo ?? 'Confirmar'} accent={opciones?.peligroso ? 'red' : 'gold'}>
-      <p className="text-sm text-[#888]">{opciones?.mensaje}</p>
+      <p className="text-sm text-muted">{opciones?.mensaje}</p>
       <div className="flex gap-2 pt-4">
-        <button onClick={cerrar} className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] transition-colors">
+        <button onClick={cerrar} className="flex-1 py-2.5 border border-border rounded-xl text-sm font-medium text-muted hover:text-text transition-colors">
           {opciones?.textoCancelar ?? 'Cancelar'}
         </button>
         <button
           onClick={aceptar}
           className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors ${
-            opciones?.peligroso ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-[#e8c547] text-black hover:opacity-90'
+            opciones?.peligroso ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-accent text-black hover:opacity-90'
           }`}
         >
           {opciones?.textoConfirmar ?? 'Confirmar'}

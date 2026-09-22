@@ -51,12 +51,12 @@ export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
   }
 
   return (
-    <header className="bg-[#111111] border-b-2 border-[#e8c547] px-4 py-0 flex items-center gap-3 shadow-[0_4px_24px_rgba(0,0,0,.6)] sticky top-0 z-50 min-h-[56px]">
+    <header className="bg-surface border-b-2 border-accent px-4 py-0 flex items-center gap-3 shadow-[0_4px_24px_rgba(0,0,0,.6)] sticky top-0 z-50 min-h-[56px]">
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <Image src="/chipacitos-logo.png" alt="YA! Chipacitos" width={36} height={36} className="rounded-md shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="font-['Syne'] font-bold text-[#e8c547] text-base leading-tight truncate">{titulo}</p>
-          {subtitulo && <p className="text-[#888] text-[11px]">{subtitulo}</p>}
+          <p className="font-['Syne'] font-bold text-accent text-base leading-tight truncate">{titulo}</p>
+          {subtitulo && <p className="text-muted text-2xs">{subtitulo}</p>}
         </div>
       </div>
       <div className="shrink-0">
@@ -64,7 +64,7 @@ export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
       </div>
       {rol && (
         <div className="flex items-center shrink-0">
-          <span className="text-[10px] font-semibold text-[#888] bg-[#1a1a1a] border border-[#2a2a2a] px-2.5 py-1 rounded-full uppercase tracking-wider">
+          <span className="text-3xs font-semibold text-muted bg-surface2 border border-border px-2.5 py-1 rounded-full uppercase tracking-wider">
             {rolLabel[rol] || rol}
           </span>
         </div>
@@ -72,7 +72,7 @@ export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
       <NotificationBell />
       <button
         onClick={toggleTheme}
-        className="text-[#888] hover:text-[#e8c547] transition-colors shrink-0 w-8 h-8 flex items-center justify-center"
+        className="text-muted hover:text-accent transition-colors shrink-0 w-8 h-8 flex items-center justify-center"
         title={light ? 'Tema oscuro' : 'Tema claro'}
         aria-label={light ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'}
       >
@@ -80,7 +80,7 @@ export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
       </button>
       <button
         onClick={handleLogout}
-        className="text-[#888] hover:text-[#e8c547] transition-colors shrink-0 w-8 h-8 flex items-center justify-center"
+        className="text-muted hover:text-accent transition-colors shrink-0 w-8 h-8 flex items-center justify-center"
         title="Salir"
         aria-label="Cerrar sesión"
       >

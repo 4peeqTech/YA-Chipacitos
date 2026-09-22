@@ -16,21 +16,21 @@ export default function Collapsible({ titulo, subtitulo, badge, defaultOpen = fa
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl overflow-hidden">
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <IconoRenderer nombre={icono} size={18} className="shrink-0 text-[#e8c547]" />
+          <IconoRenderer nombre={icono} size={18} className="shrink-0 text-accent" />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#f0f0f0] truncate">{titulo}</p>
-            {subtitulo && <p className="text-xs text-[#666] truncate">{subtitulo}</p>}
+            <p className="text-sm font-semibold text-text truncate">{titulo}</p>
+            {subtitulo && <p className="text-xs text-faint truncate">{subtitulo}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {badge}
-          <span className={`text-xs text-[#666] transition-transform ${open ? 'rotate-0' : '-rotate-90'}`}>▼</span>
+          <span className={`text-xs text-faint transition-transform ${open ? 'rotate-0' : '-rotate-90'}`}>▼</span>
         </div>
       </button>
 

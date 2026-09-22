@@ -45,15 +45,15 @@ export default function IconoPicker({ value, onChange }: { value: string | null;
         type="button"
         onClick={() => setAbierto(o => !o)}
         className={`w-full flex items-center gap-2 border rounded-lg px-3 py-2 text-sm text-left transition-colors focus:outline-none ${
-          value ? 'border-[#56d68a] bg-[rgba(86,214,138,.1)] text-[#56d68a]' : 'border-[#2a2a2a] bg-[#1a1a1a] text-[#888]'
-        } ${abierto ? 'ring-2 ring-[#e8c547]/20 border-[#e8c547]' : ''}`}
+          value ? 'border-success bg-green-bg text-success' : 'border-border bg-surface2 text-muted'
+        } ${abierto ? 'ring-2 ring-accent/20 border-accent' : ''}`}
       >
         <IconoRenderer nombre={value} size={16} />
         <span className="flex-1 truncate">{value || 'Elegir ícono...'}</span>
       </button>
 
       {abierto && (
-        <div className="absolute z-50 mt-1 w-full min-w-[220px] bg-[#111111] border border-[#2a2a2a] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,.6)] p-2">
+        <div className="absolute z-50 mt-1 w-full min-w-[220px] bg-surface border border-border rounded-xl shadow-modal p-2">
           <div className="grid grid-cols-6 gap-1 max-h-52 overflow-y-auto">
             {ICONOS_CONTROL_STOCK.map(nombre => (
               <button
@@ -62,7 +62,7 @@ export default function IconoPicker({ value, onChange }: { value: string | null;
                 title={nombre}
                 onClick={() => { onChange(nombre); setAbierto(false) }}
                 className={`aspect-square flex items-center justify-center rounded-lg transition-colors ${
-                  value === nombre ? 'bg-[#e8c547] text-black' : 'text-[#888] hover:text-[#e8c547] hover:bg-[#1a1a1a]'
+                  value === nombre ? 'bg-accent text-black' : 'text-muted hover:text-accent hover:bg-surface2'
                 }`}
               >
                 <IconoRenderer nombre={nombre} size={18} />

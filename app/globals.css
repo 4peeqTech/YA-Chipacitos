@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@theme inline {
+@theme {
   --color-bg:           #0a0a0a;
   --color-surface:      #111111;
   --color-surface2:     #1a1a1a;
@@ -16,6 +16,26 @@
   --color-green-bg:     rgba(86,214,138,.12);
   --color-orange:       #f0a030;
   --color-orange-bg:    rgba(240,160,48,.12);
+
+  /* Escala de texto colapsada (D9): text > muted > faint > disabled.
+     Reemplaza los 7 grises sueltos (#ccc/#aaa/#888/#777/#666/#555/#444). */
+  --color-faint:        #666666;
+  --color-disabled:     #444444;
+  --color-info:         #4fc3f7;
+
+  /* Tintes de fondo para badges/alertas de estado (EstadoBadge, KpiCard). */
+  --color-accent-bg:    rgba(232,197,71,.12);
+  --color-danger-bg:    rgba(232,66,16,.12);
+  --color-warning-bg:   rgba(240,168,73,.12);
+  --color-info-bg:      rgba(79,195,247,.12);
+
+  --text-2xs:           11px;
+  --text-3xs:           10px;
+
+  --radius-card:        12px;
+  --radius-field:       8px;
+
+  --shadow-modal:       0 8px 32px rgba(0,0,0,.6);
 }
 
 * {
@@ -125,6 +145,9 @@ html.light {
   --color-border:  #d5d5d5;
   --color-text:    #111111;
   --color-muted:   #666666;
+  --color-faint:   #777777;
+  --color-disabled: #999999;
+  --color-info:    #0284c7;
 }
 html.light body {
   background: #f0f2f5;
