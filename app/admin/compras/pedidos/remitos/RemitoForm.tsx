@@ -5,7 +5,9 @@ import { X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { sugerirPedidoItem } from '@/lib/compras/matchRemito'
 import { sumarStock, revertirYBorrar } from '@/lib/compras/stockRemito'
-import { useConfirm } from '@/components/ui/ConfirmDialog'
+import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
+import { controlClass } from '@/components/ui/Field'
+import InputNumero from '@/components/ui/InputNumero'
 import { mensajeError } from '@/lib/errores'
 import type { Remito } from '@/lib/compras/tipos'
 
@@ -24,14 +26,14 @@ export interface PedidoConItems {
 
 interface LineaEditor {
   descripcion: string
-  cantidad: number
+  cantidad: number | null
   precio: number | null
   pedidoItemId: string | null
   matchManual: boolean
 }
 
 function lineaVacia(): LineaEditor {
-  return { descripcion: '', cantidad: 0, precio: null, pedidoItemId: null, matchManual: false }
+  return { descripcion: '', cantidad: null, precio: null, pedidoItemId: null, matchManual: false }
 }
 
 function lineasDesdeRemito(remito: Remito): LineaEditor[] {
@@ -58,18 +60,17 @@ export default function RemitoForm({
   onCancelar: () => void
 }) {
   const supabase = createClient()
-  const { confirmar, dialog: confirmDialog } = useConfirm()
+  const confirmar = useConfirmar()
+  const toast = useToast()
   const [numero, setNumero] = useState(remitoEditando?.numero ?? '')
   const [fecha, setFecha] = useState(remitoEditando?.fecha ?? '')
   const [lineas, setLineas] = useState<LineaEditor[]>(remitoEditando ? lineasDesdeRemito(remitoEditando) : [lineaVacia()])
-  const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     setNumero(remitoEditando?.numero ?? '')
     setFecha(remitoEditando?.fecha ?? '')
     setLineas(remitoEditando ? lineasDesdeRemito(remitoEditando) : [lineaVacia()])
-    setError('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remitoEditando?.id])
 
@@ -99,9 +100,9 @@ export default function RemitoForm({
   }
 
   function guardarRemito() {
-    if (!numero.trim() || !fecha) { setError('Completá número y fecha'); return }
-    const filas = lineas.filter(l => l.descripcion.trim() && l.cantidad > 0)
-    if (!filas.length) { setError('Agregá al menos un ítem con cantidad'); return }
+    if (!numero.trim() || !fecha) { toast.error('Completá número y fecha'); return }
+    const filas = lineas.filter(l => l.descripcion.trim() && (l.cantidad ?? 0) > 0)
+    if (!filas.length) { toast.error('Agregá al menos un ítem con cantidad'); return }
 
     const remitoAReemplazar = remitoEditando?.id ?? null
     if (!remitoAReemplazar) {
@@ -121,8 +122,7 @@ export default function RemitoForm({
   }
 
   function ejecutarGuardado(remitoAReemplazar: string | null) {
-    const filas = lineas.filter(l => l.descripcion.trim() && l.cantidad > 0)
-    setError('')
+    const filas = lineas.filter(l => l.descripcion.trim() && (l.cantidad ?? 0) > 0)
     startTransition(async () => {
       if (remitoAReemplazar) {
         const remitoExistente = pedido.compras_remitos.find(r => r.id === remitoAReemplazar)
@@ -134,14 +134,14 @@ export default function RemitoForm({
         .insert([{ pedido_id: pedido.id, numero: numero.trim(), fecha, creado_por: usuarioId }])
         .select()
         .single()
-      if (errRemito) { setError(mensajeError(errRemito, 'No se pudo guardar el remito')); return }
+      if (errRemito) { toast.error(mensajeError(errRemito, 'No se pudo guardar el remito')); return }
 
       const filasInsert = filas.map(l => ({
         remito_id: remito.id,
         pedido_item_id: l.pedidoItemId,
         item_id: pedido.compras_pedido_items.find(pi => pi.id === l.pedidoItemId)?.item_id ?? null,
         descripcion: l.descripcion.trim(),
-        cantidad: l.cantidad,
+        cantidad: l.cantidad ?? 0,
         precio: l.precio,
       }))
 
@@ -149,34 +149,32 @@ export default function RemitoForm({
         .from('compras_remito_items')
         .insert(filasInsert)
         .select()
-      if (errItems) { setError(mensajeError(errItems, 'No se pudieron guardar los ítems del remito')); return }
+      if (errItems) { toast.error(mensajeError(errItems, 'No se pudieron guardar los ítems del remito')); return }
 
       for (const item of itemsGuardados) {
         if (item.item_id) await sumarStock(supabase, item.item_id, item.cantidad, remito.id, usuarioId)
       }
 
       const remitoCompleto: Remito = { ...remito, compras_remito_items: itemsGuardados }
+      toast.success(remitoAReemplazar ? 'Remito actualizado' : 'Remito guardado')
       onGuardado(remitoCompleto, remitoAReemplazar)
     })
   }
 
-  const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
-  const labelClass = "block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
+  const labelClass = 'block text-xs font-semibold text-accent uppercase tracking-wider mb-1'
 
   return (
     <div className="space-y-4">
       <div className="flex gap-3">
         <div className="flex-1">
           <label className={labelClass}>N° Remito</label>
-          <input type="text" className={inputClass} value={numero} onChange={e => setNumero(e.target.value)} />
+          <input type="text" className={controlClass} value={numero} onChange={e => setNumero(e.target.value)} />
         </div>
         <div className="flex-1">
           <label className={labelClass}>Fecha</label>
-          <input type="date" className={inputClass} value={fecha} onChange={e => setFecha(e.target.value)} />
+          <input type="date" className={controlClass} value={fecha} onChange={e => setFecha(e.target.value)} />
         </div>
       </div>
-
-      {error && <p className="text-red-400 text-sm">{error}</p>}
 
       <div className="space-y-2">
         <div className="hidden sm:grid grid-cols-[1fr_14rem_5.5rem_6.5rem_2rem] gap-2 px-0.5">
@@ -190,13 +188,13 @@ export default function RemitoForm({
           <div key={idx} className="grid grid-cols-[1fr_14rem_5.5rem_6.5rem_2rem] gap-2">
             <input
               type="text"
-              className={inputClass}
+              className={controlClass}
               placeholder="Descripción (como figura en el remito)"
               value={linea.descripcion}
               onChange={e => actualizarDescripcion(idx, e.target.value)}
             />
             <select
-              className={inputClass}
+              className={controlClass}
               value={linea.pedidoItemId ?? ''}
               onChange={e => actualizarMatch(idx, e.target.value)}
             >
@@ -205,23 +203,21 @@ export default function RemitoForm({
                 <option key={item.id} value={item.id}>{item.descripcion}</option>
               ))}
             </select>
-            <input
-              type="number"
-              step="0.01"
-              className={inputClass}
+            <InputNumero
               placeholder="Cant."
-              value={linea.cantidad || ''}
-              onChange={e => actualizarCampo(idx, { cantidad: Number(e.target.value) })}
+              className={controlClass}
+              value={linea.cantidad}
+              onChange={v => actualizarCampo(idx, { cantidad: v })}
+              min={0}
             />
-            <input
-              type="number"
-              step="0.01"
-              className={inputClass}
+            <InputNumero
               placeholder="Precio"
-              value={linea.precio ?? ''}
-              onChange={e => actualizarCampo(idx, { precio: e.target.value ? Number(e.target.value) : null })}
+              className={controlClass}
+              value={linea.precio}
+              onChange={v => actualizarCampo(idx, { precio: v })}
+              min={0}
             />
-            <button onClick={() => quitarLinea(idx)} title="Quitar línea" aria-label="Quitar línea" className="text-[#888] hover:text-red-400 flex items-center justify-center">
+            <button onClick={() => quitarLinea(idx)} title="Quitar línea" aria-label="Quitar línea" className="text-muted hover:text-red-400 flex items-center justify-center">
               <X size={15} />
             </button>
           </div>
@@ -229,18 +225,16 @@ export default function RemitoForm({
       </div>
 
       <div className="flex gap-3">
-        <button onClick={agregarLinea} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-xs py-1.5 px-3 rounded-lg transition-all">
+        <button onClick={agregarLinea} className="bg-border hover:opacity-80 text-text font-semibold text-xs py-1.5 px-3 rounded-lg transition-all">
           + Agregar línea
         </button>
-        <button onClick={guardarRemito} disabled={isPending} className="bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-xs py-1.5 px-3 rounded-lg transition-all">
+        <button onClick={guardarRemito} disabled={isPending} className="bg-accent hover:opacity-90 disabled:opacity-40 text-black font-semibold text-xs py-1.5 px-3 rounded-lg transition-all">
           Guardar remito
         </button>
-        <button onClick={onCancelar} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-xs py-1.5 px-3 rounded-lg transition-all">
+        <button onClick={onCancelar} className="bg-border hover:opacity-80 text-text font-semibold text-xs py-1.5 px-3 rounded-lg transition-all">
           Cancelar
         </button>
       </div>
-
-      {confirmDialog}
     </div>
   )
 }
