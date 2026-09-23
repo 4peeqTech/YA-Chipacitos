@@ -5,6 +5,7 @@ import { PackageOpen, Plus, Trash2, Truck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
 import PageHeader from '@/components/ui/PageHeader'
+import AyudaLink from '@/components/ui/AyudaLink'
 import EmptyState from '@/components/ui/EmptyState'
 import DataTable, { type Columna } from '@/components/ui/DataTable'
 import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
@@ -197,9 +198,12 @@ export default function RemitosClient({
         titulo="Remitos"
         descripcion="Cargá los remitos que llegan y asignalos al pedido correspondiente."
         acciones={
-          <button onClick={abrirModalAlta} className="flex items-center gap-1.5 bg-accent hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-            <Plus size={16} /> Cargar remito
-          </button>
+          <>
+            <AyudaLink seccion="compras-remitos" />
+            <button onClick={abrirModalAlta} className="flex items-center gap-1.5 bg-accent hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
+              <Plus size={16} /> Cargar remito
+            </button>
+          </>
         }
       />
 

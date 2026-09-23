@@ -1,46 +1,82 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import AyudaClient from './AyudaClient'
-import { MODULOS } from '@/lib/modulos'
-
-export const dynamic = 'force-dynamic'
+import { BookOpen, ChevronRight, Sparkles } from 'lucide-react'
+import PageHeader from '@/components/ui/PageHeader'
+import ReportarProblema from '@/components/manual/ReportarProblema'
+import TextoRico from '@/components/manual/TextoRico'
+import { formatearFecha } from '@/lib/formato'
+import { AREAS, indiceDeBusqueda, novedadesRecientes, seccionesVisibles } from '@/lib/manual'
+import { obtenerLector } from './lector'
+import BuscadorManual from './BuscadorManual'
 
 export default async function AyudaPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('profiles').select('nombre, rol, local_nombre, modulos_permitidos').eq('id', user.id).single()
-  if (!profile) redirect('/login')
-
-  const backHref = profile.rol === 'admin'
-    ? '/admin/dashboard'
-    : profile.rol === 'squad'
-      ? MODULOS.find(m => (profile.modulos_permitidos || []).includes(m.key))?.href || '/ayuda'
-      : profile.rol === 'deposito' || profile.rol === 'supervisor_fabrica'
-        ? '/operador/pedidos'
-        : '/local/pedidos'
+  const { lector, email, nombre } = await obtenerLector()
+  const secciones = seccionesVisibles(lector)
+  const novedades = novedadesRecientes(secciones)
+  const reportarBoton = <ReportarProblema variante="enlace" usuarioEmail={email} usuarioNombre={nombre} />
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
-      {/* Header */}
-      <header className="bg-[#111111] border-b border-[#2a2a2a] px-4 py-3 flex items-center gap-3 sticky top-0 z-30">
-        <Link href={backHref} className="text-[#888] hover:text-[#f0f0f0] transition-colors text-sm">
-          ← Volver
-        </Link>
-        <div className="flex-1" />
-        <span className="font-['Syne'] font-bold text-[#e8c547] text-sm">YA! Chipacitos</span>
-        <span className="text-xs bg-[#e8c547]/10 text-[#e8c547] px-2 py-0.5 rounded-full uppercase tracking-wider">Ayuda</span>
-      </header>
+    <div className="space-y-6">
+      <PageHeader icono={BookOpen} titulo="Manual" descripcion="Cómo usar YA! Chipacitos, paso a paso." />
 
-      <AyudaClient
-        rol={profile.rol}
-        modulosPermitidos={profile.modulos_permitidos || []}
-        usuarioEmail={user.email}
-        usuarioNombre={profile.nombre}
-      />
+      <BuscadorManual
+        indice={indiceDeBusqueda(secciones)}
+        pieSinResultados={<ReportarProblema variante="boton" usuarioEmail={email} usuarioNombre={nombre} />}
+      >
+        {novedades.length > 0 && (
+          <section className="rounded-2xl border border-accent/30 bg-accent-bg px-5 py-4">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-text">
+              <Sparkles size={16} className="text-accent" /> Novedades recientes
+            </h2>
+            <ul className="mt-3 space-y-2.5">
+              {novedades.map((n, i) => (
+                <li key={i}>
+                  <Link href={`/ayuda/${n.slug}`} className="group flex flex-col gap-0.5 text-sm sm:flex-row sm:gap-3">
+                    <time dateTime={n.fecha} className="shrink-0 text-xs tabular-nums text-muted sm:w-24 sm:pt-0.5">{formatearFecha(n.fecha)}</time>
+                    <span>
+                      <span className="font-medium text-text group-hover:text-accent">{n.seccion}:</span>{' '}
+                      <TextoRico texto={n.texto} />
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {AREAS.map(area => {
+          const delArea = secciones.filter(s => s.area === area.key)
+          if (delArea.length === 0) return null
+          return (
+            <section key={area.key}>
+              <h2 className="mb-2 text-sm font-semibold text-muted">{area.titulo}</h2>
+              <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+                {delArea.map(s => {
+                  const Icono = s.icono
+                  return (
+                    <li key={s.slug}>
+                      <Link href={`/ayuda/${s.slug}`} className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-surface2">
+                        <Icono size={20} className="shrink-0 text-accent" />
+                        <div className="min-w-0 flex-1">
+                          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-text">
+                            {s.titulo}
+                            {s.proximamente && (
+                              <span className="rounded-full bg-surface2 px-2 py-0.5 text-2xs font-semibold text-muted">Próximamente</span>
+                            )}
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted">{s.resumen}</p>
+                        </div>
+                        <ChevronRight size={16} className="shrink-0 text-faint" />
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )
+        })}
+
+        <div className="border-t border-border pt-2">{reportarBoton}</div>
+      </BuscadorManual>
     </div>
   )
 }

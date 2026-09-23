@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  PLANTILLA de la guía de prueba de cada hito: la página que Marcos sigue solo en el entorno de QA.
+  Uso: copiar a docs/entregas/H<n>-<AAAA-MM-DD>-guia-de-prueba.html y editar SOLO el objeto GUIA
+  del <script> de abajo (id, título, cuenta, circuitos, pasos y resultado esperado).
+  - Un paso = una acción, con el nombre exacto del botón entre ** **. Ej: 'Tocá **Nuevo pedido**'.
+  - "esperado" dice qué tiene que ver en pantalla si salió bien.
+  - Los casilleros y las observaciones se guardan en el navegador de quien la usa (no se comparten).
+    "Copiar resumen" arma un texto para pegar en WhatsApp o en un mail: así vuelven las observaciones.
+  - Imprimible (Ctrl+P) y usable en el celular.
+-->
+<title>Guía de prueba · YA! Chipacitos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15142b; --s1:#1c1b38; --s2:#232c58; --line:rgba(227,216,236,.14); --line2:rgba(227,216,236,.26);
+  --ink:#f6f3f9; --muted:#c3bdd8; --faint:#938cb0;
+  --red:#e84210; --yellow:#e8c547; --hot:#ffd21f; --green:#56d68a; --amber:#f0a849;
+  --display:'Syne','Arial Black','Segoe UI',system-ui,sans-serif;
+  --body:'Poppins','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding:24px 16px 96px}
+h1,h2{font-family:var(--display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+h1{font-size:clamp(28px,6vw,40px);line-height:1.05;font-weight:800}
+h2{font-size:22px;line-height:1.15;font-weight:700}
+.kicker{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--yellow);margin:0 0 10px}
+.intro{color:var(--muted);margin:12px 0 0}
+b,strong{color:var(--ink);font-weight:600}
+
+.datos{margin:24px 0 0;display:grid;gap:10px}
+.dato{display:flex;gap:12px;align-items:baseline;padding:14px 16px;border-radius:14px;background:var(--s1);border:1px solid var(--line)}
+.dato span{font-size:13px;color:var(--faint);min-width:84px}
+.dato a{color:var(--yellow);font-weight:600;word-break:break-all}
+
+.barra{position:sticky;top:0;z-index:5;margin:28px -16px 0;padding:12px 16px;background:rgba(21,20,43,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.progreso{flex:1;min-width:0}
+.progreso p{margin:0 0 6px;font-size:13px;color:var(--muted)}
+.progreso .track{height:6px;border-radius:3px;background:var(--line)}
+.progreso .fill{height:100%;border-radius:3px;background:var(--green);width:0;transition:width .3s ease}
+button{font:inherit;cursor:pointer}
+.btn{min-height:44px;padding:0 16px;border-radius:12px;border:1.5px solid var(--line2);background:transparent;color:var(--ink);font-size:14px;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--yellow);color:var(--yellow)}
+.btn:focus-visible,.paso input:focus-visible+.box,textarea:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.btn.prim{background:var(--yellow);border-color:var(--yellow);color:var(--bg);font-weight:600}
+.btn.prim:hover{color:var(--bg);opacity:.9}
+
+.circuito{margin-top:36px}
+.circuito header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.circuito .cuenta{font-size:13px;color:var(--faint);white-space:nowrap}
+.circuito .para{color:var(--muted);margin:6px 0 0;font-size:15px}
+.pasos{list-style:none;margin:16px 0 0;padding:0;border-radius:16px;border:1px solid var(--line);background:var(--s1);overflow:hidden}
+.paso{border-top:1px solid var(--line)}
+.paso:first-child{border-top:0}
+.paso label{display:grid;grid-template-columns:28px 1fr;gap:14px;padding:14px 16px;cursor:pointer;min-height:44px}
+.paso input{position:absolute;opacity:0;pointer-events:none}
+.paso .box{width:26px;height:26px;border-radius:8px;border:2px solid var(--line2);display:grid;place-items:center;margin-top:1px;transition:background .15s ease,border-color .15s ease}
+.paso .box svg{width:16px;height:16px;stroke:var(--bg);stroke-width:3;fill:none;opacity:0;transition:opacity .15s ease}
+.paso input:checked+.box{background:var(--green);border-color:var(--green)}
+.paso input:checked+.box svg{opacity:1}
+.paso .n{font-size:12px;color:var(--faint);display:block}
+.paso .accion{display:block}
+.paso .esperado{display:block;margin-top:6px;font-size:14px;color:var(--muted)}
+.paso .esperado::before{content:"Tenés que ver: ";color:var(--green);font-weight:600}
+.paso input:checked~.texto .accion{color:var(--muted)}
+.obs{margin-top:12px}
+.obs label{display:block;font-size:14px;color:var(--muted);margin-bottom:6px}
+textarea{width:100%;min-height:88px;resize:vertical;border-radius:12px;border:1.5px solid var(--line2);background:var(--bg);color:var(--ink);font:inherit;font-size:15px;padding:12px 14px}
+textarea::placeholder{color:var(--faint)}
+.nota{margin-top:40px;padding:16px;border-radius:14px;border:1.5px dashed var(--line2);color:var(--muted);font-size:14px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;font-size:14px;font-weight:500;transition:opacity .2s ease,transform .2s ease;pointer-events:none;max-width:calc(100% - 32px)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+
+@media print{
+  :root{--bg:#fff;--s1:#fff;--ink:#111;--muted:#444;--faint:#666;--line:#ccc;--line2:#999;--yellow:#8a6d00;--green:#1f7a45}
+  body{font-size:12pt}
+  .wrap{padding:0;max-width:none}
+  .barra,.toast{display:none!important}
+  .circuito{break-inside:avoid-page}
+  .paso{break-inside:avoid}
+  .paso .box{border-color:#666}
+  textarea{border:1px solid #999;min-height:70px}
+  a{color:#111}
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <p class="kicker" id="kicker"></p>
+  <h1 id="titulo"></h1>
+  <p class="intro" id="intro"></p>
+  <div class="datos" id="datos"></div>
+
+  <div class="barra">
+    <div class="progreso" aria-live="polite">
+      <p id="progreso-texto"></p>
+      <div class="track"><div class="fill" id="progreso-fill"></div></div>
+    </div>
+    <button class="btn" type="button" id="imprimir">Imprimir</button>
+    <button class="btn prim" type="button" id="copiar">Copiar resumen</button>
+  </div>
+
+  <div id="circuitos"></div>
+
+  <p class="nota">Estás en el entorno de pruebas: los datos son de prueba y podés tocar todo sin miedo. Tus casilleros y observaciones quedan guardados en este navegador. Cuando termines, tocá <b>Copiar resumen</b> y mandánoslo.</p>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+// ─── EDITAR SOLO ESTO ─────────────────────────────────────────────────────────
+var GUIA = {
+  id: '{{H1-2026-10-00}}',                // único por guía: es la clave de lo guardado en el navegador
+  hito: '{{Hito 1}}',
+  titulo: '{{Pedidos con número y remitos que mueven el stock}}',
+  intro: '{{Seguí cada circuito en orden. Marcá cada paso cuando lo veas funcionar; si algo no da, anotalo abajo del circuito.}}',
+  enlace: 'https://qa.yachipacitos.com.ar',
+  cuenta: '{{usuario de pruebas — la contraseña te la pasamos por WhatsApp}}',
+  circuitos: [
+    {
+      titulo: '{{Crear y enviar un pedido}}',
+      para: '{{Para qué sirve este circuito, en una línea.}}',
+      cuenta: '{{Tu cuenta de admin}}',
+      pasos: [
+        { accion: '{{Entrá a **Compras › Pedidos** y tocá **Nuevo pedido**.}}', esperado: '{{Se abre el pedido con su número, por ejemplo P-0021.}}' },
+        { accion: '{{Paso 2.}}', esperado: '{{Qué tenés que ver.}}' },
+      ],
+    },
+    {
+      titulo: '{{Segundo circuito}}',
+      para: '{{Para qué sirve.}}',
+      pasos: [
+        { accion: '{{Paso 1.}}', esperado: '{{Qué tenés que ver.}}' },
+      ],
+    },
+  ],
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
+(function(){
+  var CLAVE = 'guia-prueba:' + GUIA.id;
+  function leer(){ try { return JSON.parse(localStorage.getItem(CLAVE) || '{}'); } catch (e) { return {}; } }
+  function guardar(e){ try { localStorage.setItem(CLAVE, JSON.stringify(e)); } catch (err) { /* modo privado: la guía anda igual, sin recordar */ } }
+  var estado = leer(); estado.pasos = estado.pasos || {}; estado.obs = estado.obs || {};
+
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function rico(s){ return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }
+  function plano(s){ return String(s).replace(/\*\*(.+?)\*\*/g, '$1'); }
+
+  document.title = GUIA.hito + ' · Guía de prueba · YA! Chipacitos';
+  document.getElementById('kicker').textContent = 'Guía de prueba · ' + GUIA.hito;
+  document.getElementById('titulo').textContent = GUIA.titulo;
+  document.getElementById('intro').innerHTML = rico(GUIA.intro);
+  document.getElementById('datos').innerHTML =
+    '<div class="dato"><span>Dónde</span><a href="' + esc(GUIA.enlace) + '" target="_blank" rel="noopener">' + esc(GUIA.enlace.replace(/^https?:\/\//, '')) + '</a></div>' +
+    '<div class="dato"><span>Cuenta</span><div>' + rico(GUIA.cuenta) + '</div></div>';
+
+  var check = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5l10 -10"/></svg>';
+  var html = '', total = 0;
+  GUIA.circuitos.forEach(function(c, ci){
+    html += '<section class="circuito"><header><h2>' + (ci + 1) + '. ' + rico(c.titulo) + '</h2>' +
+      (c.cuenta ? '<span class="cuenta">' + rico(c.cuenta) + '</span>' : '') + '</header>' +
+      (c.para ? '<p class="para">' + rico(c.para) + '</p>' : '') + '<ol class="pasos">';
+    c.pasos.forEach(function(p, pi){
+      var id = ci + '.' + pi; total++;
+      html += '<li class="paso"><label><input type="checkbox" data-paso="' + id + '"' + (estado.pasos[id] ? ' checked' : '') + '>' +
+        '<span class="box">' + check + '</span><span class="texto"><span class="n">Paso ' + (pi + 1) + '</span>' +
+        '<span class="accion">' + rico(p.accion) + '</span>' +
+        (p.esperado ? '<span class="esperado">' + rico(p.esperado) + '</span>' : '') + '</span></label></li>';
+    });
+    html += '</ol><div class="obs"><label for="obs-' + ci + '">Observaciones de este circuito</label>' +
+      '<textarea id="obs-' + ci + '" data-obs="' + ci + '" placeholder="Qué no funcionó, qué te confundió o qué cambiarías">' + esc(estado.obs[ci] || '') + '</textarea></div></section>';
+  });
+  document.getElementById('circuitos').innerHTML = html;
+
+  function progreso(){
+    var hechos = Object.keys(estado.pasos).filter(function(k){ return estado.pasos[k]; }).length;
+    document.getElementById('progreso-texto').textContent = hechos + ' de ' + total + ' pasos probados';
+    document.getElementById('progreso-fill').style.width = (total ? hechos / total * 100 : 0) + '%';
+  }
+  progreso();
+
+  document.addEventListener('change', function(e){
+    var p = e.target.getAttribute && e.target.getAttribute('data-paso');
+    if (p !== null && p !== undefined) { estado.pasos[p] = e.target.checked; guardar(estado); progreso(); }
+  });
+  var t;
+  document.addEventListener('input', function(e){
+    var o = e.target.getAttribute && e.target.getAttribute('data-obs');
+    if (o !== null && o !== undefined) { estado.obs[o] = e.target.value; clearTimeout(t); t = setTimeout(function(){ guardar(estado); }, 300); }
+  });
+
+  function toast(msg){ var el = document.getElementById('toast'); el.textContent = msg; el.classList.add('on'); setTimeout(function(){ el.classList.remove('on'); }, 2600); }
+
+  document.getElementById('imprimir').addEventListener('click', function(){ window.print(); });
+  document.getElementById('copiar').addEventListener('click', function(){
+    var lineas = ['Guía de prueba — ' + GUIA.hito + ': ' + plano(GUIA.titulo), ''];
+    GUIA.circuitos.forEach(function(c, ci){
+      var ok = c.pasos.filter(function(_, pi){ return estado.pasos[ci + '.' + pi]; }).length;
+      lineas.push((ci + 1) + '. ' + plano(c.titulo) + ' — ' + ok + '/' + c.pasos.length + ' pasos OK');
+      c.pasos.forEach(function(p, pi){ if (!estado.pasos[ci + '.' + pi]) lineas.push('   · Sin marcar: ' + plano(p.accion)); });
+      if ((estado.obs[ci] || '').trim()) lineas.push('   Observaciones: ' + estado.obs[ci].trim());
+      lineas.push('');
+    });
+    var texto = lineas.join('\n');
+    function fallback(){
+      var ta = document.createElement('textarea'); ta.value = texto; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); toast('Resumen copiado. Pegalo en WhatsApp o en un mail.'); }
+      catch (e) { toast('No se pudo copiar: seleccioná y copiá las observaciones a mano.'); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(texto).then(function(){ toast('Resumen copiado. Pegalo en WhatsApp o en un mail.'); }, fallback);
+    } else fallback();
+  });
+})();
+</script>
+</body>
+</html>
