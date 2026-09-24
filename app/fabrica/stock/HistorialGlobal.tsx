@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight, History } from 'lucide-react'
+import { ChevronRight, History, PackagePlus } from 'lucide-react'
+import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
@@ -16,6 +17,7 @@ export interface HistorialGlobalItem extends ConteoHistorial {
 }
 
 interface DetalleLinea {
+  item_id: string | null
   descripcion: string
   unidad: string | null
   cantidad_sugerida: number
@@ -30,16 +32,21 @@ export default function HistorialGlobal({ historial }: { historial: HistorialGlo
   const supabase = createClient()
   const [detalle, setDetalle] = useState<HistorialGlobalItem | null>(null)
   const [detalleLineas, setDetalleLineas] = useState<DetalleLinea[] | null>(null)
+  const [excesoPorItem, setExcesoPorItem] = useState<Map<string, number>>(new Map())
 
   async function verDetalle(c: HistorialGlobalItem) {
     setDetalle(c)
     setDetalleLineas(null)
-    const { data } = await supabase
-      .from('compras_solicitudes')
-      .select('compras_solicitud_items(descripcion, unidad, cantidad_sugerida, stock_actual)')
-      .eq('conteo_id', c.id)
-      .eq('tipo', 'complementario')
-      .maybeSingle()
+    const [{ data }, { data: sobrantes }] = await Promise.all([
+      supabase
+        .from('compras_solicitudes')
+        .select('compras_solicitud_items(item_id, descripcion, unidad, cantidad_sugerida, stock_actual)')
+        .eq('conteo_id', c.id)
+        .eq('tipo', 'complementario')
+        .maybeSingle(),
+      supabase.from('fabrica_conteo_items').select('item_id, exceso').eq('conteo_id', c.id).eq('sobrestock', true),
+    ])
+    setExcesoPorItem(new Map((sobrantes ?? []).map(s => [s.item_id, Number(s.exceso)])))
     const lineas = ((data?.compras_solicitud_items as DetalleLinea[] | undefined) ?? [])
       .slice()
       .sort((a, b) => b.cantidad_sugerida - a.cantidad_sugerida)
@@ -96,9 +103,15 @@ export default function HistorialGlobal({ historial }: { historial: HistorialGlo
                 <span className="flex-1 text-sm text-[#f0f0f0] truncate">{it.descripcion}</span>
                 <div className="text-right shrink-0">
                   <p className="text-xs text-[#666]">stock actual {it.stock_actual} {it.unidad}</p>
-                  <p className={`text-xs font-medium ${it.cantidad_sugerida > 0 ? 'text-red-400' : 'text-[#56d68a]'}`}>
-                    {it.cantidad_sugerida > 0 ? `sugerido ${it.cantidad_sugerida} ${it.unidad}` : 'cubre con stock actual'}
-                  </p>
+                  {it.item_id && excesoPorItem.has(it.item_id) ? (
+                    <p className="flex items-center justify-end gap-1 text-xs font-semibold text-warning">
+                      <PackagePlus size={12} /> Sobrestock +{formatearNumero(excesoPorItem.get(it.item_id)!, 1)} {it.unidad}
+                    </p>
+                  ) : (
+                    <p className={`text-xs font-medium ${it.cantidad_sugerida > 0 ? 'text-red-400' : 'text-[#56d68a]'}`}>
+                      {it.cantidad_sugerida > 0 ? `sugerido ${it.cantidad_sugerida} ${it.unidad}` : 'cubre con stock actual'}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

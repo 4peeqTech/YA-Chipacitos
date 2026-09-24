@@ -53,6 +53,27 @@ export type Database = {
         }
         Relationships: []
       }
+      compras_config: {
+        Row: {
+          clave: string
+          descripcion: string | null
+          updated_at: string
+          valor: Json
+        }
+        Insert: {
+          clave: string
+          descripcion?: string | null
+          updated_at?: string
+          valor: Json
+        }
+        Update: {
+          clave?: string
+          descripcion?: string | null
+          updated_at?: string
+          valor?: Json
+        }
+        Relationships: []
+      }
       compras_item_proveedores: {
         Row: {
           activo: boolean
@@ -119,6 +140,7 @@ export type Database = {
           nombre: string
           precio: number | null
           redondeo: string
+          stock_maximo: number | null
           stock_minimo: number
           unidad: string | null
         }
@@ -132,6 +154,7 @@ export type Database = {
           nombre: string
           precio?: number | null
           redondeo?: string
+          stock_maximo?: number | null
           stock_minimo?: number
           unidad?: string | null
         }
@@ -145,6 +168,7 @@ export type Database = {
           nombre?: string
           precio?: number | null
           redondeo?: string
+          stock_maximo?: number | null
           stock_minimo?: number
           unidad?: string | null
         }
@@ -472,6 +496,8 @@ export type Database = {
           cantidad_ajustada: number
           cantidad_sugerida: number
           descripcion: string
+          descuento_origen: string | null
+          descuento_sugerido: number | null
           id: string
           incluir: boolean
           item_id: string | null
@@ -485,6 +511,8 @@ export type Database = {
           cantidad_ajustada?: number
           cantidad_sugerida?: number
           descripcion: string
+          descuento_origen?: string | null
+          descuento_sugerido?: number | null
           id?: string
           incluir?: boolean
           item_id?: string | null
@@ -498,6 +526,8 @@ export type Database = {
           cantidad_ajustada?: number
           cantidad_sugerida?: number
           descripcion?: string
+          descuento_origen?: string | null
+          descuento_sugerido?: number | null
           id?: string
           incluir?: boolean
           item_id?: string | null
@@ -916,12 +946,15 @@ export type Database = {
           cantidad_por_masa: number | null
           cantidad_por_unidad: number | null
           conteo_id: string
+          descuento_base_sugerido: number | null
+          exceso: number | null
           id: string
           item_id: string
           meta: number | null
           modo_calculo: string | null
           necesidad: number | null
           redondeo: string | null
+          sobrestock: boolean
           sugerido: number | null
           unidad_compra: string | null
         }
@@ -931,12 +964,15 @@ export type Database = {
           cantidad_por_masa?: number | null
           cantidad_por_unidad?: number | null
           conteo_id: string
+          descuento_base_sugerido?: number | null
+          exceso?: number | null
           id?: string
           item_id: string
           meta?: number | null
           modo_calculo?: string | null
           necesidad?: number | null
           redondeo?: string | null
+          sobrestock?: boolean
           sugerido?: number | null
           unidad_compra?: string | null
         }
@@ -946,12 +982,15 @@ export type Database = {
           cantidad_por_masa?: number | null
           cantidad_por_unidad?: number | null
           conteo_id?: string
+          descuento_base_sugerido?: number | null
+          exceso?: number | null
           id?: string
           item_id?: string
           meta?: number | null
           modo_calculo?: string | null
           necesidad?: number | null
           redondeo?: string | null
+          sobrestock?: boolean
           sugerido?: number | null
           unidad_compra?: string | null
         }
@@ -3128,6 +3167,19 @@ export type Database = {
         Returns: undefined
       }
       cerrar_conteo_fabrica: { Args: { p_conteo_id: string }; Returns: string }
+      compras_sugerencias_sobrestock: {
+        Args: { p_excluir_solicitud?: string }
+        Returns: {
+          cerrado_en: string
+          conteo_id: string
+          descuento: number
+          exceso: number
+          item_id: string
+          nombre: string
+          origen: string
+          unidad: string
+        }[]
+      }
       convertir_solicitud_a_pedidos: {
         Args: { p_solicitud_id: string }
         Returns: number

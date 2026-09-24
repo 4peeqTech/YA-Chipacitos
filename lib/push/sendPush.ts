@@ -14,7 +14,9 @@ function getAdminClient() {
 // desde el cron (que no tiene cookies). También deja el registro en
 // `notificaciones` para el panel in-app, independientemente de si el
 // destinatario tiene push activado o no.
-export async function enviarPush({ userIds, title, body, url, tipo = 'general' }: { userIds: string[]; title: string; body: string; url?: string; tipo?: string }) {
+// `tag` agrupa en el celular: dos avisos con el mismo tag se pisan. Pasá uno
+// propio cuando mandás dos avisos seguidos que se tienen que ver los dos.
+export async function enviarPush({ userIds, title, body, url, tipo = 'general', tag = 'tarea' }: { userIds: string[]; title: string; body: string; url?: string; tipo?: string; tag?: string }) {
   if (!userIds?.length) return { sent: 0, failed: 0 }
 
   const admin = getAdminClient()
@@ -44,7 +46,7 @@ export async function enviarPush({ userIds, title, body, url, tipo = 'general' }
 
   if (!subs?.length) return { sent: 0, failed: 0 }
 
-  const payload = JSON.stringify({ title, body, url: url || '/tareas', tag: 'tarea' })
+  const payload = JSON.stringify({ title, body, url: url || '/tareas', tag })
 
   const results = await Promise.allSettled(
     subs.map(sub =>

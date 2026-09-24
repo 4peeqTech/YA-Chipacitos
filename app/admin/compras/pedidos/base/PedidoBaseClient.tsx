@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { ClipboardList, GripVertical, Pencil, Plus, Send, Trash2 } from 'lucide-react'
+import { ClipboardList, GripVertical, PackageMinus, Pencil, Plus, Send, Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
+import AyudaLink from '@/components/ui/AyudaLink'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
@@ -47,6 +50,24 @@ interface PlantillaLinea {
   cantidad: number
   orden: number
   activo: boolean
+}
+
+interface SugerenciaSobrestock {
+  item_id: string
+  nombre: string
+  unidad: string | null
+  exceso: number
+  descuento: number
+  origen: string
+  cerrado_en: string
+}
+
+interface UltimaBase {
+  id: string
+  estado: string
+  created_at: string
+  /** Generada hace menos de 7 días (caso C4 del plan). */
+  estaSemana: boolean
 }
 
 const emptyForm = (): Partial<PlantillaLinea> => ({
@@ -139,10 +160,14 @@ export default function PedidoBaseClient({
   plantillaInicial,
   proveedores,
   itemsCatalogo,
+  sugerencias,
+  ultimaBase,
 }: {
   plantillaInicial: PlantillaLinea[]
   proveedores: ProveedorOption[]
   itemsCatalogo: CatalogoItem[]
+  sugerencias: SugerenciaSobrestock[]
+  ultimaBase: UltimaBase | null
 }) {
   const supabase = createClient()
   const toast = useToasts()
@@ -154,6 +179,9 @@ export default function PedidoBaseClient({
   const [eliminando, setEliminando] = useState<PlantillaLinea | null>(null)
   const [generando, setGenerando] = useState(false)
   const [isPending, startTransition] = useTransition()
+  // Generar consume las sugerencias: pasan a la solicitud nueva.
+  const [sugerenciasVigentes, setSugerenciasVigentes] = useState(sugerencias)
+  const [baseAbierta, setBaseAbierta] = useState(ultimaBase?.estado === 'abierta')
 
   const nombreProveedor = (id: string) => proveedores.find(p => p.id === id)?.nombre ?? '—'
   const activas = lineas.filter(l => l.activo)
@@ -248,7 +276,12 @@ export default function PedidoBaseClient({
     const { error } = await supabase.rpc('generar_solicitud_base')
     setGenerando(false)
     if (error) { toast.error(mensajeError(error, 'No se pudo generar el pedido base')); return }
-    toast.success('Solicitud del pedido base creada — revisala en la tab Solicitudes')
+    const n = sugerenciasVigentes.length
+    toast.success(n > 0
+      ? `Solicitud del pedido base creada con ${n} sugerencia${n === 1 ? '' : 's'} por sobrestock — revisala en la tab Solicitudes`
+      : 'Solicitud del pedido base creada — revisala en la tab Solicitudes')
+    setSugerenciasVigentes([])
+    setBaseAbierta(true)
   }
 
   const sensors = useSensors(
@@ -274,7 +307,7 @@ export default function PedidoBaseClient({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-[#f0f0f0]"><ClipboardList size={22} className="text-[#e8c547]" /> Pedido base</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-[#f0f0f0]"><ClipboardList size={22} className="text-[#e8c547]" /> Pedido base <AyudaLink seccion="compras-pedido-base" ancla="sobrestock" /></h1>
           <p className="text-[#888] text-sm mt-0.5">{activas.length} línea{activas.length === 1 ? '' : 's'} activa{activas.length === 1 ? '' : 's'} del pedido fijo de los miércoles</p>
         </div>
         <div className="flex gap-2">
@@ -295,6 +328,31 @@ export default function PedidoBaseClient({
         Esto es una plantilla: lo que está acá se pide todas las semanas, sin importar el conteo. Generar crea una solicitud en la bandeja de <span className="text-[#f0f0f0]">Solicitudes</span>, con las mismas cantidades de acá — la ajustás y la convertís en pedidos desde ahí, igual que el pedido complementario de Fábrica. El orden de la lista es el orden en el que aparecen los ítems en la solicitud y en los pedidos por proveedor; se ajusta arrastrando desde el ícono de la izquierda.
         <HelpTooltip text="Si ya hay un pedido base pendiente de revisión sin convertir, no se puede generar otro hasta resolver ese." />
       </p>
+
+      {sugerenciasVigentes.length > 0 && (
+        <section aria-labelledby="sobrestock-titulo" className="rounded-xl border border-warning bg-warning-bg px-4 py-3.5 space-y-2">
+          <h2 id="sobrestock-titulo" className="flex items-center gap-2 text-sm font-semibold text-text">
+            <PackageMinus size={16} className="text-warning shrink-0" /> Sugerencias por sobrestock del último conteo
+          </h2>
+          <ul className="space-y-1 text-sm text-text">
+            {sugerenciasVigentes.map(s => (
+              <li key={s.item_id}>
+                <span className="font-medium">{s.nombre}</span>: sobran {formatearNumero(Number(s.exceso), 1)} {s.unidad} → pedir {formatearNumero(Number(s.descuento), 1)} menos
+                <span className="text-muted"> · {s.origen}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted">
+            {baseAbierta ? (
+              <>Llegaron después de generar el pedido base que está en <Link href="/admin/compras/pedidos/solicitudes" className="text-text underline underline-offset-2">Solicitudes</Link>: ajustalo a mano ahí, o se sugieren solas en el próximo.</>
+            ) : ultimaBase?.estaSemana ? (
+              <>Llegaron después de generar el pedido base de esta semana ({new Date(ultimaBase.created_at).toLocaleDateString('es-AR')}): aplicalas en el próximo. Al generarlo, cada línea trae su sugerencia para aplicar o no.</>
+            ) : (
+              <>Al generar el pedido base, cada línea trae su sugerencia. No se aplica sola: la aplicás vos en Solicitudes.</>
+            )}
+          </p>
+        </section>
+      )}
 
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
         {lineas.length === 0 ? (

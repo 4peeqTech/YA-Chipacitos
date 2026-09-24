@@ -24,11 +24,23 @@ export default async function SolicitudesPage() {
     proveedoresPorItem[ip.item_id].push(ip.proveedor_id)
   }
 
+  // Sobrestock de los conteos que originaron solicitudes complementarias (F8):
+  // clave `${conteo_id}:${item_id}` → exceso en unidades de compra.
+  // Solo las filas con sobrestock (pocas): sin filtrar por la lista de conteos,
+  // que crece con el historial y terminaría pasando el largo de la URL.
+  const { data: sobrantes } = await supabase
+    .from('fabrica_conteo_items')
+    .select('conteo_id, item_id, exceso')
+    .eq('sobrestock', true)
+  const sobrestockPorConteoItem: Record<string, number> = {}
+  for (const s of sobrantes ?? []) sobrestockPorConteoItem[`${s.conteo_id}:${s.item_id}`] = Number(s.exceso)
+
   return (
     <SolicitudesClient
       solicitudesIniciales={solicitudes ?? []}
       proveedores={proveedores ?? []}
       proveedoresPorItem={proveedoresPorItem}
+      sobrestockPorConteoItem={sobrestockPorConteoItem}
     />
   )
 }

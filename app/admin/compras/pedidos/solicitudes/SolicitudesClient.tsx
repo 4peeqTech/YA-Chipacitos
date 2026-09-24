@@ -3,10 +3,12 @@
 import { useMemo, useRef, useState } from 'react'
 import {
   Inbox, ClipboardList, TrendingUp, Truck, ChevronRight,
-  Ban, Send, History, Scale,
+  Ban, Send, History, Scale, PackageMinus, PackagePlus, Undo2,
 } from 'lucide-react'
+import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
+import AyudaLink from '@/components/ui/AyudaLink'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
@@ -32,6 +34,9 @@ interface SolicitudItem {
   stock_actual: number | null
   incluir: boolean
   orden: number
+  /** Pedido base: cuánto pedir de menos por sobrestock del último conteo (F8). Nunca se aplica solo. */
+  descuento_sugerido: number | null
+  descuento_origen: string | null
 }
 
 export interface Solicitud {
@@ -62,6 +67,19 @@ const ESTADO_LABEL: Record<Solicitud['estado'], string> = {
   descartada: 'Descartada',
 }
 
+/** Cantidad con la sugerencia de sobrestock aplicada. */
+function cantidadConDescuento(i: SolicitudItem) {
+  return Math.max(0, i.cantidad_sugerida - (i.descuento_sugerido ?? 0))
+}
+
+function tieneSugerencia(i: SolicitudItem) {
+  return (i.descuento_sugerido ?? 0) > 0
+}
+
+function sugerenciaAplicada(i: SolicitudItem) {
+  return tieneSugerencia(i) && i.cantidad_ajustada === cantidadConDescuento(i)
+}
+
 function formatearFechaCorta(fecha: string) {
   return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
 }
@@ -76,10 +94,12 @@ export default function SolicitudesClient({
   solicitudesIniciales,
   proveedores,
   proveedoresPorItem,
+  sobrestockPorConteoItem,
 }: {
   solicitudesIniciales: Solicitud[]
   proveedores: ProveedorOption[]
   proveedoresPorItem: Record<string, string[]>
+  sobrestockPorConteoItem: Record<string, number>
 }) {
   const supabase = createClient()
   const toast = useToasts()
@@ -132,8 +152,40 @@ export default function SolicitudesClient({
     setItems([])
   }
 
+  function excesoDe(s: Solicitud, i: SolicitudItem): number | null {
+    if (!s.conteo_id || !i.item_id) return null
+    return sobrestockPorConteoItem[`${s.conteo_id}:${i.item_id}`] ?? null
+  }
+
+  function contarSobrestock(s: Solicitud) {
+    return s.tipo === 'base'
+      ? s.compras_solicitud_items.filter(tieneSugerencia).length
+      : s.compras_solicitud_items.filter(i => excesoDe(s, i) != null).length
+  }
+
+  const conSugerencia = items.filter(tieneSugerencia)
+  const todasAplicadas = conSugerencia.length > 0 && conSugerencia.every(sugerenciaAplicada)
+
+  function aplicarSugerencia(i: SolicitudItem, aplicar: boolean) {
+    actualizarCantidad(i.id, aplicar ? cantidadConDescuento(i) : i.cantidad_sugerida)
+  }
+
+  function aplicarTodas(aplicar: boolean) {
+    for (const i of conSugerencia) {
+      if (sugerenciaAplicada(i) !== aplicar) aplicarSugerencia(i, aplicar)
+    }
+    toast.success(aplicar
+      ? `${conSugerencia.length} sugerencia${conSugerencia.length === 1 ? '' : 's'} aplicada${conSugerencia.length === 1 ? '' : 's'}`
+      : 'Sugerencias deshechas: volvieron las cantidades de la plantilla')
+  }
+
   function actualizarCantidad(itemId: string, cantidad_ajustada: number) {
     setItems(prev => prev.map(i => i.id === itemId ? { ...i, cantidad_ajustada } : i))
+    // La lista también, así reabrir la solicitud muestra el valor nuevo.
+    setSolicitudes(prev => prev.map(s => s.id !== abiertaId ? s : {
+      ...s,
+      compras_solicitud_items: s.compras_solicitud_items.map(i => i.id === itemId ? { ...i, cantidad_ajustada } : i),
+    }))
     marcarGuardado()
     if (timers.current[itemId]) clearTimeout(timers.current[itemId])
     timers.current[itemId] = setTimeout(async () => {
@@ -205,7 +257,7 @@ export default function SolicitudesClient({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-[#f0f0f0]"><Inbox size={22} className="text-[#e8c547]" /> Solicitudes</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-[#f0f0f0]"><Inbox size={22} className="text-[#e8c547]" /> Solicitudes <AyudaLink seccion="compras-solicitudes" ancla="sobrestock" /></h1>
           <p className="text-[#888] text-sm mt-0.5">Revisá lo que pide Fábrica y convertilo en pedidos a proveedores</p>
         </div>
       </div>
@@ -254,6 +306,14 @@ export default function SolicitudesClient({
                   <p className="text-sm text-[#f0f0f0] font-medium truncate">{origenSolicitud(s)}</p>
                   <p className="text-xs text-[#666] mt-0.5">{new Date(s.created_at).toLocaleDateString('es-AR')} · {s.compras_solicitud_items.length} ítems</p>
                 </div>
+                {contarSobrestock(s) > 0 && (
+                  <span className="hidden sm:inline-flex shrink-0 items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-warning-bg text-warning">
+                    <PackagePlus size={12} />
+                    {s.tipo === 'base'
+                      ? `${contarSobrestock(s)} sugerencia${contarSobrestock(s) === 1 ? '' : 's'}`
+                      : `${contarSobrestock(s)} con sobrestock`}
+                  </span>
+                )}
                 <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium ${ESTADO_BADGE[s.estado]}`}>{ESTADO_LABEL[s.estado]}</span>
                 <ChevronRight size={16} className="text-[#666] shrink-0" />
               </button>
@@ -284,6 +344,24 @@ export default function SolicitudesClient({
               </div>
             )}
 
+            {abierta.tipo === 'base' && conSugerencia.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-warning bg-warning-bg px-4 py-3">
+                <PackageMinus size={16} className="text-warning shrink-0" />
+                <p className="flex-1 min-w-48 text-sm text-text">
+                  <span className="font-semibold">{conSugerencia.length} sugerencia{conSugerencia.length === 1 ? '' : 's'} por sobrestock.</span>{' '}
+                  <span className="text-muted">Fábrica contó de más: se sugiere pedir menos. No se aplica sola.</span>
+                </p>
+                {abierta.estado === 'abierta' && (
+                  <button
+                    onClick={() => aplicarTodas(!todasAplicadas)}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-warning px-3 text-sm font-semibold text-warning hover:bg-warning-bg transition-colors"
+                  >
+                    {todasAplicadas ? <><Undo2 size={14} /> Deshacer todas</> : <>Aplicar todas</>}
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="rounded-xl border border-[#2a2a2a] overflow-hidden overflow-x-auto">
               {items.length === 0 ? (
                 <p className="p-6 text-center text-sm text-[#666]">Esta solicitud no tiene líneas.</p>
@@ -308,6 +386,27 @@ export default function SolicitudesClient({
                         <td className="px-4 py-2.5 min-w-40">
                           <p className="text-sm text-text truncate">{i.descripcion}</p>
                           <p className="text-xs text-[#666]">sugerido {i.cantidad_sugerida} {i.unidad}</p>
+                          {excesoDe(abierta, i) != null && (
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-[11px] font-semibold text-warning">
+                              <PackagePlus size={11} /> Sobrestock +{formatearNumero(excesoDe(abierta, i)!, 1)} {i.unidad}
+                            </span>
+                          )}
+                          {tieneSugerencia(i) && (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <p className="text-xs text-warning">
+                                {sugerenciaAplicada(i) ? 'Aplicada: ' : 'Sugerencia: '}pedir {formatearNumero(i.descuento_sugerido!, 1)} menos
+                                {i.descuento_origen && <span className="text-muted"> · {i.descuento_origen}</span>}
+                              </p>
+                              {abierta.estado === 'abierta' && (
+                                <button
+                                  onClick={() => aplicarSugerencia(i, !sugerenciaAplicada(i))}
+                                  className="-ml-2 inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-warning underline-offset-2 hover:underline"
+                                >
+                                  {sugerenciaAplicada(i) ? <><Undo2 size={12} /> Deshacer</> : 'Aplicar sugerencia'}
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="hidden sm:table-cell px-4 py-2.5 text-sm text-[#888] text-right whitespace-nowrap">{i.stock_actual ?? '—'} {i.stock_actual != null ? i.unidad : ''}</td>
                         <td className="px-4 py-2.5">

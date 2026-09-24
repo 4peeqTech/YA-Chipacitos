@@ -12,6 +12,8 @@ const CONSTRAINTS: Record<string, string> = {
     'Ya hay un conteo abierto de esta lista. Recargá la página.',
   compras_solicitudes_conteo_unique:
     'Este conteo ya generó una solicitud.',
+  compras_items_stock_maximo_positivo:
+    'El stock máximo tiene que ser mayor a 0. Dejalo vacío si el insumo no tiene tope.',
 }
 
 function extraerMensaje(error: unknown): string {
@@ -44,6 +46,11 @@ export function mensajeError(error: unknown, fallback: string): string {
   }
 
   if (codigo === '23503') return 'No se puede borrar porque hay otros registros que lo están usando.'
+
+  if (codigo === '23514') {
+    const constraint = mensaje.match(/check constraint "([^"]+)"/)?.[1]
+    if (constraint && CONSTRAINTS[constraint]) return CONSTRAINTS[constraint]
+  }
 
   if (codigo === '23502' || codigo === '23514' || codigo === '22P02' || codigo === '22003') {
     return 'Hay un dato incompleto o mal cargado. Revisá el formulario.'

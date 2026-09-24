@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import InsumosClient from './InsumosClient'
+import type { ModoCalculo } from '@/lib/fabrica/calculoSugerido'
 
 export const metadata = { title: 'Insumos | YA! Chipacitos' }
 
@@ -20,15 +21,20 @@ export default async function InsumosPage() {
     supabase.from('compras_categorias').select('id, nombre').order('orden'),
     supabase
       .from('fabrica_conteo_definicion_items')
-      .select('item_id, fabrica_conteo_definiciones(nombre)')
+      .select('item_id, modo_calculo, fabrica_conteo_definiciones(nombre)')
       .eq('activo', true),
   ])
 
   const conteosPorItem: Record<string, string[]> = {}
-  for (const di of (definicionItems ?? []) as unknown as { item_id: string; fabrica_conteo_definiciones: { nombre: string } | null }[]) {
+  // Modos de cálculo con que cada insumo participa de los conteos: definen si
+  // es de reposición a demanda (por_masa sin receta, decisión X2).
+  const modosPorItem: Record<string, ModoCalculo[]> = {}
+  for (const di of (definicionItems ?? []) as unknown as { item_id: string; modo_calculo: ModoCalculo; fabrica_conteo_definiciones: { nombre: string } | null }[]) {
     if (!di.fabrica_conteo_definiciones) continue
     conteosPorItem[di.item_id] ??= []
     conteosPorItem[di.item_id].push(di.fabrica_conteo_definiciones.nombre)
+    modosPorItem[di.item_id] ??= []
+    if (!modosPorItem[di.item_id].includes(di.modo_calculo)) modosPorItem[di.item_id].push(di.modo_calculo)
   }
 
   return (
@@ -37,6 +43,7 @@ export default async function InsumosPage() {
       proveedores={proveedores ?? []}
       categorias={categorias ?? []}
       conteosPorItem={conteosPorItem}
+      modosPorItem={modosPorItem}
     />
   )
 }

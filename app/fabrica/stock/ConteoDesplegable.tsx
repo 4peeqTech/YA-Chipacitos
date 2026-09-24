@@ -2,9 +2,10 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, TrendingUp, AlertTriangle, Trash2, TriangleAlert } from 'lucide-react'
+import { Lock, TrendingUp, AlertTriangle, Trash2, TriangleAlert, PackagePlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { calcularNecesidadYSugerido, type ModoCalculo, type Redondeo } from '@/lib/fabrica/calculoSugerido'
+import { calcularNecesidadYSugerido, calcularSobrestock, type ModoCalculo, type Redondeo } from '@/lib/fabrica/calculoSugerido'
+import { formatearNumero } from '@/lib/formato'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
@@ -28,6 +29,8 @@ export interface ItemConteoUI {
   meta: number
   cantidadFija: number
   cantidad: number
+  /** Tope opcional de los insumos de reposición a demanda (unidades de compra). */
+  stockMaximo: number | null
 }
 
 export interface ConteoBorrador {
@@ -76,15 +79,19 @@ function formatearFechaConTurno(fecha: string, turno: 'manana' | 'tarde') {
   return `${dia} ${dd}/${mm} (${turno === 'tarde' ? 'tarde' : 'mañana'})`
 }
 
-function tileClass(falta: boolean) {
+type TonoTile = 'falta' | 'sobra' | 'normal'
+
+function tileClass(tono: TonoTile) {
   return `rounded-xl border p-3 space-y-1.5 transition-colors ${
-    falta ? 'border-red-800 bg-red-950/20' : 'border-[#2a2a2a] bg-[#111111]'
+    tono === 'falta' ? 'border-red-800 bg-red-950/20'
+      : tono === 'sobra' ? 'border-warning bg-warning-bg'
+      : 'border-[#2a2a2a] bg-[#111111]'
   }`
 }
 
 const tileInputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-1.5 text-center text-base font-bold focus:outline-none focus:border-[#e8c547] transition-colors"
 
-export default function ConteoDesplegable({ definicion, usuarioId }: { definicion: DefinicionConDatos; usuarioId: string }) {
+export default function ConteoDesplegable({ definicion, usuarioId, umbralSobrestock }: { definicion: DefinicionConDatos; usuarioId: string; umbralSobrestock: number }) {
   const supabase = createClient()
   const router = useRouter()
   const toast = useToasts()
@@ -145,8 +152,8 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
   }
 
   const preview = useMemo(() => {
-    const porItem = new Map(items.map(i => [i.itemId, calcularNecesidadYSugerido(
-      {
+    const porItem = new Map(items.map(i => {
+      const catalogo = {
         modoCalculo: i.modoCalculo,
         cantidadPorMasa: i.cantidadPorMasa,
         cantidadPorUnidad: i.cantidadPorUnidad,
@@ -154,13 +161,18 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
         redondeo: i.redondeo,
         meta: i.meta,
         cantidadFija: i.cantidadFija,
-      },
-      conteo.masas_proyectadas
-    )]))
+      }
+      return [i.itemId, {
+        ...calcularNecesidadYSugerido(catalogo, conteo.masas_proyectadas),
+        ...calcularSobrestock(catalogo, conteo.masas_proyectadas, umbralSobrestock, i.stockMaximo),
+      }]
+    }))
     return porItem
-  }, [items, conteo.masas_proyectadas])
+  }, [items, conteo.masas_proyectadas, umbralSobrestock])
 
   const faltantesTotal = items.filter(i => (preview.get(i.itemId)?.sugeridoUnidades ?? 0) > 0).length
+  // Lo que se le va a avisar a Compras al cerrar (mismo cálculo que el RPC).
+  const sobrantes = items.filter(i => preview.get(i.itemId)?.sobrestock)
 
   async function confirmarCierre() {
     setCerrando(true)
@@ -205,8 +217,13 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
         <div className="flex items-center gap-1.5">
           {cerradoEstaSemana && <span className="text-[10px] font-bold text-[#56d68a]">✓ cerrado</span>}
           {faltantesTotal > 0 && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-950/40 text-red-400">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-950/40 text-red-400" title={`${faltantesTotal} por debajo de la necesidad`}>
               {faltantesTotal}
+            </span>
+          )}
+          {sobrantes.length > 0 && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-warning-bg text-warning" title={`${sobrantes.length} con sobrestock`}>
+              +{sobrantes.length}
             </span>
           )}
         </div>
@@ -262,12 +279,19 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
         </p>
       )}
 
+      {sobrantes.length > 0 && (
+        <p className="flex items-center gap-1.5 text-xs text-warning px-1">
+          <PackagePlus size={12} /> {sobrantes.length} ítem{sobrantes.length > 1 ? 's' : ''} con sobrestock: se le avisa a Compras al cerrar
+        </p>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         {items.map(i => {
           const calc = preview.get(i.itemId)
           const falta = (calc?.sugeridoUnidades ?? 0) > 0
+          const sobra = !!calc?.sobrestock
           return (
-            <div key={i.itemId} className={tileClass(falta)}>
+            <div key={i.itemId} className={tileClass(falta ? 'falta' : sobra ? 'sobra' : 'normal')}>
               <p className="text-[11px] font-semibold text-[#999] uppercase tracking-wide leading-tight">{i.nombre}</p>
               <InputNumero
                 placeholder="0"
@@ -280,7 +304,15 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
                 {i.modoCalculo === 'meta_semanal' && i.meta > 0 && ` · meta ${i.meta}/${PERIODO_ABREV[definicion.periodicidad]}`}
                 {i.modoCalculo === 'por_masa' && i.cantidadPorMasa > 0 && ` · ${i.cantidadPorMasa}/masa`}
               </p>
-              {(calc?.necesidad ?? 0) > 0 && (
+              {sobra ? (
+                <p className="flex items-center gap-1 text-[10px] text-warning font-semibold">
+                  <PackagePlus size={10} /> Sobrestock +{formatearNumero(calc!.exceso!, 1)} {i.unidad}
+                </p>
+              ) : calc?.aDemanda ? (
+                <p className="text-[10px] text-[#888] font-medium">
+                  A demanda{i.stockMaximo != null && ` · tope ${formatearNumero(i.stockMaximo, 1)} ${i.unidad}`}
+                </p>
+              ) : (calc?.necesidad ?? 0) > 0 && (
                 falta ? (
                   <p className="flex items-center gap-1 text-[10px] text-red-400 font-medium">
                     <AlertTriangle size={10} /> sugerido {calc?.sugeridoUnidades}
@@ -309,6 +341,18 @@ export default function ConteoDesplegable({ definicion, usuarioId }: { definicio
           {faltantesTotal > 0 && <> — <span className="text-[#f0f0f0] font-medium">{faltantesTotal} ítem{faltantesTotal > 1 ? 's' : ''}</span> por debajo de la necesidad</>}
           , y se crea una solicitud de compra complementaria para que Compras la revise.
         </p>
+        {sobrantes.length > 0 && (
+          <div className="mt-3 rounded-lg border border-warning bg-warning-bg px-3 py-2.5">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-warning">
+              <PackagePlus size={14} /> Vas a avisar a Compras que sobran:
+            </p>
+            <ul className="mt-1 space-y-0.5 text-sm text-text">
+              {sobrantes.map(i => (
+                <li key={i.itemId}>{i.nombre}: +{formatearNumero(preview.get(i.itemId)!.exceso!, 1)} {i.unidad}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex gap-2 pt-4">
           <button onClick={() => setConfirmando(false)} disabled={cerrando} className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] transition-colors disabled:opacity-40">
             Cancelar

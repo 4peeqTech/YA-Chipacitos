@@ -97,7 +97,7 @@ export default async function FabricaStockPage() {
         .from('fabrica_conteo_definicion_items')
         .select(`
           definicion_id, item_id, modo_calculo, meta, cantidad_fija, orden,
-          compras_items(nombre, unidad, cantidad_por_unidad, cantidad_por_masa, redondeo)
+          compras_items(nombre, unidad, cantidad_por_unidad, cantidad_por_masa, redondeo, stock_maximo)
         `)
         .eq('activo', true)
         .in('definicion_id', definiciones.map(d => d.id))
@@ -110,7 +110,7 @@ export default async function FabricaStockPage() {
     modo_calculo: ModoCalculo
     meta: number
     cantidad_fija: number
-    compras_items: { nombre: string; unidad: string; cantidad_por_unidad: number; cantidad_por_masa: number; redondeo: Redondeo } | null
+    compras_items: { nombre: string; unidad: string; cantidad_por_unidad: number; cantidad_por_masa: number; redondeo: Redondeo; stock_maximo: number | null } | null
   }
   const definicionItems = (definicionItemsData ?? []) as unknown as DefinicionItemRow[]
 
@@ -182,6 +182,16 @@ export default async function FabricaStockPage() {
     }
   }
 
+  // Umbral de sobrestock (compras_config, decisión X1): el mismo que usa
+  // cerrar_conteo_fabrica, así la tile anticipa lo que se va a avisar.
+  const { data: umbralRow } = await supabase
+    .from('compras_config')
+    .select('valor')
+    .eq('clave', 'sobrestock.umbral_unidades')
+    .maybeSingle()
+  const umbralLeido = Number(umbralRow?.valor)
+  const umbralSobrestock = umbralRow && Number.isFinite(umbralLeido) ? umbralLeido : 1
+
   const definicionesUI: DefinicionConDatos[] = []
   for (const def of definiciones) {
     const conteo = conteoPorDefinicion.get(def.id)
@@ -204,6 +214,7 @@ export default async function FabricaStockPage() {
           meta: di.meta,
           cantidadFija: di.cantidad_fija,
           cantidad: ci?.cantidad ?? 0,
+          stockMaximo: catalogo.stock_maximo,
         }
       })
       .sort((a, b) => a.nombre.localeCompare(b.nombre))
@@ -236,5 +247,5 @@ export default async function FabricaStockPage() {
     }
   })
 
-  return <StockClient definiciones={definicionesUI} historialGlobal={historialGlobal} usuarioId={user!.id} />
+  return <StockClient definiciones={definicionesUI} historialGlobal={historialGlobal} usuarioId={user!.id} umbralSobrestock={umbralSobrestock} />
 }

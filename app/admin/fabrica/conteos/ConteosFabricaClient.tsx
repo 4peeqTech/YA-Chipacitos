@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ClipboardCheck, User } from 'lucide-react'
+import { ClipboardCheck, PackagePlus, User } from 'lucide-react'
+import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
 import type { ModoCalculo, Redondeo } from '@/lib/fabrica/calculoSugerido'
 import Modal from '@/components/ui/Modal'
@@ -36,6 +37,9 @@ interface DetalleItem {
   cantidad_por_masa: number
   cantidad_por_unidad: number
   redondeo: Redondeo
+  exceso: number | null
+  sobrestock: boolean
+  descuento_base_sugerido: number | null
   compras_items: { nombre: string; unidad: string } | null
 }
 
@@ -58,6 +62,7 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
   const [hasta, setHasta] = useState('')
 
   const abierto = conteosIniciales.find(c => c.id === abiertoId) ?? null
+  const conSobrestock = detalle.filter(d => d.sobrestock).length
 
   const hayFiltros = !!busqueda || !!desde || !!hasta
   function limpiarFiltros() { setBusqueda(''); setDesde(''); setHasta('') }
@@ -75,7 +80,7 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
     setCargando(true)
     const { data } = await supabase
       .from('fabrica_conteo_items')
-      .select('id, cantidad, necesidad, sugerido, modo_calculo, meta, cantidad_fija, cantidad_por_masa, cantidad_por_unidad, redondeo, compras_items(nombre, unidad)')
+      .select('id, cantidad, necesidad, sugerido, modo_calculo, meta, cantidad_fija, cantidad_por_masa, cantidad_por_unidad, redondeo, exceso, sobrestock, descuento_base_sugerido, compras_items(nombre, unidad)')
       .eq('conteo_id', conteo.id)
     setDetalle(((data ?? []) as unknown as DetalleItem[]).sort((a, b) => (a.compras_items?.nombre ?? '').localeCompare(b.compras_items?.nombre ?? '')))
     setCargando(false)
@@ -144,6 +149,13 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
               )}
             </p>
 
+            {!cargando && conSobrestock > 0 && (
+              <p className="flex items-center gap-2 rounded-xl border border-warning bg-warning-bg px-4 py-2.5 text-sm text-text">
+                <PackagePlus size={16} className="text-warning shrink-0" />
+                {conSobrestock} insumo{conSobrestock === 1 ? '' : 's'} con sobrestock: se avisó a Compras y se sugiere pedir menos en el próximo pedido base.
+              </p>
+            )}
+
             <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
               {cargando ? (
                 <p className="p-6 text-center text-sm text-muted">Cargando…</p>
@@ -169,7 +181,17 @@ export default function ConteosFabricaClient({ conteosIniciales }: { conteosInic
                     {detalle.map(d => (
                       <tr key={d.id}>
                         <td className="px-4 py-3 text-sm text-text align-top">{d.compras_items?.nombre ?? '—'}</td>
-                        <td className="px-4 py-3 text-sm text-muted text-right align-top whitespace-nowrap">{d.cantidad} {d.compras_items?.unidad}</td>
+                        <td className="px-4 py-3 text-sm text-muted text-right align-top whitespace-nowrap">
+                          {d.cantidad} {d.compras_items?.unidad}
+                          {d.sobrestock && d.exceso != null && (
+                            <span className="mt-1 flex items-center justify-end gap-1 text-xs font-semibold text-warning">
+                              <PackagePlus size={12} /> Sobrestock +{formatearNumero(Number(d.exceso), 1)}
+                            </span>
+                          )}
+                          {d.sobrestock && d.descuento_base_sugerido != null && (
+                            <span className="block text-xs text-muted">pedir {formatearNumero(Number(d.descuento_base_sugerido), 1)} menos en el base</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm text-muted text-right align-top whitespace-nowrap">
                           {d.necesidad}
                           {d.cantidad_por_unidad > 0 && (

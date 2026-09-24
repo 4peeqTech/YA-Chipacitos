@@ -66,3 +66,49 @@ export function calcularNecesidadYSugerido(item: ItemCatalogo, masasProyectadas:
 
   return { necesidad, sugeridoUnidades: Math.max(porMasa, piso) }
 }
+
+// Reposición a demanda (decisión X2 del plan de facturación): insumos que se
+// piden según se necesite, no por proyección de masas. Se detecta sola:
+// 'sin_calculo' en cualquier modo, o por_masa sin receta (cantidad_por_masa ≤ 0).
+export function esReposicionADemanda(item: Pick<ItemCatalogo, 'modoCalculo' | 'cantidadPorMasa' | 'redondeo'>): boolean {
+  return item.redondeo === 'sin_calculo' || (item.modoCalculo === 'por_masa' && item.cantidadPorMasa <= 0)
+}
+
+export interface Sobrestock {
+  /** Lo que sobra respecto de lo necesario, en unidades de compra (negativo = falta). null = no se evalúa. */
+  exceso: number | null
+  sobrestock: boolean
+  aDemanda: boolean
+}
+
+// Espejo exacto del segundo UPDATE de cerrar_conteo_fabrica
+// (supabase/migrations/20260924120000_fabrica_sobrestock.sql). Chequeo:
+// `npx tsx lib/fabrica/_check_sobrestock.ts`.
+//   a demanda            → sin tope: null; con stockMaximo: contado − tope
+//   por_masa con receta  → contado − max(necesidad / cpu, meta si > 0), con cpu > 0 y masas > 0
+//   meta_semanal, meta>0 → contado − meta
+//   cantidad_fija        → null
+// sobrestock = exceso ≥ umbral (unidades de compra enteras, compras_config).
+export function calcularSobrestock(
+  item: ItemCatalogo,
+  masasProyectadas: number,
+  umbral: number,
+  stockMaximo: number | null,
+): Sobrestock {
+  const aDemanda = esReposicionADemanda(item)
+  let exceso: number | null = null
+
+  if (aDemanda) {
+    exceso = stockMaximo != null ? item.cantidadUnidades - stockMaximo : null
+  } else if (item.modoCalculo === 'por_masa') {
+    if (item.cantidadPorUnidad > 0 && masasProyectadas > 0) {
+      const necesarias = (item.cantidadPorMasa * masasProyectadas) / item.cantidadPorUnidad
+      exceso = item.cantidadUnidades - Math.max(necesarias, item.meta > 0 ? item.meta : 0)
+    }
+  } else if (item.modoCalculo === 'meta_semanal' && item.meta > 0) {
+    exceso = item.cantidadUnidades - item.meta
+  }
+
+  if (exceso != null) exceso = Math.round(exceso * 100) / 100
+  return { exceso, sobrestock: exceso != null && exceso >= umbral, aDemanda }
+}

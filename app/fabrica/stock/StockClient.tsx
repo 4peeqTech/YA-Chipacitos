@@ -14,10 +14,12 @@ export default function StockClient({
   definiciones,
   historialGlobal,
   usuarioId,
+  umbralSobrestock,
 }: {
   definiciones: DefinicionConDatos[]
   historialGlobal: HistorialGlobalItem[]
   usuarioId: string
+  umbralSobrestock: number
 }) {
   return (
     <div className="w-full px-4 py-4 lg:px-8 lg:py-6 space-y-3 max-w-3xl mx-auto">
@@ -30,7 +32,7 @@ export default function StockClient({
       ) : (
         <div className="space-y-3">
           {definiciones.map(def => (
-            <ConteoDesplegable key={def.id} definicion={def} usuarioId={usuarioId} />
+            <ConteoDesplegable key={def.id} definicion={def} usuarioId={usuarioId} umbralSobrestock={umbralSobrestock} />
           ))}
         </div>
       )}

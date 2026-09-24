@@ -148,6 +148,8 @@ html.light {
   --color-faint:   #777777;
   --color-disabled: #999999;
   --color-info:    #0284c7;
+  /* El ámbar del tema oscuro da ~2:1 sobre blanco; este llega a ~5:1. */
+  --color-warning: #b45309;
 }
 html.light body {
   background: #f0f2f5;

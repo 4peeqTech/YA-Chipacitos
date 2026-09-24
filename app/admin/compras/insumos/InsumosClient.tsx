@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Archive, ArchiveRestore, Pencil, Plus, Search, Star, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, Pencil, Plus, Search, Star, Trash2, TriangleAlert } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import type { Redondeo } from '@/lib/fabrica/calculoSugerido'
+import { esReposicionADemanda, type ModoCalculo, type Redondeo } from '@/lib/fabrica/calculoSugerido'
 import { REDONDEO_LABEL } from '@/lib/estados'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
@@ -40,6 +40,8 @@ interface CompraItem {
   cantidad_por_unidad: number
   cantidad_por_masa: number
   redondeo: Redondeo
+  /** Tope opcional de los insumos a demanda (unidades de compra): si el conteo lo supera, avisa sobrestock. */
+  stock_maximo: number | null
   precio: number | null
   estado: 'activo' | 'archivado'
   compras_item_proveedores: ItemProveedor[]
@@ -55,6 +57,7 @@ const emptyForm = (): Partial<CompraItem> => ({
   cantidad_por_masa: 0,
   stock_minimo: 0,
   redondeo: 'estandar',
+  stock_maximo: null,
   precio: null,
   estado: 'activo',
 })
@@ -66,11 +69,13 @@ export default function InsumosClient({
   proveedores,
   categorias,
   conteosPorItem,
+  modosPorItem,
 }: {
   itemsIniciales: CompraItem[]
   proveedores: ProveedorOption[]
   categorias: CategoriaOption[]
   conteosPorItem: Record<string, string[]>
+  modosPorItem: Record<string, ModoCalculo[]>
 }) {
   const supabase = createClient()
   const [items, setItems] = useState<CompraItem[]>(itemsIniciales)
@@ -84,6 +89,22 @@ export default function InsumosClient({
   const [eliminando, setEliminando] = useState<CompraItem | null>(null)
   const [isPending, startTransition] = useTransition()
   const toast = useToasts()
+
+  // X2: 'sin_calculo', o sin receta en algún conteo por masa (mismo criterio
+  // que cerrar_conteo_fabrica, que evalúa el modo de cada lista de conteo).
+  function esADemanda(i: Pick<CompraItem, 'id' | 'redondeo' | 'cantidad_por_masa'>, modosSiNoHay: ModoCalculo[] = []) {
+    if (i.redondeo === 'sin_calculo') return true
+    const modos = modosPorItem[i.id]?.length ? modosPorItem[i.id] : modosSiNoHay
+    return modos.some(modoCalculo =>
+      esReposicionADemanda({ modoCalculo, cantidadPorMasa: i.cantidad_por_masa, redondeo: i.redondeo }))
+  }
+  // En la ficha, un insumo que todavía no está en ninguna lista se evalúa como
+  // por masa (el modo de la lista Global), así el tope se puede cargar antes.
+  const formADemanda = esADemanda({ id: form.id ?? '', redondeo: form.redondeo ?? 'estandar', cantidad_por_masa: form.cantidad_por_masa ?? 0 }, ['por_masa'])
+
+  // C5: sin unidad de compra no se puede calcular el sobrestock de los conteos.
+  const sinUnidadCompra = items.filter(i =>
+    i.estado === 'activo' && (conteosPorItem[i.id] ?? []).length > 0 && (!i.unidad?.trim() || !(i.cantidad_por_unidad > 0)))
 
   const nombreProveedor = (id: string) => proveedores.find(p => p.id === id)?.nombre ?? '—'
   const nombreCategoria = (id: string | null) => categorias.find(c => c.id === id)?.nombre ?? '—'
@@ -243,6 +264,16 @@ export default function InsumosClient({
         </button>
       </div>
 
+      {sinUnidadCompra.length > 0 && (
+        <p className="flex items-start gap-2 rounded-xl border border-warning bg-warning-bg px-4 py-3 text-sm text-text">
+          <TriangleAlert size={16} className="text-warning shrink-0 mt-0.5" />
+          <span>
+            <span className="font-semibold">{sinUnidadCompra.length} insumo{sinUnidadCompra.length === 1 ? '' : 's'} sin unidad de compra: no se puede avisar sobrestock.</span>{' '}
+            <span className="text-muted">Completá la unidad y la cantidad por unidad de {sinUnidadCompra.map(i => i.nombre).join(', ')}.</span>
+          </span>
+        </p>
+      )}
+
       <div className="flex gap-3 flex-wrap">
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666] pointer-events-none" />
@@ -319,7 +350,19 @@ export default function InsumosClient({
               <tbody className="divide-y divide-[#2a2a2a]">
                 {filtrados.map(i => (
                   <tr key={i.id} className="hover:bg-[#1a1a1a] transition-colors">
-                    <td className="px-4 py-3 text-[#f0f0f0] font-medium">{i.nombre}</td>
+                    <td className="px-4 py-3 text-[#f0f0f0] font-medium">
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        {i.nombre}
+                        {(conteosPorItem[i.id] ?? []).length > 0 && esADemanda(i) && (
+                          <span
+                            title={i.stock_maximo != null ? `Se pide según se necesite. Avisa sobrestock si el conteo pasa de ${i.stock_maximo} ${i.unidad}.` : 'Se pide según se necesite, no por proyección de masas. No avisa sobrestock.'}
+                            className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted"
+                          >
+                            A demanda{i.stock_maximo != null && ` · tope ${i.stock_maximo}`}
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-[#888] hidden md:table-cell">{nombreCategoria(i.categoria_id)}</td>
                     <td className="px-4 py-3 text-[#888]">{proveedorPrincipalLabel(i)}</td>
                     <td className="px-4 py-3 text-[#888]">{i.unidad}</td>
@@ -461,6 +504,30 @@ export default function InsumosClient({
               {Object.entries(REDONDEO_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </div>
+          {formADemanda && (
+            <div className="md:col-span-2 rounded-xl border border-border bg-surface2 p-3 space-y-2">
+              <p className="text-sm text-text">
+                <span className="font-semibold">Reposición a demanda:</span>{' '}
+                <span className="text-muted">se pide según se necesite, no por proyección de masas. No avisa sobrestock.</span>
+              </p>
+              <div>
+                <label className={labelClass}>
+                  Stock máximo (opcional)
+                  <HelpTooltip text="Si el conteo supera este número, se avisa sobrestock y se sugiere pedir menos en el Pedido base. Vacío: nunca avisa." />
+                </label>
+                <div className="flex items-center gap-2">
+                  <InputNumero
+                    placeholder="Sin tope"
+                    className={`${inputClass} max-w-40`}
+                    value={form.stock_maximo ?? null}
+                    onChange={v => setForm(f => ({ ...f, stock_maximo: v != null && v > 0 ? v : null }))}
+                  />
+                  <span className="text-sm text-muted">{form.unidad?.trim() || 'unidades de compra'}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted">Si el conteo supera este número, se avisa sobrestock.</p>
+              </div>
+            </div>
+          )}
           <div>
             <label className={labelClass}>Precio</label>
             <InputNumero className={inputClass} value={form.precio ?? null} onChange={v => setForm(f => ({...f, precio: v}))} />
