@@ -429,7 +429,7 @@ export default function PlantillasClient({
               <select
                 value={localPreviewId}
                 onChange={e => setLocalPreviewId(e.target.value)}
-                className={`${inputClass} w-auto text-xs py-1`}
+                className={`${inputClass.replace('w-full ', '')} w-auto text-xs py-1`}
                 title="Ver como"
               >
                 <option value="">Ver como: Sin asignar</option>

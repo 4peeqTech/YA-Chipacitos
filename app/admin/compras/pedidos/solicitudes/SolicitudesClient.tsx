@@ -371,7 +371,11 @@ export default function SolicitudesClient({
                     <tr>
                       <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#888] uppercase tracking-wider">Ítem</th>
                       <th className="hidden sm:table-cell px-4 py-2.5 text-right text-[11px] font-semibold text-[#888] uppercase tracking-wider">
-                        <span className="inline-flex items-center gap-1">Stock al contar<HelpTooltip text="Lo que había en stock cuando se cerró el conteo que generó esta solicitud — el contexto para decidir el ajuste." /></span>
+                        {abierta.tipo === 'base' ? (
+                          <span className="inline-flex items-center gap-1">Stock al generar<HelpTooltip text="Lo que había en stock cuando se generó el pedido base (lo que dejó el último conteo) — el contexto para decidir el ajuste. Vacío en las solicitudes base anteriores al 24/09, que no lo guardaban." /></span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1">Stock al contar<HelpTooltip text="Lo que había en stock cuando se cerró el conteo que generó esta solicitud — el contexto para decidir el ajuste." /></span>
+                        )}
                       </th>
                       <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#888] uppercase tracking-wider">
                         <span className="inline-flex items-center gap-1">Ajustada<HelpTooltip text="Arrancó con el sugerido calculado al cerrar el conteo (o la cantidad de la plantilla, si es pedido base). Podés cambiarlo antes de generar los pedidos." /></span>

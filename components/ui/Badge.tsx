@@ -39,12 +39,18 @@ export function BadgeDiff() {
 
 // Pill visible cuando el bundle apunta a otro proyecto que no es prod —
 // reemplaza "grepear el JS del deploy" como método de detección.
-export function BadgeEntorno() {
+/** `corto`: en celular dice "Dev" (el header operativo no tiene lugar para más). */
+export function BadgeEntorno({ corto = false }: { corto?: boolean }) {
   const ref = refDeUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)
   if (ref === REF_PROD) return null
   return (
     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wide bg-danger-bg text-brand-red">
-      Datos de dev
+      {corto ? (
+        <>
+          <span className="sm:hidden">Dev</span>
+          <span className="hidden sm:inline">Datos de dev</span>
+        </>
+      ) : 'Datos de dev'}
     </span>
   )
 }

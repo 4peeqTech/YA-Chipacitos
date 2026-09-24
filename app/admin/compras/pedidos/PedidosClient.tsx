@@ -373,6 +373,12 @@ export default function PedidosClient({
   }
 
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
+
+  // Campos de ancho fijo dentro de una fila flex: sin w-full, que le ganaría al w-NN
+
+  // y dejaría sin lugar al campo que se estira (el selector de proveedor quedaba en 0px).
+
+  const inputFijoClass = "bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors shrink-0"
   const labelClass = "block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
 
   const estadoBadgeClass: Record<Pedido['estado'], string> = {
@@ -421,13 +427,13 @@ export default function PedidosClient({
                         type="number"
                         step="0.01"
                         placeholder="0"
-                        className={`${inputClass} w-16`}
+                        className={`${inputFijoClass} w-16`}
                         value={item.cantidad === 0 ? '' : item.cantidad}
                         onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, cantidad: Number(e.target.value) } : it))}
                       />
                       <input
                         type="text"
-                        className={`${inputClass} w-20`}
+                        className={`${inputFijoClass} w-20`}
                         placeholder="Unidad"
                         value={item.unidad ?? ''}
                         onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, unidad: e.target.value } : it))}
@@ -659,7 +665,7 @@ export default function PedidosClient({
                           placeholder="0"
                           value={f.cantidad === 0 ? '' : f.cantidad}
                           onChange={e => actualizarCantidadFilaModal(idx, Number(e.target.value))}
-                          className={`${inputClass} w-24 shrink-0 text-right`}
+                          className={`${inputFijoClass} w-24 text-right`}
                         />
                       </div>
                     ))}
@@ -673,13 +679,13 @@ export default function PedidosClient({
                     <input
                       type="number" step="0.01"
                       placeholder="0"
-                      className={`${inputClass} w-24`}
+                      className={`${inputFijoClass} w-24`}
                       value={l.cantidad === 0 ? '' : l.cantidad}
                       onChange={e => actualizarLineaLibreModal(idx, { cantidad: Number(e.target.value) })}
                     />
                     <input
                       type="text"
-                      className={`${inputClass} w-24`}
+                      className={`${inputFijoClass} w-24`}
                       placeholder="Unidad"
                       value={l.unidad ?? ''}
                       onChange={e => actualizarLineaLibreModal(idx, { unidad: e.target.value })}

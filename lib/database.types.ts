@@ -504,7 +504,7 @@ export type Database = {
           orden: number
           proveedor_id: string | null
           solicitud_id: string
-          stock_actual: number
+          stock_actual: number | null
           unidad: string | null
         }
         Insert: {
@@ -519,7 +519,7 @@ export type Database = {
           orden?: number
           proveedor_id?: string | null
           solicitud_id: string
-          stock_actual?: number
+          stock_actual?: number | null
           unidad?: string | null
         }
         Update: {
@@ -534,7 +534,7 @@ export type Database = {
           orden?: number
           proveedor_id?: string | null
           solicitud_id?: string
-          stock_actual?: number
+          stock_actual?: number | null
           unidad?: string | null
         }
         Relationships: [

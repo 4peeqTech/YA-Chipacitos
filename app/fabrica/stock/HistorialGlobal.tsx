@@ -21,7 +21,7 @@ interface DetalleLinea {
   descripcion: string
   unidad: string | null
   cantidad_sugerida: number
-  stock_actual: number
+  stock_actual: number | null
 }
 
 function formatearFechaCorta(fecha: string) {
@@ -102,7 +102,7 @@ export default function HistorialGlobal({ historial }: { historial: HistorialGlo
               <div key={idx} className="px-6 py-2.5 flex items-center justify-between gap-3">
                 <span className="flex-1 text-sm text-[#f0f0f0] truncate">{it.descripcion}</span>
                 <div className="text-right shrink-0">
-                  <p className="text-xs text-[#666]">stock actual {it.stock_actual} {it.unidad}</p>
+                  <p className="text-xs text-[#666]">stock actual {it.stock_actual ?? "—"} {it.stock_actual != null ? it.unidad : ""}</p>
                   {it.item_id && excesoPorItem.has(it.item_id) ? (
                     <p className="flex items-center justify-end gap-1 text-xs font-semibold text-warning">
                       <PackagePlus size={12} /> Sobrestock +{formatearNumero(excesoPorItem.get(it.item_id)!, 1)} {it.unidad}

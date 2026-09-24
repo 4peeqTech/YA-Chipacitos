@@ -250,6 +250,12 @@ export default function InsumosClient({
   }
 
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
+
+  // Campos de ancho fijo dentro de una fila flex: sin w-full, que le ganaría al w-NN
+
+  // y dejaría sin lugar al campo que se estira (el selector de proveedor quedaba en 0px).
+
+  const inputFijoClass = "bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors shrink-0"
   const labelClass = "flex items-center text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
 
   return (
@@ -444,14 +450,14 @@ export default function InsumosClient({
                     />
                   </div>
                   <input
-                    className={`${inputClass} w-28`}
+                    className={`${inputFijoClass} w-28`}
                     placeholder="Código"
                     value={p.codigo_proveedor ?? ''}
                     onChange={e => actualizarProveedorLinea(idx, { codigo_proveedor: e.target.value })}
                   />
                   <InputNumero
                     placeholder="Precio ref."
-                    className={`${inputClass} w-28`}
+                    className={`${inputFijoClass} w-28`}
                     value={p.precio_ref}
                     onChange={v => actualizarProveedorLinea(idx, { precio_ref: v })}
                   />

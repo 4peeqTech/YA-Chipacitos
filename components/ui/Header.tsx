@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { LogOut, Moon, Sun } from 'lucide-react'
 import NotificationBell from '@/components/ui/NotificationBell'
 import { BadgeEntorno } from '@/components/ui/Badge'
@@ -23,18 +23,23 @@ const rolLabel: Record<string, string> = {
   squad:    'Squad',
 }
 
+// El tema vive en la clase `light` de <html> (la pone el layout desde la
+// cookie). En el server se asume oscuro; al hidratar se lee la clase real.
+function suscribirTema(onCambio: () => void) {
+  const obs = new MutationObserver(onCambio)
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+  return () => obs.disconnect()
+}
+const leerTemaClaro = () => document.documentElement.classList.contains('light')
+const temaClaroEnServer = () => false
+
 export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
   const router = useRouter()
   const supabase = createClient()
-  const [light, setLight] = useState(false)
-
-  useEffect(() => {
-    setLight(document.documentElement.classList.contains('light'))
-  }, [])
+  const light = useSyncExternalStore(suscribirTema, leerTemaClaro, temaClaroEnServer)
 
   function toggleTheme() {
     const next = !light
-    setLight(next)
     if (next) {
       document.documentElement.classList.add('light')
       document.cookie = 'theme=light; path=/; max-age=31536000'
@@ -60,10 +65,11 @@ export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
         </div>
       </div>
       <div className="shrink-0">
-        <BadgeEntorno />
+        <BadgeEntorno corto />
       </div>
+      {/* En celular el rol no entra: el título y el nombre ya dicen dónde estás. */}
       {rol && (
-        <div className="flex items-center shrink-0">
+        <div className="hidden sm:flex items-center shrink-0">
           <span className="text-3xs font-semibold text-muted bg-surface2 border border-border px-2.5 py-1 rounded-full uppercase tracking-wider">
             {rolLabel[rol] || rol}
           </span>
