@@ -31,6 +31,8 @@ export interface ItemConteoUI {
   cantidad: number
   /** Tope opcional de los insumos de reposición a demanda (unidades de compra). */
   stockMaximo: number | null
+  /** Marca "Se pide a demanda" del insumo (compras_items.a_demanda). */
+  aDemanda: boolean
 }
 
 export interface ConteoBorrador {
@@ -164,7 +166,7 @@ export default function ConteoDesplegable({ definicion, usuarioId, umbralSobrest
       }
       return [i.itemId, {
         ...calcularNecesidadYSugerido(catalogo, conteo.masas_proyectadas),
-        ...calcularSobrestock(catalogo, conteo.masas_proyectadas, umbralSobrestock, i.stockMaximo),
+        ...calcularSobrestock(catalogo, conteo.masas_proyectadas, umbralSobrestock, { aDemanda: i.aDemanda, stockMaximo: i.stockMaximo }),
       }]
     }))
     return porItem

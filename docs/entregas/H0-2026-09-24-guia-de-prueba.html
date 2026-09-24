@@ -119,12 +119,13 @@ var GUIA = {
   circuitos: [
     {
       titulo: 'Ponerle un tope a la Sal',
-      para: 'Los insumos a demanda no avisan sobrestock, salvo que les cargues un tope.',
+      para: 'Vos marcás qué insumos se piden a demanda. Esos no avisan sobrestock, salvo que les cargues un tope.',
       cuenta: 'qa-admin',
       pasos: [
         { accion: 'Entrá a **Compras › Insumos** y buscá **Sal**.', esperado: 'Al lado del nombre dice **A demanda**.' },
-        { accion: 'Abrí la ficha con el lápiz.', esperado: 'Abajo aparece el recuadro "Reposición a demanda" con el campo **Stock máximo (opcional)**.' },
+        { accion: 'Abrí la ficha con el lápiz.', esperado: 'Abajo está prendido **Se pide a demanda**, con el campo **Stock máximo (opcional)**.' },
         { accion: 'Escribí **4** en Stock máximo y tocá **Guardar**.', esperado: 'La lista muestra **A demanda · tope 4**.' },
+        { accion: 'Tocá el filtro **A demanda** arriba de la lista.', esperado: 'Quedan solo Leche en polvo, Pategrás y Sal. Así podés marcar o desmarcar cualquier otro insumo desde su ficha.' },
       ],
     },
     {

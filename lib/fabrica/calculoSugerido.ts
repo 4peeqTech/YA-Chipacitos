@@ -68,10 +68,13 @@ export function calcularNecesidadYSugerido(item: ItemCatalogo, masasProyectadas:
 }
 
 // Reposición a demanda (decisión X2 del plan de facturación): insumos que se
-// piden según se necesite, no por proyección de masas. Se detecta sola:
-// 'sin_calculo' en cualquier modo, o por_masa sin receta (cantidad_por_masa ≤ 0).
-export function esReposicionADemanda(item: Pick<ItemCatalogo, 'modoCalculo' | 'cantidadPorMasa' | 'redondeo'>): boolean {
-  return item.redondeo === 'sin_calculo' || (item.modoCalculo === 'por_masa' && item.cantidadPorMasa <= 0)
+// piden según se necesite, no por proyección de masas. Es una marca explícita
+// del insumo (compras_items.a_demanda, "Se pide a demanda" en la ficha de
+// Insumos): ya no se deduce del redondeo ni de la receta.
+
+/** Por masa sin receta: sin la marca de a demanda no hay con qué comparar lo contado. */
+export function esPorMasaSinReceta(item: Pick<ItemCatalogo, 'modoCalculo' | 'cantidadPorMasa'>): boolean {
+  return item.modoCalculo === 'por_masa' && item.cantidadPorMasa <= 0
 }
 
 export interface Sobrestock {
@@ -82,24 +85,26 @@ export interface Sobrestock {
 }
 
 // Espejo exacto del segundo UPDATE de cerrar_conteo_fabrica
-// (supabase/migrations/20260924120000_fabrica_sobrestock.sql). Chequeo:
+// (supabase/migrations/20260924170000_insumos_a_demanda.sql). Chequeo:
 // `npx tsx lib/fabrica/_check_sobrestock.ts`.
-//   a demanda            → sin tope: null; con stockMaximo: contado − tope
-//   por_masa con receta  → contado − max(necesidad / cpu, meta si > 0), con cpu > 0 y masas > 0
-//   meta_semanal, meta>0 → contado − meta
-//   cantidad_fija        → null
+//   a demanda (marca)     → sin tope: null; con stockMaximo: contado − tope
+//   por_masa sin receta   → null (sin la marca no hay con qué comparar)
+//   por_masa con receta   → contado − max(necesidad / cpu, meta si > 0), con cpu > 0 y masas > 0
+//   meta_semanal, meta>0  → contado − meta
+//   cantidad_fija         → null
 // sobrestock = exceso ≥ umbral (unidades de compra enteras, compras_config).
 export function calcularSobrestock(
   item: ItemCatalogo,
   masasProyectadas: number,
   umbral: number,
-  stockMaximo: number | null,
+  { aDemanda, stockMaximo }: { aDemanda: boolean; stockMaximo: number | null },
 ): Sobrestock {
-  const aDemanda = esReposicionADemanda(item)
   let exceso: number | null = null
 
   if (aDemanda) {
     exceso = stockMaximo != null ? item.cantidadUnidades - stockMaximo : null
+  } else if (esPorMasaSinReceta(item)) {
+    exceso = null
   } else if (item.modoCalculo === 'por_masa') {
     if (item.cantidadPorUnidad > 0 && masasProyectadas > 0) {
       const necesarias = (item.cantidadPorMasa * masasProyectadas) / item.cantidadPorUnidad

@@ -131,6 +131,7 @@ export type Database = {
       }
       compras_items: {
         Row: {
+          a_demanda: boolean
           cantidad_por_masa: number
           cantidad_por_unidad: number
           categoria_id: string | null
@@ -145,6 +146,7 @@ export type Database = {
           unidad: string | null
         }
         Insert: {
+          a_demanda?: boolean
           cantidad_por_masa?: number
           cantidad_por_unidad?: number
           categoria_id?: string | null
@@ -159,6 +161,7 @@ export type Database = {
           unidad?: string | null
         }
         Update: {
+          a_demanda?: boolean
           cantidad_por_masa?: number
           cantidad_por_unidad?: number
           categoria_id?: string | null

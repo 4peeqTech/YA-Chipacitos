@@ -34,7 +34,7 @@ export const fabricaConteos: SeccionManual = {
             'Roja con **sugerido N**: falta, Compras va a pedir.',
             'Verde con **✓ cubre con stock actual**: alcanza.',
             'Ámbar con **Sobrestock +N**: sobra. Compras recibe el aviso al cerrar.',
-            'Gris con **A demanda**: el insumo se pide según se necesite (Sal, Leche en polvo, Pategrás) y no avisa sobrestock.',
+            'Gris con **A demanda**: Compras marcó que ese insumo se pide según se necesite (hoy Sal, Leche en polvo y Pategrás), así que no avisa sobrestock.',
           ],
         },
         { tipo: 'tip', texto: 'El número de sobrestock se calcula en vivo mientras cargás. Si cambiás las masas proyectadas, se recalcula.' },
@@ -64,7 +64,7 @@ export const fabricaConteos: SeccionManual = {
           tipo: 'queHagoSi',
           casos: [
             { situacion: 'Un insumo sale con sobrestock y no debería', camino: 'Revisá la cantidad que cargaste y las masas proyectadas antes de cerrar. Si ya cerraste, pedile a Compras que descarte la solicitud y volvé a contar.' },
-            { situacion: 'La Sal, la Leche o el Pategrás se acumulan y no avisa nada', camino: 'Son insumos "a demanda": no avisan salvo que tengan un tope. Pedile a Compras que le cargue un **Stock máximo** en la ficha del insumo; desde el próximo conteo, si lo pasás, avisa.' },
+            { situacion: 'La Sal, la Leche o el Pategrás se acumulan y no avisa nada', camino: 'Están marcados como que se piden a demanda: no avisan salvo que tengan un tope. Pedile a Compras que le cargue un **Stock máximo** en la ficha del insumo; desde el próximo conteo, si lo pasás, avisa.' },
             { situacion: 'Un insumo nunca avisa sobrestock', camino: 'Puede que le falte la unidad de compra o la receta. Compras lo ve avisado en **Insumos**.' },
           ],
         },

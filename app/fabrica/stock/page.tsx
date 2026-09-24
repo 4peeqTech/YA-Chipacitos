@@ -97,7 +97,7 @@ export default async function FabricaStockPage() {
         .from('fabrica_conteo_definicion_items')
         .select(`
           definicion_id, item_id, modo_calculo, meta, cantidad_fija, orden,
-          compras_items(nombre, unidad, cantidad_por_unidad, cantidad_por_masa, redondeo, stock_maximo)
+          compras_items(nombre, unidad, cantidad_por_unidad, cantidad_por_masa, redondeo, stock_maximo, a_demanda)
         `)
         .eq('activo', true)
         .in('definicion_id', definiciones.map(d => d.id))
@@ -110,7 +110,7 @@ export default async function FabricaStockPage() {
     modo_calculo: ModoCalculo
     meta: number
     cantidad_fija: number
-    compras_items: { nombre: string; unidad: string; cantidad_por_unidad: number; cantidad_por_masa: number; redondeo: Redondeo; stock_maximo: number | null } | null
+    compras_items: { nombre: string; unidad: string; cantidad_por_unidad: number; cantidad_por_masa: number; redondeo: Redondeo; stock_maximo: number | null; a_demanda: boolean } | null
   }
   const definicionItems = (definicionItemsData ?? []) as unknown as DefinicionItemRow[]
 
@@ -215,6 +215,7 @@ export default async function FabricaStockPage() {
           cantidadFija: di.cantidad_fija,
           cantidad: ci?.cantidad ?? 0,
           stockMaximo: catalogo.stock_maximo,
+          aDemanda: catalogo.a_demanda,
         }
       })
       .sort((a, b) => a.nombre.localeCompare(b.nombre))
