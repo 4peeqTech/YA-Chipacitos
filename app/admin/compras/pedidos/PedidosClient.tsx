@@ -1,742 +1,425 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import Link from 'next/link'
-import { ArrowRight, Check, ListChecks, Lock, MessageSquare, Plus, RefreshCw, X } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { construirMensajePedido, renderPlantilla, linkWhatsApp } from '@/lib/compras/pedidoMensaje'
-import { codigoPedido } from '@/lib/compras/codigos'
+import { useCallback, useMemo, useState, useTransition } from 'react'
+import { ClipboardList, Clock, Plus } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
+import PageHeader from '@/components/ui/PageHeader'
+import AyudaLink from '@/components/ui/AyudaLink'
+import EmptyState from '@/components/ui/EmptyState'
+import EstadoBadge from '@/components/ui/EstadoBadge'
+import DataTable, { type Columna } from '@/components/ui/DataTable'
+import { SegmentedControl } from '@/components/ui/Chip'
 import SearchInput from '@/components/ui/SearchInput'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
-import { useConfirm } from '@/components/ui/ConfirmDialog'
-import { useToasts, ToastStack } from '@/components/ui/Toast'
-import { mensajeError } from '@/lib/errores'
-import type { Remito } from '@/lib/compras/tipos'
-import ResumenRemitos from './ResumenRemitos'
+import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
+import { formatearFecha } from '@/lib/formato'
+import { codigoPedido } from '@/lib/compras/codigos'
+import { DIAS_DEMORA, subtextoEstado, type FiltroPedidos } from '@/lib/compras/estadoPedido'
+import { armarVistas, coincideBusqueda, type PedidoVista } from './modelo'
+import PedidoDetalle from './PedidoDetalle'
+import PedidoEditor from './PedidoEditor'
+import PedidoEnvio from './PedidoEnvio'
+import CerrarPedidoModal from './CerrarPedidoModal'
+import { eliminarPedido, reabrirPedido } from './acciones'
+import type { EventoPedido, ItemCatalogo, LineaPendiente, LocalFacturacion, PedidoFila, Plantilla, ProveedorPedido } from './datos'
 
-interface Plantilla {
-  id: string
-  nombre: string
-  cuerpo: string
-  es_default: boolean
-}
+type Vista = 'detalle' | 'editar' | 'enviar' | 'cerrar'
 
-interface LocalFacturacion {
-  id: string
-  nombre: string
-  sucursal: string
-  razon_social: string
-  cuit: string
-  direccion: string
-}
+const FILTROS: { value: FiltroPedidos; label: string; vacio: { titulo: string; descripcion: string } }[] = [
+  { value: 'activos', label: 'Activos', vacio: { titulo: 'No hay pedidos activos', descripcion: 'Acá aparecen los pedidos sin enviar y los que esperan mercadería.' } },
+  { value: 'por_facturar', label: 'Por facturar', vacio: { titulo: 'No hay pedidos por facturar', descripcion: 'Cuando llegue la mercadería de un pedido, aparece acá hasta que se cargue su factura.' } },
+  { value: 'facturados', label: 'Facturados', vacio: { titulo: 'No hay pedidos facturados', descripcion: 'Los pedidos con factura cargada aparecen acá.' } },
+  { value: 'devueltos', label: 'Devueltos', vacio: { titulo: 'No hay pedidos devueltos', descripcion: 'Los pedidos devueltos al proveedor aparecen acá.' } },
+  { value: 'todos', label: 'Todos', vacio: { titulo: 'Todavía no hay pedidos', descripcion: 'Usá "Crear pedido" para armar el primero.' } },
+]
 
-interface Proveedor {
-  id: string
-  nombre: string
-  local_facturacion_id: string | null
-  contacto_nombre: string | null
-  contacto_telefono: string | null
-  maneja_stock: boolean
-}
-
-interface CompraItem {
-  id: string
-  nombre: string
-  unidad: string
-  stock_minimo: number
-  compras_item_proveedores: { proveedor_id: string; precio_ref: number | null; activo: boolean }[]
-}
-
-interface StockActual {
-  item_id: string
-  cantidad: number
-}
-
-interface PedidoItem {
-  id: string
-  pedido_id: string
-  item_id: string | null
-  descripcion: string
-  unidad: string | null
-  cantidad: number
-  orden: number
-}
-
-interface Pedido {
-  id: string
-  numero: number
-  proveedor_id: string
-  local_facturacion_id: string | null
-  estado: 'borrador' | 'enviado' | 'cerrado'
-  mensaje: string | null
-  created_at: string
-  enviado_en: string | null
-  cerrado_en: string | null
-  proveedores: Proveedor
-  compras_pedido_items: PedidoItem[]
-  compras_remitos: Remito[]
-}
-
-type FiltroPedidos = 'activos' | 'todos'
-
-// La búsqueda encuentra por código ("P-0012", "p12", "12") o por proveedor.
-function coincideBusqueda(pedido: Pedido, busqueda: string): boolean {
-  const texto = busqueda.trim().toLowerCase()
-  if (!texto) return true
-  if (pedido.proveedores.nombre.toLowerCase().includes(texto)) return true
-  if (codigoPedido(pedido.numero).toLowerCase().includes(texto)) return true
-  const digitos = texto.replace(/^p-?/, '')
-  return /^\d+$/.test(digitos) && Number(digitos) === pedido.numero
-}
-
-// Fila local del editor de ítems: id/pedido_id quedan sin definir hasta guardar.
-type ItemEditor = Pick<PedidoItem, 'item_id' | 'descripcion' | 'unidad' | 'cantidad'>
-
-// Fila del catálogo del proveedor elegido en el modal de creación, con su checkbox de inclusión.
-interface FilaCatalogo extends ItemEditor {
-  incluir: boolean
-  precioRef: number | null
+// Activos: primero los que falta enviar, después los enviados hace más tiempo.
+function ordenActivos(a: PedidoVista, b: PedidoVista): number {
+  const ea = a.fila.enviado_en
+  const eb = b.fila.enviado_en
+  if (!ea && !eb) return b.creado.localeCompare(a.creado)
+  if (!ea) return -1
+  if (!eb) return 1
+  return ea.localeCompare(eb)
 }
 
 export default function PedidosClient({
+  pedidos,
+  lineas,
+  eventos,
   proveedores,
   itemsCatalogo,
-  stockInicial,
-  pedidosIniciales,
-  usuarioId,
+  stock,
   plantillas,
   localesFacturacion,
+  pedidoInicial,
 }: {
-  proveedores: Proveedor[]
-  itemsCatalogo: CompraItem[]
-  stockInicial: StockActual[]
-  pedidosIniciales: Pedido[]
-  usuarioId: string
+  pedidos: PedidoFila[]
+  lineas: LineaPendiente[]
+  eventos: EventoPedido[]
+  proveedores: ProveedorPedido[]
+  itemsCatalogo: ItemCatalogo[]
+  stock: { item_id: string; cantidad: number }[]
   plantillas: Plantilla[]
   localesFacturacion: LocalFacturacion[]
+  pedidoInicial?: string
 }) {
-  const supabase = createClient()
-  const { confirmar, dialog: confirmDialog } = useConfirm()
-  const toast = useToasts()
-  const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
+  const confirmar = useConfirmar()
+  const toast = useToast()
+  const [isPending, startTransition] = useTransition()
   const [filtro, setFiltro] = useState<FiltroPedidos>('activos')
   const [busqueda, setBusqueda] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
-  const [modalCrear, setModalCrear] = useState(false)
-  const [proveedorModal, setProveedorModal] = useState('')
-  const [filasModal, setFilasModal] = useState<FilaCatalogo[]>([])
-  const [lineasLibresModal, setLineasLibresModal] = useState<ItemEditor[]>([])
-  const [creandoPedido, setCreandoPedido] = useState(false)
-  const [pedidoEditando, setPedidoEditando] = useState<Pedido | null>(null)
-  const [itemsEditor, setItemsEditor] = useState<ItemEditor[]>([])
-  const [plantillaId, setPlantillaId] = useState('')
-  const [localId, setLocalId] = useState('')
-  const [envioPreparado, setEnvioPreparado] = useState(false)
-  const [copiado, setCopiado] = useState(false)
-  const [error, setError] = useState('')
-  const [isPending, startTransition] = useTransition()
+  const [abiertoId, setAbiertoId] = useState<string | null>(pedidoInicial ?? null)
+  const [creando, setCreando] = useState(false)
+  const [vista, setVista] = useState<Vista>('detalle')
+  const [avisoReenvio, setAvisoReenvio] = useState(false)
+  const [editorConCambios, setEditorConCambios] = useState(false)
 
-  const stockPorItem = Object.fromEntries(stockInicial.map(s => [s.item_id, s.cantidad]))
+  // Los datos vienen siempre del servidor: las acciones llaman a refresh() y
+  // la pantalla se vuelve a armar con lo que quedó en la base.
+  const vistas = useMemo(() => armarVistas(pedidos, lineas, eventos), [pedidos, lineas, eventos])
+  const stockPorItem = useMemo(() => Object.fromEntries(stock.map(s => [s.item_id, s.cantidad])), [stock])
+  const abierto = abiertoId ? vistas.find(v => v.fila.id === abiertoId) ?? null : null
+  const activos = useMemo(() => vistas.filter(v => v.filtro === 'activos'), [vistas])
 
-  const pedidosFiltrados = pedidos
-    .filter(p => filtro === 'todos' ? true : p.estado === 'borrador' || p.estado === 'enviado')
-    .filter(p => coincideBusqueda(p, busqueda))
-    .filter(p => !desde || p.created_at.slice(0, 10) >= desde)
-    .filter(p => !hasta || p.created_at.slice(0, 10) <= hasta)
+  const conteos = useMemo(() => {
+    const c: Record<FiltroPedidos, number> = { activos: 0, por_facturar: 0, facturados: 0, devueltos: 0, todos: vistas.length }
+    for (const v of vistas) if (v.filtro) c[v.filtro]++
+    return c
+  }, [vistas])
 
   const hayFiltros = !!busqueda || !!desde || !!hasta
+  const filtrados = useMemo(() => {
+    const lista = vistas
+      .filter(v => filtro === 'todos' || v.filtro === filtro)
+      .filter(v => coincideBusqueda(v, busqueda))
+      .filter(v => !desde || v.creado.slice(0, 10) >= desde)
+      .filter(v => !hasta || v.creado.slice(0, 10) <= hasta)
+    return filtro === 'activos' ? [...lista].sort(ordenActivos) : lista
+  }, [vistas, filtro, busqueda, desde, hasta])
+
   function limpiarFiltros() { setBusqueda(''); setDesde(''); setHasta('') }
 
-  function filasParaProveedor(proveedorId: string): FilaCatalogo[] {
-    const proveedor = proveedores.find(p => p.id === proveedorId)
-    return itemsCatalogo
-      .map(i => ({ item: i, asociado: i.compras_item_proveedores.find(cp => cp.proveedor_id === proveedorId && cp.activo) }))
-      .filter((x): x is { item: CompraItem; asociado: NonNullable<typeof x.asociado> } => !!x.asociado)
-      .map(({ item: i, asociado }) => {
-        const cantidad = proveedor?.maneja_stock ? Math.max(0, i.stock_minimo - (stockPorItem[i.id] ?? 0)) : 0
-        return { item_id: i.id, descripcion: i.nombre, unidad: i.unidad, cantidad, incluir: cantidad > 0, precioRef: asociado.precio_ref }
-      })
+  function abrir(id: string, v: Vista = 'detalle') {
+    setCreando(false)
+    setAbiertoId(id)
+    setVista(v)
+    setAvisoReenvio(false)
+    setEditorConCambios(false)
   }
 
-  function abrirModalCrear() {
-    setProveedorModal('')
-    setFilasModal([])
-    setLineasLibresModal([])
-    setError('')
-    setModalCrear(true)
+  function cerrarModalYa() {
+    setCreando(false)
+    setAbiertoId(null)
+    setVista('detalle')
+    setAvisoReenvio(false)
+    setEditorConCambios(false)
   }
 
-  function elegirProveedorModal(proveedorId: string) {
-    setProveedorModal(proveedorId)
-    setFilasModal(filasParaProveedor(proveedorId))
-    setLineasLibresModal([])
-  }
-
-  function toggleFilaModal(index: number) {
-    setFilasModal(prev => prev.map((f, i) => i === index ? { ...f, incluir: !f.incluir } : f))
-  }
-
-  function actualizarCantidadFilaModal(index: number, cantidad: number) {
-    setFilasModal(prev => prev.map((f, i) => i === index ? { ...f, cantidad } : f))
-  }
-
-  function agregarLineaLibreModal() {
-    setLineasLibresModal(prev => [...prev, { item_id: null, descripcion: '', unidad: '', cantidad: 0 }])
-  }
-
-  function actualizarLineaLibreModal(index: number, cambios: Partial<ItemEditor>) {
-    setLineasLibresModal(prev => prev.map((l, i) => i === index ? { ...l, ...cambios } : l))
-  }
-
-  function quitarLineaLibreModal(index: number) {
-    setLineasLibresModal(prev => prev.filter((_, i) => i !== index))
-  }
-
-  function abrirEditor(pedido: Pedido) {
-    setPedidoEditando(pedido)
-    setItemsEditor(
-      [...pedido.compras_pedido_items]
-        .sort((a, b) => a.orden - b.orden)
-        .map(i => ({ item_id: i.item_id, descripcion: i.descripcion, unidad: i.unidad, cantidad: i.cantidad }))
-    )
-    setPlantillaId(plantillas.find(p => p.es_default)?.id ?? plantillas[0]?.id ?? '')
-    setLocalId(pedido.local_facturacion_id ?? pedido.proveedores.local_facturacion_id ?? '')
-    setError('')
-    setEnvioPreparado(false)
-    setCopiado(false)
-  }
-
-  function cerrarEditor() {
-    setPedidoEditando(null)
-    setItemsEditor([])
-    setEnvioPreparado(false)
-    setCopiado(false)
-  }
-
-  async function guardarItems(pedidoOverride?: Pedido, itemsOverride?: ItemEditor[]): Promise<PedidoItem[] | null> {
-    const pedido = pedidoOverride ?? pedidoEditando
-    if (!pedido) return null
-    setError('')
-
-    const fuente = itemsOverride ?? itemsEditor
-    const filas = fuente
-      .filter(i => i.descripcion.trim() && i.cantidad > 0)
-      .map((i, idx) => ({
-        pedido_id: pedido.id,
-        item_id: i.item_id,
-        descripcion: i.descripcion.trim(),
-        unidad: i.unidad?.trim() || null,
-        cantidad: i.cantidad,
-        orden: idx,
-      }))
-
-    const { error: errDelete } = await supabase.from('compras_pedido_items').delete().eq('pedido_id', pedido.id)
-    if (errDelete) { setError(mensajeError(errDelete, 'No se pudieron guardar los ítems del pedido')); return null }
-
-    let itemsGuardados: PedidoItem[] = []
-    if (filas.length) {
-      const { data, error: errInsert } = await supabase.from('compras_pedido_items').insert(filas).select()
-      if (errInsert) { setError(mensajeError(errInsert, 'No se pudieron guardar los ítems del pedido')); return null }
-      itemsGuardados = data
-    }
-
-    setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, compras_pedido_items: itemsGuardados } : p))
-    setPedidoEditando(prev => prev && prev.id === pedido.id ? { ...prev, compras_pedido_items: itemsGuardados } : prev)
-    return itemsGuardados
-  }
-
-  function confirmarGuardarItems() {
-    if (!pedidoEditando) return
-    if (pedidoEditando.compras_remitos.length > 0) {
+  // Salir del editor con cambios sin guardar pide confirmación.
+  function siNoHayCambios(seguir: () => void) {
+    if (vista === 'editar' && editorConCambios) {
       confirmar({
-        titulo: 'Reguardar ítems',
-        mensaje: 'Este pedido ya tiene remitos cargados. Reguardar los ítems va a desvincular las líneas de los remitos.',
-        textoConfirmar: 'Continuar',
+        titulo: 'Descartar cambios',
+        mensaje: 'Tenés cambios sin guardar en el pedido. ¿Descartarlos?',
+        textoConfirmar: 'Descartar',
+        textoCancelar: 'Seguir editando',
         peligroso: true,
-        onConfirmar: () => { guardarItems() },
+        onConfirmar: seguir,
       })
       return
     }
-    guardarItems()
+    seguir()
   }
 
-  async function confirmarCrearPedido() {
-    if (!proveedorModal) { setError('Elegí un proveedor'); return }
-    const proveedor = proveedores.find(p => p.id === proveedorModal)
-    if (!proveedor) return
-    setError('')
+  function cerrarModal() {
+    if (isPending) return
+    siNoHayCambios(cerrarModalYa)
+  }
 
-    startTransition(async () => {
-      const { data: pedido, error: errPedido } = await supabase
-        .from('compras_pedidos')
-        .insert([{ proveedor_id: proveedor.id, local_facturacion_id: proveedor.local_facturacion_id, estado: 'borrador', creado_por: usuarioId }])
-        .select()
-        .single()
-      if (errPedido) { setError(mensajeError(errPedido, 'No se pudo crear el pedido')); return }
-
-      const filasFinal: ItemEditor[] = [
-        ...filasModal.filter(f => f.incluir && f.cantidad > 0).map(({ incluir, precioRef, ...resto }) => resto),
-        ...lineasLibresModal.filter(l => l.descripcion.trim() && l.cantidad > 0),
-      ]
-
-      const nuevoPedido: Pedido = { ...pedido, proveedores: proveedor, compras_pedido_items: [], compras_remitos: [] }
-      const itemsGuardados = await guardarItems(nuevoPedido, filasFinal)
-      const pedidoFinal = { ...nuevoPedido, compras_pedido_items: itemsGuardados ?? [] }
-
-      setPedidos(prev => [pedidoFinal, ...prev])
-      setModalCrear(false)
-      abrirEditor(pedidoFinal)
+  function cancelarEditor() {
+    siNoHayCambios(() => {
+      setEditorConCambios(false)
+      if (creando) cerrarModalYa()
+      else setVista('detalle')
     })
   }
 
-  async function generarMensaje() {
-    if (!pedidoEditando) return
-    setError('')
+  const alCambiarEditor = useCallback((hay: boolean) => setEditorConCambios(hay), [])
 
-    startTransition(async () => {
-      const itemsGuardados = await guardarItems()
-      if (!itemsGuardados) return
-      if (!itemsGuardados.length) { setError('Agregá al menos un ítem antes de generar el mensaje'); return }
-
-      const local = localesFacturacion.find(l => l.id === localId) ?? null
-      const plantilla = plantillas.find(p => p.id === plantillaId)
-      const mensaje = plantilla
-        ? renderPlantilla(plantilla.cuerpo, {
-            proveedorNombre: pedidoEditando.proveedores.nombre,
-            numero: pedidoEditando.numero,
-            contactoNombre: pedidoEditando.proveedores.contacto_nombre,
-            local,
-            items: itemsGuardados,
-          })
-        : construirMensajePedido(pedidoEditando.proveedores.nombre, local, itemsGuardados, pedidoEditando.numero)
-
-      const { data, error: errUpdate } = await supabase
-        .from('compras_pedidos')
-        .update({ mensaje, local_facturacion_id: localId || null })
-        .eq('id', pedidoEditando.id)
-        .select()
-        .single()
-      if (errUpdate) { setError(mensajeError(errUpdate, 'No se pudo generar el mensaje del pedido')); return }
-
-      setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, mensaje: data.mensaje, local_facturacion_id: data.local_facturacion_id } : p))
-      setPedidoEditando(prev => prev ? { ...prev, mensaje: data.mensaje, local_facturacion_id: data.local_facturacion_id } : prev)
-      setEnvioPreparado(false)
-      setCopiado(false)
-    })
-  }
-
-  async function copiarMensaje() {
-    if (!pedidoEditando?.mensaje) return
-    try {
-      await navigator.clipboard.writeText(pedidoEditando.mensaje)
-      setCopiado(true)
-      setEnvioPreparado(true)
-    } catch {
-      setError('No se pudo copiar el mensaje al portapapeles')
+  function alGuardar(r: { id: string; numero: number; nuevo: boolean; yaEnviado: boolean }) {
+    setEditorConCambios(false)
+    setCreando(false)
+    setAbiertoId(r.id)
+    if (r.nuevo) {
+      toast.success(`Pedido ${codigoPedido(r.numero)} creado`)
+      setVista('detalle')
+    } else if (r.yaEnviado) {
+      toast.success('Cambios guardados')
+      setAvisoReenvio(true)
+      setVista('enviar')
+    } else {
+      toast.success('Cambios guardados')
+      setVista('detalle')
     }
   }
 
-  async function marcarComoEnviado() {
-    if (!pedidoEditando) return
-    const { data, error: err } = await supabase
-      .from('compras_pedidos')
-      .update({ estado: 'enviado', enviado_en: new Date().toISOString() })
-      .eq('id', pedidoEditando.id)
-      .select()
-      .single()
-    if (err) { setError(mensajeError(err, 'No se pudo marcar el pedido como enviado')); return }
-
-    setPedidos(prev => prev.map(p => p.id === pedidoEditando.id ? { ...p, ...data } : p))
-    cerrarEditor()
-    toast.success('Pedido marcado como enviado')
-  }
-
-  function enviarWhatsApp() {
-    if (!pedidoEditando?.mensaje) return
-    const url = linkWhatsApp(pedidoEditando.proveedores.contacto_telefono, pedidoEditando.mensaje)
-    window.open(url, '_blank')
-    setEnvioPreparado(true)
-  }
-
-  function cerrarPedido(pedido: Pedido) {
+  function pedirEliminar(p: PedidoVista) {
     confirmar({
-      titulo: 'Cerrar pedido',
-      mensaje: `¿Cerrar el pedido ${codigoPedido(pedido.numero)} a ${pedido.proveedores.nombre}? Ya no se van a poder editar sus ítems ni reenviar el mensaje.`,
-      textoConfirmar: 'Cerrar pedido',
+      titulo: `Eliminar ${p.codigo}`,
+      mensaje: `¿Eliminar el pedido ${p.codigo} a ${p.proveedor}? El número ${p.codigo} no se vuelve a usar.`,
+      textoConfirmar: 'Eliminar',
       peligroso: true,
-      onConfirmar: () => cerrarPedidoConfirmado(pedido),
+      onConfirmar: () => startTransition(async () => {
+        const r = await eliminarPedido({ pedidoId: p.fila.id })
+        if (!r.ok) { toast.error(r.error); return }
+        toast.success(`${p.codigo} eliminado`)
+        cerrarModalYa()
+      }),
     })
   }
 
-  async function cerrarPedidoConfirmado(pedido: Pedido) {
-    const { data, error: err } = await supabase
-      .from('compras_pedidos')
-      .update({ estado: 'cerrado', cerrado_en: new Date().toISOString() })
-      .eq('id', pedido.id)
-      .select()
-      .single()
-    if (err) { setError(mensajeError(err, 'No se pudo cerrar el pedido')); return }
-
-    setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, ...data } : p))
-    if (pedidoEditando?.id === pedido.id) setPedidoEditando(prev => prev ? { ...prev, ...data } : prev)
-    toast.success('Pedido cerrado')
+  function pedirReabrir(p: PedidoVista) {
+    confirmar({
+      titulo: `Reabrir ${p.codigo}`,
+      mensaje: `${p.codigo} vuelve a esperar mercadería y se puede editar y cargarle remitos.`,
+      textoConfirmar: 'Reabrir',
+      onConfirmar: () => startTransition(async () => {
+        const r = await reabrirPedido({ pedidoId: p.fila.id })
+        if (!r.ok) { toast.error(r.error); return }
+        toast.success(`${p.codigo} reabierto`)
+      }),
+    })
   }
 
-  const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
+  const columnas: Columna<PedidoVista>[] = [
+    {
+      key: 'numero',
+      header: 'N°',
+      render: p => (
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-mono tabular-nums">
+          {p.codigo}
+          {p.demorado && (
+            <span title={`Enviado hace ${DIAS_DEMORA} días o más y todavía sin recibir todo`} className="text-warning">
+              <Clock size={13} aria-label="Demorado" />
+            </span>
+          )}
+        </span>
+      ),
+      ordenar: p => p.fila.numero,
+    },
+    {
+      key: 'proveedor',
+      header: 'Proveedor',
+      render: p => <span className="font-medium">{p.proveedor}</span>,
+      ordenar: p => p.proveedor,
+    },
+    {
+      key: 'fecha',
+      header: 'Fecha',
+      render: p => (
+        <div className="whitespace-nowrap">
+          <p>{formatearFecha(p.creado)}</p>
+          {p.fila.enviado_en && <p className="text-2xs text-muted">enviado {formatearFecha(p.fila.enviado_en)}</p>}
+        </div>
+      ),
+      ordenar: p => p.creado,
+      ocultarHasta: 'sm',
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      render: p => {
+        const sub = subtextoEstado(p.entrada)
+        return (
+          <div className="flex flex-col items-start gap-0.5">
+            <EstadoBadge dominio="compras_pedido" estado={p.visible} />
+            {sub && <span className="text-2xs text-muted">{sub}</span>}
+          </div>
+        )
+      },
+      ordenar: p => p.visible,
+    },
+    {
+      key: 'recepcion',
+      header: 'Recepción',
+      render: p => {
+        if (p.entrada.estado_recepcion === 'sin_enviar' || p.lineas.length === 0) return <span className="text-faint">—</span>
+        const pct = Math.round((p.lineasCompletas / p.lineas.length) * 100)
+        return (
+          <div className="min-w-24">
+            <p className="text-xs tabular-nums text-muted">{p.lineasCompletas}/{p.lineas.length} líneas</p>
+            <div className="mt-1 h-1 w-20 overflow-hidden rounded-full bg-surface2" aria-hidden>
+              <div className={`h-full rounded-full ${pct === 100 ? 'bg-success' : 'bg-warning'}`} style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )
+      },
+      ordenar: p => (p.lineas.length ? p.lineasCompletas / p.lineas.length : -1),
+      ocultarHasta: 'sm',
+    },
+    {
+      key: 'origen',
+      header: 'Origen',
+      render: p => <span className="text-muted">{p.origen}</span>,
+      ordenar: p => p.origen,
+      ocultarHasta: 'md',
+    },
+    {
+      key: 'items',
+      header: 'Ítems',
+      render: p => p.lineas.length,
+      ordenar: p => p.lineas.length,
+      alinear: 'right',
+      ocultarHasta: 'lg',
+    },
+  ]
 
-  // Campos de ancho fijo dentro de una fila flex: sin w-full, que le ganaría al w-NN
+  const filtroActual = FILTROS.find(f => f.value === filtro) ?? FILTROS[0]
+  const modalAbierto = creando || !!abierto
 
-  // y dejaría sin lugar al campo que se estira (el selector de proveedor quedaba en 0px).
-
-  const inputFijoClass = "bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors shrink-0"
-  const labelClass = "block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
-
-  const estadoBadgeClass: Record<Pedido['estado'], string> = {
-    borrador: 'bg-[#2a2a2a] text-[#ccc]',
-    enviado: 'bg-yellow-900/50 text-yellow-300',
-    cerrado: 'bg-green-900/50 text-green-300',
-  }
+  const titulo = creando
+    ? 'Nuevo pedido'
+    : abierto
+      ? {
+          detalle: `Pedido ${abierto.codigo}`,
+          editar: `Editar ${abierto.codigo}`,
+          enviar: `Enviar ${abierto.codigo}`,
+          cerrar: `Cerrar ${abierto.codigo} a mano`,
+        }[vista]
+      : ''
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#f0f0f0]">Pedidos a proveedores</h1>
-          <p className="text-[#888] text-sm mt-0.5">Armá un pedido, generá el mensaje y envialo por WhatsApp.</p>
-        </div>
-        <button onClick={abrirModalCrear} className="flex items-center gap-1.5 bg-[#e8c547] hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-          <Plus size={16} /> Crear pedido
-        </button>
-      </div>
+      <PageHeader
+        icono={ClipboardList}
+        titulo="Pedidos a proveedores"
+        descripcion="Armá el pedido, mandalo por WhatsApp y seguí qué llegó y qué falta."
+        acciones={
+          <>
+            <AyudaLink seccion="compras-pedidos" />
+            <button
+              type="button"
+              onClick={() => { setAbiertoId(null); setCreando(true); setVista('editar'); setEditorConCambios(false) }}
+              className="min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90 transition-opacity"
+            >
+              <Plus size={16} /> Crear pedido
+            </button>
+          </>
+        }
+      />
 
-      {error && !modalCrear && <p className="text-red-400 text-sm">{error}</p>}
-
-      <Modal open={!!pedidoEditando} onClose={cerrarEditor} title={pedidoEditando ? `Pedido ${codigoPedido(pedidoEditando.numero)} · ${pedidoEditando.proveedores.nombre}` : ''} size="2xl">
-        {pedidoEditando && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <section className="space-y-3 lg:max-h-[62vh] lg:overflow-y-auto lg:pr-2 scrollbar-thin">
-              <div className="flex items-center gap-2">
-                <ListChecks size={16} className="text-[#e8c547]" />
-                <h4 className="font-bold text-sm text-[#f0f0f0]">Ítems del pedido</h4>
-                <span className="text-xs text-[#666]">({itemsEditor.length})</span>
-                <span className={`ml-auto inline-block px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClass[pedidoEditando.estado]}`}>{pedidoEditando.estado}</span>
-              </div>
-
-              {itemsEditor.length === 0 ? (
-                <p className="text-[#888] text-sm py-6 text-center">Todavía no hay ítems.</p>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 px-0.5">
-                    <span className="w-16 text-xs font-semibold text-[#888] uppercase tracking-wider">Cant.</span>
-                    <span className="w-20 text-xs font-semibold text-[#888] uppercase tracking-wider">Unidad</span>
-                    <span className="flex-1 text-xs font-semibold text-[#888] uppercase tracking-wider">Descripción</span>
-                  </div>
-                  {itemsEditor.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0"
-                        className={`${inputFijoClass} w-16`}
-                        value={item.cantidad === 0 ? '' : item.cantidad}
-                        onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, cantidad: Number(e.target.value) } : it))}
-                      />
-                      <input
-                        type="text"
-                        className={`${inputFijoClass} w-20`}
-                        placeholder="Unidad"
-                        value={item.unidad ?? ''}
-                        onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, unidad: e.target.value } : it))}
-                      />
-                      <input
-                        type="text"
-                        className={inputClass}
-                        placeholder="Descripción"
-                        value={item.descripcion}
-                        onChange={e => setItemsEditor(prev => prev.map((it, i) => i === idx ? { ...it, descripcion: e.target.value } : it))}
-                      />
-                      <button
-                        onClick={() => setItemsEditor(prev => prev.filter((_, i) => i !== idx))}
-                        title="Quitar ítem"
-                        aria-label="Quitar ítem"
-                        className="text-[#888] hover:text-red-400 px-1"
-                      >
-                        <X size={15} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-3 flex-wrap">
-                <button onClick={() => setItemsEditor(prev => [...prev, { item_id: null, descripcion: '', unidad: '', cantidad: 0 }])} className="flex items-center gap-1.5 bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-                  <Plus size={16} /> Agregar ítem
-                </button>
-                <button onClick={confirmarGuardarItems} disabled={isPending} className="bg-[#2a2a2a] hover:bg-[#333] text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-                  Guardar ítems
-                </button>
-              </div>
-
-              <ResumenRemitos pedido={pedidoEditando} />
-            </section>
-
-            <section className="space-y-3 lg:max-h-[62vh] lg:overflow-y-auto lg:pl-5 lg:border-l lg:border-[#2a2a2a] scrollbar-thin">
-              <div className="flex items-center gap-2">
-                <MessageSquare size={16} className="text-[#e8c547]" />
-                <h4 className="font-bold text-sm text-[#f0f0f0]">Mensaje de WhatsApp</h4>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Plantilla de mensaje</label>
-                  <select
-                    value={plantillaId}
-                    onChange={e => setPlantillaId(e.target.value)}
-                    disabled={pedidoEditando.estado === 'cerrado' || plantillas.length === 0}
-                    className={`${inputClass} disabled:opacity-40`}
-                  >
-                    {plantillas.length === 0 && <option value="">Sin plantillas</option>}
-                    {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.es_default ? ' (default)' : ''}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Facturar a</label>
-                  <select
-                    value={localId}
-                    onChange={e => setLocalId(e.target.value)}
-                    disabled={pedidoEditando.estado === 'cerrado'}
-                    className={`${inputClass} disabled:opacity-40`}
-                  >
-                    <option value="">Sin asignar</option>
-                    {localesFacturacion.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <button
-                onClick={generarMensaje}
-                disabled={isPending || pedidoEditando.estado === 'cerrado'}
-                className="w-full flex items-center justify-center gap-1.5 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all"
-              >
-                {pedidoEditando.mensaje && <RefreshCw size={16} />}
-                {pedidoEditando.mensaje ? 'Regenerar mensaje' : 'Generar mensaje'}
-              </button>
-
-              {!localId && (
-                <p className="text-yellow-400 text-sm">El mensaje va a salir sin bloque de entrega ni de facturación — elegí un local en &quot;Facturar a&quot; si corresponde.</p>
-              )}
-
-              {error && <p className="text-red-400 text-sm">{error}</p>}
-
-              {pedidoEditando.mensaje ? (
-                <pre className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4 text-[#e0e0e0] text-sm whitespace-pre-wrap font-sans">{pedidoEditando.mensaje}</pre>
-              ) : (
-                <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4">
-                  <p className="text-[#666] text-sm">Generá el mensaje para verlo acá.</p>
-                </div>
-              )}
-
-              <div className="flex gap-3 flex-wrap">
-                <button
-                  onClick={copiarMensaje}
-                  disabled={!pedidoEditando.mensaje}
-                  className="bg-[#2a2a2a] hover:bg-[#333] disabled:opacity-40 text-[#f0f0f0] font-semibold text-sm py-2 px-4 rounded-xl transition-all"
-                >
-                  {copiado ? '✓ Copiado' : 'Copiar mensaje'}
-                </button>
-                <button
-                  onClick={enviarWhatsApp}
-                  disabled={!pedidoEditando.mensaje || pedidoEditando.estado === 'cerrado'}
-                  className="bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white font-semibold text-sm py-2 px-4 rounded-xl transition-all"
-                >
-                  Enviar por WhatsApp
-                </button>
-                {pedidoEditando.estado !== 'borrador' ? (
-                  <button disabled className="flex items-center gap-1.5 bg-[#e8c547] opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl">
-                    <Check size={16} /> Enviado
-                  </button>
-                ) : (
-                  <button
-                    onClick={marcarComoEnviado}
-                    disabled={!envioPreparado}
-                    className="bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all"
-                  >
-                    Marcar como enviado
-                  </button>
-                )}
-              </div>
-              {pedidoEditando.estado !== 'borrador' ? (
-                <Link href={`/admin/compras/pedidos/remitos?pedido=${pedidoEditando.id}`} className="inline-flex items-center gap-1 text-sm text-[#e8c547] hover:opacity-80 transition-opacity">
-                  Ir a remitos <ArrowRight size={14} />
-                </Link>
-              ) : !envioPreparado && (
-                <p className="text-[#666] text-xs">Copiá el mensaje o mandalo por WhatsApp para habilitarlo.</p>
-              )}
-            </section>
-          </div>
-        )}
-      </Modal>
-
-      <div className="flex gap-3">
-        {(['activos', 'todos'] as FiltroPedidos[]).map(f => (
-          <button
-            key={f}
-            onClick={() => setFiltro(f)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all capitalize ${filtro === f ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'}`}
-          >
-            {f}
-          </button>
-        ))}
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <SegmentedControl
+          value={filtro}
+          onChange={setFiltro}
+          opciones={FILTROS.map(f => ({
+            value: f.value,
+            label: (
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                {f.label}
+                <span className="tabular-nums opacity-70">{conteos[f.value]}</span>
+              </span>
+            ),
+          }))}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar por N° o proveedor..." className="w-64" />
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar N° o proveedor..." className="w-full sm:w-72" />
         <DateRangeInputs desde={desde} hasta={hasta} onChangeDesde={setDesde} onChangeHasta={setHasta} />
         <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
       </div>
 
-      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-        {pedidosFiltrados.length === 0 ? (
-          <p className="p-8 text-center text-[#888]">{pedidos.length === 0 ? 'No hay pedidos' : 'Ningún pedido coincide con los filtros'}</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">N°</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Proveedor</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Fecha</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Ítems</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#2a2a2a]">
-                {pedidosFiltrados.map(p => (
-                  <tr key={p.id} onClick={() => abrirEditor(p)} className="hover:bg-[#1a1a1a] transition-colors cursor-pointer">
-                    <td className="px-4 py-3 text-[#f0f0f0] font-mono tabular-nums whitespace-nowrap">{codigoPedido(p.numero)}</td>
-                    <td className="px-4 py-3 text-[#f0f0f0] font-medium">{p.proveedores.nombre}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClass[p.estado]}`}>{p.estado}</span>
-                    </td>
-                    <td className="px-4 py-3 text-[#888]">{new Date(p.created_at).toLocaleDateString('es-AR')}</td>
-                    <td className="px-4 py-3 text-[#888]">{p.compras_pedido_items.length}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex gap-1 justify-end">
-                        {p.estado !== 'cerrado' && (
-                          <button
-                            onClick={e => { e.stopPropagation(); cerrarPedido(p) }}
-                            title="Cerrar pedido"
-                            aria-label={`Cerrar pedido ${codigoPedido(p.numero)} a ${p.proveedores.nombre}`}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#f0f0f0] hover:bg-[#2a2a2a] transition-colors"
-                          >
-                            <Lock size={15} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <Modal open={modalCrear} onClose={() => !isPending && setModalCrear(false)} title="Crear pedido" size="lg">
-        <div className="space-y-4">
-          <div>
-            <label className={labelClass}>Proveedor *</label>
-            <select className={inputClass} value={proveedorModal} onChange={e => elegirProveedorModal(e.target.value)}>
-              <option value="">Seleccionar proveedor...</option>
-              {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-            </select>
-          </div>
-
-          {proveedorModal && (
-            <>
-              <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
-                {filasModal.length === 0 ? (
-                  <p className="p-4 text-center text-sm text-[#666]">Este proveedor no tiene ítems en el catálogo. Usá &quot;+ Línea libre&quot; para agregar uno.</p>
-                ) : (
-                  <div className="divide-y divide-[#1a1a1a]">
-                    {filasModal.map((f, idx) => (
-                      <div key={idx} className={`flex items-center gap-3 px-4 py-2.5 ${!f.incluir ? 'opacity-40' : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={f.incluir}
-                          onChange={() => toggleFilaModal(idx)}
-                          className="w-4 h-4 accent-[#e8c547] cursor-pointer shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-[#f0f0f0] truncate">{f.descripcion}</p>
-                          <p className="text-xs text-[#666]">{f.unidad}{f.precioRef != null ? ` · ref. $${f.precioRef.toLocaleString('es-AR')}` : ''}</p>
-                        </div>
-                        <input
-                          type="number" step="0.01"
-                          placeholder="0"
-                          value={f.cantidad === 0 ? '' : f.cantidad}
-                          onChange={e => actualizarCantidadFilaModal(idx, Number(e.target.value))}
-                          className={`${inputFijoClass} w-24 text-right`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                {lineasLibresModal.map((l, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      type="number" step="0.01"
-                      placeholder="0"
-                      className={`${inputFijoClass} w-24`}
-                      value={l.cantidad === 0 ? '' : l.cantidad}
-                      onChange={e => actualizarLineaLibreModal(idx, { cantidad: Number(e.target.value) })}
-                    />
-                    <input
-                      type="text"
-                      className={`${inputFijoClass} w-24`}
-                      placeholder="Unidad"
-                      value={l.unidad ?? ''}
-                      onChange={e => actualizarLineaLibreModal(idx, { unidad: e.target.value })}
-                    />
-                    <input
-                      type="text"
-                      className={inputClass}
-                      placeholder="Descripción"
-                      value={l.descripcion}
-                      onChange={e => actualizarLineaLibreModal(idx, { descripcion: e.target.value })}
-                    />
-                    <button onClick={() => quitarLineaLibreModal(idx)} className="text-[#888] hover:text-red-400 text-lg px-2">✕</button>
-                  </div>
-                ))}
-                <button onClick={agregarLineaLibreModal} className="text-xs text-[#888] hover:text-[#e8c547] font-semibold py-1.5 px-3 rounded-lg border border-[#2a2a2a] hover:border-[#e8c547] transition-colors">
-                  + Línea libre
-                </button>
-              </div>
-            </>
+      {filtrados.length === 0 ? (
+        <div className="rounded-2xl border border-border overflow-hidden">
+          {hayFiltros ? (
+            <EmptyState
+              icono={ClipboardList}
+              titulo="Ningún pedido coincide con la búsqueda"
+              descripcion="Probá con otro número o proveedor, o limpiá los filtros."
+              accion={<ClearFiltersButton visible onClick={limpiarFiltros} />}
+            />
+          ) : (
+            <EmptyState icono={ClipboardList} titulo={filtroActual.vacio.titulo} descripcion={filtroActual.vacio.descripcion} />
           )}
-
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-
-          <div className="flex gap-3 pt-2">
-            <button onClick={confirmarCrearPedido} disabled={isPending || !proveedorModal} className="flex-1 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2.5 px-6 rounded-xl transition-all">
-              {isPending ? 'Creando...' : 'Guardar'}
-            </button>
-            <button onClick={() => setModalCrear(false)} disabled={isPending} className="flex-1 border border-[#2a2a2a] text-[#888] hover:text-[#f0f0f0] font-semibold text-sm py-2.5 px-6 rounded-xl transition-all disabled:opacity-40">
-              Cancelar
-            </button>
-          </div>
         </div>
-      </Modal>
+      ) : (
+        <DataTable filas={filtrados} columnas={columnas} filaKey={p => p.fila.id} onFilaClick={p => abrir(p.fila.id)} />
+      )}
 
-      {confirmDialog}
-      <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
+      <Modal
+        open={modalAbierto}
+        onClose={cerrarModal}
+        title={titulo}
+        encabezado={abierto && !creando ? (
+          <span>
+            {{ detalle: 'Pedido', editar: 'Editar', enviar: 'Enviar', cerrar: 'Cerrar' }[vista]}{' '}
+            <span className="font-mono tabular-nums">{abierto.codigo}</span>
+            {vista === 'cerrar' && ' a mano'}
+          </span>
+        ) : undefined}
+        size="xl"
+        pantallaCompletaMobile
+      >
+        {creando && (
+          <PedidoEditor
+            key="nuevo"
+            pedido={null}
+            proveedores={proveedores}
+            itemsCatalogo={itemsCatalogo}
+            stockPorItem={stockPorItem}
+            pedidosAbiertos={activos}
+            onGuardado={alGuardar}
+            onCancelar={cancelarEditor}
+            onCambios={alCambiarEditor}
+            onVerPedido={id => siNoHayCambios(() => abrir(id))}
+          />
+        )}
+        {!creando && abierto && vista === 'detalle' && (
+          <PedidoDetalle
+            pedido={abierto}
+            pendiente={isPending}
+            acciones={{
+              onEnviar: () => { setAvisoReenvio(false); setVista('enviar') },
+              onEditar: () => setVista('editar'),
+              onCerrar: () => setVista('cerrar'),
+              onReabrir: () => pedirReabrir(abierto),
+              onEliminar: () => pedirEliminar(abierto),
+            }}
+          />
+        )}
+        {!creando && abierto && vista === 'editar' && (
+          <PedidoEditor
+            key={abierto.fila.id}
+            pedido={abierto}
+            proveedores={proveedores}
+            itemsCatalogo={itemsCatalogo}
+            stockPorItem={stockPorItem}
+            pedidosAbiertos={activos}
+            onGuardado={alGuardar}
+            onCancelar={cancelarEditor}
+            onCambios={alCambiarEditor}
+            onVerPedido={id => siNoHayCambios(() => abrir(id))}
+          />
+        )}
+        {!creando && abierto && vista === 'enviar' && (
+          <PedidoEnvio
+            key={abierto.fila.id}
+            pedido={abierto}
+            plantillas={plantillas}
+            localesFacturacion={localesFacturacion}
+            avisoReenvio={avisoReenvio}
+            onListo={() => { setAvisoReenvio(false); setVista('detalle') }}
+          />
+        )}
+        {!creando && abierto && vista === 'cerrar' && (
+          <CerrarPedidoModal pedido={abierto} onVolver={() => setVista('detalle')} onCerrado={() => setVista('detalle')} />
+        )}
+      </Modal>
     </div>
   )
 }

@@ -22,10 +22,20 @@ export const ESTADOS = {
     enviado:    { label: 'Enviado',         tono: 'info' },
     recibido:   { label: 'Recibido',        tono: 'exito' },
   },
-  compras_pedidos: {
-    borrador: { label: 'Borrador', tono: 'neutro' },
-    enviado:  { label: 'Enviado',  tono: 'info' },
-    cerrado:  { label: 'Cerrado',  tono: 'exito' },
+  // Estado visible del pedido a proveedor (lo deriva lib/compras/estadoPedido.ts
+  // de estado_recepcion + estado_facturacion).
+  compras_pedido: {
+    sin_enviar: { label: 'Sin enviar',            tono: 'neutro', icono: 'PencilLine' },
+    enviado:    { label: 'Enviado',               tono: 'info',   icono: 'Send' },
+    parcial:    { label: 'Parcialmente recibido', tono: 'alerta', icono: 'PackageOpen' },
+    recibido:   { label: 'Recibido',              tono: 'exito',  icono: 'PackageCheck' },
+    cerrado:    { label: 'Cerrado',               tono: 'neutro', icono: 'Lock' },
+    facturado:  { label: 'Facturado',             tono: 'exito',  icono: 'ReceiptText' },
+    devuelto:   { label: 'Devuelto',              tono: 'peligro', icono: 'Undo2' },
+  },
+  compras_remito: {
+    no_facturado: { label: 'No facturado', tono: 'neutro' },
+    facturado:    { label: 'Facturado',    tono: 'exito' },
   },
   gastos: {
     'Pendiente de pago': { label: 'Pendiente de pago', tono: 'peligro' },

@@ -240,47 +240,85 @@ export type Database = {
       compras_pedidos: {
         Row: {
           cerrado_en: string | null
+          cerrado_manual_en: string | null
+          cerrado_manual_por: string | null
+          cierre_motivo: string | null
           creado_por: string | null
           created_at: string | null
           enviado_en: string | null
+          enviado_por: string | null
           estado: string
+          estado_facturacion: string
+          estado_recepcion: string
           id: string
           local_facturacion_id: string | null
           mensaje: string | null
           numero: number
           proveedor_id: string
+          reabierto_en: string | null
+          reabierto_por: string | null
           solicitud_id: string | null
         }
         Insert: {
           cerrado_en?: string | null
+          cerrado_manual_en?: string | null
+          cerrado_manual_por?: string | null
+          cierre_motivo?: string | null
           creado_por?: string | null
           created_at?: string | null
           enviado_en?: string | null
+          enviado_por?: string | null
           estado?: string
+          estado_facturacion?: string
+          estado_recepcion?: string
           id?: string
           local_facturacion_id?: string | null
           mensaje?: string | null
           numero?: number
           proveedor_id: string
+          reabierto_en?: string | null
+          reabierto_por?: string | null
           solicitud_id?: string | null
         }
         Update: {
           cerrado_en?: string | null
+          cerrado_manual_en?: string | null
+          cerrado_manual_por?: string | null
+          cierre_motivo?: string | null
           creado_por?: string | null
           created_at?: string | null
           enviado_en?: string | null
+          enviado_por?: string | null
           estado?: string
+          estado_facturacion?: string
+          estado_recepcion?: string
           id?: string
           local_facturacion_id?: string | null
           mensaje?: string | null
           numero?: number
           proveedor_id?: string
+          reabierto_en?: string | null
+          reabierto_por?: string | null
           solicitud_id?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "compras_pedidos_cerrado_manual_por_fkey"
+            columns: ["cerrado_manual_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "compras_pedidos_creado_por_fkey"
             columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_pedidos_enviado_por_fkey"
+            columns: ["enviado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -297,6 +335,13 @@ export type Database = {
             columns: ["proveedor_id"]
             isOneToOne: false
             referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_pedidos_reabierto_por_fkey"
+            columns: ["reabierto_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -445,6 +490,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "compras_pedido_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_remito_items_pedido_item_id_fkey"
+            columns: ["pedido_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_pedido_pendiente"
+            referencedColumns: ["pedido_item_id"]
           },
           {
             foreignKeyName: "compras_remito_items_remito_id_fkey"
@@ -3084,6 +3136,55 @@ export type Database = {
           },
         ]
       }
+      v_compras_pedido_eventos: {
+        Row: {
+          detalle: string | null
+          fecha: string | null
+          pedido_id: string | null
+          persona: string | null
+          remito_id: string | null
+          tipo: string | null
+        }
+        Relationships: []
+      }
+      v_compras_pedido_pendiente: {
+        Row: {
+          cantidad: number | null
+          descripcion: string | null
+          excedente: number | null
+          item_id: string | null
+          orden: number | null
+          pedido_id: string | null
+          pedido_item_id: string | null
+          pendiente: number | null
+          recibido: number | null
+          remitos: number | null
+          unidad: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_pedido_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_pedido_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_pedido_items_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_compras_stock_actual: {
         Row: {
           actualizado_en: string | null
@@ -3173,6 +3274,35 @@ export type Database = {
         Returns: undefined
       }
       cerrar_conteo_fabrica: { Args: { p_conteo_id: string }; Returns: string }
+      compras_cerrar_pedido_manual: {
+        Args: { p_motivo: string; p_pedido_id: string }
+        Returns: undefined
+      }
+      compras_eliminar_pedido: {
+        Args: { p_pedido_id: string }
+        Returns: undefined
+      }
+      compras_guardar_pedido: {
+        Args: {
+          p_items?: Json
+          p_local_facturacion_id?: string
+          p_pedido_id?: string
+          p_proveedor_id?: string
+        }
+        Returns: Json
+      }
+      compras_marcar_pedido_enviado: {
+        Args: { p_pedido_id: string }
+        Returns: undefined
+      }
+      compras_reabrir_pedido: {
+        Args: { p_pedido_id: string }
+        Returns: undefined
+      }
+      compras_recalcular_estado_pedido: {
+        Args: { p_pedido_id: string }
+        Returns: undefined
+      }
       compras_sugerencias_sobrestock: {
         Args: { p_excluir_solicitud?: string }
         Returns: {

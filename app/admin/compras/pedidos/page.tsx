@@ -1,37 +1,37 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import PedidosClient from './PedidosClient'
+import { consultarCatalogo, consultarPedidos, consultarProveedores } from './datos'
 
 export const metadata = { title: 'Pedidos | YA! Chipacitos' }
 
-export default async function PedidosPage() {
-  const supabase = await createClient()
+export default async function PedidosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pedido?: string }>
+}) {
+  const supabase = await createClientTipado()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { pedido } = await searchParams
+
   const [
+    { data: pedidos },
+    { data: lineas },
+    { data: eventos },
     { data: proveedores },
     { data: itemsCatalogo },
     { data: stock },
-    { data: pedidos },
     { data: plantillas },
     { data: locales },
   ] = await Promise.all([
-    supabase
-      .from('proveedores')
-      .select('id, nombre, local_facturacion_id, contacto_nombre, contacto_telefono, maneja_stock')
-      .eq('estado', 'activo')
-      .order('nombre'),
-    supabase
-      .from('compras_items')
-      .select('*, compras_item_proveedores(proveedor_id, precio_ref, activo)')
-      .eq('estado', 'activo')
-      .order('nombre'),
-    supabase.from('compras_stock_actual').select('*'),
-    supabase
-      .from('compras_pedidos')
-      .select('*, proveedores(id, nombre, local_facturacion_id, contacto_nombre, contacto_telefono, maneja_stock), compras_pedido_items(*), compras_remitos(*, compras_remito_items(*))')
-      .order('created_at', { ascending: false }),
+    consultarPedidos(supabase),
+    supabase.from('v_compras_pedido_pendiente').select('*').order('orden'),
+    supabase.from('v_compras_pedido_eventos').select('*').order('fecha'),
+    consultarProveedores(supabase),
+    consultarCatalogo(supabase),
+    supabase.from('compras_stock_actual').select('item_id, cantidad'),
     supabase
       .from('compras_plantillas_mensaje')
       .select('id, nombre, cuerpo, es_default')
@@ -42,13 +42,15 @@ export default async function PedidosPage() {
 
   return (
     <PedidosClient
+      pedidos={pedidos ?? []}
+      lineas={lineas ?? []}
+      eventos={eventos ?? []}
       proveedores={proveedores ?? []}
       itemsCatalogo={itemsCatalogo ?? []}
-      stockInicial={stock ?? []}
-      pedidosIniciales={pedidos ?? []}
-      usuarioId={user.id}
+      stock={stock ?? []}
       plantillas={plantillas ?? []}
       localesFacturacion={locales ?? []}
+      pedidoInicial={pedido}
     />
   )
 }

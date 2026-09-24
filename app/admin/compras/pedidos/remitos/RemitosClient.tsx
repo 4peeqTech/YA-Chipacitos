@@ -15,6 +15,7 @@ import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { formatearFecha, formatearMoneda } from '@/lib/formato'
 import { codigoPedido } from '@/lib/compras/codigos'
+import { mensajeError } from '@/lib/errores'
 import RemitoForm, { type PedidoConItems } from './RemitoForm'
 import { revertirYBorrar } from '@/lib/compras/stockRemito'
 import type { Remito } from '@/lib/compras/tipos'
@@ -149,6 +150,9 @@ export default function RemitosClient({
 
   async function borrarRemitoConfirmado(remito: RemitoRow) {
     await revertirYBorrar(supabase, remito, usuarioId)
+    // Interino hasta F3 (remitos por RPC): el estado del pedido se recalcula acá.
+    const { error } = await supabase.rpc('compras_recalcular_estado_pedido', { p_pedido_id: remito.pedido_id })
+    if (error) toast.error(mensajeError(error, 'El remito se borró, pero no se pudo actualizar el estado del pedido. Recargá la página.'))
     setRemitos(prev => prev.filter(r => r.id !== remito.id))
     toast.success('Remito borrado')
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { sugerirPedidoItem } from '@/lib/compras/matchRemito'
@@ -67,12 +67,7 @@ export default function RemitoForm({
   const [lineas, setLineas] = useState<LineaEditor[]>(remitoEditando ? lineasDesdeRemito(remitoEditando) : [lineaVacia()])
   const [isPending, startTransition] = useTransition()
 
-  useEffect(() => {
-    setNumero(remitoEditando?.numero ?? '')
-    setFecha(remitoEditando?.fecha ?? '')
-    setLineas(remitoEditando ? lineasDesdeRemito(remitoEditando) : [lineaVacia()])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remitoEditando?.id])
+  // RemitosClient lo monta con key={remito o pedido}: cambiar de remito remonta el form.
 
   function agregarLinea() {
     setLineas(prev => [...prev, lineaVacia()])
@@ -123,6 +118,13 @@ export default function RemitoForm({
 
   function ejecutarGuardado(remitoAReemplazar: string | null) {
     const filas = lineas.filter(l => l.descripcion.trim() && (l.cantidad ?? 0) > 0)
+    // Interino hasta F3 (remitos por RPC): el estado del pedido se recalcula acá,
+    // también si el guardado falla a mitad de camino (ya se pudo haber borrado el remito viejo).
+    async function recalcularEstado(): Promise<boolean> {
+      const { error } = await supabase.rpc('compras_recalcular_estado_pedido', { p_pedido_id: pedido.id })
+      if (error) console.error(error)
+      return !error
+    }
     startTransition(async () => {
       if (remitoAReemplazar) {
         const remitoExistente = pedido.compras_remitos.find(r => r.id === remitoAReemplazar)
@@ -134,7 +136,7 @@ export default function RemitoForm({
         .insert([{ pedido_id: pedido.id, numero: numero.trim(), fecha, creado_por: usuarioId }])
         .select()
         .single()
-      if (errRemito) { toast.error(mensajeError(errRemito, 'No se pudo guardar el remito')); return }
+      if (errRemito) { await recalcularEstado(); toast.error(mensajeError(errRemito, 'No se pudo guardar el remito')); return }
 
       const filasInsert = filas.map(l => ({
         remito_id: remito.id,
@@ -149,11 +151,13 @@ export default function RemitoForm({
         .from('compras_remito_items')
         .insert(filasInsert)
         .select()
-      if (errItems) { toast.error(mensajeError(errItems, 'No se pudieron guardar los ítems del remito')); return }
+      if (errItems) { await recalcularEstado(); toast.error(mensajeError(errItems, 'No se pudieron guardar los ítems del remito')); return }
 
       for (const item of itemsGuardados) {
         if (item.item_id) await sumarStock(supabase, item.item_id, item.cantidad, remito.id, usuarioId)
       }
+
+      if (!(await recalcularEstado())) toast.error('El remito se guardó, pero no se pudo actualizar el estado del pedido. Recargá la página.')
 
       const remitoCompleto: Remito = { ...remito, compras_remito_items: itemsGuardados }
       toast.success(remitoAReemplazar ? 'Remito actualizado' : 'Remito guardado')
