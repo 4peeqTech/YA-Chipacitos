@@ -247,6 +247,7 @@ export type Database = {
           id: string
           local_facturacion_id: string | null
           mensaje: string | null
+          numero: number
           proveedor_id: string
           solicitud_id: string | null
         }
@@ -259,6 +260,7 @@ export type Database = {
           id?: string
           local_facturacion_id?: string | null
           mensaje?: string | null
+          numero?: number
           proveedor_id: string
           solicitud_id?: string | null
         }
@@ -271,6 +273,7 @@ export type Database = {
           id?: string
           local_facturacion_id?: string | null
           mensaje?: string | null
+          numero?: number
           proveedor_id?: string
           solicitud_id?: string | null
         }

@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react'
 import {
   Pencil, Plus, Star, Trash2,
-  Truck, User, Package, CalendarDays, MapPin, Receipt, Store, CreditCard, Building2, Maximize2,
+  Truck, User, Hash, Package, CalendarDays, MapPin, Receipt, Store, CreditCard, Building2, Maximize2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { renderPlantilla, BLOQUE_ENTREGA, BLOQUE_FACTURACION, type ContextoMensaje, type DatosLocal } from '@/lib/compras/pedidoMensaje'
@@ -32,6 +32,7 @@ interface LocalFacturacion {
 
 const VARIABLES: { key: string; label: string; desc: string; icon: typeof Truck }[] = [
   { key: 'proveedor', label: 'Proveedor', desc: 'Nombre del proveedor (mayúsculas)', icon: Truck },
+  { key: 'numero', label: 'N° de pedido', desc: 'Número del pedido (P-0001)', icon: Hash },
   { key: 'contacto', label: 'Contacto', desc: 'Contacto del proveedor', icon: User },
   { key: 'items', label: 'Detalle del pedido', desc: 'Lista de ítems del pedido', icon: Package },
   { key: 'fecha', label: 'Fecha', desc: 'Fecha de hoy', icon: CalendarDays },
@@ -46,6 +47,7 @@ const VARIABLES: { key: string; label: string; desc: string; icon: typeof Truck 
 
 const EJEMPLO_BASE = {
   proveedorNombre: 'Distribuidora Ejemplo',
+  numero: 14,
   contactoNombre: 'Juan Pérez',
   items: [
     { descripcion: 'Harina 000', unidad: 'kg', cantidad: 25 },

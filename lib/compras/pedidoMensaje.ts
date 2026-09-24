@@ -1,3 +1,5 @@
+import { codigoPedido } from './codigos'
+
 export interface ItemMensaje {
   descripcion: string
   unidad: string | null
@@ -24,7 +26,7 @@ export const BLOQUE_FACTURACION =
 
 // Cuerpo por default cuando no hay ninguna plantilla en compras_plantillas_mensaje
 // (mismo formato que el seed de esa tabla).
-const CUERPO_FALLBACK = '🧾 *PEDIDO {{proveedor}}* — {{dia}} {{fecha}}{{entrega}}\n\n*Detalle del pedido:*\n{{items}}{{facturacion}}'
+const CUERPO_FALLBACK = '🧾 *PEDIDO {{numero}} · {{proveedor}}* — {{dia}} {{fecha}}{{entrega}}\n\n*Detalle del pedido:*\n{{items}}{{facturacion}}'
 
 function formatearCantidad(cantidad: number): string {
   return cantidad % 1 === 0 ? String(Math.floor(cantidad)) : String(cantidad)
@@ -41,13 +43,15 @@ function interpolar(texto: string, vars: Record<string, string>): string {
 
 export interface ContextoMensaje {
   proveedorNombre: string
+  // Número del pedido (compras_pedidos.numero); sin él, {{numero}} queda vacío.
+  numero?: number | null
   contactoNombre?: string | null
   local: DatosLocal | null
   items: ItemMensaje[]
 }
 
 // Variables soportadas por las plantillas (ver ABM en /admin/proveedores/plantillas):
-// {{proveedor}} {{contacto}} {{items}} {{fecha}} {{dia}} {{entrega}} {{facturacion}}
+// {{proveedor}} {{numero}} {{contacto}} {{items}} {{fecha}} {{dia}} {{entrega}} {{facturacion}}
 // {{local_suc}} {{local_direccion}} {{local_cuit}} {{razon_social}}. Una variable no
 // reconocida se deja vacía en vez de romper el mensaje.
 export function renderPlantilla(cuerpo: string, ctx: ContextoMensaje): string {
@@ -58,6 +62,7 @@ export function renderPlantilla(cuerpo: string, ctx: ContextoMensaje): string {
 
   const vars: Record<string, string> = {
     proveedor: ctx.proveedorNombre.toUpperCase(),
+    numero: ctx.numero != null ? codigoPedido(ctx.numero) : '',
     contacto: ctx.contactoNombre ?? '',
     items: ctx.items.map(formatearLineaItem).join('\n'),
     fecha,
@@ -74,8 +79,8 @@ export function renderPlantilla(cuerpo: string, ctx: ContextoMensaje): string {
   return interpolar(cuerpo, vars)
 }
 
-export function construirMensajePedido(proveedorNombre: string, local: DatosLocal | null, items: ItemMensaje[]): string {
-  return renderPlantilla(CUERPO_FALLBACK, { proveedorNombre, local, items })
+export function construirMensajePedido(proveedorNombre: string, local: DatosLocal | null, items: ItemMensaje[], numero?: number | null): string {
+  return renderPlantilla(CUERPO_FALLBACK, { proveedorNombre, local, items, numero })
 }
 
 export function linkWhatsApp(telefono: string | null, mensaje: string): string {

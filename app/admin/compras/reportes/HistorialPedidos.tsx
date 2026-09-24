@@ -3,6 +3,7 @@
 import { Fragment, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { calcularHistorialPedidos, type PedidoReporte } from '@/lib/compras/reportes'
+import { codigoPedido } from '@/lib/compras/codigos'
 
 function money(n: number): string {
   return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -78,6 +79,7 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
         <table className="w-full text-sm">
           <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
             <tr>
+              <th className={thClass}>N°</th>
               <th className={thClass}>Proveedor</th>
               <th className={thClass}>Estado</th>
               <th className={thClass}>Creado</th>
@@ -94,9 +96,10 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
                   className="hover:bg-[#1a1a1a] transition-colors cursor-pointer"
                   onClick={() => setExpandidoId(prev => (prev === p.pedidoId ? null : p.pedidoId))}
                 >
-                  <td className="px-4 py-3 text-[#f0f0f0] font-medium">
-                    {expandidoId === p.pedidoId ? '▼ ' : '▶ '}{p.proveedorNombre}
+                  <td className="px-4 py-3 text-[#f0f0f0] font-mono tabular-nums whitespace-nowrap">
+                    {expandidoId === p.pedidoId ? '▼ ' : '▶ '}{codigoPedido(p.numero)}
                   </td>
+                  <td className="px-4 py-3 text-[#f0f0f0] font-medium">{p.proveedorNombre}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_BADGE[p.estado]}`}>{p.estado}</span>
                   </td>
@@ -108,7 +111,7 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
                 </tr>
                 {expandidoId === p.pedidoId && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-3 bg-[#0a0a0a]">
+                    <td colSpan={8} className="px-4 py-3 bg-[#0a0a0a]">
                       {p.remitos.length === 0 ? (
                         <p className="text-xs text-[#888]">Sin remitos registrados.</p>
                       ) : (

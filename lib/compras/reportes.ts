@@ -74,6 +74,7 @@ export function calcularGastoPorProveedor(remitos: RemitoReporte[]): GastoProvee
 
 export interface PedidoReporte {
   id: string
+  numero: number
   estado: 'borrador' | 'enviado' | 'cerrado'
   created_at: string
   enviado_en: string | null
@@ -92,6 +93,7 @@ export interface RemitoResumen {
 
 export interface HistorialPedido {
   pedidoId: string
+  numero: number
   proveedorNombre: string
   estado: 'borrador' | 'enviado' | 'cerrado'
   createdAt: string
@@ -120,6 +122,7 @@ export function calcularHistorialPedidos(pedidos: PedidoReporte[]): HistorialPed
 
     return {
       pedidoId: pedido.id,
+      numero: pedido.numero,
       proveedorNombre: pedido.proveedores?.nombre ?? '—',
       estado: pedido.estado,
       createdAt: pedido.created_at,

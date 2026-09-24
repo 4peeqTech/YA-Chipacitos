@@ -11,6 +11,8 @@ import Modal from '@/components/ui/Modal'
 import SearchInput from '@/components/ui/SearchInput'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { mensajeError } from '@/lib/errores'
+import { useConfirmar } from '@/components/ui/ProveedorUI'
+import { codigoPedido } from '@/lib/compras/codigos'
 
 interface InsumoAsociado {
   itemId: string
@@ -22,6 +24,7 @@ interface InsumoAsociado {
 
 interface PedidoResumen {
   id: string
+  numero: number
   estado: 'borrador' | 'enviado' | 'cerrado'
   createdAt: string
 }
@@ -80,6 +83,7 @@ export default function ProveedoresClient({
   localesFacturacion: LocalFacturacion[]
 }) {
   const supabase = createClient()
+  const confirmar = useConfirmar()
   const [proveedores, setProveedores] = useState<Proveedor[]>(proveedoresIniciales)
   const [filtro, setFiltro] = useState<FiltroEstado>('activo')
   const [soloSinInsumos, setSoloSinInsumos] = useState(false)
@@ -118,7 +122,7 @@ export default function ProveedoresClient({
         .eq('activo', true),
       supabase
         .from('compras_pedidos')
-        .select('id, estado, created_at')
+        .select('id, numero, estado, created_at')
         .eq('proveedor_id', p.id)
         .order('created_at', { ascending: false })
         .limit(10),
@@ -138,7 +142,7 @@ export default function ProveedoresClient({
         precioRef: i.precio_ref,
       }))
     )
-    setFichaPedidos((pedidos ?? []).map(p => ({ id: p.id, estado: p.estado, createdAt: p.created_at })))
+    setFichaPedidos((pedidos ?? []).map(p => ({ id: p.id, numero: p.numero, estado: p.estado, createdAt: p.created_at })))
     setFichaCargando(false)
   }
 
@@ -217,8 +221,17 @@ export default function ProveedoresClient({
     setProveedores(prev => prev.map(x => x.id === p.id ? data : x))
   }
 
-  async function eliminar(p: Proveedor) {
-    if (!confirm(`¿Eliminar "${p.nombre}"? Esta acción no se puede deshacer.`)) return
+  function eliminar(p: Proveedor) {
+    confirmar({
+      titulo: 'Eliminar proveedor',
+      mensaje: `¿Eliminar "${p.nombre}"? Esta acción no se puede deshacer.`,
+      textoConfirmar: 'Eliminar',
+      peligroso: true,
+      onConfirmar: () => { eliminarConfirmado(p) },
+    })
+  }
+
+  async function eliminarConfirmado(p: Proveedor) {
     const { error: err } = await supabase.from('proveedores').delete().eq('id', p.id)
     if (err) { setError(mensajeError(err, 'No se pudo eliminar el proveedor')); return }
     setProveedores(prev => prev.filter(x => x.id !== p.id))
@@ -499,7 +512,10 @@ export default function ProveedoresClient({
                   <div className="divide-y divide-[#1a1a1a]">
                     {fichaPedidos.map(p => (
                       <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-                        <span className="text-[#f0f0f0]">{new Date(p.createdAt).toLocaleDateString('es-AR')}</span>
+                        <span className="text-[#f0f0f0]">
+                          <span className="font-mono tabular-nums">{codigoPedido(p.numero)}</span>
+                          <span className="text-[#888]"> · {new Date(p.createdAt).toLocaleDateString('es-AR')}</span>
+                        </span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoPedidoBadge[p.estado]}`}>{p.estado}</span>
                       </div>
                     ))}

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowRight, Check, ListChecks, Lock, MessageSquare, Plus, RefreshCw, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { construirMensajePedido, renderPlantilla, linkWhatsApp } from '@/lib/compras/pedidoMensaje'
+import { codigoPedido } from '@/lib/compras/codigos'
 import Modal from '@/components/ui/Modal'
 import SearchInput from '@/components/ui/SearchInput'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
@@ -65,6 +66,7 @@ interface PedidoItem {
 
 interface Pedido {
   id: string
+  numero: number
   proveedor_id: string
   local_facturacion_id: string | null
   estado: 'borrador' | 'enviado' | 'cerrado'
@@ -78,6 +80,16 @@ interface Pedido {
 }
 
 type FiltroPedidos = 'activos' | 'todos'
+
+// La búsqueda encuentra por código ("P-0012", "p12", "12") o por proveedor.
+function coincideBusqueda(pedido: Pedido, busqueda: string): boolean {
+  const texto = busqueda.trim().toLowerCase()
+  if (!texto) return true
+  if (pedido.proveedores.nombre.toLowerCase().includes(texto)) return true
+  if (codigoPedido(pedido.numero).toLowerCase().includes(texto)) return true
+  const digitos = texto.replace(/^p-?/, '')
+  return /^\d+$/.test(digitos) && Number(digitos) === pedido.numero
+}
 
 // Fila local del editor de ítems: id/pedido_id quedan sin definir hasta guardar.
 type ItemEditor = Pick<PedidoItem, 'item_id' | 'descripcion' | 'unidad' | 'cantidad'>
@@ -131,7 +143,7 @@ export default function PedidosClient({
 
   const pedidosFiltrados = pedidos
     .filter(p => filtro === 'todos' ? true : p.estado === 'borrador' || p.estado === 'enviado')
-    .filter(p => p.proveedores.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    .filter(p => coincideBusqueda(p, busqueda))
     .filter(p => !desde || p.created_at.slice(0, 10) >= desde)
     .filter(p => !hasta || p.created_at.slice(0, 10) <= hasta)
 
@@ -294,11 +306,12 @@ export default function PedidosClient({
       const mensaje = plantilla
         ? renderPlantilla(plantilla.cuerpo, {
             proveedorNombre: pedidoEditando.proveedores.nombre,
+            numero: pedidoEditando.numero,
             contactoNombre: pedidoEditando.proveedores.contacto_nombre,
             local,
             items: itemsGuardados,
           })
-        : construirMensajePedido(pedidoEditando.proveedores.nombre, local, itemsGuardados)
+        : construirMensajePedido(pedidoEditando.proveedores.nombre, local, itemsGuardados, pedidoEditando.numero)
 
       const { data, error: errUpdate } = await supabase
         .from('compras_pedidos')
@@ -351,7 +364,7 @@ export default function PedidosClient({
   function cerrarPedido(pedido: Pedido) {
     confirmar({
       titulo: 'Cerrar pedido',
-      mensaje: `¿Cerrar el pedido a ${pedido.proveedores.nombre}? Ya no se van a poder editar sus ítems ni reenviar el mensaje.`,
+      mensaje: `¿Cerrar el pedido ${codigoPedido(pedido.numero)} a ${pedido.proveedores.nombre}? Ya no se van a poder editar sus ítems ni reenviar el mensaje.`,
       textoConfirmar: 'Cerrar pedido',
       peligroso: true,
       onConfirmar: () => cerrarPedidoConfirmado(pedido),
@@ -401,7 +414,7 @@ export default function PedidosClient({
 
       {error && !modalCrear && <p className="text-red-400 text-sm">{error}</p>}
 
-      <Modal open={!!pedidoEditando} onClose={cerrarEditor} title={pedidoEditando ? `Pedido a ${pedidoEditando.proveedores.nombre}` : ''} size="2xl">
+      <Modal open={!!pedidoEditando} onClose={cerrarEditor} title={pedidoEditando ? `Pedido ${codigoPedido(pedidoEditando.numero)} · ${pedidoEditando.proveedores.nombre}` : ''} size="2xl">
         {pedidoEditando && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <section className="space-y-3 lg:max-h-[62vh] lg:overflow-y-auto lg:pr-2 scrollbar-thin">
@@ -580,7 +593,7 @@ export default function PedidosClient({
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar por proveedor..." className="w-64" />
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar por N° o proveedor..." className="w-64" />
         <DateRangeInputs desde={desde} hasta={hasta} onChangeDesde={setDesde} onChangeHasta={setHasta} />
         <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
       </div>
@@ -593,6 +606,7 @@ export default function PedidosClient({
             <table className="w-full text-sm">
               <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">N°</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Proveedor</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Fecha</th>
@@ -603,6 +617,7 @@ export default function PedidosClient({
               <tbody className="divide-y divide-[#2a2a2a]">
                 {pedidosFiltrados.map(p => (
                   <tr key={p.id} onClick={() => abrirEditor(p)} className="hover:bg-[#1a1a1a] transition-colors cursor-pointer">
+                    <td className="px-4 py-3 text-[#f0f0f0] font-mono tabular-nums whitespace-nowrap">{codigoPedido(p.numero)}</td>
                     <td className="px-4 py-3 text-[#f0f0f0] font-medium">{p.proveedores.nombre}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClass[p.estado]}`}>{p.estado}</span>
@@ -615,7 +630,7 @@ export default function PedidosClient({
                           <button
                             onClick={e => { e.stopPropagation(); cerrarPedido(p) }}
                             title="Cerrar pedido"
-                            aria-label={`Cerrar pedido a ${p.proveedores.nombre}`}
+                            aria-label={`Cerrar pedido ${codigoPedido(p.numero)} a ${p.proveedores.nombre}`}
                             className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#f0f0f0] hover:bg-[#2a2a2a] transition-colors"
                           >
                             <Lock size={15} />

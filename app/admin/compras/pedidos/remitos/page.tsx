@@ -22,7 +22,7 @@ export default async function RemitosPage({
       .order('fecha', { ascending: false }),
     supabase
       .from('compras_pedidos')
-      .select('id, estado, enviado_en, proveedores(nombre), compras_pedido_items(id, item_id, descripcion, cantidad, orden)')
+      .select('id, numero, estado, enviado_en, proveedores(nombre), compras_pedido_items(id, item_id, descripcion, cantidad, orden)')
       .neq('estado', 'borrador')
       .order('enviado_en', { ascending: false }),
   ])
@@ -35,7 +35,7 @@ export default async function RemitosPage({
   const idsConRemito = new Set((remitos ?? []).map(r => r.pedido_id))
   const pedidosSinRemito = pedidosNormalizados
     .filter(p => p.estado === 'enviado' && !idsConRemito.has(p.id))
-    .map(p => ({ id: p.id, proveedorNombre: p.proveedores?.nombre ?? '—' }))
+    .map(p => ({ id: p.id, numero: p.numero, proveedorNombre: p.proveedores?.nombre ?? '—' }))
 
   return (
     <RemitosClient

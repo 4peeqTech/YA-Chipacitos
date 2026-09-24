@@ -14,6 +14,7 @@ import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { formatearFecha, formatearMoneda } from '@/lib/formato'
+import { codigoPedido } from '@/lib/compras/codigos'
 import RemitoForm, { type PedidoConItems } from './RemitoForm'
 import { revertirYBorrar } from '@/lib/compras/stockRemito'
 import type { Remito } from '@/lib/compras/tipos'
@@ -32,6 +33,7 @@ interface PedidoItemPD {
 
 interface PedidoOption {
   id: string
+  numero: number
   estado: 'enviado' | 'cerrado'
   enviado_en: string | null
   proveedores: { nombre: string } | null
@@ -40,6 +42,7 @@ interface PedidoOption {
 
 interface PedidoSinRemito {
   id: string
+  numero: number
   proveedorNombre: string
 }
 
@@ -88,7 +91,7 @@ export default function RemitosClient({
 
   const opcionesPedido: OpcionSelect[] = pedidos.map(p => ({
     value: p.id,
-    label: `${p.proveedores?.nombre ?? '—'} — ${p.enviado_en ? new Date(p.enviado_en).toLocaleDateString('es-AR') : 's/f'}`,
+    label: `${codigoPedido(p.numero)} · ${p.proveedores?.nombre ?? '—'} — ${p.enviado_en ? new Date(p.enviado_en).toLocaleDateString('es-AR') : 's/f'}`,
     grupo: p.estado === 'enviado' ? 'Enviados' : 'Cerrados',
   }))
 
@@ -220,7 +223,7 @@ export default function RemitosClient({
                 onClick={() => abrirModalConPedido(p.id)}
                 className="text-xs font-medium text-warning bg-warning-bg hover:opacity-80 border border-warning rounded-full px-3 py-1 transition-opacity"
               >
-                {p.proveedorNombre}
+                <span className="font-mono tabular-nums">{codigoPedido(p.numero)}</span> · {p.proveedorNombre}
               </button>
             ))}
           </div>
