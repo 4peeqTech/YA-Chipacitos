@@ -5,6 +5,7 @@ import { History } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import SelectBuscador from '@/components/ui/SelectBuscador'
 import { calcularMovimientoPorInsumo, type MovimientoReporte } from '@/lib/compras/reportes'
+import { grupoMovimiento } from '@/lib/compras/movimientos'
 
 interface CatalogoItem {
   id: string
@@ -31,11 +32,12 @@ function formatearFecha(fecha: string) {
   return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
 }
 
-// Suma las entradas por remito registradas entre dos conteos consecutivos —
-// es lo que explica el salto de "contado" entre uno y el siguiente.
+// Suma las entradas por remito (netas de correcciones de remito) registradas
+// entre dos conteos consecutivos — es lo que explica el salto de "contado"
+// entre uno y el siguiente.
 function entradasEnPeriodo(movimientos: MovimientoReporte[], desde: string | null, hasta: string) {
   return movimientos
-    .filter(m => m.tipo === 'entrada_remito' && m.created_at <= hasta && (desde == null || m.created_at > desde))
+    .filter(m => grupoMovimiento(m.tipo) === 'entradas' && m.created_at <= hasta && (desde == null || m.created_at > desde))
     .reduce((total, m) => total + m.delta, 0)
 }
 
@@ -98,7 +100,7 @@ export default function HistoricoInsumoClient({ itemsCatalogo }: { itemsCatalogo
         .from('compras_stock_movimientos')
         .select('id, item_id, delta, tipo, remito_id, conteo_id, created_at')
         .eq('item_id', id)
-        .eq('tipo', 'entrada_remito')
+        .in('tipo', ['entrada_remito', 'salida_remito_anulado'])
         .order('created_at'),
     ])
 
@@ -145,7 +147,7 @@ export default function HistoricoInsumoClient({ itemsCatalogo }: { itemsCatalogo
     setEntradasPorConteo(entradas)
 
     // calcularMovimientoPorInsumo espera la lista completa de movimientos
-    // (ya viene filtrada a un solo insumo y a tipo='entrada_remito' arriba);
+    // (ya viene filtrada a un solo insumo y a los tipos de remito arriba);
     // acá solo interesa el total agregado, no el detalle por-conteo.
     const [resumen] = calcularMovimientoPorInsumo(movs, {}, {})
     setTotalEntradas(resumen?.entradas ?? 0)
@@ -163,7 +165,7 @@ export default function HistoricoInsumoClient({ itemsCatalogo }: { itemsCatalogo
     <div className="space-y-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-text"><History size={22} className="text-accent" /> Histórico por insumo</h1>
-        <p className="text-muted text-sm mt-0.5">Cómo evolucionó el stock contado, conteo a conteo. Esta serie solo existe acá — el stock actual se sobreescribe en cada carga.</p>
+        <p className="text-muted text-sm mt-0.5">Cómo evolucionó el stock contado, conteo a conteo, y cuánto entró por remitos entre un conteo y el siguiente.</p>
       </div>
 
       <SelectBuscador

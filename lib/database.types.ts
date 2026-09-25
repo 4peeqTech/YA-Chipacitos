@@ -258,6 +258,7 @@ export type Database = {
           reabierto_en: string | null
           reabierto_por: string | null
           solicitud_id: string | null
+          ultima_secuencia_remito: number
         }
         Insert: {
           cerrado_en?: string | null
@@ -279,6 +280,7 @@ export type Database = {
           reabierto_en?: string | null
           reabierto_por?: string | null
           solicitud_id?: string | null
+          ultima_secuencia_remito?: number
         }
         Update: {
           cerrado_en?: string | null
@@ -300,6 +302,7 @@ export type Database = {
           reabierto_en?: string | null
           reabierto_por?: string | null
           solicitud_id?: string | null
+          ultima_secuencia_remito?: number
         }
         Relationships: [
           {
@@ -513,24 +516,27 @@ export type Database = {
           created_at: string | null
           fecha: string
           id: string
-          numero: string
+          numero: string | null
           pedido_id: string
+          secuencia: number
         }
         Insert: {
           creado_por?: string | null
           created_at?: string | null
           fecha: string
           id?: string
-          numero: string
+          numero?: string | null
           pedido_id: string
+          secuencia: number
         }
         Update: {
           creado_por?: string | null
           created_at?: string | null
           fecha?: string
           id?: string
-          numero?: string
+          numero?: string | null
           pedido_id?: string
+          secuencia?: number
         }
         Relationships: [
           {
@@ -733,36 +739,62 @@ export type Database = {
       }
       compras_stock_movimientos: {
         Row: {
+          anula_movimiento_id: string | null
+          cantidad_antes: number | null
+          cantidad_despues: number | null
           conteo_id: string | null
           creado_por: string | null
           created_at: string
           delta: number
           id: string
           item_id: string
+          motivo: string | null
           remito_id: string | null
           tipo: string
         }
         Insert: {
+          anula_movimiento_id?: string | null
+          cantidad_antes?: number | null
+          cantidad_despues?: number | null
           conteo_id?: string | null
           creado_por?: string | null
           created_at?: string
           delta: number
           id?: string
           item_id: string
+          motivo?: string | null
           remito_id?: string | null
           tipo: string
         }
         Update: {
+          anula_movimiento_id?: string | null
+          cantidad_antes?: number | null
+          cantidad_despues?: number | null
           conteo_id?: string | null
           creado_por?: string | null
           created_at?: string
           delta?: number
           id?: string
           item_id?: string
+          motivo?: string | null
           remito_id?: string | null
           tipo?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "compras_stock_movimientos_anula_movimiento_id_fkey"
+            columns: ["anula_movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_anula_movimiento_id_fkey"
+            columns: ["anula_movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "compras_stock_movimientos_conteo_id_fkey"
             columns: ["conteo_id"]
@@ -3219,6 +3251,9 @@ export type Database = {
       }
       v_compras_stock_movimientos: {
         Row: {
+          anula_movimiento_id: string | null
+          cantidad_antes: number | null
+          cantidad_despues: number | null
           conteo_id: string | null
           creado_por_nombre: string | null
           created_at: string | null
@@ -3226,10 +3261,27 @@ export type Database = {
           id: string | null
           item_id: string | null
           item_nombre: string | null
+          motivo: string | null
+          remito_codigo: string | null
           remito_id: string | null
+          revertido: boolean | null
           tipo: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "compras_stock_movimientos_anula_movimiento_id_fkey"
+            columns: ["anula_movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_anula_movimiento_id_fkey"
+            columns: ["anula_movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "compras_stock_movimientos_conteo_id_fkey"
             columns: ["conteo_id"]
@@ -3274,6 +3326,14 @@ export type Database = {
         Returns: undefined
       }
       cerrar_conteo_fabrica: { Args: { p_conteo_id: string }; Returns: string }
+      compras_ajustar_stock: {
+        Args: {
+          p_cantidad_objetivo?: number
+          p_item_id?: string
+          p_motivo?: string
+        }
+        Returns: Json
+      }
       compras_cerrar_pedido_manual: {
         Args: { p_motivo: string; p_pedido_id: string }
         Returns: undefined
@@ -3282,6 +3342,7 @@ export type Database = {
         Args: { p_pedido_id: string }
         Returns: undefined
       }
+      compras_eliminar_remito: { Args: { p_remito_id: string }; Returns: Json }
       compras_guardar_pedido: {
         Args: {
           p_items?: Json
@@ -3291,9 +3352,30 @@ export type Database = {
         }
         Returns: Json
       }
+      compras_guardar_remito: {
+        Args: {
+          p_fecha?: string
+          p_items?: Json
+          p_pedido_id?: string
+          p_remito_id?: string
+        }
+        Returns: Json
+      }
       compras_marcar_pedido_enviado: {
         Args: { p_pedido_id: string }
         Returns: undefined
+      }
+      compras_mover_stock: {
+        Args: {
+          p_anula_movimiento_id?: string
+          p_conteo_id?: string
+          p_delta: number
+          p_item_id: string
+          p_motivo?: string
+          p_remito_id?: string
+          p_tipo: string
+        }
+        Returns: string
       }
       compras_reabrir_pedido: {
         Args: { p_pedido_id: string }
@@ -3302,6 +3384,10 @@ export type Database = {
       compras_recalcular_estado_pedido: {
         Args: { p_pedido_id: string }
         Returns: undefined
+      }
+      compras_revertir_movimiento: {
+        Args: { p_motivo?: string; p_movimiento_id?: string }
+        Returns: Json
       }
       compras_sugerencias_sobrestock: {
         Args: { p_excluir_solicitud?: string }

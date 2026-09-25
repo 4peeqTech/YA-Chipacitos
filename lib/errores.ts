@@ -14,6 +14,12 @@ const CONSTRAINTS: Record<string, string> = {
     'Este conteo ya generó una solicitud.',
   compras_items_stock_maximo_positivo:
     'El stock máximo tiene que ser mayor a 0. Dejalo vacío si el insumo no tiene tope.',
+  compras_remitos_pedido_secuencia_key:
+    'Otra persona cargó un remito de este pedido al mismo tiempo. Probá guardar de nuevo.',
+  compras_stock_movimientos_anula_unico:
+    'Ese ajuste ya se revirtió. Recargá la página para ver el historial al día.',
+  compras_stock_movimientos_delta_no_cero:
+    'El movimiento no cambia el stock: no hay nada que registrar.',
 }
 
 function extraerMensaje(error: unknown): string {

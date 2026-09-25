@@ -9,6 +9,7 @@ import {
 import EstadoBadge from '@/components/ui/EstadoBadge'
 import { formatearFecha, formatearFechaHora } from '@/lib/formato'
 import { proximaAccion, subtextoEstado } from '@/lib/compras/estadoPedido'
+import { codigoRemito } from '@/lib/compras/codigos'
 import { conUnidad, type PedidoVista } from './modelo'
 import type { EventoPedido } from './datos'
 
@@ -31,8 +32,11 @@ const EVENTO: Record<string, { label: string; icono: LucideIcon }> = {
 // Desempate cuando dos eventos tienen la misma hora.
 const ORDEN_EVENTO = ['creado', 'enviado', 'remito', 'cerrado', 'reabierto']
 
-function detalleEvento(e: EventoPedido): string | null {
-  if (e.tipo === 'remito' && e.detalle) return `Remito del ${formatearFecha(e.detalle)}`
+function detalleEvento(e: EventoPedido, codigoDe: (remitoId: string | null) => string | null): string | null {
+  if (e.tipo === 'remito' && e.detalle) {
+    const codigo = codigoDe(e.remito_id)
+    return `${codigo ? `${codigo} · ` : ''}llegó el ${formatearFecha(e.detalle)}`
+  }
   if (e.tipo === 'cerrado' && e.detalle) return `Motivo: ${e.detalle}`
   return null
 }
@@ -102,7 +106,11 @@ export default function PedidoDetalle({
   const accion = proximaAccion(entrada)
   const subtexto = subtextoEstado(entrada)
   const esperaMercaderia = entrada.estado_recepcion === 'enviado' || entrada.estado_recepcion === 'parcial'
-  const remitos = [...fila.compras_remitos].sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.created_at ?? '').localeCompare(b.created_at ?? ''))
+  const remitos = [...fila.compras_remitos].sort((a, b) => a.secuencia - b.secuencia)
+  const codigoDe = (remitoId: string | null) => {
+    const r = remitoId ? fila.compras_remitos.find(x => x.id === remitoId) : undefined
+    return r ? codigoRemito(fila.numero, r.secuencia) : null
+  }
   const eventos = [...pedido.eventos].sort((a, b) =>
     (a.fecha ?? '').localeCompare(b.fecha ?? '') || ORDEN_EVENTO.indexOf(a.tipo ?? '') - ORDEN_EVENTO.indexOf(b.tipo ?? ''))
   const hrefRemito = `/admin/compras/pedidos/remitos?pedido=${fila.id}`
@@ -247,20 +255,26 @@ export default function PedidoDetalle({
           ) : (
             <ul className="divide-y divide-border rounded-xl border border-border">
               {remitos.map(r => (
-                <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                  <span className="text-text">
-                    Remito del {formatearFecha(r.fecha)}
-                    {r.numero && <span className="text-muted"> · N° {r.numero}</span>}
-                  </span>
-                  <span className="text-xs text-muted whitespace-nowrap">
-                    {r.compras_remito_items[0]?.count ?? 0} línea{(r.compras_remito_items[0]?.count ?? 0) === 1 ? '' : 's'}
-                  </span>
+                <li key={r.id}>
+                  <Link
+                    href={`/admin/compras/pedidos/remitos?remito=${r.id}`}
+                    className="flex min-h-11 items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-surface2 transition-colors"
+                  >
+                    <span className="text-text">
+                      <span className="font-mono tabular-nums font-medium">{codigoRemito(fila.numero, r.secuencia)}</span>
+                      <span className="text-muted"> · llegó el {formatearFecha(r.fecha)}</span>
+                    </span>
+                    <span className="flex items-center gap-2 text-xs text-muted whitespace-nowrap">
+                      {r.compras_remito_items[0]?.count ?? 0} línea{(r.compras_remito_items[0]?.count ?? 0) === 1 ? '' : 's'}
+                      <ArrowRight size={13} />
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>
           )}
           <Link href={hrefRemito} className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-text underline decoration-accent decoration-2 underline-offset-4 hover:opacity-80 transition-opacity">
-            {remitos.length ? 'Ver o editar en Remitos' : 'Ir a Remitos'} <ArrowRight size={14} />
+            {remitos.length ? 'Cargar otro remito' : 'Cargar remito'} <ArrowRight size={14} />
           </Link>
         </section>
       )}
@@ -273,7 +287,7 @@ export default function PedidoDetalle({
         <ol className="relative space-y-3 border-l border-border pl-5 ml-2">
           {eventos.map((e, i) => {
             const def = EVENTO[e.tipo ?? ''] ?? { label: e.tipo ?? '', icono: History }
-            const extra = detalleEvento(e)
+            const extra = detalleEvento(e, codigoDe)
             return (
               <li key={`${e.tipo}-${e.remito_id ?? ''}-${i}`} className="relative">
                 <span className="absolute -left-[1.95rem] top-0 flex size-6 items-center justify-center rounded-full border border-border bg-surface text-muted">

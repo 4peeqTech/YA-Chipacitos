@@ -118,7 +118,7 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-[#888]">
-                              <th className="text-left py-1 pr-3">N° Remito</th>
+                              <th className="text-left py-1 pr-3">Remito</th>
                               <th className="text-left py-1 pr-3">Fecha</th>
                               <th className="text-left py-1 pr-3">Líneas</th>
                               <th className="text-left py-1">Gasto</th>
@@ -127,7 +127,7 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
                           <tbody>
                             {p.remitos.map(r => (
                               <tr key={r.remitoId} className="text-[#ccc]">
-                                <td className="py-1 pr-3">{r.numero}</td>
+                                <td className="py-1 pr-3 font-mono tabular-nums">{r.numero}</td>
                                 <td className="py-1 pr-3">{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td>
                                 <td className="py-1 pr-3">{r.lineasCount}</td>
                                 <td className="py-1">${money(r.gastoTotal)}</td>

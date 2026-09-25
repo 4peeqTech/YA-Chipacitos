@@ -16,7 +16,7 @@ export function consultarPedidos(supabase: Cliente) {
       proveedores(id, nombre, local_facturacion_id, contacto_nombre, contacto_telefono, maneja_stock),
       compras_solicitudes(tipo),
       compras_pedido_items(id, item_id, descripcion, unidad, cantidad, orden),
-      compras_remitos(id, numero, fecha, created_at, compras_remito_items(count))
+      compras_remitos(id, secuencia, fecha, created_at, compras_remito_items(count))
     `)
     .order('created_at', { ascending: false })
 }

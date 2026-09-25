@@ -1,190 +1,187 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useMemo, useState } from 'react'
+import { Package } from 'lucide-react'
+import Modal from '@/components/ui/Modal'
+import PageHeader from '@/components/ui/PageHeader'
+import AyudaLink from '@/components/ui/AyudaLink'
+import EmptyState from '@/components/ui/EmptyState'
+import EstadoBadge from '@/components/ui/EstadoBadge'
+import DataTable, { type Columna } from '@/components/ui/DataTable'
 import SearchInput from '@/components/ui/SearchInput'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
-import { mensajeError } from '@/lib/errores'
+import { Chip } from '@/components/ui/Chip'
+import { useConfirmar } from '@/components/ui/ProveedorUI'
+import { formatearRelativo } from '@/lib/formato'
+import { conUnidad } from '../pedidos/modelo'
+import StockFicha from './StockFicha'
 
-function formatearRelativo(iso: string) {
-  const segundos = (Date.now() - new Date(iso).getTime()) / 1000
-  if (segundos < 60) return 'recién'
-  const minutos = Math.floor(segundos / 60)
-  if (minutos < 60) return `hace ${minutos} min`
-  const horas = Math.floor(minutos / 60)
-  if (horas < 24) return `hace ${horas} h`
-  const dias = Math.floor(horas / 24)
-  if (dias < 30) return `hace ${dias} d`
-  return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
-}
-
-interface CompraItem {
+export interface InsumoStock {
   id: string
   nombre: string
-  unidad: string
+  unidad: string | null
   stock_minimo: number
 }
 
-interface StockActual {
-  item_id: string
-  cantidad: number
-  actualizado_en: string
-  actualizado_por: string | null
+export interface StockActual {
+  item_id: string | null
+  cantidad: number | null
+  actualizado_en: string | null
   actualizado_por_nombre: string | null
 }
 
+export interface FilaStock {
+  item: InsumoStock
+  cantidad: number
+  bajo: boolean
+  actualizadoEn: string | null
+  actualizadoPor: string | null
+}
+
 export default function StockClient({
-  itemsIniciales,
-  stockInicial,
-  usuarioId,
-  usuarioNombre,
+  items,
+  stock,
+  insumoInicial,
 }: {
-  itemsIniciales: CompraItem[]
-  stockInicial: StockActual[]
-  usuarioId: string
-  usuarioNombre: string
+  items: InsumoStock[]
+  stock: StockActual[]
+  insumoInicial?: string
 }) {
-  const supabase = createClient()
-  const [stockPorItem, setStockPorItem] = useState<Record<string, StockActual>>(
-    () => Object.fromEntries(stockInicial.map(s => [s.item_id, s]))
-  )
-  const [cantidadesForm, setCantidadesForm] = useState<Record<string, string>>(
-    () => Object.fromEntries(itemsIniciales.map(i => {
-      const stock = stockInicial.find(s => s.item_id === i.id)
-      return [i.id, stock ? String(stock.cantidad) : '']
-    }))
-  )
-  const [guardandoId, setGuardandoId] = useState<string | null>(null)
-  const [error, setError] = useState('')
-  const [, startTransition] = useTransition()
+  const confirmar = useConfirmar()
   const [busqueda, setBusqueda] = useState('')
   const [soloBajo, setSoloBajo] = useState(false)
+  const [abiertoId, setAbiertoId] = useState<string | null>(insumoInicial ?? null)
+  const [conCambios, setConCambios] = useState(false)
 
+  // Todo sale de las props: las acciones llaman a refresh().
+  const filas = useMemo<FilaStock[]>(() => {
+    const porItem = new Map(stock.map(s => [s.item_id, s]))
+    return items.map(item => {
+      const s = porItem.get(item.id)
+      const cantidad = s?.cantidad ?? 0
+      return {
+        item,
+        cantidad,
+        bajo: cantidad < item.stock_minimo,
+        actualizadoEn: s?.actualizado_en ?? null,
+        actualizadoPor: s?.actualizado_por_nombre ?? null,
+      }
+    })
+  }, [items, stock])
+
+  const cantidadBajo = filas.filter(f => f.bajo).length
   const hayFiltros = !!busqueda || soloBajo
+  const filtradas = useMemo(() => {
+    const texto = busqueda.trim().toLowerCase()
+    return filas
+      .filter(f => !texto || f.item.nombre.toLowerCase().includes(texto))
+      .filter(f => !soloBajo || f.bajo)
+  }, [filas, busqueda, soloBajo])
+
   function limpiarFiltros() { setBusqueda(''); setSoloBajo(false) }
 
-  const items = useMemo(() => [...itemsIniciales]
-    .filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-    .filter(i => !soloBajo || (stockPorItem[i.id]?.cantidad ?? 0) < i.stock_minimo)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre)), [itemsIniciales, busqueda, soloBajo, stockPorItem])
+  const abierta = abiertoId ? filas.find(f => f.item.id === abiertoId) ?? null : null
 
-  async function guardarCantidad(itemId: string) {
-    const cantidad = Number(cantidadesForm[itemId])
-    if (Number.isNaN(cantidad) || cantidad < 0) { setError('Cantidad inválida'); return }
-    setError('')
-    setGuardandoId(itemId)
+  function abrir(id: string) {
+    setAbiertoId(id)
+    setConCambios(false)
+  }
 
-    const cantidadAnterior = stockPorItem[itemId]?.cantidad ?? 0
-    const delta = cantidad - cantidadAnterior
+  function cerrarYa() {
+    setAbiertoId(null)
+    setConCambios(false)
+  }
 
-    startTransition(async () => {
-      const { data, error: err } = await supabase
-        .from('compras_stock_actual')
-        .upsert(
-          { item_id: itemId, cantidad, actualizado_en: new Date().toISOString(), actualizado_por: usuarioId },
-          { onConflict: 'item_id' }
-        )
-        .select()
-        .single()
-
-      setGuardandoId(null)
-      if (err) { setError(mensajeError(err, 'No se pudo guardar el stock del insumo')); return }
-      setStockPorItem(prev => ({ ...prev, [itemId]: { ...data, actualizado_por_nombre: usuarioNombre } }))
-
-      if (delta !== 0) {
-        await supabase.from('compras_stock_movimientos').insert(
-          { item_id: itemId, delta, tipo: 'ajuste_manual', creado_por: usuarioId }
-        )
-      }
+  function cerrar() {
+    if (!conCambios) { cerrarYa(); return }
+    confirmar({
+      titulo: 'Descartar cambios',
+      mensaje: 'Empezaste a cargar un ajuste sin guardarlo. ¿Descartarlo?',
+      textoConfirmar: 'Descartar',
+      textoCancelar: 'Seguir',
+      peligroso: true,
+      onConfirmar: cerrarYa,
     })
   }
 
-  const inputClass = "w-28 bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
+  const columnas: Columna<FilaStock>[] = [
+    { key: 'insumo', header: 'Insumo', render: f => <span className="font-medium">{f.item.nombre}</span>, ordenar: f => f.item.nombre },
+    {
+      key: 'stock',
+      header: 'Stock',
+      alinear: 'right',
+      render: f => (
+        <span className={`tabular-nums font-semibold ${f.bajo ? 'text-brand-red' : 'text-text'}`}>
+          {conUnidad(f.cantidad, f.item.unidad)}
+        </span>
+      ),
+      ordenar: f => f.cantidad,
+    },
+    {
+      key: 'minimo',
+      header: 'Mínimo',
+      alinear: 'right',
+      ocultarHasta: 'sm',
+      render: f => <span className="tabular-nums text-muted">{conUnidad(f.item.stock_minimo, null)}</span>,
+      ordenar: f => f.item.stock_minimo,
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      ocultarHasta: 'sm',
+      render: f => <EstadoBadge dominio="compras_stock" estado={f.bajo ? 'bajo' : 'ok'} />,
+      ordenar: f => (f.bajo ? 0 : 1),
+    },
+    {
+      key: 'actualizado',
+      header: 'Último movimiento',
+      ocultarHasta: 'md',
+      render: f => f.actualizadoEn
+        ? <span className="text-muted">{formatearRelativo(f.actualizadoEn)}{f.actualizadoPor && <> · {f.actualizadoPor}</>}</span>
+        : <span className="text-muted">Sin movimientos</span>,
+      ordenar: f => f.actualizadoEn ?? '',
+    },
+  ]
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#f0f0f0]">Stock</h1>
-        <p className="text-[#888] text-sm mt-0.5">Cargá la cantidad actual de cada insumo. Se marca en rojo cuando está por debajo del stock mínimo.</p>
-      </div>
-
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      <PageHeader
+        icono={Package}
+        titulo="Stock"
+        descripcion="Cuánto hay de cada insumo. Los remitos lo suman solos; si no coincide con lo que hay en el depósito, tocá el insumo y ajustalo con un motivo."
+        acciones={<AyudaLink seccion="compras-stock" />}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
-        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar insumo..." className="w-64" />
-        <button
-          onClick={() => setSoloBajo(v => !v)}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${soloBajo ? 'bg-accent text-black' : 'bg-surface2 text-muted hover:text-text'}`}
-        >
-          Solo bajo stock
-        </button>
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar insumo" className="w-full sm:w-72" />
+        <Chip active={soloBajo} onClick={() => setSoloBajo(v => !v)}>
+          Bajo el mínimo ({cantidadBajo})
+        </Chip>
         <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
       </div>
 
-      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-        {itemsIniciales.length === 0 ? (
-          <p className="p-8 text-center text-[#888]">No hay insumos activos. Cargalos primero en Insumos.</p>
-        ) : items.length === 0 ? (
-          <p className="p-8 text-center text-[#888]">Ningún insumo coincide con los filtros.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Insumo</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Unidad</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Stock mínimo</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Cantidad actual</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Últ. actualización</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Por</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#2a2a2a]">
-                {items.map(i => {
-                  const stock = stockPorItem[i.id]
-                  const cantidadGuardada = stock?.cantidad ?? 0
-                  const bajo = cantidadGuardada < i.stock_minimo
-                  return (
-                    <tr key={i.id} className="hover:bg-[#1a1a1a] transition-colors">
-                      <td className="px-4 py-3 text-[#f0f0f0] font-medium">{i.nombre}</td>
-                      <td className="px-4 py-3 text-[#888]">{i.unidad}</td>
-                      <td className="px-4 py-3 text-[#888]">{i.stock_minimo}</td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="0"
-                          className={inputClass}
-                          value={cantidadesForm[i.id] ?? ''}
-                          onChange={e => setCantidadesForm(f => ({ ...f, [i.id]: e.target.value }))}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${bajo ? 'bg-red-900/50 text-red-300' : 'bg-green-900/50 text-green-300'}`}>
-                          {bajo ? 'Bajo' : 'OK'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-[#888] hidden md:table-cell">{stock ? formatearRelativo(stock.actualizado_en) : '—'}</td>
-                      <td className="px-4 py-3 text-[#888] hidden md:table-cell">{stock?.actualizado_por_nombre ?? '—'}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => guardarCantidad(i.id)}
-                          disabled={guardandoId === i.id}
-                          className="bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-xs py-1.5 px-4 rounded-lg transition-all"
-                        >
-                          {guardandoId === i.id ? 'Guardando...' : 'Guardar'}
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+      {filtradas.length === 0 ? (
+        <div className="overflow-hidden rounded-2xl border border-border">
+          {items.length === 0 ? (
+            <EmptyState icono={Package} titulo="No hay insumos activos" descripcion="Cargalos primero en Insumos." />
+          ) : (
+            <EmptyState icono={Package} titulo="Ningún insumo coincide con los filtros" accion={<ClearFiltersButton visible onClick={limpiarFiltros} />} />
+          )}
+        </div>
+      ) : (
+        <DataTable filas={filtradas} columnas={columnas} filaKey={f => f.item.id} onFilaClick={f => abrir(f.item.id)} />
+      )}
+
+      <Modal open={abierta != null} onClose={cerrar} title={abierta?.item.nombre ?? 'Insumo'} size="lg" pantallaCompletaMobile>
+        {abierta && (
+          <StockFicha
+            key={abierta.item.id}
+            fila={abierta}
+            onCambios={setConCambios}
+            onCerrar={cerrarYa}
+          />
         )}
-      </div>
+      </Modal>
     </div>
   )
 }

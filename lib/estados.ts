@@ -37,6 +37,11 @@ export const ESTADOS = {
     no_facturado: { label: 'No facturado', tono: 'neutro' },
     facturado:    { label: 'Facturado',    tono: 'exito' },
   },
+  // Stock de un insumo contra su stock mínimo (Compras › Stock).
+  compras_stock: {
+    bajo: { label: 'Bajo el mínimo', tono: 'peligro' },
+    ok:   { label: 'OK',             tono: 'exito' },
+  },
   gastos: {
     'Pendiente de pago': { label: 'Pendiente de pago', tono: 'peligro' },
     'Parcial':            { label: 'Parcial',           tono: 'alerta' },

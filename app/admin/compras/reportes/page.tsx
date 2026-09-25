@@ -20,11 +20,11 @@ export default async function ReportesPage() {
   ] = await Promise.all([
     supabase
       .from('compras_remitos')
-      .select('*, compras_pedidos(proveedor_id, proveedores(nombre)), compras_remito_items(descripcion, cantidad, precio)')
+      .select('*, compras_pedidos(numero, proveedor_id, proveedores(nombre)), compras_remito_items(descripcion, cantidad, precio)')
       .order('fecha', { ascending: false }),
     supabase
       .from('compras_pedidos')
-      .select('*, proveedores(nombre), compras_remitos(id, numero, fecha, compras_remito_items(descripcion, cantidad, precio))')
+      .select('*, proveedores(nombre), compras_remitos(id, secuencia, fecha, compras_remito_items(descripcion, cantidad, precio))')
       .order('created_at', { ascending: false }),
     supabase
       .from('v_compras_stock_movimientos')

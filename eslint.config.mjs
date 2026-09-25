@@ -25,7 +25,7 @@ const eslintConfig = defineConfig([
   // Hex crudo prohibido — este bloque crece a medida que se tokeniza cada
   // módulo (ver Bloque 0/F0.1 del roadmap). Hoy: components/ui, components/layout, components/manual, app/ayuda.
   {
-    files: ["components/ui/**/*.tsx", "components/layout/**/*.tsx", "components/manual/**/*.tsx", "app/ayuda/**/*.tsx", "app/admin/compras/pedidos/*.tsx"],
+    files: ["components/ui/**/*.tsx", "components/layout/**/*.tsx", "components/manual/**/*.tsx", "app/ayuda/**/*.tsx", "app/admin/compras/pedidos/*.tsx", "app/admin/compras/pedidos/remitos/*.tsx", "app/admin/compras/stock/*.tsx"],
     rules: {
       "no-restricted-syntax": ["error", {
         selector: "JSXAttribute[name.name='className'] Literal[value=/-\\[#[0-9a-fA-F]{3,8}\\]/]",

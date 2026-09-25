@@ -1,3 +1,6 @@
+import { codigoRemito } from './codigos'
+import { grupoMovimiento, type TipoMovimiento } from './movimientos'
+
 export interface LineaRemitoReporte {
   descripcion: string
   cantidad: number
@@ -6,9 +9,9 @@ export interface LineaRemitoReporte {
 
 export interface RemitoReporte {
   id: string
-  numero: string
+  secuencia: number
   fecha: string
-  compras_pedidos: { proveedor_id: string; proveedores: { nombre: string } | null } | null
+  compras_pedidos: { numero: number; proveedor_id: string; proveedores: { nombre: string } | null } | null
   compras_remito_items: LineaRemitoReporte[]
 }
 
@@ -60,7 +63,7 @@ export function calcularGastoPorProveedor(remitos: RemitoReporte[]): GastoProvee
       grupo.gastoTotal += subtotal
       grupo.detalle.push({
         remitoId: remito.id,
-        remitoNumero: remito.numero,
+        remitoNumero: remito.compras_pedidos ? codigoRemito(remito.compras_pedidos.numero, remito.secuencia) : '—',
         descripcion: linea.descripcion,
         cantidad: linea.cantidad,
         precio: linea.precio,
@@ -80,11 +83,12 @@ export interface PedidoReporte {
   enviado_en: string | null
   cerrado_en: string | null
   proveedores: { nombre: string } | null
-  compras_remitos: { id: string; numero: string; fecha: string; compras_remito_items: LineaRemitoReporte[] }[]
+  compras_remitos: { id: string; secuencia: number; fecha: string; compras_remito_items: LineaRemitoReporte[] }[]
 }
 
 export interface RemitoResumen {
   remitoId: string
+  /** Código R-0001-01. */
   numero: string
   fecha: string
   lineasCount: number
@@ -114,7 +118,7 @@ export function calcularHistorialPedidos(pedidos: PedidoReporte[]): HistorialPed
   return pedidos.map(pedido => {
     const remitos = pedido.compras_remitos.map(remito => ({
       remitoId: remito.id,
-      numero: remito.numero,
+      numero: codigoRemito(pedido.numero, remito.secuencia),
       fecha: remito.fecha,
       lineasCount: remito.compras_remito_items.length,
       gastoTotal: calcularGastoRemito(remito.compras_remito_items),
@@ -135,7 +139,7 @@ export function calcularHistorialPedidos(pedidos: PedidoReporte[]): HistorialPed
   })
 }
 
-export type TipoMovimiento = 'entrada_remito' | 'ajuste_manual' | 'conteo_fabrica'
+export type { TipoMovimiento }
 
 export interface MovimientoReporte {
   id: string
@@ -165,6 +169,8 @@ export interface MovimientoInsumo {
   entradas: number
   conteosFabrica: number
   ajustes: number
+  devoluciones: number
+  apertura: number
   balance: number
   stockActual: number
   movimientos: MovimientoDetalle[]
@@ -194,6 +200,8 @@ export function calcularMovimientoPorInsumo(
         entradas: 0,
         conteosFabrica: 0,
         ajustes: 0,
+        devoluciones: 0,
+        apertura: 0,
         balance: 0,
         stockActual: stockActualPorItem[mov.item_id] ?? 0,
         movimientos: [],
@@ -201,9 +209,7 @@ export function calcularMovimientoPorInsumo(
       porItem.set(mov.item_id, grupo)
     }
 
-    if (mov.tipo === 'entrada_remito') grupo.entradas += mov.delta
-    else if (mov.tipo === 'conteo_fabrica') grupo.conteosFabrica += mov.delta
-    else grupo.ajustes += mov.delta
+    grupo[grupoMovimiento(mov.tipo)] += mov.delta
     grupo.balance += mov.delta
 
     grupo.movimientos.push({

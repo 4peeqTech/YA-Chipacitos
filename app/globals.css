@@ -202,6 +202,11 @@ html.light {
   --color-info:    #0369a1;
   --color-warning: #92400e;
   --color-accent-fg: #7a5c00;
+  /* F3: verde y rojo como texto (movimientos +N, stock bajo el mínimo), medidos
+     sobre blanco / surface2 / tinte de badge: 7,1 / 6,2 / 5,9 y 6,1 / 5,3 / 5,1
+     (antes 1,85 y 3,6 sobre blanco). */
+  --color-success: #166534;
+  --color-brand-red: #b3360b;
 }
 html.light body {
   background: #f0f2f5;
