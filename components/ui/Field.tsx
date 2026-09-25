@@ -17,7 +17,7 @@ export function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-accent uppercase tracking-wider mb-1.5">
+      <label className="block text-xs font-semibold text-accent-fg uppercase tracking-wider mb-1.5">
         {label}
         {obligatorio && <span className="text-brand-red ml-0.5">*</span>}
       </label>

@@ -12,6 +12,7 @@ interface Props {
   value: string
   onChange: (value: string) => void
   opciones: OpcionSelect[]
+  /** @deprecated No se usa: el texto sin selección es `placeholderVacio`. Queda por compatibilidad. */
   placeholder?: string
   placeholderVacio?: string
   className?: string
@@ -22,7 +23,6 @@ export default function SelectBuscador({
   value,
   onChange,
   opciones,
-  placeholder = 'Seleccionar...',
   placeholderVacio = '— Sin asignar —',
   className = '',
   disabled = false,
@@ -72,7 +72,7 @@ export default function SelectBuscador({
         type="button"
         disabled={disabled}
         onClick={() => setAbierto(!abierto)}
-        className={`w-full flex items-center justify-between border rounded-lg px-3 py-2 text-sm text-left transition-colors focus:outline-none disabled:opacity-50 ${
+        className={`w-full min-h-11 sm:min-h-9 flex items-center justify-between border rounded-lg px-3 py-2 text-sm text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 ${
           value
             ? 'border-success bg-green-bg text-success font-medium'
             : 'border-border bg-surface2 text-muted'

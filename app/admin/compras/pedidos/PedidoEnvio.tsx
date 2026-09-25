@@ -107,6 +107,7 @@ export default function PedidoEnvio({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Plantilla de mensaje">
           <select
+            aria-label="Plantilla de mensaje"
             value={plantillaId}
             onChange={e => setPlantillaId(e.target.value)}
             disabled={plantillas.length === 0}
@@ -117,7 +118,7 @@ export default function PedidoEnvio({
           </select>
         </Field>
         <Field label="Facturar a">
-          <select value={localId} onChange={e => setLocalId(e.target.value)} className={`${controlClass} min-h-11`}>
+          <select aria-label="Facturar a" value={localId} onChange={e => setLocalId(e.target.value)} className={`${controlClass} min-h-11`}>
             <option value="">Sin asignar</option>
             {localesFacturacion.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
           </select>
@@ -135,7 +136,7 @@ export default function PedidoEnvio({
         type="button"
         onClick={generar}
         disabled={isPending || items.length === 0}
-        className="min-h-11 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-accent px-4 text-sm font-semibold text-accent hover:bg-surface2 transition-colors disabled:opacity-50"
+        className="presionable min-h-11 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-accent px-4 text-sm font-semibold text-accent-fg hover:bg-surface2 disabled:opacity-50"
       >
         {accion === 'generar' ? <Loader2 size={16} className="animate-spin" /> : hayMensaje ? <RefreshCw size={16} /> : <MessageCircle size={16} />}
         {hayMensaje ? 'Regenerar mensaje' : 'Generar mensaje'}
@@ -156,7 +157,7 @@ export default function PedidoEnvio({
           type="button"
           onClick={copiar}
           disabled={!hayMensaje || mensajeDesactualizado}
-          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 transition-colors disabled:opacity-50"
+          className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50"
         >
           {copiado ? <Check size={16} className="text-success" /> : <Copy size={16} />} {copiado ? 'Copiado' : 'Copiar mensaje'}
         </button>
@@ -164,7 +165,7 @@ export default function PedidoEnvio({
           type="button"
           onClick={whatsapp}
           disabled={!hayMensaje || mensajeDesactualizado}
-          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-success px-4 text-sm font-semibold text-black hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-success px-4 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
         >
           <MessageCircle size={16} /> Enviar por WhatsApp
         </button>
@@ -174,7 +175,7 @@ export default function PedidoEnvio({
               type="button"
               onClick={marcarEnviado}
               disabled={!compartido || isPending}
-              className="min-h-11 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="presionable min-h-11 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
             >
               {accion === 'enviar' ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Marcar como enviado
             </button>
@@ -182,7 +183,7 @@ export default function PedidoEnvio({
             <button
               type="button"
               onClick={() => onListo(false)}
-              className="min-h-11 w-full rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 transition-opacity"
+              className="presionable min-h-11 w-full rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90"
             >
               Listo
             </button>

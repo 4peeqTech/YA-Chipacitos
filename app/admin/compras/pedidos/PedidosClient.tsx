@@ -247,7 +247,7 @@ export default function PedidosClient({
       key: 'recepcion',
       header: 'Recepción',
       render: p => {
-        if (p.entrada.estado_recepcion === 'sin_enviar' || p.lineas.length === 0) return <span className="text-faint">—</span>
+        if (p.entrada.estado_recepcion === 'sin_enviar' || p.lineas.length === 0) return <span className="text-muted" aria-label="Sin enviar">—</span>
         const pct = Math.round((p.lineasCompletas / p.lineas.length) * 100)
         return (
           <div className="min-w-24">
@@ -304,7 +304,7 @@ export default function PedidosClient({
             <button
               type="button"
               onClick={() => { setAbiertoId(null); setCreando(true); setVista('editar'); setEditorConCambios(false) }}
-              className="min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90 transition-opacity"
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
             >
               <Plus size={16} /> Crear pedido
             </button>
@@ -321,7 +321,7 @@ export default function PedidosClient({
             label: (
               <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                 {f.label}
-                <span className="tabular-nums opacity-70">{conteos[f.value]}</span>
+                <span className="tabular-nums font-semibold">{conteos[f.value]}</span>
               </span>
             ),
           }))}

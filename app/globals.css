@@ -7,6 +7,9 @@
   --color-border:       #2a2a2a;
   --color-accent:       #e8c547;
   --color-accent2:      #f0a030;
+  /* El acento usado como COLOR DE TEXTO (encabezados de tabla, labels). En oscuro
+     es el mismo amarillo; en claro se oscurece (el amarillo sobre blanco da ~1,5:1). */
+  --color-accent-fg:    #e8c547;
   --color-brand-red:    #e84210;
   --color-success:      #56d68a;
   --color-warning:      #f0a849;
@@ -47,6 +50,53 @@ body {
   color: #f0f0f0;
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ── Movimiento (criterio de emil-design-eng) ──────────────────
+   Solo transform y opacity; ease-out fuerte; entradas con @starting-style
+   (sin JS). Sin soporte, el elemento aparece sin animar: el fallback es seguro. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Modal: el fondo funde y la caja entra casi desde su tamaño (nunca desde 0). */
+.modal-fondo {
+  transition: opacity 200ms ease;
+  @starting-style { opacity: 0; }
+}
+.modal-caja {
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+  @starting-style { opacity: 0; transform: scale(0.96); }
+}
+
+/* Popover anclado (menú "Más acciones"): crece desde su disparador. */
+.popover-entrada {
+  transform-origin: top left;
+  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
+  @starting-style { opacity: 0; transform: scale(0.97); }
+}
+
+/* Toast: confirma la acción; entra con un desplazamiento corto. */
+.toast-entrada {
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+  @starting-style { opacity: 0; transform: translateY(8px); }
+}
+
+/* Botón que responde al apretarlo. */
+.presionable {
+  transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease,
+    border-color 150ms ease, opacity 150ms ease;
+}
+.presionable:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-caja, .popover-entrada, .toast-entrada {
+    transition: opacity 150ms ease;
+    @starting-style { opacity: 0; transform: none; }
+  }
+  .presionable:active:not(:disabled) { transform: none; }
 }
 
 h1, h2, h3, h4, .font-syne {
@@ -147,9 +197,11 @@ html.light {
   --color-muted:   #666666;
   --color-faint:   #777777;
   --color-disabled: #999999;
-  --color-info:    #0284c7;
-  /* El ámbar del tema oscuro da ~2:1 sobre blanco; este llega a ~5:1. */
-  --color-warning: #b45309;
+  /* Medidos sobre el tinte de badge (-bg) y sobre surface2 (fila con hover), a 11px:
+     info 4,8:1, ámbar 5,8:1, acento-texto 5,4:1 (antes 3,3 / 4,1 / 1,5). */
+  --color-info:    #0369a1;
+  --color-warning: #92400e;
+  --color-accent-fg: #7a5c00;
 }
 html.light body {
   background: #f0f2f5;

@@ -200,7 +200,7 @@ export default function PedidoEditor({
           <button
             type="button"
             onClick={() => onVerPedido(abiertoMismoProveedor.fila.id)}
-            className="min-h-11 rounded-xl border border-warning px-3 text-sm font-semibold text-warning hover:bg-surface transition-colors"
+            className="presionable min-h-11 rounded-xl border border-warning px-3 text-sm font-semibold text-warning hover:bg-surface"
           >
             Ver {abiertoMismoProveedor.codigo}
           </button>
@@ -242,6 +242,7 @@ export default function PedidoEditor({
                       className={`${controlClass} col-span-3 sm:col-span-1 min-h-11 ${marcarError && !l.descripcion.trim() ? 'border-brand-red' : ''}`}
                     />
                     <InputNumero
+                      ariaLabel={`Cantidad de ${l.descripcion || 'la línea'}`}
                       placeholder="Cant."
                       value={l.cantidad}
                       onChange={v => actualizar(l.clave, { cantidad: v })}
@@ -292,7 +293,7 @@ export default function PedidoEditor({
               <button
                 type="button"
                 onClick={agregarTodos}
-                className="min-h-11 rounded-xl border border-border px-3 text-sm font-medium text-muted hover:text-text hover:bg-surface2 transition-colors"
+                className="presionable min-h-11 rounded-xl border border-border px-3 text-sm font-medium text-muted hover:text-text hover:bg-surface2"
               >
                 Agregar los {catalogoRestante.length} que faltan
               </button>
@@ -300,7 +301,7 @@ export default function PedidoEditor({
             <button
               type="button"
               onClick={() => setLineas(prev => [...prev, { clave: nuevaClave(), id: null, item_id: null, descripcion: '', unidad: '', cantidad: null }])}
-              className="min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium text-muted hover:text-text hover:bg-surface2 transition-colors"
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium text-muted hover:text-text hover:bg-surface2"
             >
               <Plus size={15} /> Línea libre
             </button>
@@ -313,7 +314,7 @@ export default function PedidoEditor({
           type="button"
           onClick={onCancelar}
           disabled={isPending}
-          className="min-h-11 rounded-xl border border-border px-5 text-sm font-semibold text-muted hover:text-text transition-colors disabled:opacity-50"
+          className="presionable min-h-11 rounded-xl border border-border px-5 text-sm font-semibold text-muted hover:text-text disabled:opacity-50"
         >
           Cancelar
         </button>
@@ -321,7 +322,7 @@ export default function PedidoEditor({
           type="button"
           onClick={guardar}
           disabled={isPending || (!pedido && !proveedorId)}
-          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
         >
           {isPending && <Loader2 size={16} className="animate-spin" />}
           {pedido ? 'Guardar cambios' : 'Crear pedido'}

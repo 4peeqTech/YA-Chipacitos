@@ -25,7 +25,7 @@ export default function Tabs({ items }: { items: TabItem[] }) {
           <Link
             key={item.href}
             href={item.href}
-            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`inline-flex min-h-11 sm:min-h-9 items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
               active
                 ? 'bg-accent text-black'
                 : 'bg-surface2 text-muted hover:text-text hover:bg-border'

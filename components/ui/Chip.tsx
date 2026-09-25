@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 
-const base = 'px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border disabled:opacity-40'
+const base = 'min-h-11 sm:min-h-9 px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap presionable border disabled:opacity-40'
 
 export function Chip({
   active,
@@ -63,7 +63,7 @@ export function SegmentedControl<T extends string>({
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          className={`min-h-11 sm:min-h-8 px-3 py-1.5 rounded-lg text-xs font-medium presionable ${
             value === o.value ? 'bg-accent text-black' : 'text-muted hover:text-text'
           }`}
         >

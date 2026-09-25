@@ -72,7 +72,7 @@ export default function ProveedorUI({ children }: { children: ReactNode }) {
             <div
               key={t.id}
               role="status"
-              className="flex items-start gap-2.5 rounded-xl border border-border bg-surface text-text px-4 py-3 shadow-modal"
+              className="toast-entrada flex items-start gap-2.5 rounded-xl border border-border bg-surface text-text px-4 py-3 shadow-modal"
             >
               <span className={`shrink-0 mt-0.5 ${t.type === 'success' ? 'text-success' : 'text-brand-red'}`}>
                 {t.type === 'success' ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}

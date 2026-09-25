@@ -60,6 +60,7 @@ export default function CerrarPedidoModal({
       {motivo === 'Otro' && (
         <Field label="Contanos el motivo" obligatorio>
           <textarea
+            aria-label="Motivo del cierre"
             value={otro}
             onChange={e => setOtro(e.target.value)}
             rows={3}
@@ -85,7 +86,7 @@ export default function CerrarPedidoModal({
           type="button"
           onClick={onVolver}
           disabled={isPending}
-          className="min-h-11 rounded-xl border border-border px-5 text-sm font-semibold text-muted hover:text-text transition-colors disabled:opacity-50"
+          className="presionable min-h-11 rounded-xl border border-border px-5 text-sm font-semibold text-muted hover:text-text disabled:opacity-50"
         >
           Volver
         </button>
@@ -93,7 +94,7 @@ export default function CerrarPedidoModal({
           type="button"
           onClick={cerrar}
           disabled={isPending}
-          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-500 transition-colors disabled:opacity-50"
+          className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
         >
           {isPending ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />} Cerrar pedido
         </button>

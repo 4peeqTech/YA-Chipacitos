@@ -84,7 +84,7 @@ export default function DataTable<T>({
               <th
                 key={c.key}
                 onClick={() => alSortear(c)}
-                className={`px-4 py-3 text-xs font-semibold text-accent uppercase tracking-wider ${ALINEAR_CLASS[c.alinear ?? 'left']} ${c.ocultarHasta ? OCULTAR_CLASS[c.ocultarHasta] : ''} ${c.ordenar ? 'cursor-pointer select-none' : ''}`}
+                className={`px-4 py-3 text-xs font-semibold text-accent-fg uppercase tracking-wider ${ALINEAR_CLASS[c.alinear ?? 'left']} ${c.ocultarHasta ? OCULTAR_CLASS[c.ocultarHasta] : ''} ${c.ordenar ? 'cursor-pointer select-none' : ''}`}
               >
                 {c.header}
                 {c.key === sortKey && (sortDir === 1 ? ' ▲' : ' ▼')}
@@ -97,7 +97,13 @@ export default function DataTable<T>({
             <tr
               key={filaKey(fila)}
               onClick={() => onFilaClick?.(fila)}
-              className={onFilaClick ? 'hover:bg-surface2 transition-colors cursor-pointer' : ''}
+              // Fila clickeable también por teclado: Tab la enfoca, Enter/Espacio la abren.
+              tabIndex={onFilaClick ? 0 : undefined}
+              onKeyDown={onFilaClick ? e => {
+                if (e.target !== e.currentTarget) return
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFilaClick(fila) }
+              } : undefined}
+              className={onFilaClick ? 'hover:bg-surface2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:bg-surface2 focus-visible:shadow-[inset_3px_0_0_var(--color-accent)]' : ''}
             >
               {columnas.map(c => (
                 <td key={c.key} className={`px-4 py-3 text-text ${ALINEAR_CLASS[c.alinear ?? 'left']} ${c.ocultarHasta ? OCULTAR_CLASS[c.ocultarHasta] : ''} ${c.className ?? ''}`}>

@@ -66,12 +66,12 @@ function MenuSecundario({ items }: { items: { label: string; icono: LucideIcon; 
         onClick={() => setAbierto(a => !a)}
         aria-haspopup="menu"
         aria-expanded={abierto}
-        className="min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium text-muted hover:text-text hover:bg-surface2 transition-colors"
+        className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium text-muted hover:text-text hover:bg-surface2"
       >
         <MoreHorizontal size={16} /> Más acciones
       </button>
       {abierto && (
-        <div role="menu" className="absolute left-0 z-10 mt-1 w-56 overflow-hidden rounded-xl border border-border bg-surface shadow-modal">
+        <div role="menu" className="popover-entrada absolute left-0 z-10 mt-1 w-56 overflow-hidden rounded-xl border border-border bg-surface shadow-modal">
           {items.map(it => (
             <button
               key={it.label}
@@ -148,7 +148,7 @@ export default function PedidoDetalle({
             <button
               type="button"
               onClick={acciones.onEnviar}
-              className="min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90 transition-opacity"
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
             >
               <Send size={16} /> {accion.boton}
             </button>
@@ -156,7 +156,7 @@ export default function PedidoDetalle({
           {accion.tipo === 'cargar_remito' && (
             <Link
               href={hrefRemito}
-              className="min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90 transition-opacity"
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
             >
               <Truck size={16} /> {accion.boton}
             </Link>
@@ -165,7 +165,7 @@ export default function PedidoDetalle({
             <button
               type="button"
               onClick={acciones.onEditar}
-              className="min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90 transition-opacity"
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
             >
               <PencilLine size={16} /> Editar ítems
             </button>
@@ -175,7 +175,7 @@ export default function PedidoDetalle({
               type="button"
               onClick={acciones.onReabrir}
               disabled={pendiente}
-              className="min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface transition-colors disabled:opacity-50"
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface disabled:opacity-50"
             >
               {pendiente ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />} Reabrir pedido
             </button>
@@ -188,7 +188,7 @@ export default function PedidoDetalle({
       <section className="space-y-2">
         <h4 className="flex items-center gap-2 text-sm font-bold text-text">
           <ListChecks size={16} className="text-accent" /> Ítems
-          <span className="font-normal text-faint">({pedido.lineas.length})</span>
+          <span className="font-normal text-muted">({pedido.lineas.length})</span>
         </h4>
         {pedido.lineas.length === 0 ? (
           <p className="rounded-xl border border-border px-4 py-6 text-center text-sm text-muted">Todavía no hay ítems.</p>
@@ -240,7 +240,7 @@ export default function PedidoDetalle({
         <section className="space-y-2">
           <h4 className="flex items-center gap-2 text-sm font-bold text-text">
             <PackageOpen size={16} className="text-accent" /> Remitos
-            <span className="font-normal text-faint">({remitos.length})</span>
+            <span className="font-normal text-muted">({remitos.length})</span>
           </h4>
           {remitos.length === 0 ? (
             <p className="text-sm text-muted">Todavía no llegó ningún remito.</p>

@@ -13,7 +13,7 @@ export default function DateRangeInputs({
   onChangeHasta: (value: string) => void
   className?: string
 }) {
-  const inputClass = "bg-surface2 border border-border text-text rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors [color-scheme:dark]"
+  const inputClass = "min-h-11 sm:min-h-9 bg-surface2 border border-border text-text rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors [color-scheme:dark]"
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>

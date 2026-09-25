@@ -21,7 +21,8 @@ export default function SearchInput({
         placeholder={placeholder}
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full bg-surface2 border border-border text-text rounded-xl pl-9 pr-8 py-2 text-sm focus:outline-none focus:border-accent transition-colors"
+        aria-label={placeholder}
+        className="w-full min-h-11 sm:min-h-9 bg-surface2 border border-border text-text rounded-xl pl-9 pr-8 py-2 text-sm focus:outline-none focus:border-accent transition-colors"
       />
       {value && (
         <button
