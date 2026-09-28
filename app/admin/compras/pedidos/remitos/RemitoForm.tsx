@@ -16,6 +16,7 @@ import {
   type EstadoRemito, type ImpactoItem, type LineaLibre,
 } from './modelo'
 import type { InsumoRemito, LineaPedido, PedidoRemito, RemitoFila } from './datos'
+import DatePicker from '@/components/ui/DatePicker'
 
 const botonPrimario = 'presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50'
 const botonSecundario = 'presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50'
@@ -283,12 +284,11 @@ export default function RemitoForm({
           )}
         </Field>
         <Field label="Llegó el" obligatorio>
-          <input
-            type="date"
-            aria-label="Fecha en que llegó la mercadería"
+          <DatePicker
+            ariaLabel="Fecha en que llegó la mercadería"
             className={`${controlClass} min-h-11 ${intentoGuardar && problema?.tipo === 'sin_fecha' ? 'border-brand-red' : ''}`}
             value={estado.fecha}
-            onChange={e => { const fecha = e.target.value; cambiar(s => ({ ...s, fecha })) }}
+            onChange={fecha => cambiar(s => ({ ...s, fecha }))}
           />
         </Field>
       </div>

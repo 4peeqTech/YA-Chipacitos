@@ -6,6 +6,7 @@ import { Pedido, PedidoItem } from '@/lib/types'
 import { BadgeEstado, BadgeDestino } from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
 import PedidoMensajes from '@/components/pedidos/PedidoMensajes'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 interface Props { pedidos: Pedido[]; localId: string; localNombre: string }
 
@@ -112,21 +113,13 @@ export default function HistorialClient({ pedidos: init, localNombre }: Props) {
 
       {/* Filtros de fecha y turno */}
       <div className="flex gap-2 flex-wrap items-center">
-        <div className="flex items-center gap-1.5">
-          <input
-            type="date"
-            value={fechaDesde}
-            onChange={e => setFechaDesde(e.target.value)}
-            className="w-auto text-xs px-3 py-1.5 rounded-full bg-[#111111] border border-[#2a2a2a] text-[#888] focus:outline-none focus:border-[#e8c547]"
-          />
-          <span className="text-[#555] text-xs">→</span>
-          <input
-            type="date"
-            value={fechaHasta}
-            onChange={e => setFechaHasta(e.target.value)}
-            className="w-auto text-xs px-3 py-1.5 rounded-full bg-[#111111] border border-[#2a2a2a] text-[#888] focus:outline-none focus:border-[#e8c547]"
-          />
-        </div>
+        <DateRangePicker
+          desde={fechaDesde}
+          hasta={fechaHasta}
+          limpiable={false}
+          className="text-xs px-3 py-1.5 rounded-full bg-surface border border-border text-muted"
+          onChange={(d, h) => { setFechaDesde(d); setFechaHasta(h) }}
+        />
         {(fechaDesde || fechaHasta) && (
           <button onClick={() => { setFechaDesde(''); setFechaHasta('') }}
             className="text-[10px] text-[#888] hover:text-[#f0f0f0] px-2 py-1 rounded-full border border-[#2a2a2a] bg-[#111111]">

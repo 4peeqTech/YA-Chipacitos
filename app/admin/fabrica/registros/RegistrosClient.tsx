@@ -11,6 +11,7 @@ import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { calcularRangoPreset, fechaEnRango, type PresetRango, type RangoFechas } from '@/lib/compras/rangoFechas'
 import { rendimientoFeculaMasa } from '@/lib/fabrica/rendimiento'
 import { descargarCsv } from '@/lib/csv'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 export interface ProduccionRegistro {
   id: string
@@ -215,11 +216,13 @@ export default function RegistrosClient({
       </div>
 
       {preset === 'personalizado' && (
-        <div className="flex flex-wrap items-center gap-2">
-          <input type="date" value={rangoPersonalizado.desde} onChange={e => setRangoPersonalizado(prev => ({ ...prev, desde: e.target.value }))} className={`${inputClass} [color-scheme:dark]`} />
-          <span className="text-muted text-xs">al</span>
-          <input type="date" value={rangoPersonalizado.hasta} onChange={e => setRangoPersonalizado(prev => ({ ...prev, hasta: e.target.value }))} className={`${inputClass} [color-scheme:dark]`} />
-        </div>
+        <DateRangePicker
+          atajos={false}
+          limpiable={false}
+          desde={rangoPersonalizado.desde}
+          hasta={rangoPersonalizado.hasta}
+          onChange={(desde, hasta) => setRangoPersonalizado(prev => ({ ...prev, desde, hasta }))}
+        />
       )}
 
       {tab === 'produccion' && (

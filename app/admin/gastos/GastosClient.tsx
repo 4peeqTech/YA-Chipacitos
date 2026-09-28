@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import InputNumero from '@/components/ui/InputNumero'
 import { RUBROS_CATEGORIAS, RUBROS, LOCALES, FORMAS_PAGO, ESTADOS_GASTO } from '@/lib/gastos-constants'
 import { mensajeError } from '@/lib/errores'
+import DatePicker from '@/components/ui/DatePicker'
 
 interface Proveedor { id: string; nombre: string }
 interface Gasto {
@@ -153,7 +154,7 @@ export default function GastosClient() {
             {/* FECHA */}
             <div>
               <label className={labelClass}>📅 Fecha</label>
-              <input type="date" className={inputClass} value={form.fecha} onChange={e => setField('fecha', e.target.value)} />
+              <DatePicker className={inputClass} value={form.fecha} onChange={fecha => setField('fecha', fecha)} />
             </div>
 
             {/* LOCAL */}

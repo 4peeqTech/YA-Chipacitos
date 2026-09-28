@@ -6,6 +6,7 @@ import { mensajeError } from '@/lib/errores'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 import { PRIORIDAD_META, COLABORA_META, nombrePerfil, notificarTarea, insertarVineta } from './helpers'
 import type { Tarea, TareaComentario, TareaSubtarea, TareaHistorial, TareaAdjunto, PrioridadTarea, Turno, ColaboraTipo } from '@/lib/types'
+import DatePicker from '@/components/ui/DatePicker'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
@@ -648,8 +649,8 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
                     Sin fecha límite
                   </label>
                 </div>
-                <input type="date" value={form.fecha_limite} disabled={sinFecha}
-                  onChange={e => setForm(f => ({ ...f, fecha_limite: e.target.value }))} />
+                <DatePicker value={form.fecha_limite} disabled={sinFecha} limpiable
+                  onChange={fecha_limite => setForm(f => ({ ...f, fecha_limite }))} />
               </div>
 
               {esCreador && (

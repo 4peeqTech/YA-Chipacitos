@@ -9,6 +9,7 @@ import GastoPorProveedor from './GastoPorProveedor'
 import HistorialPedidos from './HistorialPedidos'
 import MovimientoStock from './MovimientoStock'
 import SugeridoVsComprado from './SugeridoVsComprado'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 type Tab = 'gasto' | 'historial' | 'stock' | 'sugerido'
 type PresetUI = PresetRango | 'personalizado'
@@ -89,7 +90,6 @@ export default function ReportesClient({
     { key: 'personalizado', label: 'Personalizado' },
   ]
 
-  const inputClass = "bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
 
   return (
     <div className="space-y-6">
@@ -137,21 +137,13 @@ export default function ReportesClient({
         ))}
 
         {preset === 'personalizado' && (
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              className={inputClass}
-              value={rangoPersonalizado.desde}
-              onChange={e => setRangoPersonalizado(prev => ({ ...prev, desde: e.target.value }))}
-            />
-            <span className="text-[#888] text-xs">al</span>
-            <input
-              type="date"
-              className={inputClass}
-              value={rangoPersonalizado.hasta}
-              onChange={e => setRangoPersonalizado(prev => ({ ...prev, hasta: e.target.value }))}
-            />
-          </div>
+          <DateRangePicker
+            atajos={false}
+            limpiable={false}
+            desde={rangoPersonalizado.desde}
+            hasta={rangoPersonalizado.hasta}
+            onChange={(desde, hasta) => setRangoPersonalizado(prev => ({ ...prev, desde, hasta }))}
+          />
         )}
 
         <span className="text-xs text-[#888]">Período: {rango.desde} al {rango.hasta}</span>

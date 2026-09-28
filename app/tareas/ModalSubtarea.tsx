@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { mensajeError } from '@/lib/errores'
 import { PRIORIDAD_META } from './helpers'
 import type { Tarea, TareaSubtarea, Turno } from '@/lib/types'
+import DatePicker from '@/components/ui/DatePicker'
 
 interface ModalSubtareaProps {
   tareas: Tarea[]
@@ -96,7 +97,7 @@ export default function ModalSubtarea({ tareas, userId, fechaInicial, turnoInici
 
           <div>
             <label className="text-[11px] font-semibold text-[#888] block mb-1">FECHA</label>
-            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+            <DatePicker value={fecha} onChange={setFecha} limpiable />
           </div>
 
           <div>

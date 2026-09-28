@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
+import DatePicker from '@/components/ui/DatePicker'
 
 const chipBase = 'px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border'
 const chipActive = 'bg-[#e8c547] text-black border-[#e8c547]'
@@ -21,11 +22,12 @@ export default function SelectorDia({ dia, hoy, ayer }: { dia: string; hoy: stri
       <span className="text-xs text-[#888]">Viendo</span>
       <button type="button" onClick={() => ir(ayer)} className={`${chipBase} ${dia === ayer ? chipActive : chipInactive}`}>Ayer</button>
       <button type="button" onClick={() => ir(hoy)} className={`${chipBase} ${dia === hoy ? chipActive : chipInactive}`}>Hoy</button>
-      <input
-        type="date"
+      <DatePicker
         value={dia}
-        onChange={e => ir(e.target.value)}
-        className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-full px-3 py-1.5 text-xs focus:outline-none focus:border-[#e8c547] transition-colors"
+        onChange={ir}
+        atajos={false}
+        ariaLabel="Elegir otro día"
+        className="bg-surface2 border border-border text-text rounded-full px-3 py-1.5 text-xs focus:outline-none focus:border-accent transition-colors"
       />
     </div>
   )

@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import Card from '@/components/ui/Card'
 import { mensajeError } from '@/lib/errores'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 interface FilaCaja {
   sucursal: string
@@ -69,12 +70,9 @@ export default function CajasIntegracionClient() {
       {/* Filtros */}
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4 flex flex-wrap gap-4 items-end">
         <div>
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Desde</label>
-          <input type="date" className={inputClass} value={desde} onChange={e => setDesde(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Hasta</label>
-          <input type="date" className={inputClass} value={hasta} onChange={e => setHasta(e.target.value)} />
+          <label className="block text-xs font-semibold text-accent-fg uppercase tracking-wider mb-1.5">Período</label>
+          <DateRangePicker desde={desde} hasta={hasta} limpiable={false}
+            onChange={(d, h) => { setDesde(d); setHasta(h) }} />
         </div>
         <button
           onClick={cargar}

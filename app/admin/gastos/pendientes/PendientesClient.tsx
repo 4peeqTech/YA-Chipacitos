@@ -3,6 +3,8 @@
 import { useState, useEffect, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { mensajeError } from '@/lib/errores'
+import DatePicker from '@/components/ui/DatePicker'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 interface GastoManual {
   _source: 'manual'
@@ -242,14 +244,9 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Desde</label>
-          <input type="date" className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] [color-scheme:dark]"
-            value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Hasta</label>
-          <input type="date" className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] [color-scheme:dark]"
-            value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} />
+          <label className="block text-xs font-semibold text-accent-fg uppercase tracking-wider mb-1.5">Período</label>
+          <DateRangePicker desde={filtroDesde} hasta={filtroHasta}
+            onChange={(d, h) => { setFiltroDesde(d); setFiltroHasta(h) }} />
         </div>
         <div className="flex-1 min-w-[180px]">
           <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Buscar</label>
@@ -360,7 +357,7 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Fecha de pago</label>
-                <input type="date" className={inputClass} value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
+                <DatePicker className={inputClass} value={fechaPago} onChange={setFechaPago} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Caja <span className="text-red-400">*</span></label>

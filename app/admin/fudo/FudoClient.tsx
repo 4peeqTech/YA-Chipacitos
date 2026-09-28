@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { mensajeError } from '@/lib/errores'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 type Tipo = 'expenses' | 'sales' | 'payments'
 
@@ -182,13 +183,9 @@ export default function FudoClient() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Desde</label>
-          <input type="date" className={inputClass} value={desde} onChange={e => setDesde(e.target.value)} />
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Hasta</label>
-          <input type="date" className={inputClass} value={hasta} onChange={e => setHasta(e.target.value)} />
+          <label className="block text-xs font-semibold text-accent-fg uppercase tracking-wider mb-1.5">Período</label>
+          <DateRangePicker desde={desde} hasta={hasta} limpiable={false} max={hoy()}
+            onChange={(d, h) => { setDesde(d); setHasta(h) }} />
         </div>
 
         <button
