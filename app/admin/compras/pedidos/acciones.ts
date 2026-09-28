@@ -81,7 +81,7 @@ export async function guardarMensaje(entrada: z.input<typeof GuardarMensaje>): P
 const SoloPedido = z.object({ pedidoId: z.uuid() })
 
 async function rpcSobrePedido(
-  fn: 'compras_marcar_pedido_enviado' | 'compras_reabrir_pedido' | 'compras_eliminar_pedido',
+  fn: 'compras_marcar_pedido_enviado' | 'compras_reabrir_pedido',
   entrada: z.input<typeof SoloPedido>,
   fallback: string,
 ): Promise<Resultado<null>> {
@@ -106,8 +106,23 @@ export async function reabrirPedido(entrada: z.input<typeof SoloPedido>): Promis
   return rpcSobrePedido('compras_reabrir_pedido', entrada, 'No se pudo reabrir el pedido.')
 }
 
-export async function eliminarPedido(entrada: z.input<typeof SoloPedido>): Promise<Resultado<null>> {
-  return rpcSobrePedido('compras_eliminar_pedido', entrada, 'No se pudo eliminar el pedido.')
+const EliminarPedido = z.object({ pedidoId: z.uuid(), motivo: z.string().trim().min(1).max(500) })
+
+export async function eliminarPedido(entrada: z.input<typeof EliminarPedido>): Promise<Resultado<null>> {
+  const parsed = EliminarPedido.safeParse(entrada)
+  if (!parsed.success) return fallo(null, 'Contanos por qué eliminás el pedido.')
+  try {
+    const supabase = await createClientTipado()
+    const { error } = await supabase.rpc('compras_eliminar_pedido', {
+      p_pedido_id: parsed.data.pedidoId,
+      p_motivo: parsed.data.motivo,
+    })
+    if (error) { refresh(); return fallo(error, 'No se pudo eliminar el pedido.') }
+    refresh()
+    return ok(null)
+  } catch (e) {
+    return fallo(e, 'No se pudo eliminar el pedido.')
+  }
 }
 
 const CerrarPedido = z.object({ pedidoId: z.uuid(), motivo: z.string().trim().min(1).max(500) })

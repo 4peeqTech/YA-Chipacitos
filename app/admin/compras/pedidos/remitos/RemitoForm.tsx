@@ -25,31 +25,67 @@ export interface NombresInsumo {
   unidad: string | null
 }
 
-/** "Suma 3 Bolsa de Fécula (queda en 73)" por insumo; en ámbar si el stock queda negativo. */
+/** Encabezado del confirm: el remito y su pedido, bien legibles. */
+export function CabeceraRemito({ codigo, pedido }: { codigo: string | null; pedido: PedidoRemito | null }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl bg-surface2 px-4 py-3">
+      <span className="font-mono text-lg font-bold tabular-nums text-text">{codigo ?? 'Remito'}</span>
+      {pedido && (
+        <span className="text-sm text-muted">
+          del pedido <span className="font-mono font-semibold tabular-nums text-text">{codigoPedido(pedido.numero)}</span>
+          {' · '}<span className="text-text">{pedido.proveedores?.nombre ?? '—'}</span>
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Cómo cambia el stock, en tabla: insumo · había · cambio · queda. En ámbar si queda negativo. */
 export function ResumenImpacto({ impacto, nombres, sinStock = 0 }: {
   impacto: ImpactoItem[]
   nombres: Record<string, NombresInsumo>
   sinStock?: number
 }) {
+  const num = (n: number) => conUnidad(n, null)
+  const hayNegativo = impacto.some(i => i.despues < 0)
   return (
-    <span className="block space-y-1.5 text-left">
-      {impacto.map(i => {
-        const n = nombres[i.itemId]
-        const negativo = i.despues < 0
-        return (
-          <span key={i.itemId} className={`block ${negativo ? 'text-warning' : 'text-text'}`}>
-            {i.delta > 0 ? 'Suma' : 'Resta'} <strong className="tabular-nums">{conUnidad(Math.abs(i.delta), n?.unidad ?? null)}</strong> de {n?.nombre ?? 'un insumo'}{' '}
-            <span className={negativo ? '' : 'text-muted'}>(queda en <span className="tabular-nums">{conUnidad(i.despues, n?.unidad ?? null)}</span>)</span>
-            {negativo && <span className="block text-xs">El stock queda negativo: revisá la cantidad o ajustá el stock después.</span>}
-          </span>
-        )
-      })}
+    <div className="space-y-2">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-2xs uppercase tracking-wider text-muted">
+            <th scope="col" className="py-1.5 pr-2 text-left font-semibold">Insumo</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Había</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Cambio</th>
+            <th scope="col" className="py-1.5 pl-2 text-right font-semibold">Queda</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {impacto.map(i => {
+            const n = nombres[i.itemId]
+            const negativo = i.despues < 0
+            return (
+              <tr key={i.itemId}>
+                <td className="py-2 pr-2 text-text">
+                  {n?.nombre ?? 'Insumo'}
+                  {n?.unidad && <span className="block text-2xs text-muted">en {n.unidad}</span>}
+                </td>
+                <td className="px-2 py-2 text-right tabular-nums text-muted">{num(i.antes)}</td>
+                <td className={`px-2 py-2 text-right font-semibold tabular-nums ${i.delta > 0 ? 'text-success' : 'text-warning'}`}>
+                  {i.delta > 0 ? '+' : '−'}{num(Math.abs(i.delta))}
+                </td>
+                <td className={`py-2 pl-2 text-right font-bold tabular-nums ${negativo ? 'text-warning' : 'text-text'}`}>{num(i.despues)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      {hayNegativo && <p className="text-xs text-warning">Algún stock queda negativo: revisá la cantidad o ajustá el stock después.</p>}
       {sinStock > 0 && (
-        <span className="block text-muted">
-          {sinStock === 1 ? '1 línea no mueve stock' : `${sinStock} líneas no mueven stock`} (no tiene insumo).
-        </span>
+        <p className="text-xs text-muted">
+          {sinStock === 1 ? '1 línea no mueve stock (no tiene insumo).' : `${sinStock} líneas no mueven stock (no tienen insumo).`}
+        </p>
       )}
-    </span>
+    </div>
   )
 }
 
@@ -189,11 +225,12 @@ export default function RemitoForm({
       // El código va en el mensaje (mono): la Syne del título dibuja los ceros como "o".
       titulo: remito ? 'Guardar cambios del remito' : 'Guardar remito',
       mensaje: (
-        <span className="block space-y-2">
-          <span className="block font-mono tabular-nums text-text">{codigo}</span>
+        <div className="space-y-3">
+          <CabeceraRemito codigo={codigo} pedido={pedido} />
           <ResumenImpacto impacto={impacto} nombres={nombres} sinStock={sinStock} />
-        </span>
+        </div>
       ),
+      ancho: 'lg',
       textoConfirmar: 'Guardar',
       onConfirmar: ejecutar,
     })
@@ -205,13 +242,14 @@ export default function RemitoForm({
     confirmar({
       titulo: 'Eliminar remito',
       mensaje: (
-        <span className="block space-y-2">
-          <span className="block font-mono tabular-nums text-text">{codigo}</span>
+        <div className="space-y-3">
+          <CabeceraRemito codigo={codigo} pedido={pedido} />
           {imp.length
-            ? <><span className="block">Se resta del stock lo que sumó:</span><ResumenImpacto impacto={imp} nombres={nombres} /></>
-            : <span className="block">Este remito no había sumado stock. El pedido vuelve a mostrar esas líneas como pendientes.</span>}
-        </span>
+            ? <><p>Se resta del stock lo que sumó:</p><ResumenImpacto impacto={imp} nombres={nombres} /></>
+            : <p>Este remito no había sumado stock. El pedido vuelve a mostrar esas líneas como pendientes.</p>}
+        </div>
       ),
+      ancho: 'lg',
       textoConfirmar: 'Eliminar',
       peligroso: true,
       onConfirmar: () => startTransition(async () => {
@@ -297,7 +335,7 @@ export default function RemitoForm({
                           {deMas > 0
                             ? <span className="font-semibold text-warning">+{conUnidad(deMas, l.unidad)} de más</span>
                             : falta > 0
-                              ? <>falta {conUnidad(falta, l.unidad)}</>
+                              ? <span className="font-semibold text-info">falta {conUnidad(falta, l.unidad)}</span>
                               : <span className="text-success">completo</span>}
                           {!l.item_id && <> · <span className="text-warning">sin insumo: no mueve stock</span></>}
                         </p>

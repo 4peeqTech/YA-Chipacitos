@@ -25,6 +25,7 @@ export default async function PedidosPage({
     { data: stock },
     { data: plantillas },
     { data: locales },
+    { data: eliminados },
   ] = await Promise.all([
     consultarPedidos(supabase),
     supabase.from('v_compras_pedido_pendiente').select('*').order('orden'),
@@ -38,6 +39,7 @@ export default async function PedidosPage({
       .eq('activo', true)
       .order('orden'),
     supabase.from('locales_facturacion').select('*').eq('activo', true).order('orden'),
+    supabase.from('v_compras_pedidos_eliminados').select('*').order('numero', { ascending: false }),
   ])
 
   return (
@@ -50,6 +52,7 @@ export default async function PedidosPage({
       stock={stock ?? []}
       plantillas={plantillas ?? []}
       localesFacturacion={locales ?? []}
+      eliminados={eliminados ?? []}
       pedidoInicial={pedido}
     />
   )

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ArrowRight, History, Loader2, RotateCcw, SlidersHorizontal } from 'lucide-react'
+import { ArrowRight, History, Loader2, RotateCcw, SlidersHorizontal, Truck } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import InputNumero from '@/components/ui/InputNumero'
 import { Field, controlClass } from '@/components/ui/Field'
@@ -22,14 +22,20 @@ type Movimiento = Database['public']['Views']['v_compras_stock_movimientos']['Ro
 const MOTIVOS = ['Recuento en el depósito', 'Rotura o vencimiento', 'Corrección de una carga', 'Otro'] as const
 type MotivoRapido = (typeof MOTIVOS)[number] | ''
 
-const LIMITE = 30
+// El historial completo queda siempre en la base (no se borra ni se reinicia);
+// la ficha muestra de a tandas, empezando por lo más nuevo.
+const TANDA = 30
 
 function textoDelta(delta: number): string {
   return `${delta > 0 ? '+' : '−'}${conUnidad(Math.abs(delta), null)}`
 }
 
+// Si hay link al remito (botón con el código), no se repite el código en el texto.
 function detalleMovimiento(m: Movimiento): string | null {
-  if (m.remito_codigo && !m.motivo?.includes(m.remito_codigo)) return `Remito ${m.remito_codigo}`
+  if (m.remito_id && m.remito_codigo) {
+    const resto = m.motivo?.replace(`Remito ${m.remito_codigo}`, '').trim()
+    return resto || null
+  }
   return m.motivo
 }
 
@@ -51,8 +57,9 @@ export default function StockFicha({
   const [motivoReversion, setMotivoReversion] = useState('')
   // Movimientos por "versión" del stock: cuando refresh() trae un stock nuevo,
   // la clave cambia y se vuelven a pedir.
-  const clave = `${fila.item.id}|${fila.actualizadoEn ?? ''}|${fila.cantidad}`
-  const [movs, setMovs] = useState<{ clave: string; lista: Movimiento[]; error: string | null } | null>(null)
+  const [limite, setLimite] = useState(TANDA)
+  const clave = `${fila.item.id}|${fila.actualizadoEn ?? ''}|${fila.cantidad}|${limite}`
+  const [movs, setMovs] = useState<{ clave: string; lista: Movimiento[]; hayMas: boolean; error: string | null } | null>(null)
   const cargando = movs?.clave !== clave
 
   const supabase = useMemo(() => createBrowserClient<Database>(
@@ -67,13 +74,19 @@ export default function StockFicha({
       .select('*')
       .eq('item_id', fila.item.id)
       .order('created_at', { ascending: false })
-      .limit(LIMITE)
+      .limit(limite + 1)
       .then(({ data, error }) => {
         if (!vigente) return
-        setMovs({ clave, lista: data ?? [], error: error ? mensajeError(error, 'No se pudo cargar el historial.') : null })
+        const lista = data ?? []
+        setMovs({
+          clave,
+          lista: lista.slice(0, limite),
+          hayMas: lista.length > limite,
+          error: error ? mensajeError(error, 'No se pudo cargar el historial.') : null,
+        })
       })
     return () => { vigente = false }
-  }, [supabase, fila.item.id, clave])
+  }, [supabase, fila.item.id, clave, limite])
 
   const unidad = fila.item.unidad
   const motivoFinal = motivo === 'Otro' ? otro.trim() : motivo
@@ -202,7 +215,7 @@ export default function StockFicha({
             Histórico por conteo <ArrowRight size={14} />
           </Link>
         </div>
-        {cargando ? (
+        {cargando && !movs?.lista.length ? (
           <div className="space-y-2">
             <Skeleton className="h-14 w-full" />
             <Skeleton className="h-14 w-full" />
@@ -234,8 +247,18 @@ export default function StockFicha({
                         {detalle && <> · {detalle}</>}
                       </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <p className="text-right text-sm tabular-nums">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {m.remito_id && m.remito_codigo && (
+                        <Link
+                          href={`/admin/compras/pedidos/remitos?remito=${m.remito_id}`}
+                          onClick={onCerrar}
+                          aria-label={`Abrir el remito ${m.remito_codigo}`}
+                          className="presionable min-h-11 inline-flex items-center gap-1 rounded-xl border border-border px-3 font-mono text-xs font-semibold tabular-nums text-text hover:bg-surface2"
+                        >
+                          <Truck size={13} /> {m.remito_codigo}
+                        </Link>
+                      )}
+                      <p className="min-w-16 text-right text-sm tabular-nums">
                         <span className={d > 0 ? 'text-success' : 'text-warning'}>{textoDelta(d)}</span>
                         {m.cantidad_despues != null && <span className="block text-xs text-muted">queda {conUnidad(m.cantidad_despues, null)}</span>}
                       </p>
@@ -290,6 +313,19 @@ export default function StockFicha({
               )
             })}
           </ul>
+        )}
+        {movs?.hayMas && (
+          <button
+            type="button"
+            onClick={() => setLimite(l => l + TANDA)}
+            disabled={cargando}
+            className="presionable min-h-11 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50"
+          >
+            {cargando && <Loader2 size={15} className="animate-spin" />} Ver {TANDA} movimientos más
+          </button>
+        )}
+        {movs && !movs.hayMas && movs.lista.length >= TANDA && (
+          <p className="text-center text-xs text-muted">Estos son todos los movimientos del insumo.</p>
         )}
       </section>
     </div>

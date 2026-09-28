@@ -356,6 +356,63 @@ export type Database = {
           },
         ]
       }
+      compras_pedidos_eliminados: {
+        Row: {
+          creado_en: string | null
+          creado_por: string | null
+          eliminado_en: string | null
+          eliminado_por: string | null
+          id: string
+          lineas: Json
+          motivo: string
+          numero: number
+          pedido_id: string
+          proveedor_id: string | null
+          proveedor_nombre: string | null
+        }
+        Insert: {
+          creado_en?: string | null
+          creado_por?: string | null
+          eliminado_en?: string | null
+          eliminado_por?: string | null
+          id?: string
+          lineas?: Json
+          motivo: string
+          numero: number
+          pedido_id: string
+          proveedor_id?: string | null
+          proveedor_nombre?: string | null
+        }
+        Update: {
+          creado_en?: string | null
+          creado_por?: string | null
+          eliminado_en?: string | null
+          eliminado_por?: string | null
+          id?: string
+          lineas?: Json
+          motivo?: string
+          numero?: number
+          pedido_id?: string
+          proveedor_id?: string | null
+          proveedor_nombre?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_pedidos_eliminados_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_pedidos_eliminados_eliminado_por_fkey"
+            columns: ["eliminado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compras_plantilla_base: {
         Row: {
           activo: boolean
@@ -3217,6 +3274,22 @@ export type Database = {
           },
         ]
       }
+      v_compras_pedidos_eliminados: {
+        Row: {
+          creado_en: string | null
+          creado_por_nombre: string | null
+          eliminado_en: string | null
+          eliminado_por_nombre: string | null
+          id: string | null
+          lineas: Json | null
+          motivo: string | null
+          numero: number | null
+          pedido_id: string | null
+          proveedor_id: string | null
+          proveedor_nombre: string | null
+        }
+        Relationships: []
+      }
       v_compras_stock_actual: {
         Row: {
           actualizado_en: string | null
@@ -3339,7 +3412,7 @@ export type Database = {
         Returns: undefined
       }
       compras_eliminar_pedido: {
-        Args: { p_pedido_id: string }
+        Args: { p_motivo?: string; p_pedido_id?: string }
         Returns: undefined
       }
       compras_eliminar_remito: { Args: { p_remito_id: string }; Returns: Json }

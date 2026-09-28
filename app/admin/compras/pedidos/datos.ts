@@ -42,6 +42,7 @@ export type ItemCatalogo = QueryData<ReturnType<typeof consultarCatalogo>>[numbe
 export type ProveedorPedido = QueryData<ReturnType<typeof consultarProveedores>>[number]
 export type LineaPendiente = Database['public']['Views']['v_compras_pedido_pendiente']['Row']
 export type EventoPedido = Database['public']['Views']['v_compras_pedido_eventos']['Row']
+export type PedidoEliminado = Database['public']['Views']['v_compras_pedidos_eliminados']['Row']
 
 export interface Plantilla {
   id: string

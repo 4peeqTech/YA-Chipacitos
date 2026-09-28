@@ -20,6 +20,8 @@ export interface PedidoVista {
   filtro: FiltroPedidos | null
   /** Líneas que ya llegaron completas. */
   lineasCompletas: number
+  /** Cuánto del pedido llegó, 0–100: promedio por línea de recibido/pedido, con tope 100 por línea. */
+  porcentajeRecibido: number
   recibioAlgo: boolean
   origen: Origen
   demorado: boolean
@@ -86,6 +88,7 @@ export function armarVistas(
       visible,
       filtro: filtroDelPedido({ ...entrada, recibioAlgo }),
       lineasCompletas: propias.length - lineasPendientes,
+      porcentajeRecibido: porcentajeRecibido(propias),
       recibioAlgo,
       origen: origenDe(fila),
       demorado: estaDemorado(entrada, ahora),
@@ -94,6 +97,15 @@ export function armarVistas(
         && entrada.estado_recepcion !== 'devuelto',
     }
   })
+}
+
+// Las líneas tienen unidades distintas (bolsas, kg, unidades): sumar cantidades
+// no dice nada. Cada línea pesa lo mismo y lo de más no compensa lo que falta.
+export function porcentajeRecibido(lineas: Pick<LineaPendiente, 'cantidad' | 'recibido'>[]): number {
+  const validas = lineas.filter(l => (l.cantidad ?? 0) > 0)
+  if (validas.length === 0) return 0
+  const suma = validas.reduce((t, l) => t + Math.min((l.recibido ?? 0) / (l.cantidad ?? 1), 1), 0)
+  return Math.round((suma / validas.length) * 100)
 }
 
 // La búsqueda encuentra por código ("P-0012", "p12", "12") o por proveedor.

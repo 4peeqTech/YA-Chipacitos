@@ -14,6 +14,7 @@ import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useConfirmar } from '@/components/ui/ProveedorUI'
 import { formatearFecha } from '@/lib/formato'
 import { codigoPedido, codigoRemito } from '@/lib/compras/codigos'
+import { porcentajeRecibido } from '../modelo'
 import RemitoForm from './RemitoForm'
 import type { InsumoRemito, LineaPedido, PedidoRemito, RemitoFila } from './datos'
 
@@ -23,6 +24,8 @@ interface RemitoVista {
   pedido: PedidoRemito | null
   proveedor: string
   facturado: boolean
+  /** Cuánto del pedido trajo este remito, 0–100 (mismo criterio que "Recibido" en Pedidos). */
+  porcentaje: number | null
 }
 
 type Abierto = { remitoId: string } | { pedidoId: string | null } | null
@@ -70,16 +73,32 @@ export default function RemitosClient({
   const pedidoPorId = useMemo(() => new Map(pedidos.map(p => [p.id, p])), [pedidos])
   const stockPorItem = useMemo(() => Object.fromEntries(stock.map(s => [s.item_id, s.cantidad])), [stock])
 
+  const lineasPorPedido = useMemo(() => {
+    const m = new Map<string, LineaPedido[]>()
+    for (const l of lineas) {
+      if (!l.pedido_id) continue
+      m.set(l.pedido_id, [...(m.get(l.pedido_id) ?? []), l])
+    }
+    return m
+  }, [lineas])
+
   const vistas = useMemo<RemitoVista[]>(() => remitos.map(fila => {
     const pedido = pedidoPorId.get(fila.pedido_id) ?? null
+    const delPedido = (lineasPorPedido.get(fila.pedido_id) ?? []).map(l => ({
+      cantidad: l.cantidad,
+      recibido: fila.compras_remito_items
+        .filter(ri => ri.pedido_item_id === l.pedido_item_id)
+        .reduce((t, ri) => t + ri.cantidad, 0),
+    }))
     return {
       fila,
       pedido,
       codigo: pedido ? codigoRemito(pedido.numero, fila.secuencia) : '—',
       proveedor: pedido?.proveedores?.nombre ?? '—',
       facturado: pedido?.estado_facturacion === 'facturado',
+      porcentaje: delPedido.length ? porcentajeRecibido(delPedido) : null,
     }
-  }), [remitos, pedidoPorId])
+  }), [remitos, pedidoPorId, lineasPorPedido])
 
   const esperando = useMemo(
     () => pedidos.filter(p => p.estado_recepcion === 'enviado' || p.estado_recepcion === 'parcial'),
@@ -144,6 +163,16 @@ export default function RemitosClient({
       ordenar: r => r.fila.compras_remito_items.length,
       alinear: 'right',
       ocultarHasta: 'md',
+    },
+    {
+      key: 'porcentaje',
+      header: 'Del pedido',
+      alinear: 'right',
+      render: r => r.porcentaje == null
+        ? <span className="text-muted">—</span>
+        : <span className="tabular-nums font-semibold">{r.porcentaje}%</span>,
+      ordenar: r => r.porcentaje ?? -1,
+      ocultarHasta: 'sm',
     },
     {
       key: 'estado',

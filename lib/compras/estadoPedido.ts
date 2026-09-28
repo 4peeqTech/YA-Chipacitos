@@ -104,7 +104,9 @@ export function proximaAccion(p: EstadoPedidoEntrada, ahora: Date = new Date()):
   }
 }
 
-export type FiltroPedidos = 'activos' | 'por_facturar' | 'facturados' | 'devueltos' | 'todos'
+// 'cerrados' (todos los cerrados a mano, también los que están por facturar) y
+// 'eliminados' (registro aparte) no salen de filtroDelPedido: los arma la lista.
+export type FiltroPedidos = 'activos' | 'por_facturar' | 'facturados' | 'devueltos' | 'cerrados' | 'todos' | 'eliminados'
 
 /** A qué pestaña de la lista pertenece un pedido (además de "Todos"). */
 export function filtroDelPedido(p: Pick<EstadoPedidoEntrada, 'estado_recepcion' | 'estado_facturacion'> & { recibioAlgo: boolean }): FiltroPedidos | null {

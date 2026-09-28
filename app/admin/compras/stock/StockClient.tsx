@@ -112,10 +112,16 @@ export default function StockClient({
       alinear: 'right',
       render: f => (
         <span className={`tabular-nums font-semibold ${f.bajo ? 'text-brand-red' : 'text-text'}`}>
-          {conUnidad(f.cantidad, f.item.unidad)}
+          {conUnidad(f.cantidad, null)}
         </span>
       ),
       ordenar: f => f.cantidad,
+    },
+    {
+      key: 'unidad',
+      header: 'Unidad',
+      render: f => f.item.unidad ? <span className="text-muted">{f.item.unidad}</span> : <span className="text-warning">Sin unidad</span>,
+      ordenar: f => f.item.unidad ?? '',
     },
     {
       key: 'minimo',

@@ -21,17 +21,20 @@ import PedidoDetalle from './PedidoDetalle'
 import PedidoEditor from './PedidoEditor'
 import PedidoEnvio from './PedidoEnvio'
 import CerrarPedidoModal from './CerrarPedidoModal'
-import { eliminarPedido, reabrirPedido } from './acciones'
-import type { EventoPedido, ItemCatalogo, LineaPendiente, LocalFacturacion, PedidoFila, Plantilla, ProveedorPedido } from './datos'
+import PedidosEliminados from './PedidosEliminados'
+import { reabrirPedido } from './acciones'
+import type { EventoPedido, ItemCatalogo, LineaPendiente, LocalFacturacion, PedidoEliminado, PedidoFila, Plantilla, ProveedorPedido } from './datos'
 
-type Vista = 'detalle' | 'editar' | 'enviar' | 'cerrar'
+type Vista = 'detalle' | 'editar' | 'enviar' | 'cerrar' | 'eliminar'
 
 const FILTROS: { value: FiltroPedidos; label: string; vacio: { titulo: string; descripcion: string } }[] = [
   { value: 'activos', label: 'Activos', vacio: { titulo: 'No hay pedidos activos', descripcion: 'Acá aparecen los pedidos sin enviar y los que esperan mercadería.' } },
   { value: 'por_facturar', label: 'Por facturar', vacio: { titulo: 'No hay pedidos por facturar', descripcion: 'Cuando llegue la mercadería de un pedido, aparece acá hasta que se cargue su factura.' } },
   { value: 'facturados', label: 'Facturados', vacio: { titulo: 'No hay pedidos facturados', descripcion: 'Los pedidos con factura cargada aparecen acá.' } },
   { value: 'devueltos', label: 'Devueltos', vacio: { titulo: 'No hay pedidos devueltos', descripcion: 'Los pedidos devueltos al proveedor aparecen acá.' } },
+  { value: 'cerrados', label: 'Cerrados', vacio: { titulo: 'No hay pedidos cerrados a mano', descripcion: 'Los pedidos que se cierran con "Cerrar a mano" aparecen acá, con su motivo.' } },
   { value: 'todos', label: 'Todos', vacio: { titulo: 'Todavía no hay pedidos', descripcion: 'Usá "Crear pedido" para armar el primero.' } },
+  { value: 'eliminados', label: 'Eliminados', vacio: { titulo: 'No hay pedidos eliminados', descripcion: '' } },
 ]
 
 // Activos: primero los que falta enviar, después los enviados hace más tiempo.
@@ -53,6 +56,7 @@ export default function PedidosClient({
   stock,
   plantillas,
   localesFacturacion,
+  eliminados,
   pedidoInicial,
 }: {
   pedidos: PedidoFila[]
@@ -63,6 +67,7 @@ export default function PedidosClient({
   stock: { item_id: string; cantidad: number }[]
   plantillas: Plantilla[]
   localesFacturacion: LocalFacturacion[]
+  eliminados: PedidoEliminado[]
   pedidoInicial?: string
 }) {
   const confirmar = useConfirmar()
@@ -86,15 +91,20 @@ export default function PedidosClient({
   const activos = useMemo(() => vistas.filter(v => v.filtro === 'activos'), [vistas])
 
   const conteos = useMemo(() => {
-    const c: Record<FiltroPedidos, number> = { activos: 0, por_facturar: 0, facturados: 0, devueltos: 0, todos: vistas.length }
-    for (const v of vistas) if (v.filtro) c[v.filtro]++
+    const c: Record<FiltroPedidos, number> = {
+      activos: 0, por_facturar: 0, facturados: 0, devueltos: 0, cerrados: 0, todos: vistas.length, eliminados: eliminados.length,
+    }
+    for (const v of vistas) {
+      if (v.filtro) c[v.filtro]++
+      if (v.visible === 'cerrado') c.cerrados++
+    }
     return c
-  }, [vistas])
+  }, [vistas, eliminados])
 
   const hayFiltros = !!busqueda || !!desde || !!hasta
   const filtrados = useMemo(() => {
     const lista = vistas
-      .filter(v => filtro === 'todos' || v.filtro === filtro)
+      .filter(v => filtro === 'todos' || (filtro === 'cerrados' ? v.visible === 'cerrado' : v.filtro === filtro))
       .filter(v => coincideBusqueda(v, busqueda))
       .filter(v => !desde || v.creado.slice(0, 10) >= desde)
       .filter(v => !hasta || v.creado.slice(0, 10) <= hasta)
@@ -165,21 +175,6 @@ export default function PedidosClient({
       toast.success('Cambios guardados')
       setVista('detalle')
     }
-  }
-
-  function pedirEliminar(p: PedidoVista) {
-    confirmar({
-      titulo: `Eliminar ${p.codigo}`,
-      mensaje: `¿Eliminar el pedido ${p.codigo} a ${p.proveedor}? El número ${p.codigo} no se vuelve a usar.`,
-      textoConfirmar: 'Eliminar',
-      peligroso: true,
-      onConfirmar: () => startTransition(async () => {
-        const r = await eliminarPedido({ pedidoId: p.fila.id })
-        if (!r.ok) { toast.error(r.error); return }
-        toast.success(`${p.codigo} eliminado`)
-        cerrarModalYa()
-      }),
-    })
   }
 
   function pedirReabrir(p: PedidoVista) {
@@ -262,6 +257,16 @@ export default function PedidosClient({
       ocultarHasta: 'sm',
     },
     {
+      key: 'recibido',
+      header: 'Recibido',
+      alinear: 'right',
+      render: p => p.entrada.estado_recepcion === 'sin_enviar' || p.lineas.length === 0
+        ? <span className="text-muted" aria-label="Sin enviar">—</span>
+        : <span className={`tabular-nums font-semibold ${p.porcentajeRecibido >= 100 ? 'text-success' : 'text-text'}`}>{p.porcentajeRecibido}%</span>,
+      ordenar: p => (p.entrada.estado_recepcion === 'sin_enviar' ? -1 : p.porcentajeRecibido),
+      ocultarHasta: 'sm',
+    },
+    {
       key: 'origen',
       header: 'Origen',
       render: p => <span className="text-muted">{p.origen}</span>,
@@ -289,6 +294,7 @@ export default function PedidosClient({
           editar: `Editar ${abierto.codigo}`,
           enviar: `Enviar ${abierto.codigo}`,
           cerrar: `Cerrar ${abierto.codigo} a mano`,
+          eliminar: `Eliminar ${abierto.codigo}`,
         }[vista]
       : ''
 
@@ -334,7 +340,22 @@ export default function PedidosClient({
         <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
       </div>
 
-      {filtrados.length === 0 ? (
+      {filtro === 'eliminados' ? (
+        <PedidosEliminados
+          eliminados={eliminados}
+          filtrar={e => {
+            const t = busqueda.trim().toLowerCase()
+            const fecha = (e.eliminado_en ?? '').slice(0, 10)
+            if (desde && fecha < desde) return false
+            if (hasta && fecha > hasta) return false
+            if (!t) return true
+            const digitos = t.replace(/^p-?/, '')
+            return (e.proveedor_nombre ?? '').toLowerCase().includes(t)
+              || codigoPedido(e.numero ?? 0).toLowerCase().includes(t)
+              || (/^\d+$/.test(digitos) && Number(digitos) === e.numero)
+          }}
+        />
+      ) : filtrados.length === 0 ? (
         <div className="rounded-2xl border border-border overflow-hidden">
           {hayFiltros ? (
             <EmptyState
@@ -357,7 +378,7 @@ export default function PedidosClient({
         title={titulo}
         encabezado={abierto && !creando ? (
           <span>
-            {{ detalle: 'Pedido', editar: 'Editar', enviar: 'Enviar', cerrar: 'Cerrar' }[vista]}{' '}
+            {{ detalle: 'Pedido', editar: 'Editar', enviar: 'Enviar', cerrar: 'Cerrar', eliminar: 'Eliminar' }[vista]}{' '}
             <span className="font-mono tabular-nums">{abierto.codigo}</span>
             {vista === 'cerrar' && ' a mano'}
           </span>
@@ -388,7 +409,7 @@ export default function PedidosClient({
               onEditar: () => setVista('editar'),
               onCerrar: () => setVista('cerrar'),
               onReabrir: () => pedirReabrir(abierto),
-              onEliminar: () => pedirEliminar(abierto),
+              onEliminar: () => setVista('eliminar'),
             }}
           />
         )}
@@ -418,6 +439,9 @@ export default function PedidosClient({
         )}
         {!creando && abierto && vista === 'cerrar' && (
           <CerrarPedidoModal pedido={abierto} onVolver={() => setVista('detalle')} onCerrado={() => setVista('detalle')} />
+        )}
+        {!creando && abierto && vista === 'eliminar' && (
+          <CerrarPedidoModal key={`eliminar-${abierto.fila.id}`} pedido={abierto} modo="eliminar" onVolver={() => setVista('detalle')} onCerrado={cerrarModalYa} />
         )}
       </Modal>
     </div>

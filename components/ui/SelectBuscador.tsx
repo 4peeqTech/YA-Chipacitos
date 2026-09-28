@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import Flotante from './Flotante'
 
 export interface OpcionSelect {
   value: string
@@ -30,6 +31,8 @@ export default function SelectBuscador({
   const [abierto, setAbierto] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const seleccionado = opciones.find(o => o.value === value)
@@ -37,7 +40,9 @@ export default function SelectBuscador({
   // Cerrar al hacer clic afuera
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const t = e.target as Node
+      // El panel vive en un portal (fuera de `ref`): también cuenta como "adentro".
+      if (ref.current && !ref.current.contains(t) && !panelRef.current?.contains(t)) {
         setAbierto(false)
         setBusqueda('')
       }
@@ -63,14 +68,30 @@ export default function SelectBuscador({
     onChange(val)
     setAbierto(false)
     setBusqueda('')
+    triggerRef.current?.focus()
+  }
+
+  // Escape cierra solo la lista (no el Modal de atrás) y Tab no se escapa al
+  // portal: en los dos casos el foco vuelve al disparador.
+  function teclaEnPanel(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Escape' || e.key === 'Tab') {
+      e.preventDefault()
+      e.stopPropagation()
+      setAbierto(false)
+      setBusqueda('')
+      triggerRef.current?.focus()
+    }
   }
 
   return (
     <div ref={ref} className={`relative ${className}`}>
       {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
+        aria-expanded={abierto}
+        aria-haspopup="listbox"
         onClick={() => setAbierto(!abierto)}
         className={`w-full min-h-11 sm:min-h-9 flex items-center justify-between border rounded-lg px-3 py-2 text-sm text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 ${
           value
@@ -87,7 +108,8 @@ export default function SelectBuscador({
 
       {/* Dropdown */}
       {abierto && (
-        <div className="absolute z-50 mt-1 w-full min-w-[200px] bg-surface border border-border rounded-xl shadow-modal overflow-hidden">
+        <Flotante ancla={triggerRef} refPanel={panelRef}>
+        <div onKeyDown={teclaEnPanel} className="bg-surface border border-border rounded-xl shadow-modal overflow-hidden">
           {/* Buscador */}
           <div className="p-2 border-b border-border">
             <div className="flex items-center gap-2 bg-surface2 rounded-lg px-3 py-1.5">
@@ -173,6 +195,7 @@ export default function SelectBuscador({
             )}
           </div>
         </div>
+        </Flotante>
       )}
     </div>
   )
