@@ -1,5 +1,7 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import AvisoRedireccion from '@/components/ui/AvisoRedireccion'
 import { obtenerLector } from './lector'
 
 export const metadata = { title: 'Manual | YA! Chipacitos' }
@@ -9,6 +11,8 @@ export default async function AyudaLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-bg">
+      {/* Un usuario sin ningún módulo asignado rebota acá: el aviso cuenta por qué */}
+      <Suspense fallback={null}><AvisoRedireccion /></Suspense>
       <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-surface px-4 py-2">
         <Link
           href={inicio}

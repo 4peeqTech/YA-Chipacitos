@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
-  ArrowRight, Clock, History, ListChecks, Loader2, Lock, MoreHorizontal, PackageOpen, PencilLine,
-  RotateCcw, Send, Trash2, Truck, type LucideIcon,
+  ArrowRight, Ban, Clock, History, ListChecks, Loader2, Lock, MoreHorizontal, PackageOpen, PencilLine,
+  ReceiptText, RotateCcw, Send, Trash2, Truck, type LucideIcon,
 } from 'lucide-react'
 import EstadoBadge from '@/components/ui/EstadoBadge'
-import { formatearFecha, formatearFechaHora } from '@/lib/formato'
+import { formatearFecha, formatearFechaHora, formatearMonedaExacta } from '@/lib/formato'
 import { proximaAccion, subtextoEstado } from '@/lib/compras/estadoPedido'
 import { codigoRemito } from '@/lib/compras/codigos'
 import { conUnidad, type PedidoVista } from './modelo'
@@ -27,10 +27,12 @@ const EVENTO: Record<string, { label: string; icono: LucideIcon }> = {
   remito: { label: 'Llegó un remito', icono: Truck },
   cerrado: { label: 'Cerrado a mano', icono: Lock },
   reabierto: { label: 'Reabierto', icono: RotateCcw },
+  factura: { label: 'Factura confirmada', icono: ReceiptText },
+  factura_anulada: { label: 'Factura anulada', icono: Ban },
 }
 
 // Desempate cuando dos eventos tienen la misma hora.
-const ORDEN_EVENTO = ['creado', 'enviado', 'remito', 'cerrado', 'reabierto']
+const ORDEN_EVENTO = ['creado', 'enviado', 'remito', 'factura', 'factura_anulada', 'cerrado', 'reabierto']
 
 function detalleEvento(e: EventoPedido, codigoDe: (remitoId: string | null) => string | null): string | null {
   if (e.tipo === 'remito' && e.detalle) {
@@ -38,6 +40,7 @@ function detalleEvento(e: EventoPedido, codigoDe: (remitoId: string | null) => s
     return `${codigo ? `${codigo} · ` : ''}llegó el ${formatearFecha(e.detalle)}`
   }
   if (e.tipo === 'cerrado' && e.detalle) return `Motivo: ${e.detalle}`
+  if ((e.tipo === 'factura' || e.tipo === 'factura_anulada') && e.detalle) return `N° ${e.detalle}`
   return null
 }
 
@@ -97,10 +100,13 @@ export default function PedidoDetalle({
   pedido,
   acciones,
   pendiente,
+  esAdmin,
 }: {
   pedido: PedidoVista
   acciones: AccionesDetalle
   pendiente: boolean
+  /** Solo admin ve la factura del pedido y puede cargarla (P1). */
+  esAdmin: boolean
 }) {
   const { fila, entrada, visible } = pedido
   const accion = proximaAccion(entrada)
@@ -114,6 +120,12 @@ export default function PedidoDetalle({
   const eventos = [...pedido.eventos].sort((a, b) =>
     (a.fecha ?? '').localeCompare(b.fecha ?? '') || ORDEN_EVENTO.indexOf(a.tipo ?? '') - ORDEN_EVENTO.indexOf(b.tipo ?? ''))
   const hrefRemito = `/admin/compras/pedidos/remitos?pedido=${fila.id}`
+  const hrefFactura = pedido.factura
+    ? `/admin/compras/pedidos/facturas?factura=${pedido.factura.id}`
+    : `/admin/compras/pedidos/facturas?pedido=${fila.id}`
+  // La sección aparece cuando ya hay algo que mostrar o algo que hacer: antes
+  // de enviar el pedido, la factura todavía no existe como paso.
+  const mostrarFactura = esAdmin && (pedido.factura != null || entrada.estado_recepcion !== 'sin_enviar')
 
   const secundarias: { label: string; icono: LucideIcon; onClick: () => void; peligro?: boolean }[] = []
   if (pedido.editable) secundarias.push({ label: 'Editar ítems', icono: PencilLine, onClick: acciones.onEditar })
@@ -167,6 +179,14 @@ export default function PedidoDetalle({
               className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
             >
               <Truck size={16} /> {accion.boton}
+            </Link>
+          )}
+          {accion.tipo === 'cargar_factura' && (
+            <Link
+              href={hrefFactura}
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
+            >
+              <ReceiptText size={16} /> {accion.boton}
             </Link>
           )}
           {accion.tipo === 'ninguna' && pedido.lineas.length === 0 && pedido.editable && (
@@ -263,6 +283,7 @@ export default function PedidoDetalle({
                     <span className="text-text">
                       <span className="font-mono tabular-nums font-medium">{codigoRemito(fila.numero, r.secuencia)}</span>
                       <span className="text-muted"> · llegó el {formatearFecha(r.fecha)}</span>
+                      {r.origen === 'factura' && <span className="text-muted"> · desde la factura</span>}
                     </span>
                     <span className="flex items-center gap-2 text-xs text-muted whitespace-nowrap">
                       {r.compras_remito_items[0]?.count ?? 0} línea{(r.compras_remito_items[0]?.count ?? 0) === 1 ? '' : 's'}
@@ -276,6 +297,39 @@ export default function PedidoDetalle({
           <Link href={hrefRemito} className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-text underline decoration-accent decoration-2 underline-offset-4 hover:opacity-80 transition-opacity">
             {remitos.length ? 'Cargar otro remito' : 'Cargar remito'} <ArrowRight size={14} />
           </Link>
+        </section>
+      )}
+
+      {/* Factura */}
+      {mostrarFactura && (
+        <section className="space-y-2">
+          <h4 className="flex items-center gap-2 text-sm font-bold text-text">
+            <ReceiptText size={16} className="text-accent" /> Factura
+          </h4>
+          {pedido.factura ? (
+            <Link
+              href={hrefFactura}
+              className="flex min-h-11 flex-wrap items-center justify-between gap-3 rounded-xl border border-border px-3 py-2.5 text-sm transition-colors hover:bg-surface2"
+            >
+              <span className="text-text">
+                <span className="font-mono tabular-nums font-medium">{pedido.factura.numero}</span>
+                <span className="text-muted"> · {formatearFecha(pedido.factura.fecha)}</span>
+              </span>
+              <span className="flex items-center gap-2 whitespace-nowrap">
+                {pedido.factura.estado === 'borrador'
+                  ? <span className="text-xs text-muted">Borrador sin confirmar</span>
+                  : <span className="tabular-nums font-semibold text-text">{formatearMonedaExacta(pedido.factura.total)}</span>}
+                <ArrowRight size={13} className="text-muted" />
+              </span>
+            </Link>
+          ) : (
+            <p className="text-sm text-muted">Todavía no se cargó la factura de este pedido.</p>
+          )}
+          {!pedido.factura && (
+            <Link href={hrefFactura} className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-text underline decoration-accent decoration-2 underline-offset-4 transition-opacity hover:opacity-80">
+              Cargar factura <ArrowRight size={14} />
+            </Link>
+          )}
         </section>
       )}
 

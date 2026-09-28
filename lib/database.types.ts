@@ -74,6 +74,222 @@ export type Database = {
         }
         Relationships: []
       }
+      compras_factura_items: {
+        Row: {
+          alicuota_iva: number
+          cantidad: number
+          descripcion: string
+          factura_id: string
+          id: string
+          item_id: string | null
+          iva: number | null
+          orden: number
+          pedido_item_id: string | null
+          precio_unitario: number
+          subtotal: number | null
+          unidad: string | null
+        }
+        Insert: {
+          alicuota_iva?: number
+          cantidad: number
+          descripcion: string
+          factura_id: string
+          id?: string
+          item_id?: string | null
+          iva?: number | null
+          orden?: number
+          pedido_item_id?: string | null
+          precio_unitario?: number
+          subtotal?: number | null
+          unidad?: string | null
+        }
+        Update: {
+          alicuota_iva?: number
+          cantidad?: number
+          descripcion?: string
+          factura_id?: string
+          id?: string
+          item_id?: string | null
+          iva?: number | null
+          orden?: number
+          pedido_item_id?: string | null
+          precio_unitario?: number
+          subtotal?: number | null
+          unidad?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_factura_items_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_items_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_items_pedido_item_id_fkey"
+            columns: ["pedido_item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedido_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_items_pedido_item_id_fkey"
+            columns: ["pedido_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_pedido_pendiente"
+            referencedColumns: ["pedido_item_id"]
+          },
+        ]
+      }
+      compras_facturas: {
+        Row: {
+          anulada_en: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          confirmada_en: string | null
+          confirmada_por: string | null
+          creado_por: string | null
+          created_at: string
+          estado: string
+          factura_origen_id: string | null
+          fecha: string
+          fecha_vencimiento: string | null
+          id: string
+          iva: number
+          mercaderia_llego: boolean | null
+          numero: string
+          numero_normalizado: string | null
+          observaciones: string | null
+          pedido_id: string
+          proveedor_id: string
+          subtotal: number
+          tipo_comprobante: string
+          total: number
+          total_papel: number | null
+        }
+        Insert: {
+          anulada_en?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          confirmada_en?: string | null
+          confirmada_por?: string | null
+          creado_por?: string | null
+          created_at?: string
+          estado?: string
+          factura_origen_id?: string | null
+          fecha: string
+          fecha_vencimiento?: string | null
+          id?: string
+          iva?: number
+          mercaderia_llego?: boolean | null
+          numero: string
+          numero_normalizado?: string | null
+          observaciones?: string | null
+          pedido_id: string
+          proveedor_id: string
+          subtotal?: number
+          tipo_comprobante?: string
+          total?: number
+          total_papel?: number | null
+        }
+        Update: {
+          anulada_en?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          confirmada_en?: string | null
+          confirmada_por?: string | null
+          creado_por?: string | null
+          created_at?: string
+          estado?: string
+          factura_origen_id?: string | null
+          fecha?: string
+          fecha_vencimiento?: string | null
+          id?: string
+          iva?: number
+          mercaderia_llego?: boolean | null
+          numero?: string
+          numero_normalizado?: string | null
+          observaciones?: string | null
+          pedido_id?: string
+          proveedor_id?: string
+          subtotal?: number
+          tipo_comprobante?: string
+          total?: number
+          total_papel?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_facturas_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_confirmada_por_fkey"
+            columns: ["confirmada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_factura_origen_id_fkey"
+            columns: ["factura_origen_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_factura_origen_id_fkey"
+            columns: ["factura_origen_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compras_item_proveedores: {
         Row: {
           activo: boolean
@@ -132,6 +348,7 @@ export type Database = {
       compras_items: {
         Row: {
           a_demanda: boolean
+          alicuota_iva: number
           cantidad_por_masa: number
           cantidad_por_unidad: number
           categoria_id: string | null
@@ -147,6 +364,7 @@ export type Database = {
         }
         Insert: {
           a_demanda?: boolean
+          alicuota_iva?: number
           cantidad_por_masa?: number
           cantidad_por_unidad?: number
           categoria_id?: string | null
@@ -162,6 +380,7 @@ export type Database = {
         }
         Update: {
           a_demanda?: boolean
+          alicuota_iva?: number
           cantidad_por_masa?: number
           cantidad_por_unidad?: number
           categoria_id?: string | null
@@ -571,27 +790,33 @@ export type Database = {
         Row: {
           creado_por: string | null
           created_at: string | null
+          factura_id: string | null
           fecha: string
           id: string
           numero: string | null
+          origen: string
           pedido_id: string
           secuencia: number
         }
         Insert: {
           creado_por?: string | null
           created_at?: string | null
+          factura_id?: string | null
           fecha: string
           id?: string
           numero?: string | null
+          origen?: string
           pedido_id: string
           secuencia: number
         }
         Update: {
           creado_por?: string | null
           created_at?: string | null
+          factura_id?: string | null
           fecha?: string
           id?: string
           numero?: string | null
+          origen?: string
           pedido_id?: string
           secuencia?: number
         }
@@ -601,6 +826,20 @@ export type Database = {
             columns: ["creado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_remitos_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_remitos_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
             referencedColumns: ["id"]
           },
           {
@@ -803,6 +1042,7 @@ export type Database = {
           creado_por: string | null
           created_at: string
           delta: number
+          factura_id: string | null
           id: string
           item_id: string
           motivo: string | null
@@ -817,6 +1057,7 @@ export type Database = {
           creado_por?: string | null
           created_at?: string
           delta: number
+          factura_id?: string | null
           id?: string
           item_id: string
           motivo?: string | null
@@ -831,6 +1072,7 @@ export type Database = {
           creado_por?: string | null
           created_at?: string
           delta?: number
+          factura_id?: string | null
           id?: string
           item_id?: string
           motivo?: string | null
@@ -871,6 +1113,20 @@ export type Database = {
             columns: ["creado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
             referencedColumns: ["id"]
           },
           {
@@ -3192,6 +3448,50 @@ export type Database = {
         }
         Relationships: []
       }
+      v_compras_facturas: {
+        Row: {
+          anulada_en: string | null
+          anulada_motivo: string | null
+          anulada_por_nombre: string | null
+          confirmada_en: string | null
+          confirmada_por_nombre: string | null
+          creado_por_nombre: string | null
+          created_at: string | null
+          estado: string | null
+          fecha: string | null
+          fecha_vencimiento: string | null
+          id: string | null
+          iva: number | null
+          mercaderia_llego: boolean | null
+          numero: string | null
+          numero_normalizado: string | null
+          observaciones: string | null
+          pedido_id: string | null
+          pedido_numero: number | null
+          proveedor_id: string | null
+          proveedor_nombre: string | null
+          subtotal: number | null
+          tipo_comprobante: string | null
+          total: number | null
+          total_papel: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_facturas_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_compras_items: {
         Row: {
           cantidad_por_masa: number | null
@@ -3407,8 +3707,24 @@ export type Database = {
         }
         Returns: Json
       }
+      compras_anular_factura: {
+        Args: { p_factura_id?: string; p_motivo?: string }
+        Returns: Json
+      }
       compras_cerrar_pedido_manual: {
         Args: { p_motivo: string; p_pedido_id: string }
+        Returns: undefined
+      }
+      compras_confirmar_factura: {
+        Args: {
+          p_actualizar_precios?: boolean
+          p_factura_id?: string
+          p_mercaderia_llego?: boolean
+        }
+        Returns: Json
+      }
+      compras_descartar_factura: {
+        Args: { p_factura_id?: string }
         Returns: undefined
       }
       compras_eliminar_pedido: {
@@ -3416,6 +3732,20 @@ export type Database = {
         Returns: undefined
       }
       compras_eliminar_remito: { Args: { p_remito_id: string }; Returns: Json }
+      compras_guardar_factura: {
+        Args: {
+          p_factura_id?: string
+          p_fecha?: string
+          p_ids_conocidos?: string[]
+          p_items?: Json
+          p_numero?: string
+          p_observaciones?: string
+          p_pedido_id?: string
+          p_total_papel?: number
+          p_vencimiento?: string
+        }
+        Returns: Json
+      }
       compras_guardar_pedido: {
         Args: {
           p_items?: Json
@@ -3443,6 +3773,7 @@ export type Database = {
           p_anula_movimiento_id?: string
           p_conteo_id?: string
           p_delta: number
+          p_factura_id?: string
           p_item_id: string
           p_motivo?: string
           p_remito_id?: string

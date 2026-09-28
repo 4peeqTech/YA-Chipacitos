@@ -1,7 +1,7 @@
 import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import PedidosClient from './PedidosClient'
-import { consultarCatalogo, consultarPedidos, consultarProveedores } from './datos'
+import { consultarCatalogo, consultarFacturasDePedidos, consultarPedidos, consultarProveedores } from './datos'
 
 export const metadata = { title: 'Pedidos | YA! Chipacitos' }
 
@@ -16,6 +16,11 @@ export default async function PedidosPage({
 
   const { pedido } = await searchParams
 
+  // Solo admin ve y carga facturas (P1). La RLS ya lo garantiza; el rol define
+  // además qué le ofrecemos en pantalla.
+  const { data: perfil } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
+  const esAdmin = perfil?.rol === 'admin'
+
   const [
     { data: pedidos },
     { data: lineas },
@@ -26,6 +31,7 @@ export default async function PedidosPage({
     { data: plantillas },
     { data: locales },
     { data: eliminados },
+    { data: facturas },
   ] = await Promise.all([
     consultarPedidos(supabase),
     supabase.from('v_compras_pedido_pendiente').select('*').order('orden'),
@@ -40,6 +46,7 @@ export default async function PedidosPage({
       .order('orden'),
     supabase.from('locales_facturacion').select('*').eq('activo', true).order('orden'),
     supabase.from('v_compras_pedidos_eliminados').select('*').order('numero', { ascending: false }),
+    consultarFacturasDePedidos(supabase),
   ])
 
   return (
@@ -53,6 +60,8 @@ export default async function PedidosPage({
       plantillas={plantillas ?? []}
       localesFacturacion={locales ?? []}
       eliminados={eliminados ?? []}
+      facturas={facturas ?? []}
+      esAdmin={esAdmin}
       pedidoInicial={pedido}
     />
   )

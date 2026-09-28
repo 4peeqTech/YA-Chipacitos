@@ -6,6 +6,7 @@ import { Archive, ArchiveRestore, Pencil, Plus, Search, Star, Trash2, TriangleAl
 import { createClient } from '@/lib/supabase/client'
 import { esPorMasaSinReceta, type ModoCalculo, type Redondeo } from '@/lib/fabrica/calculoSugerido'
 import { REDONDEO_LABEL } from '@/lib/estados'
+import { ALICUOTA_DEFAULT, ALICUOTAS, etiquetaAlicuota } from '@/lib/compras/totalesFactura'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
@@ -44,6 +45,8 @@ interface CompraItem {
   stock_maximo: number | null
   /** "Se pide a demanda": no avisa sobrestock salvo que tenga stock_maximo (decisión X2). */
   a_demanda: boolean
+  /** IVA con el que suele venir en la factura del proveedor. Se copia a la línea y ahí se puede cambiar (F3). */
+  alicuota_iva: number
   precio: number | null
   estado: 'activo' | 'archivado'
   compras_item_proveedores: ItemProveedor[]
@@ -61,6 +64,7 @@ const emptyForm = (): Partial<CompraItem> => ({
   redondeo: 'estandar',
   stock_maximo: null,
   a_demanda: false,
+  alicuota_iva: ALICUOTA_DEFAULT,
   precio: null,
   estado: 'activo',
 })
@@ -516,6 +520,19 @@ export default function InsumosClient({
               <HelpTooltip text="Piso general de este insumo, sin relación con ningún conteo — lo usan la sugerencia de /admin/compras/pedidos y el indicador de bajo stock de /admin/compras/stock. Si el insumo participa de un conteo, ese conteo tiene su propia meta independiente de esta." />
             </label>
             <InputNumero placeholder="0" className={inputClass} value={!form.stock_minimo ? null : form.stock_minimo} onChange={v => setForm(f => ({...f, stock_minimo: v ?? 0}))} />
+          </div>
+          <div>
+            <label className={labelClass}>
+              IVA
+              <HelpTooltip text="Con qué alícuota suele venir este insumo en la factura del proveedor. Se copia a la línea de la factura cuando la cargás, y ahí se puede cambiar si esa factura vino distinta." />
+            </label>
+            <select
+              className={inputClass}
+              value={String(form.alicuota_iva ?? ALICUOTA_DEFAULT)}
+              onChange={e => setForm(f => ({ ...f, alicuota_iva: Number(e.target.value) }))}
+            >
+              {ALICUOTAS.map(a => <option key={a} value={a}>{etiquetaAlicuota(a)}</option>)}
+            </select>
           </div>
           <div>
             <label className={labelClass}>

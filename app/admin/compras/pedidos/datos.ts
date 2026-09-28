@@ -16,7 +16,7 @@ export function consultarPedidos(supabase: Cliente) {
       proveedores(id, nombre, local_facturacion_id, contacto_nombre, contacto_telefono, maneja_stock),
       compras_solicitudes(tipo),
       compras_pedido_items(id, item_id, descripcion, unidad, cantidad, orden),
-      compras_remitos(id, secuencia, fecha, created_at, compras_remito_items(count))
+      compras_remitos(id, secuencia, fecha, created_at, origen, compras_remito_items(count))
     `)
     .order('created_at', { ascending: false })
 }
@@ -37,7 +37,21 @@ export function consultarProveedores(supabase: Cliente) {
     .order('nombre')
 }
 
+/**
+ * Resumen de la factura de cada pedido (F4). Las tablas de factura tienen RLS
+ * es_admin(), así que un colaborador recibe una lista vacía y la columna y la
+ * sección de Factura no se le muestran.
+ */
+export function consultarFacturasDePedidos(supabase: Cliente) {
+  return supabase
+    .from('compras_facturas')
+    .select('id, pedido_id, numero, fecha, total, estado')
+    .eq('tipo_comprobante', 'factura')
+    .neq('estado', 'anulada')
+}
+
 export type PedidoFila = QueryData<ReturnType<typeof consultarPedidos>>[number]
+export type FacturaDePedido = QueryData<ReturnType<typeof consultarFacturasDePedidos>>[number]
 export type ItemCatalogo = QueryData<ReturnType<typeof consultarCatalogo>>[number]
 export type ProveedorPedido = QueryData<ReturnType<typeof consultarProveedores>>[number]
 export type LineaPendiente = Database['public']['Views']['v_compras_pedido_pendiente']['Row']

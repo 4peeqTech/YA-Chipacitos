@@ -3,7 +3,7 @@ import {
   estadoVisible, estaDemorado, filtroDelPedido,
   type EstadoFacturacion, type EstadoPedidoEntrada, type EstadoRecepcion, type EstadoVisible, type FiltroPedidos,
 } from '@/lib/compras/estadoPedido'
-import type { EventoPedido, LineaPendiente, PedidoFila } from './datos'
+import type { EventoPedido, FacturaDePedido, LineaPendiente, PedidoFila } from './datos'
 
 export type Origen = 'Pedido base' | 'Complementario' | 'Manual'
 
@@ -27,6 +27,8 @@ export interface PedidoVista {
   demorado: boolean
   /** Se puede editar ítems (no facturado, no cerrado, no devuelto). */
   editable: boolean
+  /** Su factura activa, si tiene y si quien mira puede verla (F4). */
+  factura: FacturaDePedido | null
 }
 
 const RECEPCION: EstadoRecepcion[] = ['sin_enviar', 'enviado', 'parcial', 'recibido', 'cerrado_manual', 'devuelto']
@@ -48,8 +50,11 @@ export function armarVistas(
   pedidos: PedidoFila[],
   lineas: LineaPendiente[],
   eventos: EventoPedido[],
+  facturas: FacturaDePedido[] = [],
+  puedeFacturar = false,
   ahora: Date = new Date(),
 ): PedidoVista[] {
+  const facturaPorPedido = new Map(facturas.map(f => [f.pedido_id, f]))
   const lineasPorPedido = new Map<string, LineaPendiente[]>()
   for (const l of lineas) {
     if (!l.pedido_id) continue
@@ -69,12 +74,16 @@ export function armarVistas(
     const propias = (lineasPorPedido.get(fila.id) ?? []).sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
     const lineasPendientes = propias.filter(l => (l.pendiente ?? 0) > 0).length
     const recibioAlgo = propias.some(l => (l.recibido ?? 0) > 0) || fila.compras_remitos.length > 0
+    const factura = facturaPorPedido.get(fila.id) ?? null
     const entrada: EstadoPedidoEntrada = {
       estado_recepcion: aRecepcion(fila.estado_recepcion),
       estado_facturacion: aFacturacion(fila.estado_facturacion),
       enviado_en: fila.enviado_en,
       lineas: propias.length,
       lineasPendientes,
+      recibioAlgo,
+      puedeFacturar,
+      facturaEnBorrador: factura?.estado === 'borrador',
     }
     const visible = estadoVisible(entrada)
     return {
@@ -95,6 +104,7 @@ export function armarVistas(
       editable: entrada.estado_facturacion !== 'facturado'
         && entrada.estado_recepcion !== 'cerrado_manual'
         && entrada.estado_recepcion !== 'devuelto',
+      factura,
     }
   })
 }

@@ -13,7 +13,7 @@ import SearchInput from '@/components/ui/SearchInput'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
-import { formatearFecha } from '@/lib/formato'
+import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { codigoPedido } from '@/lib/compras/codigos'
 import { DIAS_DEMORA, subtextoEstado, type FiltroPedidos } from '@/lib/compras/estadoPedido'
 import { armarVistas, coincideBusqueda, type PedidoVista } from './modelo'
@@ -23,7 +23,7 @@ import PedidoEnvio from './PedidoEnvio'
 import CerrarPedidoModal from './CerrarPedidoModal'
 import PedidosEliminados from './PedidosEliminados'
 import { reabrirPedido } from './acciones'
-import type { EventoPedido, ItemCatalogo, LineaPendiente, LocalFacturacion, PedidoEliminado, PedidoFila, Plantilla, ProveedorPedido } from './datos'
+import type { EventoPedido, FacturaDePedido, ItemCatalogo, LineaPendiente, LocalFacturacion, PedidoEliminado, PedidoFila, Plantilla, ProveedorPedido } from './datos'
 
 type Vista = 'detalle' | 'editar' | 'enviar' | 'cerrar' | 'eliminar'
 
@@ -57,6 +57,8 @@ export default function PedidosClient({
   plantillas,
   localesFacturacion,
   eliminados,
+  facturas,
+  esAdmin,
   pedidoInicial,
 }: {
   pedidos: PedidoFila[]
@@ -68,6 +70,9 @@ export default function PedidosClient({
   plantillas: Plantilla[]
   localesFacturacion: LocalFacturacion[]
   eliminados: PedidoEliminado[]
+  facturas: FacturaDePedido[]
+  /** Solo admin ve la factura del pedido y puede cargarla (P1). */
+  esAdmin: boolean
   pedidoInicial?: string
 }) {
   const confirmar = useConfirmar()
@@ -85,7 +90,10 @@ export default function PedidosClient({
 
   // Los datos vienen siempre del servidor: las acciones llaman a refresh() y
   // la pantalla se vuelve a armar con lo que quedó en la base.
-  const vistas = useMemo(() => armarVistas(pedidos, lineas, eventos), [pedidos, lineas, eventos])
+  const vistas = useMemo(
+    () => armarVistas(pedidos, lineas, eventos, facturas, esAdmin),
+    [pedidos, lineas, eventos, facturas, esAdmin],
+  )
   const stockPorItem = useMemo(() => Object.fromEntries(stock.map(s => [s.item_id, s.cantidad])), [stock])
   const abierto = abiertoId ? vistas.find(v => v.fila.id === abiertoId) ?? null : null
   const activos = useMemo(() => vistas.filter(v => v.filtro === 'activos'), [vistas])
@@ -281,6 +289,26 @@ export default function PedidosClient({
       alinear: 'right',
       ocultarHasta: 'lg',
     },
+    ...(esAdmin ? [{
+      key: 'factura',
+      header: 'Factura',
+      alinear: 'right' as const,
+      render: (p: PedidoVista) => {
+        if (!p.factura) return <span className="text-muted" aria-label="Sin factura">—</span>
+        return (
+          <div className="whitespace-nowrap">
+            <p className="font-mono text-xs tabular-nums text-text">{p.factura.numero}</p>
+            <p className="text-2xs tabular-nums text-muted">
+              {p.factura.estado === 'borrador' ? 'borrador' : formatearMonedaExacta(p.factura.total)}
+            </p>
+          </div>
+        )
+      },
+      ordenar: (p: PedidoVista) => p.factura?.numero ?? '',
+      // 'xl' y no 'lg': dentro de /admin el sidebar se come 240px y esta tabla
+      // ya venía justa de ancho.
+      ocultarHasta: 'xl' as const,
+    }] : []),
   ]
 
   const filtroActual = FILTROS.find(f => f.value === filtro) ?? FILTROS[0]
@@ -404,6 +432,7 @@ export default function PedidosClient({
           <PedidoDetalle
             pedido={abierto}
             pendiente={isPending}
+            esAdmin={esAdmin}
             acciones={{
               onEnviar: () => { setAvisoReenvio(false); setVista('enviar') },
               onEditar: () => setVista('editar'),

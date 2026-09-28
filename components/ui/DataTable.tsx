@@ -11,8 +11,12 @@ export interface Columna<T> {
   /** Contenido del footer para esta columna (ej. un total). */
   pie?: ReactNode
   alinear?: 'left' | 'right' | 'center'
-  /** Oculta la columna por debajo de este breakpoint, para responsive sin duplicar tablas. */
-  ocultarHasta?: 'sm' | 'md' | 'lg'
+  /**
+   * Oculta la columna por debajo de este breakpoint, para responsive sin duplicar
+   * tablas. Ojo con el ancho real: dentro de /admin el sidebar se come 240px, así
+   * que una tabla de muchas columnas necesita 'xl' para no desbordar.
+   */
+  ocultarHasta?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
 }
 
@@ -20,6 +24,7 @@ const OCULTAR_CLASS: Record<NonNullable<Columna<unknown>['ocultarHasta']>, strin
   sm: 'hidden sm:table-cell',
   md: 'hidden md:table-cell',
   lg: 'hidden lg:table-cell',
+  xl: 'hidden xl:table-cell',
 }
 
 const ALINEAR_CLASS: Record<NonNullable<Columna<unknown>['alinear']>, string> = {

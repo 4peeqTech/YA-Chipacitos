@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { LayoutDashboard, Wallet, BarChart3, RefreshCw, ListTodo, HelpCircle } from 'lucide-react'
@@ -5,6 +6,7 @@ import Header from '@/components/ui/Header'
 import BottomNav from '@/components/ui/BottomNav'
 import Sidebar from '@/components/ui/Sidebar'
 import NotificationBell from '@/components/ui/NotificationBell'
+import AvisoRedireccion from '@/components/ui/AvisoRedireccion'
 import { esRolConModulos } from '@/lib/modulos'
 
 // El control fino de qué rutas /admin/* puede pisar un usuario squad o de
@@ -39,6 +41,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
+      {/* Cuenta el rebote de proxy.ts cuando el link pedía un módulo sin permiso */}
+      <Suspense fallback={null}><AvisoRedireccion /></Suspense>
+
       {/* Sidebar solo desktop */}
       <Sidebar
         nombre={profile?.nombre || 'Admin'}

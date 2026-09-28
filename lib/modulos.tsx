@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Wallet, Clock, BarChart3, Landmark,
   RefreshCw, TrendingUp, Receipt,
   Package, Link2, Users, Shield, ClipboardList, CreditCard, Factory,
-  Truck, ShoppingBasket, ListTodo, Boxes,
+  Truck, ShoppingBasket, ListTodo, Boxes, ReceiptText,
 } from 'lucide-react'
 
 export interface Modulo {
@@ -14,6 +14,13 @@ export interface Modulo {
   section?: string
   /** Escritura (y asignación en Usuarios) exclusiva de admin, sin importar modulos_permitidos. */
   soloAdmin?: boolean
+  /**
+   * No aparece en el Sidebar ni en el editor de permisos: la pantalla se abre
+   * desde otro lado (una pestaña, un link profundo). Sigue estando en MODULOS
+   * porque el guard de /admin/* de proxy.ts resuelve el permiso por href, y sin
+   * su entrada heredaría el del módulo padre.
+   */
+  oculto?: boolean
 }
 
 // Registro único de módulos asignables. Lo usan el Sidebar (navegación),
@@ -49,6 +56,9 @@ export const MODULOS: Modulo[] = [
   { key: 'compras-stock',    label: 'Stock',    icon: <Package size={16} />, href: '/admin/compras/stock',    section: 'Compras' },
   { key: 'compras-pedidos',  label: 'Pedidos',  icon: <ClipboardList size={16} />, href: '/admin/compras/pedidos',  section: 'Compras' },
   { key: 'compras-reportes', label: 'Reportes', icon: <BarChart3 size={16} />, href: '/admin/compras/reportes', section: 'Compras' },
+  // Pestaña dentro de Pedidos, no ítem del menú: está acá para que el guard de
+  // proxy.ts la trate como propia y no herede el permiso de compras-pedidos.
+  { key: 'compras-facturas', label: 'Facturas', icon: <ReceiptText size={16} />, href: '/admin/compras/pedidos/facturas', section: 'Compras', soloAdmin: true, oculto: true },
 
   { key: 'fabrica-reportes',        label: 'Reportes',        icon: <BarChart3 size={16} />,   href: '/admin/fabrica/reportes',        section: 'Fábrica', soloAdmin: true },
   { key: 'fabrica-registros',       label: 'Registros',       icon: <ClipboardList size={16} />, href: '/admin/fabrica/registros',     section: 'Fábrica', soloAdmin: true },

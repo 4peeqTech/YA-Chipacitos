@@ -20,6 +20,16 @@ const CONSTRAINTS: Record<string, string> = {
     'Ese ajuste ya se revirtió. Recargá la página para ver el historial al día.',
   compras_stock_movimientos_delta_no_cero:
     'El movimiento no cambia el stock: no hay nada que registrar.',
+  compras_facturas_numero_unique:
+    'Ya cargaste una factura con ese número para este proveedor. Buscala por su número en la lista de facturas.',
+  compras_facturas_una_por_pedido:
+    'Ese pedido ya tiene una factura. Abrila desde la lista de facturas o anulala para cargar otra.',
+  compras_factura_items_pedido_item_id_fkey:
+    'Esa línea del pedido ya está facturada: no se puede borrar. Anulá la factura primero.',
+  compras_items_alicuota_iva_valida:
+    'Esa alícuota de IVA no existe. Elegí una de la lista: 0, 2,5, 5, 10,5, 21 o 27 %.',
+  compras_factura_items_alicuota_iva_check:
+    'Esa alícuota de IVA no existe. Elegí una de la lista: 0, 2,5, 5, 10,5, 21 o 27 %.',
 }
 
 function extraerMensaje(error: unknown): string {
@@ -51,7 +61,10 @@ export function mensajeError(error: unknown, fallback: string): string {
     return (constraint && CONSTRAINTS[constraint]) || 'Ya existe un registro con esos datos.'
   }
 
-  if (codigo === '23503') return 'No se puede borrar porque hay otros registros que lo están usando.'
+  if (codigo === '23503') {
+    const constraint = mensaje.match(/foreign key constraint "([^"]+)"/)?.[1]
+    return (constraint && CONSTRAINTS[constraint]) || 'No se puede borrar porque hay otros registros que lo están usando.'
+  }
 
   if (codigo === '23514') {
     const constraint = mensaje.match(/check constraint "([^"]+)"/)?.[1]

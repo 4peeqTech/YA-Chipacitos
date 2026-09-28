@@ -16,6 +16,12 @@ export interface EstadoPedidoEntrada {
   /** Desde F5/F6; hasta entonces siempre false. */
   hayDiferencias?: boolean
   hayDevolucion?: boolean
+  /** Llegó algo: define si un pedido cerrado a mano todavía espera su factura. */
+  recibioAlgo?: boolean
+  /** Quien mira puede cargar facturas (solo admin). Si no, no se le ofrece. */
+  puedeFacturar?: boolean
+  /** Ya hay una factura en borrador de este pedido. */
+  facturaEnBorrador?: boolean
 }
 
 // TODO(config): compras_config 'pedidos.dias_demora' (decidido con el usuario el 24-09: 3 días).
@@ -53,7 +59,7 @@ export function estaDemorado(p: Pick<EstadoPedidoEntrada, 'estado_recepcion' | '
   return dias != null && dias >= DIAS_DEMORA
 }
 
-export type TipoAccion = 'enviar' | 'cargar_remito' | 'ninguna'
+export type TipoAccion = 'enviar' | 'cargar_remito' | 'cargar_factura' | 'ninguna'
 
 export interface ProximaAccion {
   tipo: TipoAccion
@@ -94,11 +100,37 @@ export function proximaAccion(p: EstadoPedidoEntrada, ahora: Date = new Date()):
         boton: 'Cargar remito',
       }
     case 'recibido':
-      return { tipo: 'ninguna', titulo: 'Llegó todo', descripcion: 'Se recibió todo lo pedido.', boton: null }
+      return p.puedeFacturar
+        ? {
+          tipo: 'cargar_factura',
+          titulo: 'Llegó todo',
+          descripcion: p.facturaEnBorrador
+            ? 'Se recibió todo lo pedido y la factura quedó en borrador. Terminala y confirmala.'
+            : 'Se recibió todo lo pedido. Cuando llegue la factura del proveedor, cargala.',
+          boton: p.facturaEnBorrador ? 'Seguir con la factura' : 'Cargar factura',
+        }
+        : { tipo: 'ninguna', titulo: 'Llegó todo', descripcion: 'Se recibió todo lo pedido.', boton: null }
     case 'cerrado':
-      return { tipo: 'ninguna', titulo: 'Cerrado a mano', descripcion: 'Este pedido ya no espera mercadería. Si fue un error, reabrilo.', boton: null }
-    case 'facturado':
-      return { tipo: 'ninguna', titulo: 'Facturado', descripcion: 'El pedido tiene su factura cargada.', boton: null }
+      return p.puedeFacturar && p.recibioAlgo
+        ? {
+          tipo: 'cargar_factura',
+          titulo: 'Cerrado a mano',
+          descripcion: 'Ya no espera más mercadería, pero llegó parte: falta cargar su factura.',
+          boton: p.facturaEnBorrador ? 'Seguir con la factura' : 'Cargar factura',
+        }
+        : { tipo: 'ninguna', titulo: 'Cerrado a mano', descripcion: 'Este pedido ya no espera mercadería. Si fue un error, reabrilo.', boton: null }
+    case 'facturado': {
+      // FA2: se facturó antes de que llegara la mercadería.
+      const esperando = p.estado_recepcion === 'enviado' || p.estado_recepcion === 'parcial'
+      return esperando
+        ? {
+          tipo: 'cargar_remito',
+          titulo: 'Facturado, falta recibir',
+          descripcion: 'La factura ya está cargada. Cuando llegue la mercadería, cargá el remito.',
+          boton: 'Cargar remito',
+        }
+        : { tipo: 'ninguna', titulo: 'Facturado', descripcion: 'El pedido tiene su factura cargada.', boton: null }
+    }
     case 'devuelto':
       return { tipo: 'ninguna', titulo: 'Devuelto', descripcion: 'La mercadería se devolvió al proveedor.', boton: null }
   }
