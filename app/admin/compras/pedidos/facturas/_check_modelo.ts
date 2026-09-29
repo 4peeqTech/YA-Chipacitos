@@ -1,7 +1,7 @@
 // Chequeo de las funciones puras de la pantalla de Facturas.
 // Correr con: npx tsx app/admin/compras/pedidos/facturas/_check_modelo.ts
 import {
-  agregarDelPedido, armarEnvio, coincideBusqueda, entraEnFiltro, estadoInicial, facturaDuplicada,
+  agregarDelPedido, armarEnvio, coincideBusqueda, entraEnFiltro, estadoInicial, estaVencida, facturaDuplicada,
   faltantesDelPedido, lineaLibre, lineasIniciales, normalizarNumero, pedidosFacturables,
   resumenRecepcion, tieneRemitos, totales, validar,
   type ContextoPedido, type EstadoFactura, type FacturaVista, type LineaFactura,
@@ -83,6 +83,8 @@ const vista = (p: Partial<FacturaVista> = {}): FacturaVista => ({
   codigo: 'P-0025', proveedorId: PROV, proveedor: 'GLOBAL', fecha: '2026-09-28', vencimiento: null,
   subtotal: 8000, iva: 1680, total: 9680, totalPapel: null, observaciones: '', mercaderiaLlego: null,
   confirmadaEn: null, confirmadaPor: null, anuladaEn: null, anuladaPor: null, anuladaMotivo: null,
+  gastoId: null, gastoGenerado: false, gastoEstado: null, gastoLocal: null, pedidoEstadoRecepcion: 'recibido',
+  diferenciasPendientes: 0, diferenciasAResolver: 0,
   ...p,
 })
 
@@ -157,6 +159,12 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'activas deja afuera las anuladas', real: entraEnFiltro(vista({ estado: 'anulada' }), 'activas'), esperado: false },
   { nombre: 'activas incluye borradores', real: entraEnFiltro(vista({ estado: 'borrador' }), 'activas'), esperado: true },
   { nombre: 'todas incluye anuladas', real: entraEnFiltro(vista({ estado: 'anulada' }), 'todas'), esperado: true },
+  { nombre: 'con diferencias: solo las que se pueden resolver', real: entraEnFiltro(vista({ diferenciasPendientes: 2, diferenciasAResolver: 0 }), 'con_diferencias'), esperado: false },
+  { nombre: 'con diferencias: a resolver', real: entraEnFiltro(vista({ diferenciasPendientes: 2, diferenciasAResolver: 2 }), 'con_diferencias'), esperado: true },
+  { nombre: 'vencida sin gasto pagado', real: estaVencida(vista({ vencimiento: '2026-09-20' }), '2026-09-29'), esperado: true },
+  { nombre: 'vencida pero pagada', real: estaVencida(vista({ vencimiento: '2026-09-20', gastoEstado: 'Pagado' }), '2026-09-29'), esperado: false },
+  { nombre: 'vence hoy no está vencida', real: estaVencida(vista({ vencimiento: '2026-09-29' }), '2026-09-29'), esperado: false },
+  { nombre: 'un borrador no se marca vencido', real: estaVencida(vista({ estado: 'borrador', vencimiento: '2026-09-01' }), '2026-09-29'), esperado: false },
   { nombre: 'busca por proveedor', real: coincideBusqueda(vista(), 'global'), esperado: true },
   { nombre: 'busca por número parcial', real: coincideBusqueda(vista(), '12345'), esperado: true },
   { nombre: 'busca por código de pedido', real: coincideBusqueda(vista(), 'P-0025'), esperado: true },

@@ -23,6 +23,7 @@ import PedidoEnvio from './PedidoEnvio'
 import CerrarPedidoModal from './CerrarPedidoModal'
 import PedidosEliminados from './PedidosEliminados'
 import { reabrirPedido } from './acciones'
+import type { DiferenciaFila } from '@/lib/compras/diferencias'
 import type { EventoPedido, FacturaDePedido, ItemCatalogo, LineaPendiente, LocalFacturacion, PedidoEliminado, PedidoFila, Plantilla, ProveedorPedido } from './datos'
 
 type Vista = 'detalle' | 'editar' | 'enviar' | 'cerrar' | 'eliminar'
@@ -58,6 +59,7 @@ export default function PedidosClient({
   localesFacturacion,
   eliminados,
   facturas,
+  diferencias,
   esAdmin,
   pedidoInicial,
 }: {
@@ -71,6 +73,7 @@ export default function PedidosClient({
   localesFacturacion: LocalFacturacion[]
   eliminados: PedidoEliminado[]
   facturas: FacturaDePedido[]
+  diferencias: DiferenciaFila[]
   /** Solo admin ve la factura del pedido y puede cargarla (P1). */
   esAdmin: boolean
   pedidoInicial?: string
@@ -91,8 +94,8 @@ export default function PedidosClient({
   // Los datos vienen siempre del servidor: las acciones llaman a refresh() y
   // la pantalla se vuelve a armar con lo que quedó en la base.
   const vistas = useMemo(
-    () => armarVistas(pedidos, lineas, eventos, facturas, esAdmin),
-    [pedidos, lineas, eventos, facturas, esAdmin],
+    () => armarVistas(pedidos, lineas, eventos, facturas, esAdmin, undefined, diferencias),
+    [pedidos, lineas, eventos, facturas, esAdmin, diferencias],
   )
   const stockPorItem = useMemo(() => Object.fromEntries(stock.map(s => [s.item_id, s.cantidad])), [stock])
   const abierto = abiertoId ? vistas.find(v => v.fila.id === abiertoId) ?? null : null
@@ -433,6 +436,7 @@ export default function PedidosClient({
             pedido={abierto}
             pendiente={isPending}
             esAdmin={esAdmin}
+            stockPorItem={stockPorItem}
             acciones={{
               onEnviar: () => { setAvisoReenvio(false); setVista('enviar') },
               onEditar: () => setVista('editar'),

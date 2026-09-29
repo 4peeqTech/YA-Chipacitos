@@ -102,28 +102,50 @@ const ConfirmarFactura = z.object({
   /** FA1/FA2: obligatorio solo cuando el pedido no tiene remitos. */
   mercaderiaLlego: z.boolean().nullable(),
   actualizarPrecios: z.boolean(),
+  /** FA10: un gasto cargado a mano que es esta factura. Si viene, no se crea otro. */
+  gastoExistenteId: z.uuid().nullable(),
+  /** Local del gasto nuevo (se elige al confirmar). */
+  gastoLocal: z.string().trim().min(1).nullable(),
 })
 
-export interface FacturaConfirmada { remitoGenerado: string | null; impacto: ImpactoStock }
+export interface FacturaConfirmada {
+  remitoGenerado: string | null
+  impacto: ImpactoStock
+  gastoCreado: boolean
+  /** Diferencias con lo recibido que dejó la confirmación. */
+  diferencias: number
+}
 
 export async function confirmarFactura(
   entrada: z.input<typeof ConfirmarFactura>,
 ): Promise<Resultado<FacturaConfirmada>> {
   const parsed = ConfirmarFactura.safeParse(entrada)
   if (!parsed.success) return fallo(null, 'No encontramos la factura. Recargá la página.')
-  const { facturaId, mercaderiaLlego, actualizarPrecios } = parsed.data
+  const { facturaId, mercaderiaLlego, actualizarPrecios, gastoExistenteId, gastoLocal } = parsed.data
   try {
     const supabase = await createClientTipado()
     const { data, error } = await supabase.rpc('compras_confirmar_factura', {
       p_factura_id: facturaId,
       p_mercaderia_llego: mercaderiaLlego ?? undefined,
       p_actualizar_precios: actualizarPrecios,
+      p_gasto_existente_id: gastoExistenteId ?? undefined,
+      p_gasto_local: gastoLocal ?? undefined,
     })
     if (error) { refresh(); return fallo(error, 'No se pudo confirmar la factura.') }
-    const res = z.object({ remito_generado: z.string().nullable(), impacto: Impacto }).safeParse(data)
+    const res = z.object({
+      remito_generado: z.string().nullable(),
+      impacto: Impacto,
+      gasto_creado: z.boolean(),
+      diferencias: z.number(),
+    }).safeParse(data)
     refresh()
     if (!res.success) return fallo(null, 'La factura se confirmó, pero no pudimos leer la respuesta. Recargá la página.')
-    return ok({ remitoGenerado: res.data.remito_generado, impacto: res.data.impacto })
+    return ok({
+      remitoGenerado: res.data.remito_generado,
+      impacto: res.data.impacto,
+      gastoCreado: res.data.gasto_creado,
+      diferencias: res.data.diferencias,
+    })
   } catch (e) {
     return fallo(e, 'No se pudo confirmar la factura.')
   }
@@ -131,7 +153,12 @@ export async function confirmarFactura(
 
 const AnularFactura = z.object({ facturaId: z.uuid(), motivo: z.string().trim().min(1) })
 
-export interface FacturaAnulada { remitoEliminado: string | null; impacto: ImpactoStock }
+export interface FacturaAnulada {
+  remitoEliminado: string | null
+  impacto: ImpactoStock
+  /** Qué pasó con su gasto: se borró (lo había creado la factura) o se desvinculó. */
+  gasto: 'eliminado' | 'desvinculado' | null
+}
 
 export async function anularFactura(
   entrada: z.input<typeof AnularFactura>,
@@ -145,10 +172,14 @@ export async function anularFactura(
       p_motivo: parsed.data.motivo,
     })
     if (error) { refresh(); return fallo(error, 'No se pudo anular la factura.') }
-    const res = z.object({ remito_eliminado: z.string().nullable(), impacto: Impacto }).safeParse(data)
+    const res = z.object({
+      remito_eliminado: z.string().nullable(),
+      impacto: Impacto,
+      gasto: z.enum(['eliminado', 'desvinculado']).nullable(),
+    }).safeParse(data)
     refresh()
     if (!res.success) return fallo(null, 'La factura se anuló, pero no pudimos leer la respuesta. Recargá la página.')
-    return ok({ remitoEliminado: res.data.remito_eliminado, impacto: res.data.impacto })
+    return ok({ remitoEliminado: res.data.remito_eliminado, impacto: res.data.impacto, gasto: res.data.gasto })
   } catch (e) {
     return fallo(e, 'No se pudo anular la factura.')
   }
@@ -164,5 +195,88 @@ export async function descartarFactura(facturaId: string): Promise<Resultado<nul
     return ok(null)
   } catch (e) {
     return fallo(e, 'No se pudo descartar el borrador.')
+  }
+}
+
+// ---------------------------------------------------------------------------
+// F5: gasto de la factura y diferencias con lo recibido.
+// ---------------------------------------------------------------------------
+
+const BuscarGasto = z.object({ proveedorId: z.uuid(), monto: z.number().positive(), fecha: z.iso.date() })
+
+export interface GastoCandidato {
+  id: string
+  fecha: string
+  monto: number
+  estado: string
+  local: string
+  categoria: string
+  observaciones: string | null
+}
+
+/** FA10: gastos del proveedor cargados a mano que podrían ser esta factura. Solo lee: no refresca. */
+export async function buscarGastosCandidatos(
+  entrada: z.input<typeof BuscarGasto>,
+): Promise<Resultado<GastoCandidato[]>> {
+  const parsed = BuscarGasto.safeParse(entrada)
+  if (!parsed.success) return ok([])
+  try {
+    const supabase = await createClientTipado()
+    const { data, error } = await supabase.rpc('compras_buscar_gasto_candidato', {
+      p_proveedor_id: parsed.data.proveedorId,
+      p_monto: parsed.data.monto,
+      p_fecha: parsed.data.fecha,
+    })
+    if (error) return fallo(error, 'No pudimos buscar los gastos cargados a mano.')
+    return ok((data ?? []).map(g => ({ ...g, observaciones: g.observaciones ?? null })))
+  } catch (e) {
+    return fallo(e, 'No pudimos buscar los gastos cargados a mano.')
+  }
+}
+
+const ResolverDiferencia = z.object({
+  diferenciaId: z.uuid(),
+  resolucion: z.enum(['ajusta_stock', 'reclamo_proveedor', 'ignorada']),
+  nota: z.string().trim().max(500).nullable(),
+})
+
+const RespuestaDiferencia = z.object({ delta: z.number().nullable(), cantidad_despues: z.number().nullable() })
+
+export interface CambioDiferencia { delta: number | null; cantidadDespues: number | null }
+
+export async function resolverDiferencia(
+  entrada: z.input<typeof ResolverDiferencia>,
+): Promise<Resultado<CambioDiferencia>> {
+  const parsed = ResolverDiferencia.safeParse(entrada)
+  if (!parsed.success) return fallo(null, 'Elegí qué hacer con la diferencia.')
+  try {
+    const supabase = await createClientTipado()
+    const { data, error } = await supabase.rpc('compras_resolver_diferencia', {
+      p_diferencia_id: parsed.data.diferenciaId,
+      p_resolucion: parsed.data.resolucion,
+      p_nota: parsed.data.nota || undefined,
+    })
+    if (error) { refresh(); return fallo(error, 'No se pudo resolver la diferencia.') }
+    const res = RespuestaDiferencia.safeParse(data)
+    refresh()
+    if (!res.success) return fallo(null, 'La diferencia se resolvió, pero no pudimos leer la respuesta. Recargá la página.')
+    return ok({ delta: res.data.delta, cantidadDespues: res.data.cantidad_despues })
+  } catch (e) {
+    return fallo(e, 'No se pudo resolver la diferencia.')
+  }
+}
+
+export async function revertirDiferencia(diferenciaId: string): Promise<Resultado<CambioDiferencia>> {
+  if (!z.uuid().safeParse(diferenciaId).success) return fallo(null, 'No encontramos la diferencia. Recargá la página.')
+  try {
+    const supabase = await createClientTipado()
+    const { data, error } = await supabase.rpc('compras_revertir_diferencia', { p_diferencia_id: diferenciaId })
+    if (error) { refresh(); return fallo(error, 'No se pudo revertir.') }
+    const res = RespuestaDiferencia.safeParse(data)
+    refresh()
+    if (!res.success) return fallo(null, 'Se revirtió, pero no pudimos leer la respuesta. Recargá la página.')
+    return ok({ delta: res.data.delta, cantidadDespues: res.data.cantidad_despues })
+  } catch (e) {
+    return fallo(e, 'No se pudo revertir.')
   }
 }

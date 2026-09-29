@@ -13,11 +13,13 @@ import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { ChipGroup } from '@/components/ui/Chip'
 import { useConfirmar } from '@/components/ui/ProveedorUI'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { codigoPedido } from '@/lib/compras/codigos'
+import { armarDiferencias, type DiferenciaFila, type DiferenciaVista } from '@/lib/compras/diferencias'
 import FacturaForm from './FacturaForm'
 import {
-  armarVistas, coincideBusqueda, entraEnFiltro, esperandoFactura,
+  armarVistas, coincideBusqueda, entraEnFiltro, esperandoFactura, estaVencida,
   type FacturaVista, type FiltroFacturas,
 } from './modelo'
 import type { FacturaFila, FacturaItemFila, InsumoFactura, PedidoFactura, PrecioRef } from './datos'
@@ -29,6 +31,7 @@ const FILTROS: { value: FiltroFacturas; label: string }[] = [
   { value: 'activas', label: 'Activas' },
   { value: 'borradores', label: 'Borradores' },
   { value: 'confirmadas', label: 'Confirmadas' },
+  { value: 'con_diferencias', label: 'Con diferencias' },
   { value: 'anuladas', label: 'Anuladas' },
   { value: 'todas', label: 'Todas' },
 ]
@@ -41,6 +44,8 @@ export default function FacturasClient({
   precios,
   insumos,
   stock,
+  diferencias,
+  localGasto,
   pedidoInicial,
   facturaInicial,
 }: {
@@ -51,6 +56,9 @@ export default function FacturasClient({
   precios: PrecioRef[]
   insumos: InsumoFactura[]
   stock: { item_id: string; cantidad: number }[]
+  diferencias: DiferenciaFila[]
+  /** Local con el que viene elegido el gasto al confirmar. */
+  localGasto: string
   pedidoInicial?: string
   facturaInicial?: string
 }) {
@@ -63,12 +71,20 @@ export default function FacturasClient({
     facturaInicial ? { facturaId: facturaInicial } : pedidoInicial ? { pedidoId: pedidoInicial } : null,
   )
   const [conCambios, setConCambios] = useState(false)
+  // Recién confirmada con diferencias: el modal queda abierto (con un esqueleto)
+  // hasta que el refresh traiga la factura, en vez de cerrarse y volver a abrirse.
+  const [recienConfirmada, setRecienConfirmada] = useState<string | null>(null)
 
   // Todo sale de las props: las acciones llaman a refresh() y la pantalla se
   // vuelve a armar con lo que quedó en la base.
   const vistas = useMemo(() => armarVistas(facturas), [facturas])
   const esperando = useMemo(() => esperandoFactura(pedidos, vistas), [pedidos, vistas])
   const stockPorItem = useMemo(() => Object.fromEntries(stock.map(s => [s.item_id, s.cantidad])), [stock])
+  const diferenciasPorFactura = useMemo(() => {
+    const m = new Map<string, DiferenciaVista[]>()
+    for (const d of armarDiferencias(diferencias)) m.set(d.facturaId, [...(m.get(d.facturaId) ?? []), d])
+    return m
+  }, [diferencias])
   const itemsPorFactura = useMemo(() => {
     const m = new Map<string, FacturaItemFila[]>()
     for (const i of items) m.set(i.factura_id, [...(m.get(i.factura_id) ?? []), i])
@@ -109,7 +125,8 @@ export default function FacturasClient({
   const facturaAbierta = abierto && 'facturaId' in abierto
     ? vistas.find(v => v.id === abierto.facturaId) ?? null
     : null
-  const modalAbierto = abierto != null && (!('facturaId' in abierto) || facturaAbierta != null)
+  const cargandoConfirmada = abierto != null && 'facturaId' in abierto && facturaAbierta == null && abierto.facturaId === recienConfirmada
+  const modalAbierto = abierto != null && (!('facturaId' in abierto) || facturaAbierta != null || cargandoConfirmada)
 
   const columnas: Columna<FacturaVista>[] = [
     {
@@ -140,7 +157,16 @@ export default function FacturasClient({
     {
       key: 'vence',
       header: 'Vence',
-      render: v => <span className={`whitespace-nowrap ${v.vencimiento ? '' : 'text-muted'}`}>{v.vencimiento ? formatearFecha(v.vencimiento) : '—'}</span>,
+      render: v => {
+        if (!v.vencimiento) return <span className="text-muted">—</span>
+        const vencida = estaVencida(v)
+        return (
+          <span className={`whitespace-nowrap ${vencida ? 'font-semibold text-brand-red' : ''}`}>
+            {formatearFecha(v.vencimiento)}
+            {vencida && <span className="block text-2xs font-medium">vencida, sin pagar</span>}
+          </span>
+        )
+      },
       ordenar: v => v.vencimiento ?? '',
       ocultarHasta: 'lg',
     },
@@ -174,7 +200,16 @@ export default function FacturasClient({
     {
       key: 'estado',
       header: 'Estado',
-      render: v => <EstadoBadge dominio="compras_factura" estado={v.estado} />,
+      render: v => (
+        <span className="inline-flex flex-col items-start gap-0.5">
+          <EstadoBadge dominio="compras_factura" estado={v.estado} />
+          {v.diferenciasAResolver > 0 && (
+            <span className="whitespace-nowrap text-2xs font-semibold text-warning">
+              {v.diferenciasAResolver === 1 ? '1 diferencia' : `${v.diferenciasAResolver} diferencias`}
+            </span>
+          )}
+        </span>
+      ),
       ordenar: v => v.estado,
     },
   ]
@@ -260,7 +295,14 @@ export default function FacturasClient({
         size="xl"
         pantallaCompletaMobile
       >
-        {modalAbierto && (
+        {cargandoConfirmada && (
+          <div className="space-y-3" aria-live="polite">
+            <p className="text-sm text-muted">Cargando la factura confirmada…</p>
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-40 w-full" />
+          </div>
+        )}
+        {modalAbierto && !cargandoConfirmada && (
           <FacturaForm
             key={facturaAbierta?.id ?? (abierto && 'pedidoId' in abierto ? abierto.pedidoId ?? 'nueva' : 'nueva')}
             factura={facturaAbierta}
@@ -272,8 +314,15 @@ export default function FacturasClient({
             precios={precios}
             insumos={insumos}
             stockPorItem={stockPorItem}
+            diferencias={facturaAbierta ? diferenciasPorFactura.get(facturaAbierta.id) ?? [] : []}
+            localGasto={localGasto}
             onCambios={() => setConCambios(true)}
             onListo={cerrarYa}
+            onConfirmada={(id, dif) => {
+              if (dif === 0) { cerrarYa(); return }
+              setRecienConfirmada(id)
+              abrir({ facturaId: id })
+            }}
             onCancelar={cerrar}
           />
         )}

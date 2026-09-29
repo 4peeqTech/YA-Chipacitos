@@ -2,8 +2,8 @@ import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import FacturasClient from './FacturasClient'
 import {
-  consultarFacturaItems, consultarFacturas, consultarInsumosFactura,
-  consultarPedidosFactura, consultarPreciosRef,
+  consultarDiferencias, consultarFacturaItems, consultarFacturas, consultarInsumosFactura,
+  consultarLocalGastoDefault, consultarPedidosFactura, consultarPreciosRef,
 } from './datos'
 
 export const metadata = { title: 'Facturas | YA! Chipacitos' }
@@ -33,6 +33,8 @@ export default async function FacturasPage({
     { data: precios },
     { data: insumos },
     { data: stock },
+    { data: diferencias },
+    localGasto,
   ] = await Promise.all([
     consultarFacturas(supabase),
     consultarFacturaItems(supabase),
@@ -41,6 +43,8 @@ export default async function FacturasPage({
     consultarPreciosRef(supabase),
     consultarInsumosFactura(supabase),
     supabase.from('compras_stock_actual').select('item_id, cantidad'),
+    consultarDiferencias(supabase),
+    consultarLocalGastoDefault(supabase),
   ])
 
   return (
@@ -52,6 +56,8 @@ export default async function FacturasPage({
       precios={precios ?? []}
       insumos={insumos ?? []}
       stock={stock ?? []}
+      diferencias={diferencias ?? []}
+      localGasto={localGasto}
       pedidoInicial={pedido}
       facturaInicial={factura}
     />

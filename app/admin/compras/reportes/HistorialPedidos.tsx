@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { calcularHistorialPedidos, type PedidoReporte } from '@/lib/compras/reportes'
+import { calcularHistorialPedidos, type FacturaReporte, type PedidoReporte } from '@/lib/compras/reportes'
 import { codigoPedido } from '@/lib/compras/codigos'
 
 function money(n: number): string {
@@ -37,9 +37,19 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: { paylo
   )
 }
 
-export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[] }) {
+export default function HistorialPedidos({
+  pedidos,
+  facturas,
+  esAdmin,
+}: {
+  pedidos: PedidoReporte[]
+  facturas: FacturaReporte[]
+  /** El total facturado es dato de admin (P1): para el resto la columna no se muestra. */
+  esAdmin: boolean
+}) {
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
-  const filas = calcularHistorialPedidos(pedidos)
+  const filas = calcularHistorialPedidos(pedidos, facturas)
+  const columnas = esAdmin ? 8 : 7
 
   const thClass = "px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider"
 
@@ -86,7 +96,7 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
               <th className={thClass}>Enviado</th>
               <th className={thClass}>Cerrado</th>
               <th className={thClass}>Remitos</th>
-              <th className={thClass}>Gasto total</th>
+              {esAdmin && <th className={thClass}>Facturado</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-[#2a2a2a]">
@@ -107,11 +117,15 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
                   <td className="px-4 py-3 text-[#888]">{p.enviadoEn ? new Date(p.enviadoEn).toLocaleDateString('es-AR') : '—'}</td>
                   <td className="px-4 py-3 text-[#888]">{p.cerradoEn ? new Date(p.cerradoEn).toLocaleDateString('es-AR') : '—'}</td>
                   <td className="px-4 py-3 text-[#888]">{p.remitosCount}</td>
-                  <td className="px-4 py-3 text-[#f0f0f0]">${money(p.gastoTotal)}</td>
+                  {esAdmin && (
+                    <td className={`px-4 py-3 whitespace-nowrap tabular-nums ${p.facturado == null ? 'text-muted' : 'text-text'}`}>
+                      {p.facturado == null ? 'Sin facturar' : `$${money(p.facturado)}`}
+                    </td>
+                  )}
                 </tr>
                 {expandidoId === p.pedidoId && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-3 bg-[#0a0a0a]">
+                    <td colSpan={columnas} className="px-4 py-3 bg-[#0a0a0a]">
                       {p.remitos.length === 0 ? (
                         <p className="text-xs text-[#888]">Sin remitos registrados.</p>
                       ) : (
@@ -120,8 +134,7 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
                             <tr className="text-[#888]">
                               <th className="text-left py-1 pr-3">Remito</th>
                               <th className="text-left py-1 pr-3">Fecha</th>
-                              <th className="text-left py-1 pr-3">Líneas</th>
-                              <th className="text-left py-1">Gasto</th>
+                              <th className="text-left py-1">Líneas</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -129,8 +142,7 @@ export default function HistorialPedidos({ pedidos }: { pedidos: PedidoReporte[]
                               <tr key={r.remitoId} className="text-[#ccc]">
                                 <td className="py-1 pr-3 font-mono tabular-nums">{r.numero}</td>
                                 <td className="py-1 pr-3">{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td>
-                                <td className="py-1 pr-3">{r.lineasCount}</td>
-                                <td className="py-1">${money(r.gastoTotal)}</td>
+                                <td className="py-1">{r.lineasCount}</td>
                               </tr>
                             ))}
                           </tbody>

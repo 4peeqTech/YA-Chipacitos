@@ -1,6 +1,7 @@
 import { codigoPedido } from '@/lib/compras/codigos'
 import { hoyISO } from '@/lib/fechas'
 import { ALICUOTA_DEFAULT, calcularTotales, esAlicuota, type TotalesFactura } from '@/lib/compras/totalesFactura'
+import { cantidadAResolver } from '@/lib/compras/diferencias'
 import type { LineaPendiente } from '../datos'
 import type { FacturaFila, FacturaItemFila, InsumoFactura, PedidoFactura } from './datos'
 
@@ -151,12 +152,27 @@ export function agregarDelPedido(l: LineaPendiente, ctx: ContextoPedido): LineaF
   return lineaDePedido(l, ctx, cantidad > 0 ? cantidad : (l.cantidad ?? 0))
 }
 
-/** Estado del formulario al abrirlo: factura existente, o una nueva sobre un pedido. */
+/**
+ * Estado del formulario al abrirlo: factura existente, o una nueva sobre un pedido.
+ * Las líneas iniciales llevan claves por posición: el formulario se puede
+ * renderizar en el servidor (link ?pedido=) y el contador de nuevaClave() no
+ * da lo mismo ahí que en el navegador, lo que rompía la hidratación de los id.
+ */
 export function estadoInicial(
   factura: FacturaVista | null,
   items: FacturaItemFila[],
   ctx: ContextoPedido | null,
   hoy: string = hoyISO(),
+): EstadoFactura {
+  const e = armarEstadoInicial(factura, items, ctx, hoy)
+  return { ...e, lineas: e.lineas.map((l, i) => ({ ...l, clave: `i${i}` })) }
+}
+
+function armarEstadoInicial(
+  factura: FacturaVista | null,
+  items: FacturaItemFila[],
+  ctx: ContextoPedido | null,
+  hoy: string,
 ): EstadoFactura {
   if (factura) {
     return {
@@ -333,6 +349,15 @@ export interface FacturaVista {
   anuladaEn: string | null
   anuladaPor: string | null
   anuladaMotivo: string | null
+  /** F5: el gasto de la factura (creado al confirmar o vinculado). */
+  gastoId: string | null
+  gastoGenerado: boolean
+  gastoEstado: string | null
+  gastoLocal: string | null
+  pedidoEstadoRecepcion: string | null
+  /** Diferencias con lo recibido sin resolver, y cuántas ya se pueden resolver (recepción completa). */
+  diferenciasPendientes: number
+  diferenciasAResolver: number
 }
 
 export function armarVistas(facturas: FacturaFila[]): FacturaVista[] {
@@ -361,21 +386,39 @@ export function armarVistas(facturas: FacturaFila[]): FacturaVista[] {
       anuladaEn: f.anulada_en,
       anuladaPor: f.anulada_por_nombre,
       anuladaMotivo: f.anulada_motivo,
+      gastoId: f.gasto_id,
+      gastoGenerado: f.gasto_generado ?? false,
+      gastoEstado: f.gasto_estado,
+      gastoLocal: f.gasto_local,
+      pedidoEstadoRecepcion: f.pedido_estado_recepcion,
+      diferenciasPendientes: f.diferencias_pendientes ?? 0,
+      diferenciasAResolver: f.estado === 'confirmada'
+        ? cantidadAResolver(f.diferencias_pendientes ?? 0, f.pedido_estado_recepcion)
+        : 0,
     })
   }
   return res
 }
 
-export type FiltroFacturas = 'activas' | 'borradores' | 'confirmadas' | 'anuladas' | 'todas'
+export type FiltroFacturas = 'activas' | 'borradores' | 'confirmadas' | 'con_diferencias' | 'anuladas' | 'todas'
 
 export function entraEnFiltro(v: FacturaVista, filtro: FiltroFacturas): boolean {
   switch (filtro) {
     case 'activas': return v.estado !== 'anulada'
     case 'borradores': return v.estado === 'borrador'
     case 'confirmadas': return v.estado === 'confirmada'
+    case 'con_diferencias': return v.diferenciasAResolver > 0
     case 'anuladas': return v.estado === 'anulada'
     case 'todas': return true
   }
+}
+
+/**
+ * Vencida y sin pagar: se marca en rojo en la lista. Una factura confirmada
+ * antes de F5 no tiene gasto, así que cuenta como impaga.
+ */
+export function estaVencida(v: FacturaVista, hoy: string = hoyISO()): boolean {
+  return v.estado === 'confirmada' && v.vencimiento != null && v.vencimiento < hoy && v.gastoEstado !== 'Pagado'
 }
 
 /** Busca por número de factura, código de pedido ("P-0012", "12") o proveedor. */

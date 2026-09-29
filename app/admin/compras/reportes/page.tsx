@@ -9,6 +9,10 @@ export default async function ReportesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // El gasto sale de las facturas (F5), que solo ve un administrador (P1).
+  const { data: perfil } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
+  const esAdmin = perfil?.rol === 'admin'
+
   const [
     { data: remitos },
     { data: pedidos },
@@ -17,14 +21,15 @@ export default async function ReportesPage() {
     { data: solicitudItems },
     { data: pedidoItems },
     { data: vItems },
+    { data: facturas },
   ] = await Promise.all([
     supabase
       .from('compras_remitos')
-      .select('*, compras_pedidos(numero, proveedor_id, proveedores(nombre)), compras_remito_items(descripcion, cantidad, precio)')
+      .select('id, secuencia, fecha')
       .order('fecha', { ascending: false }),
     supabase
       .from('compras_pedidos')
-      .select('*, proveedores(nombre), compras_remitos(id, secuencia, fecha, compras_remito_items(descripcion, cantidad, precio))')
+      .select('*, proveedores(nombre), compras_remitos(id, secuencia, fecha, compras_remito_items(descripcion, cantidad))')
       .order('created_at', { ascending: false }),
     supabase
       .from('v_compras_stock_movimientos')
@@ -40,6 +45,11 @@ export default async function ReportesPage() {
     // v_compras_items evita depender de compras_items.proveedor_id (1:N, en desuso
     // desde que existe compras_item_proveedores) solo para mostrar el proveedor principal acá.
     supabase.from('v_compras_items').select('id, proveedor_principal_nombre, stock_minimo').eq('estado', 'activo'),
+    // Vacía para quien no es admin (la vista pide es_admin()).
+    supabase
+      .from('v_compras_facturas')
+      .select('id, pedido_id, proveedor_id, proveedor_nombre, pedido_numero, numero, fecha, tipo_comprobante, subtotal, iva, total')
+      .eq('estado', 'confirmada'),
   ])
 
   const proveedorPorItem: Record<string, string> = {}
@@ -59,6 +69,8 @@ export default async function ReportesPage() {
       pedidoItemsIniciales={(pedidoItems ?? []) as any}
       proveedorPorItem={proveedorPorItem}
       stockMinimoPorItem={stockMinimoPorItem}
+      facturasIniciales={facturas ?? []}
+      esAdmin={esAdmin}
     />
   )
 }

@@ -1,89 +1,120 @@
 import { codigoRemito } from './codigos'
 import { grupoMovimiento, type TipoMovimiento } from './movimientos'
 
-export interface LineaRemitoReporte {
-  descripcion: string
-  cantidad: number
-  precio: number | null
+// F5: el gasto sale de las facturas confirmadas, nunca del remito (el precio vive
+// solo en la factura). Las notas de crédito (F6) restan.
+
+export interface FacturaReporte {
+  id: string | null
+  pedido_id: string | null
+  proveedor_id: string | null
+  proveedor_nombre: string | null
+  pedido_numero: number | null
+  numero: string | null
+  fecha: string | null
+  tipo_comprobante: string | null
+  subtotal: number | null
+  iva: number | null
+  total: number | null
 }
 
 export interface RemitoReporte {
   id: string
   secuencia: number
   fecha: string
-  compras_pedidos: { numero: number; proveedor_id: string; proveedores: { nombre: string } | null } | null
-  compras_remito_items: LineaRemitoReporte[]
 }
 
-export interface DetalleLineaGasto {
-  remitoId: string
-  remitoNumero: string
-  descripcion: string
-  cantidad: number
-  precio: number
+export interface DetalleFacturaGasto {
+  facturaId: string
+  numero: string
+  pedidoNumero: number | null
+  fecha: string
+  esNotaCredito: boolean
   subtotal: number
+  iva: number
+  total: number
 }
 
 export interface GastoProveedor {
   proveedorId: string
   proveedorNombre: string
-  remitosCount: number
-  lineasConPrecio: number
-  lineasSinPrecio: number
-  gastoTotal: number
-  detalle: DetalleLineaGasto[]
-}
-
-// Agrupa remitos por proveedor y suma cantidad × precio de sus líneas.
-// Líneas sin precio (precio es opcional al registrar el remito) se
-// cuentan en `lineasSinPrecio` pero no entran en `gastoTotal` — evita
-// que el total se lea como exacto cuando en realidad es parcial.
-export function calcularGastoPorProveedor(remitos: RemitoReporte[]): GastoProveedor[] {
-  const porProveedor = new Map<string, GastoProveedor>()
-
-  for (const remito of remitos) {
-    const proveedorId = remito.compras_pedidos?.proveedor_id
-    if (!proveedorId) continue
-    const proveedorNombre = remito.compras_pedidos?.proveedores?.nombre ?? '—'
-
-    let grupo = porProveedor.get(proveedorId)
-    if (!grupo) {
-      grupo = { proveedorId, proveedorNombre, remitosCount: 0, lineasConPrecio: 0, lineasSinPrecio: 0, gastoTotal: 0, detalle: [] }
-      porProveedor.set(proveedorId, grupo)
-    }
-    grupo.remitosCount++
-
-    for (const linea of remito.compras_remito_items) {
-      if (linea.precio == null) {
-        grupo.lineasSinPrecio++
-        continue
-      }
-      const subtotal = linea.cantidad * linea.precio
-      grupo.lineasConPrecio++
-      grupo.gastoTotal += subtotal
-      grupo.detalle.push({
-        remitoId: remito.id,
-        remitoNumero: remito.compras_pedidos ? codigoRemito(remito.compras_pedidos.numero, remito.secuencia) : '—',
-        descripcion: linea.descripcion,
-        cantidad: linea.cantidad,
-        precio: linea.precio,
-        subtotal,
-      })
-    }
-  }
-
-  return [...porProveedor.values()].sort((a, b) => b.gastoTotal - a.gastoTotal)
+  facturasCount: number
+  subtotal: number
+  iva: number
+  total: number
+  /** Pedidos que ya recibieron mercadería y todavía no tienen factura: su gasto falta acá. */
+  recibidosSinFacturar: number
+  detalle: DetalleFacturaGasto[]
 }
 
 export interface PedidoReporte {
   id: string
   numero: number
   estado: 'borrador' | 'enviado' | 'cerrado'
+  estado_recepcion: string
+  estado_facturacion: string
+  proveedor_id: string
   created_at: string
   enviado_en: string | null
   cerrado_en: string | null
   proveedores: { nombre: string } | null
-  compras_remitos: { id: string; secuencia: number; fecha: string; compras_remito_items: LineaRemitoReporte[] }[]
+  compras_remitos: { id: string; secuencia: number; fecha: string; compras_remito_items: { descripcion: string; cantidad: number }[] }[]
+}
+
+/** Llegó mercadería y no tiene factura: recibido completo, o cerrado a mano con algún remito. */
+export function recibidoSinFacturar(p: Pick<PedidoReporte, 'estado_recepcion' | 'estado_facturacion' | 'compras_remitos'>): boolean {
+  if (p.estado_facturacion === 'facturado') return false
+  return p.estado_recepcion === 'recibido' || (p.estado_recepcion === 'cerrado_manual' && p.compras_remitos.length > 0)
+}
+
+function signo(f: Pick<FacturaReporte, 'tipo_comprobante'>): number {
+  return f.tipo_comprobante === 'nota_credito' ? -1 : 1
+}
+
+// Agrupa las facturas confirmadas por proveedor. Los pedidos recibidos sin
+// factura se cuentan aparte: su plata todavía no está en el total, y el
+// reporte lo tiene que decir en vez de mostrar un total que parece completo.
+export function calcularGastoPorProveedor(facturas: FacturaReporte[], pedidos: PedidoReporte[] = []): GastoProveedor[] {
+  const porProveedor = new Map<string, GastoProveedor>()
+  const grupo = (id: string, nombre: string): GastoProveedor => {
+    let g = porProveedor.get(id)
+    if (!g) {
+      g = { proveedorId: id, proveedorNombre: nombre, facturasCount: 0, subtotal: 0, iva: 0, total: 0, recibidosSinFacturar: 0, detalle: [] }
+      porProveedor.set(id, g)
+    }
+    return g
+  }
+
+  for (const f of facturas) {
+    if (!f.id || !f.proveedor_id) continue
+    const g = grupo(f.proveedor_id, f.proveedor_nombre ?? '—')
+    const s = signo(f)
+    const subtotal = s * (f.subtotal ?? 0)
+    const iva = s * (f.iva ?? 0)
+    const total = s * (f.total ?? 0)
+    g.facturasCount++
+    g.subtotal += subtotal
+    g.iva += iva
+    g.total += total
+    g.detalle.push({
+      facturaId: f.id,
+      numero: f.numero ?? '—',
+      pedidoNumero: f.pedido_numero,
+      fecha: f.fecha ?? '',
+      esNotaCredito: s < 0,
+      subtotal,
+      iva,
+      total,
+    })
+  }
+
+  for (const p of pedidos) {
+    if (!recibidoSinFacturar(p)) continue
+    grupo(p.proveedor_id, p.proveedores?.nombre ?? '—').recibidosSinFacturar++
+  }
+
+  for (const g of porProveedor.values()) g.detalle.sort((a, b) => b.fecha.localeCompare(a.fecha))
+  return [...porProveedor.values()].sort((a, b) => b.total - a.total || a.proveedorNombre.localeCompare(b.proveedorNombre))
 }
 
 export interface RemitoResumen {
@@ -92,7 +123,6 @@ export interface RemitoResumen {
   numero: string
   fecha: string
   lineasCount: number
-  gastoTotal: number
 }
 
 export interface HistorialPedido {
@@ -104,24 +134,24 @@ export interface HistorialPedido {
   enviadoEn: string | null
   cerradoEn: string | null
   remitosCount: number
-  gastoTotal: number
+  /** Total de su factura confirmada; null si todavía no se facturó (o si quien mira no ve facturas). */
+  facturado: number | null
   remitos: RemitoResumen[]
 }
 
-// Mismo cálculo que calcularGastoPorProveedor (cantidad × precio,
-// ignorando líneas sin precio), a nivel de un solo remito.
-function calcularGastoRemito(items: LineaRemitoReporte[]): number {
-  return items.reduce((total, linea) => total + (linea.precio != null ? linea.cantidad * linea.precio : 0), 0)
-}
+export function calcularHistorialPedidos(pedidos: PedidoReporte[], facturas: FacturaReporte[] = []): HistorialPedido[] {
+  const facturadoPorPedido = new Map<string, number>()
+  for (const f of facturas) {
+    if (!f.pedido_id) continue
+    facturadoPorPedido.set(f.pedido_id, (facturadoPorPedido.get(f.pedido_id) ?? 0) + signo(f) * (f.total ?? 0))
+  }
 
-export function calcularHistorialPedidos(pedidos: PedidoReporte[]): HistorialPedido[] {
   return pedidos.map(pedido => {
     const remitos = pedido.compras_remitos.map(remito => ({
       remitoId: remito.id,
       numero: codigoRemito(pedido.numero, remito.secuencia),
       fecha: remito.fecha,
       lineasCount: remito.compras_remito_items.length,
-      gastoTotal: calcularGastoRemito(remito.compras_remito_items),
     }))
 
     return {
@@ -133,7 +163,7 @@ export function calcularHistorialPedidos(pedidos: PedidoReporte[]): HistorialPed
       enviadoEn: pedido.enviado_en,
       cerradoEn: pedido.cerrado_en,
       remitosCount: remitos.length,
-      gastoTotal: remitos.reduce((total, r) => total + r.gastoTotal, 0),
+      facturado: facturadoPorPedido.get(pedido.id) ?? null,
       remitos,
     }
   })

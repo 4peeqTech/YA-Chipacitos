@@ -30,6 +30,10 @@ const CONSTRAINTS: Record<string, string> = {
     'Esa alícuota de IVA no existe. Elegí una de la lista: 0, 2,5, 5, 10,5, 21 o 27 %.',
   compras_factura_items_alicuota_iva_check:
     'Esa alícuota de IVA no existe. Elegí una de la lista: 0, 2,5, 5, 10,5, 21 o 27 %.',
+  compras_facturas_gasto_unico:
+    'Ese gasto ya está vinculado a otra factura. Recargá la página y elegí de nuevo.',
+  compras_factura_discrepancias_clave_unica:
+    'Otra persona actualizó las diferencias de esta factura al mismo tiempo. Recargá la página.',
 }
 
 function extraerMensaje(error: unknown): string {

@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useRef, useState, useTransition } from 'react'
+import Link from 'next/link'
 import {
-  AlertTriangle, Ban, Check, Info, Loader2, PackageCheck, PackageX, Plus, ReceiptText, Trash2, X,
+  AlertTriangle, ArrowRight, Ban, Check, Info, Loader2, PackageCheck, PackageX, Plus, ReceiptText, Trash2, Wallet, X,
 } from 'lucide-react'
 import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
 import InputNumero from '@/components/ui/InputNumero'
@@ -16,10 +17,16 @@ import { codigoPedido } from '@/lib/compras/codigos'
 import {
   ALICUOTAS, avisaPorPapel, diferenciaPapel, etiquetaAlicuota, subtotalLinea, variacionPrecio,
 } from '@/lib/compras/totalesFactura'
+import type { DiferenciaVista } from '@/lib/compras/diferencias'
 import { conUnidad } from '../modelo'
-import { ResumenImpacto, type NombresInsumo } from '../remitos/RemitoForm'
+import type { NombresInsumo } from '../remitos/RemitoForm'
 import type { ImpactoItem } from '../remitos/modelo'
-import { anularFactura, confirmarFactura, descartarFactura, guardarFactura } from './acciones'
+import {
+  anularFactura, buscarGastosCandidatos, confirmarFactura, descartarFactura, guardarFactura, type GastoCandidato,
+} from './acciones'
+import CabeceraFactura from './CabeceraFactura'
+import ConfirmarFacturaModal, { type EleccionGasto } from './ConfirmarFacturaModal'
+import DiferenciasPanel from './DiferenciasPanel'
 import {
   agregarDelPedido, armarEnvio, estadoInicial, facturaDuplicada, faltantesDelPedido,
   lineaLibre, mensajeProblema, pedidosFacturables, resumenRecepcion, tieneRemitos, totales, validar,
@@ -30,21 +37,6 @@ import type { LineaPendiente } from '../datos'
 
 const botonPrimario = 'presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50'
 const botonSecundario = 'presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50'
-
-/** Encabezado de los confirm: la factura y su pedido, bien legibles. */
-function CabeceraFactura({ numero, pedido }: { numero: string; pedido: PedidoFactura | null }) {
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl bg-surface2 px-4 py-3">
-      <span className="font-mono text-lg font-bold tabular-nums text-text">{numero || 'Factura'}</span>
-      {pedido && (
-        <span className="text-sm text-muted">
-          del pedido <span className="font-mono font-semibold tabular-nums text-text">{codigoPedido(pedido.numero)}</span>
-          {' · '}<span className="text-text">{pedido.proveedores?.nombre ?? '—'}</span>
-        </span>
-      )}
-    </div>
-  )
-}
 
 /** Las dos salidas de FA1/FA2, con lo que pasa con el stock en cada una. */
 function PreguntaMercaderia({
@@ -106,12 +98,16 @@ type MotivoAnular = (typeof MOTIVOS_ANULAR)[number]
 
 /** FA8: anular pide motivo, así que va en su propio paso en vez del confirm común. */
 function AnularFacturaModal({
-  open, numero, pedido, generoRemito, pendiente, onAnular, onCerrar,
+  open, numero, pedido, generoRemito, gasto, bloqueo, pendiente, onAnular, onCerrar,
 }: {
   open: boolean
   numero: string
   pedido: PedidoFactura | null
   generoRemito: boolean
+  /** Qué pasa con su gasto al anular. */
+  gasto: 'se_borra' | 'se_desvincula' | null
+  /** Por qué no se puede anular todavía (lo mismo que frena la RPC). */
+  bloqueo: string | null
   pendiente: boolean
   onAnular: (motivo: string) => void
   onCerrar: () => void
@@ -131,11 +127,20 @@ function AnularFacturaModal({
     <Modal open={open} onClose={onCerrar} title="Anular factura" accent="red" size="lg">
       <div className="space-y-5">
         <CabeceraFactura numero={numero} pedido={pedido} />
-        <p className="text-sm text-text">
-          La factura queda registrada como anulada y el pedido vuelve a estar sin facturar.
-          {generoRemito && <> Se elimina el remito que había generado y el stock vuelve atrás.</>}
-        </p>
+        {bloqueo ? (
+          <p className="flex items-start gap-2 rounded-xl border border-warning bg-warning-bg px-3 py-2.5 text-sm font-medium text-warning">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" /> {bloqueo}
+          </p>
+        ) : (
+          <p className="text-sm text-text">
+            La factura queda registrada como anulada y el pedido vuelve a estar sin facturar.
+            {generoRemito && <> Se elimina el remito que había generado y el stock vuelve atrás.</>}
+            {gasto === 'se_borra' && <> Se borra el gasto pendiente de pago que había creado.</>}
+            {gasto === 'se_desvincula' && <> El gasto que habías cargado a mano se desvincula y queda anotado en sus observaciones.</>}
+          </p>
+        )}
 
+        {!bloqueo && (<>
         <Field label="¿Por qué la anulás?" obligatorio>
           <ChipGroup
             opciones={MOTIVOS_ANULAR.map(m => ({ value: m, label: m }))}
@@ -167,17 +172,20 @@ function AnularFacturaModal({
           <Info size={14} className="mt-0.5 shrink-0" />
           Queda registrado con quién y cuándo. Después podés cargar la factura corregida en el pedido que corresponda.
         </p>
+        </>)}
 
         <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
           <button type="button" onClick={onCerrar} disabled={pendiente} className={botonSecundario}>Volver</button>
-          <button
-            type="button"
-            onClick={anular}
-            disabled={pendiente}
-            className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
-          >
-            {pendiente ? <Loader2 size={16} className="animate-spin" /> : <Ban size={16} />} Anular factura
-          </button>
+          {!bloqueo && (
+            <button
+              type="button"
+              onClick={anular}
+              disabled={pendiente}
+              className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+            >
+              {pendiente ? <Loader2 size={16} className="animate-spin" /> : <Ban size={16} />} Anular factura
+            </button>
+          )}
         </div>
       </div>
     </Modal>
@@ -194,8 +202,11 @@ export default function FacturaForm({
   precios,
   insumos,
   stockPorItem,
+  diferencias,
+  localGasto,
   onCambios,
   onListo,
+  onConfirmada,
   onCancelar,
 }: {
   factura: FacturaVista | null
@@ -207,8 +218,14 @@ export default function FacturaForm({
   precios: PrecioRef[]
   insumos: InsumoFactura[]
   stockPorItem: Record<string, number>
+  /** Diferencias con lo recibido de esta factura (F5). */
+  diferencias: DiferenciaVista[]
+  /** Local con el que viene elegido el gasto al confirmar. */
+  localGasto: string
   onCambios: () => void
   onListo: () => void
+  /** Después de confirmar: con diferencias, la pantalla deja la factura abierta para resolverlas. */
+  onConfirmada?: (facturaId: string, diferencias: number) => void
   onCancelar: () => void
 }) {
   const confirmar = useConfirmar()
@@ -218,6 +235,12 @@ export default function FacturaForm({
   const [intentoGuardar, setIntentoGuardar] = useState(false)
   const [preguntaAbierta, setPreguntaAbierta] = useState(false)
   const [anularAbierto, setAnularAbierto] = useState(false)
+  // Paso final de confirmación: llego = respuesta de FA1/FA2 (null si no hubo que preguntar).
+  const [confirmacion, setConfirmacion] = useState<{ llego: boolean | null } | null>(null)
+  const [candidatos, setCandidatos] = useState<GastoCandidato[] | null>(null)
+  const [errorCandidatos, setErrorCandidatos] = useState<string | null>(null)
+  // Si se cierra y se vuelve a abrir rápido, la búsqueda vieja no pisa a la nueva.
+  const busqueda = useRef(0)
 
   const estadoFactura = factura?.estado ?? 'borrador'
   const soloLectura = estadoFactura !== 'borrador'
@@ -359,56 +382,55 @@ export default function FacturaForm({
     pedirConfirmacion(null)
   }
 
+  /** Abre el paso final y, mientras tanto, busca si el gasto ya estaba cargado a mano (FA10). */
   function pedirConfirmacion(llego: boolean | null) {
     setPreguntaAbierta(false)
-    const sumaStock = llego === true && impactoStock.length > 0
-    confirmar({
-      // El número va en el cuerpo (mono): la Syne del título dibuja los ceros como "o".
-      titulo: 'Confirmar factura',
-      mensaje: (
-        <div className="space-y-3">
-          <CabeceraFactura numero={estado.numero} pedido={pedido} />
-          <p className="text-sm text-text">
-            Se confirma por <strong className="tabular-nums">{formatearMonedaExacta(t.total)}</strong>
-            {estado.vencimiento && <> · vence el {formatearFecha(estado.vencimiento)}</>}.
-            {' '}El pedido pasa a <strong>Facturado</strong>{llego === false && <> · falta recibir</>}.
-          </p>
-          {sumaStock && (
-            <>
-              <p className="text-sm text-text">Se registra un remito con lo facturado y el stock suma:</p>
-              <ResumenImpacto impacto={impactoStock} nombres={nombres} />
-            </>
-          )}
-          {llego === false && (
-            <p className="text-sm text-muted">El stock no se mueve: va a sumar cuando cargues el remito.</p>
-          )}
-          {estado.actualizarPrecios && preciosACambiar > 0 && (
-            <p className="text-sm text-muted">
-              {preciosACambiar === 1
-                ? 'Se actualiza el precio de referencia de 1 insumo de este proveedor.'
-                : `Se actualizan los precios de referencia de ${preciosACambiar} insumos de este proveedor.`}
-            </p>
-          )}
-          {avisaPapel && (
-            <p className="flex items-start gap-1.5 text-sm text-warning">
-              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-              El total no coincide con el del papel por {formatearMonedaExacta(Math.abs(diferencia ?? 0))}. Se confirma igual.
-            </p>
-          )}
-        </div>
-      ),
-      ancho: 'lg',
-      textoConfirmar: 'Confirmar factura',
-      onConfirmar: () => startTransition(async () => {
-        const id = await guardar()
-        if (!id) return
-        const r = await confirmarFactura({ facturaId: id, mercaderiaLlego: llego, actualizarPrecios: estado.actualizarPrecios })
-        if (!r.ok) { toast.error(r.error); return }
-        toast.success(r.data.remitoGenerado
-          ? `Factura confirmada · remito ${r.data.remitoGenerado}`
-          : 'Factura confirmada')
-        onListo()
-      }),
+    setConfirmacion({ llego })
+    setCandidatos(null)
+    setErrorCandidatos(null)
+    const n = ++busqueda.current
+    if (!pedido) { setCandidatos([]); return }
+    buscarGastosCandidatos({ proveedorId: pedido.proveedor_id, monto: t.total, fecha: estado.fecha })
+      .then(r => {
+        if (n !== busqueda.current) return
+        setCandidatos(r.ok ? r.data : [])
+        setErrorCandidatos(r.ok ? null : r.error)
+      })
+      .catch(() => {
+        if (n !== busqueda.current) return
+        setCandidatos([])
+        setErrorCandidatos('No pudimos buscar los gastos cargados a mano.')
+      })
+  }
+
+  function cerrarConfirmacion() {
+    busqueda.current++
+    setConfirmacion(null)
+  }
+
+  function onConfirmarFinal(gasto: EleccionGasto) {
+    const llego = confirmacion?.llego ?? null
+    startTransition(async () => {
+      const id = await guardar()
+      if (!id) return
+      const r = await confirmarFactura({
+        facturaId: id,
+        mercaderiaLlego: llego,
+        actualizarPrecios: estado.actualizarPrecios,
+        gastoExistenteId: gasto.gastoExistenteId,
+        gastoLocal: gasto.gastoLocal,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      const partes = ['Factura confirmada']
+      if (r.data.remitoGenerado) partes.push(`remito ${r.data.remitoGenerado}`)
+      partes.push(r.data.gastoCreado ? 'gasto creado' : 'gasto vinculado')
+      if (r.data.diferencias > 0) {
+        partes.push(r.data.diferencias === 1 ? '1 diferencia con lo recibido' : `${r.data.diferencias} diferencias con lo recibido`)
+      }
+      toast.success(partes.join(' · '))
+      setConfirmacion(null)
+      if (onConfirmada) onConfirmada(id, r.data.diferencias)
+      else onListo()
     })
   }
 
@@ -417,12 +439,22 @@ export default function FacturaForm({
     startTransition(async () => {
       const r = await anularFactura({ facturaId: factura.id, motivo })
       if (!r.ok) { toast.error(r.error); return }
-      toast.success(r.data.remitoEliminado
-        ? `Factura anulada · remito ${r.data.remitoEliminado} eliminado`
-        : 'Factura anulada')
+      const partes = ['Factura anulada']
+      if (r.data.remitoEliminado) partes.push(`remito ${r.data.remitoEliminado} eliminado`)
+      if (r.data.gasto === 'eliminado') partes.push('gasto borrado')
+      if (r.data.gasto === 'desvinculado') partes.push('gasto desvinculado')
+      toast.success(partes.join(' · '))
       onListo()
     })
   }
+
+  // Lo mismo que frena compras_anular_factura, dicho antes de pedir el motivo.
+  const ajustadas = diferencias.filter(d => d.resolucion === 'ajusta_stock').length
+  const bloqueoAnular = factura?.gastoEstado === 'Pagado' || factura?.gastoEstado === 'Parcial'
+    ? `El gasto de esta factura ya está ${factura.gastoEstado === 'Pagado' ? 'pagado' : 'pagado en parte'}: no se puede anular. Para corregirla, vas a tener que registrar una nota de crédito.`
+    : ajustadas > 0
+      ? 'Esta factura tiene diferencias que ya ajustaron el stock. Revertí esos ajustes (en "Diferencias con lo recibido") antes de anularla.'
+      : null
 
   function onDescartar() {
     if (!factura) return
@@ -740,6 +772,38 @@ export default function FacturaForm({
               {factura.mercaderiaLlego === false && <> El pedido todavía espera la mercadería.</>}
             </p>
           )}
+          {factura && estadoFactura === 'confirmada' && (
+            factura.gastoId ? (
+              <Link
+                href="/admin/gastos/pendientes"
+                className="flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2.5 text-sm transition-colors hover:bg-surface2"
+              >
+                <span className="flex items-center gap-2 text-text">
+                  <Wallet size={15} className="shrink-0 text-accent-fg" />
+                  <span>
+                    Gasto {factura.gastoEstado ? factura.gastoEstado.toLowerCase() : 'vinculado'}
+                    <span className="text-muted">
+                      {factura.gastoLocal && <> · {factura.gastoLocal}</>}
+                      {' · '}{factura.gastoGenerado ? 'se creó al confirmar' : 'cargado a mano y vinculado'}
+                    </span>
+                  </span>
+                </span>
+                <ArrowRight size={14} className="text-muted" />
+              </Link>
+            ) : (
+              <p className="flex items-start gap-2 rounded-xl border border-border px-3 py-2.5 text-sm text-muted">
+                <Wallet size={15} className="mt-0.5 shrink-0" />
+                Esta factura no tiene un gasto vinculado: se confirmó antes de que se crearan solos. Si hace falta, cargalo desde Gastos.
+              </p>
+            )
+          )}
+          {factura && estadoFactura === 'confirmada' && (
+            <DiferenciasPanel
+              diferencias={diferencias}
+              estadoRecepcion={pedido?.estado_recepcion ?? factura.pedidoEstadoRecepcion}
+              stockPorItem={stockPorItem}
+            />
+          )}
           {factura && estadoFactura === 'anulada' && (
             <p className="flex items-start gap-2 rounded-xl border border-border bg-danger-bg px-3 py-2.5 text-sm text-brand-red">
               <Ban size={15} className="mt-0.5 shrink-0" />
@@ -787,10 +851,33 @@ export default function FacturaForm({
         numero={factura?.numero ?? ''}
         pedido={pedido}
         generoRemito={pedido?.compras_remitos.some(r => r.origen === 'factura') ?? false}
+        gasto={factura?.gastoId ? (factura.gastoGenerado ? 'se_borra' : 'se_desvincula') : null}
+        bloqueo={bloqueoAnular}
         pendiente={isPending}
         onAnular={motivo => { setAnularAbierto(false); onAnular(motivo) }}
         onCerrar={() => setAnularAbierto(false)}
       />
+
+      {confirmacion && (
+        <ConfirmarFacturaModal
+          open
+          numero={estado.numero}
+          pedido={pedido}
+          total={t.total}
+          vencimiento={estado.vencimiento}
+          llego={confirmacion.llego}
+          impacto={impactoStock}
+          nombres={nombres}
+          preciosACambiar={estado.actualizarPrecios ? preciosACambiar : 0}
+          avisoPapel={avisaPapel ? Math.abs(diferencia ?? 0) : null}
+          candidatos={candidatos}
+          errorCandidatos={errorCandidatos}
+          localDefault={localGasto}
+          pendiente={isPending}
+          onConfirmar={onConfirmarFinal}
+          onCerrar={cerrarConfirmacion}
+        />
+      )}
 
       <PreguntaMercaderia
         open={preguntaAbierta}

@@ -13,8 +13,13 @@ export interface EstadoPedidoEntrada {
   /** Líneas del pedido y cuántas tienen algo pendiente de llegar. */
   lineas: number
   lineasPendientes: number
-  /** Desde F5/F6; hasta entonces siempre false. */
+  /**
+   * La factura tiene diferencias con lo recibido que ya se pueden resolver
+   * (recepción completa). Mientras falta mercadería no cuentan: son lo que
+   * todavía tiene que llegar.
+   */
   hayDiferencias?: boolean
+  /** Desde F6; hasta entonces siempre false. */
   hayDevolucion?: boolean
   /** Llegó algo: define si un pedido cerrado a mano todavía espera su factura. */
   recibioAlgo?: boolean
@@ -59,7 +64,7 @@ export function estaDemorado(p: Pick<EstadoPedidoEntrada, 'estado_recepcion' | '
   return dias != null && dias >= DIAS_DEMORA
 }
 
-export type TipoAccion = 'enviar' | 'cargar_remito' | 'cargar_factura' | 'ninguna'
+export type TipoAccion = 'enviar' | 'cargar_remito' | 'cargar_factura' | 'resolver_diferencias' | 'ninguna'
 
 export interface ProximaAccion {
   tipo: TipoAccion
@@ -129,7 +134,14 @@ export function proximaAccion(p: EstadoPedidoEntrada, ahora: Date = new Date()):
           descripcion: 'La factura ya está cargada. Cuando llegue la mercadería, cargá el remito.',
           boton: 'Cargar remito',
         }
-        : { tipo: 'ninguna', titulo: 'Facturado', descripcion: 'El pedido tiene su factura cargada.', boton: null }
+        : p.hayDiferencias && p.puedeFacturar
+          ? {
+            tipo: 'resolver_diferencias',
+            titulo: 'Hay diferencias con lo recibido',
+            descripcion: 'La factura no coincide con lo que llegó en los remitos. Revisá cada línea y decidí si ajustás el stock, le reclamás al proveedor o la dejás como está.',
+            boton: 'Resolver diferencias',
+          }
+          : { tipo: 'ninguna', titulo: 'Facturado', descripcion: 'El pedido tiene su factura cargada.', boton: null }
     }
     case 'devuelto':
       return { tipo: 'ninguna', titulo: 'Devuelto', descripcion: 'La mercadería se devolvió al proveedor.', boton: null }

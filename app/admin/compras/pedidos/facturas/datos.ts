@@ -42,6 +42,17 @@ export function consultarPedidosFactura(supabase: Cliente) {
     .order('enviado_en', { ascending: false })
 }
 
+/** Diferencias con lo recibido de todas las facturas (F5). La vista pide es_admin(). */
+export function consultarDiferencias(supabase: Cliente) {
+  return supabase.from('v_compras_factura_diferencias').select('*')
+}
+
+/** Local con el que viene elegido el gasto al confirmar (compras_config 'gasto.local'). */
+export async function consultarLocalGastoDefault(supabase: Cliente): Promise<string> {
+  const { data } = await supabase.from('compras_config').select('valor').eq('clave', 'gasto.local').maybeSingle()
+  return typeof data?.valor === 'string' && data.valor.trim() ? data.valor : 'YA! FABRICA'
+}
+
 /** Precio de referencia por insumo y proveedor (FA4). */
 export function consultarPreciosRef(supabase: Cliente) {
   return supabase

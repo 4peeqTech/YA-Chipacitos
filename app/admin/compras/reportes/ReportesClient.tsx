@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { BarChart3, Wallet, ClipboardList, Inbox, TriangleAlert, Package, Scale } from 'lucide-react'
 import { calcularRangoPreset, fechaEnRango, type PresetRango, type RangoFechas } from '@/lib/compras/rangoFechas'
-import { calcularGastoPorProveedor, type RemitoReporte, type PedidoReporte, type MovimientoReporte, type SolicitudItemReporte, type PedidoItemCompradoReporte } from '@/lib/compras/reportes'
+import { recibidoSinFacturar, type FacturaReporte, type RemitoReporte, type PedidoReporte, type MovimientoReporte, type SolicitudItemReporte, type PedidoItemCompradoReporte } from '@/lib/compras/reportes'
 import KpiCard from '@/components/ui/KpiCard'
 import GastoPorProveedor from './GastoPorProveedor'
 import HistorialPedidos from './HistorialPedidos'
@@ -32,6 +32,8 @@ export default function ReportesClient({
   pedidoItemsIniciales,
   proveedorPorItem,
   stockMinimoPorItem,
+  facturasIniciales,
+  esAdmin,
 }: {
   remitosIniciales: RemitoReporte[]
   pedidosIniciales: PedidoReporte[]
@@ -41,6 +43,9 @@ export default function ReportesClient({
   pedidoItemsIniciales: PedidoItemCompradoReporte[]
   proveedorPorItem: Record<string, string>
   stockMinimoPorItem: Record<string, number>
+  facturasIniciales: FacturaReporte[]
+  /** El gasto sale de las facturas, que solo ve un administrador. */
+  esAdmin: boolean
 }) {
   const [tab, setTab] = useState<Tab>('gasto')
   const [preset, setPreset] = useState<PresetUI>('mes_actual')
@@ -63,15 +68,20 @@ export default function ReportesClient({
     () => movimientosIniciales.filter(m => fechaEnRango(m.created_at, rango)),
     [movimientosIniciales, rango]
   )
+  const facturasFiltradas = useMemo(
+    () => facturasIniciales.filter(f => f.fecha != null && fechaEnRango(f.fecha, rango)),
+    [facturasIniciales, rango]
+  )
   const stockActualPorItem = useMemo(
     () => Object.fromEntries(stockInicial.map(s => [s.item_id, s.cantidad])),
     [stockInicial]
   )
 
   const gastoTotalPeriodo = useMemo(
-    () => calcularGastoPorProveedor(remitosFiltrados).reduce((total, f) => total + f.gastoTotal, 0),
-    [remitosFiltrados]
+    () => facturasFiltradas.reduce((total, f) => total + (f.tipo_comprobante === 'nota_credito' ? -1 : 1) * (f.total ?? 0), 0),
+    [facturasFiltradas]
   )
+  const sinFacturar = useMemo(() => pedidosIniciales.filter(recibidoSinFacturar).length, [pedidosIniciales])
   const insumosConStockBajo = useMemo(
     () => Object.entries(stockMinimoPorItem).filter(([itemId, minimo]) => (stockActualPorItem[itemId] ?? 0) < minimo).length,
     [stockMinimoPorItem, stockActualPorItem]
@@ -99,7 +109,15 @@ export default function ReportesClient({
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon={<Wallet size={18} />} label="Gasto del período" value={`$${money(gastoTotalPeriodo)}`} tono="neutro" />
+        <KpiCard
+          icon={<Wallet size={18} />}
+          label="Gasto del período"
+          value={esAdmin ? `$${money(gastoTotalPeriodo)}` : '—'}
+          detalle={esAdmin
+            ? (sinFacturar > 0 ? `facturas con IVA · ${sinFacturar} recibido${sinFacturar === 1 ? '' : 's'} sin facturar` : 'facturas con IVA')
+            : 'lo ve un administrador'}
+          tono={esAdmin && sinFacturar > 0 ? 'alerta' : 'neutro'}
+        />
         <KpiCard icon={<ClipboardList size={18} />} label="Pedidos del período" value={String(pedidosFiltrados.length)} detalle={`${pedidosFiltrados.filter(p => p.estado === 'cerrado').length} cerrados`} tono="neutro" />
         <KpiCard icon={<Inbox size={18} />} label="Remitos del período" value={String(remitosFiltrados.length)} tono="neutro" />
         <KpiCard
@@ -150,8 +168,8 @@ export default function ReportesClient({
       </div>
       )}
 
-      {tab === 'gasto' && <GastoPorProveedor remitos={remitosFiltrados} />}
-      {tab === 'historial' && <HistorialPedidos pedidos={pedidosFiltrados} />}
+      {tab === 'gasto' && <GastoPorProveedor facturas={facturasFiltradas} pedidos={pedidosIniciales} esAdmin={esAdmin} />}
+      {tab === 'historial' && <HistorialPedidos pedidos={pedidosFiltrados} facturas={facturasIniciales} esAdmin={esAdmin} />}
       {tab === 'stock' && <MovimientoStock movimientos={movimientosFiltrados} stockActualPorItem={stockActualPorItem} proveedorPorItem={proveedorPorItem} />}
       {tab === 'sugerido' && <SugeridoVsComprado solicitudItems={solicitudItemsIniciales} pedidoItems={pedidoItemsIniciales} />}
     </div>

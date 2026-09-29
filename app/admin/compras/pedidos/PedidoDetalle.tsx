@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight, Ban, Clock, History, ListChecks, Loader2, Lock, MoreHorizontal, PackageOpen, PencilLine,
-  ReceiptText, RotateCcw, Send, Trash2, Truck, type LucideIcon,
+  ReceiptText, RotateCcw, Scale, Send, Trash2, Truck, type LucideIcon,
 } from 'lucide-react'
 import EstadoBadge from '@/components/ui/EstadoBadge'
 import { formatearFecha, formatearFechaHora, formatearMonedaExacta } from '@/lib/formato'
 import { proximaAccion, subtextoEstado } from '@/lib/compras/estadoPedido'
 import { codigoRemito } from '@/lib/compras/codigos'
+import { leerEventoDiferencia, RESOLUCION_PASADO } from '@/lib/compras/diferencias'
+import DiferenciasPanel from './facturas/DiferenciasPanel'
 import { conUnidad, type PedidoVista } from './modelo'
 import type { EventoPedido } from './datos'
 
@@ -29,10 +31,11 @@ const EVENTO: Record<string, { label: string; icono: LucideIcon }> = {
   reabierto: { label: 'Reabierto', icono: RotateCcw },
   factura: { label: 'Factura confirmada', icono: ReceiptText },
   factura_anulada: { label: 'Factura anulada', icono: Ban },
+  diferencia: { label: 'Diferencia con la factura resuelta', icono: Scale },
 }
 
 // Desempate cuando dos eventos tienen la misma hora.
-const ORDEN_EVENTO = ['creado', 'enviado', 'remito', 'factura', 'factura_anulada', 'cerrado', 'reabierto']
+const ORDEN_EVENTO = ['creado', 'enviado', 'remito', 'factura', 'diferencia', 'factura_anulada', 'cerrado', 'reabierto']
 
 function detalleEvento(e: EventoPedido, codigoDe: (remitoId: string | null) => string | null): string | null {
   if (e.tipo === 'remito' && e.detalle) {
@@ -41,6 +44,10 @@ function detalleEvento(e: EventoPedido, codigoDe: (remitoId: string | null) => s
   }
   if (e.tipo === 'cerrado' && e.detalle) return `Motivo: ${e.detalle}`
   if ((e.tipo === 'factura' || e.tipo === 'factura_anulada') && e.detalle) return `N° ${e.detalle}`
+  if (e.tipo === 'diferencia') {
+    const d = leerEventoDiferencia(e.detalle)
+    return d ? `${d.insumo}: ${RESOLUCION_PASADO[d.resolucion]}` : null
+  }
   return null
 }
 
@@ -101,12 +108,15 @@ export default function PedidoDetalle({
   acciones,
   pendiente,
   esAdmin,
+  stockPorItem,
 }: {
   pedido: PedidoVista
   acciones: AccionesDetalle
   pendiente: boolean
   /** Solo admin ve la factura del pedido y puede cargarla (P1). */
   esAdmin: boolean
+  /** Para mostrar cómo queda el stock al resolver una diferencia. */
+  stockPorItem: Record<string, number>
 }) {
   const { fila, entrada, visible } = pedido
   const accion = proximaAccion(entrada)
@@ -179,6 +189,14 @@ export default function PedidoDetalle({
               className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
             >
               <Truck size={16} /> {accion.boton}
+            </Link>
+          )}
+          {accion.tipo === 'resolver_diferencias' && (
+            <Link
+              href={hrefFactura}
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
+            >
+              <Scale size={16} /> {accion.boton}
             </Link>
           )}
           {accion.tipo === 'cargar_factura' && (
@@ -324,6 +342,13 @@ export default function PedidoDetalle({
             </Link>
           ) : (
             <p className="text-sm text-muted">Todavía no se cargó la factura de este pedido.</p>
+          )}
+          {pedido.factura?.estado === 'confirmada' && (
+            <DiferenciasPanel
+              diferencias={pedido.diferencias}
+              estadoRecepcion={entrada.estado_recepcion}
+              stockPorItem={stockPorItem}
+            />
           )}
           {!pedido.factura && (
             <Link href={hrefFactura} className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-text underline decoration-accent decoration-2 underline-offset-4 transition-opacity hover:opacity-80">

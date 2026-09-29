@@ -32,6 +32,7 @@ export default async function PedidosPage({
     { data: locales },
     { data: eliminados },
     { data: facturas },
+    { data: diferencias },
   ] = await Promise.all([
     consultarPedidos(supabase),
     supabase.from('v_compras_pedido_pendiente').select('*').order('orden'),
@@ -47,6 +48,8 @@ export default async function PedidosPage({
     supabase.from('locales_facturacion').select('*').eq('activo', true).order('orden'),
     supabase.from('v_compras_pedidos_eliminados').select('*').order('numero', { ascending: false }),
     consultarFacturasDePedidos(supabase),
+    // F5: vacía para quien no es admin (la vista pide es_admin()).
+    supabase.from('v_compras_factura_diferencias').select('*'),
   ])
 
   return (
@@ -61,6 +64,7 @@ export default async function PedidosPage({
       localesFacturacion={locales ?? []}
       eliminados={eliminados ?? []}
       facturas={facturas ?? []}
+      diferencias={diferencias ?? []}
       esAdmin={esAdmin}
       pedidoInicial={pedido}
     />

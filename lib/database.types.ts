@@ -74,6 +74,130 @@ export type Database = {
         }
         Relationships: []
       }
+      compras_factura_discrepancias: {
+        Row: {
+          cantidad_facturada: number
+          cantidad_recibida: number
+          clave: string
+          created_at: string
+          descripcion: string
+          diferencia: number | null
+          factura_id: string
+          id: string
+          item_id: string
+          movimiento_id: string | null
+          nota: string | null
+          pedido_item_id: string | null
+          resolucion: string
+          resuelto_en: string | null
+          resuelto_por: string | null
+          unidad: string | null
+          updated_at: string
+        }
+        Insert: {
+          cantidad_facturada: number
+          cantidad_recibida: number
+          clave: string
+          created_at?: string
+          descripcion: string
+          diferencia?: number | null
+          factura_id: string
+          id?: string
+          item_id: string
+          movimiento_id?: string | null
+          nota?: string | null
+          pedido_item_id?: string | null
+          resolucion?: string
+          resuelto_en?: string | null
+          resuelto_por?: string | null
+          unidad?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cantidad_facturada?: number
+          cantidad_recibida?: number
+          clave?: string
+          created_at?: string
+          descripcion?: string
+          diferencia?: number | null
+          factura_id?: string
+          id?: string
+          item_id?: string
+          movimiento_id?: string | null
+          nota?: string | null
+          pedido_item_id?: string | null
+          resolucion?: string
+          resuelto_en?: string | null
+          resuelto_por?: string | null
+          unidad?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_factura_discrepancias_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_pedido_item_id_fkey"
+            columns: ["pedido_item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedido_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_pedido_item_id_fkey"
+            columns: ["pedido_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_pedido_pendiente"
+            referencedColumns: ["pedido_item_id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_resuelto_por_fkey"
+            columns: ["resuelto_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compras_factura_items: {
         Row: {
           alicuota_iva: number
@@ -175,6 +299,8 @@ export type Database = {
           factura_origen_id: string | null
           fecha: string
           fecha_vencimiento: string | null
+          gasto_generado: boolean
+          gasto_id: string | null
           id: string
           iva: number
           mercaderia_llego: boolean | null
@@ -200,6 +326,8 @@ export type Database = {
           factura_origen_id?: string | null
           fecha: string
           fecha_vencimiento?: string | null
+          gasto_generado?: boolean
+          gasto_id?: string | null
           id?: string
           iva?: number
           mercaderia_llego?: boolean | null
@@ -225,6 +353,8 @@ export type Database = {
           factura_origen_id?: string | null
           fecha?: string
           fecha_vencimiento?: string | null
+          gasto_generado?: boolean
+          gasto_id?: string | null
           id?: string
           iva?: number
           mercaderia_llego?: boolean | null
@@ -272,6 +402,13 @@ export type Database = {
             columns: ["factura_origen_id"]
             isOneToOne: false
             referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_gasto_id_fkey"
+            columns: ["gasto_id"]
+            isOneToOne: false
+            referencedRelation: "gastos"
             referencedColumns: ["id"]
           },
           {
@@ -1042,6 +1179,7 @@ export type Database = {
           creado_por: string | null
           created_at: string
           delta: number
+          discrepancia_id: string | null
           factura_id: string | null
           id: string
           item_id: string
@@ -1057,6 +1195,7 @@ export type Database = {
           creado_por?: string | null
           created_at?: string
           delta: number
+          discrepancia_id?: string | null
           factura_id?: string | null
           id?: string
           item_id: string
@@ -1072,6 +1211,7 @@ export type Database = {
           creado_por?: string | null
           created_at?: string
           delta?: number
+          discrepancia_id?: string | null
           factura_id?: string | null
           id?: string
           item_id?: string
@@ -1113,6 +1253,20 @@ export type Database = {
             columns: ["creado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_discrepancia_id_fkey"
+            columns: ["discrepancia_id"]
+            isOneToOne: false
+            referencedRelation: "compras_factura_discrepancias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_discrepancia_id_fkey"
+            columns: ["discrepancia_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_factura_diferencias"
             referencedColumns: ["id"]
           },
           {
@@ -3448,6 +3602,91 @@ export type Database = {
         }
         Relationships: []
       }
+      v_compras_factura_diferencias: {
+        Row: {
+          cantidad_facturada: number | null
+          cantidad_recibida: number | null
+          clave: string | null
+          descripcion: string | null
+          diferencia: number | null
+          factura_id: string | null
+          id: string | null
+          item_id: string | null
+          movimiento_id: string | null
+          nota: string | null
+          pedido_id: string | null
+          pedido_item_id: string | null
+          resolucion: string | null
+          resuelto_en: string | null
+          resuelto_por_nombre: string | null
+          unidad: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_factura_discrepancias_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_pedido_item_id_fkey"
+            columns: ["pedido_item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedido_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_pedido_item_id_fkey"
+            columns: ["pedido_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_pedido_pendiente"
+            referencedColumns: ["pedido_item_id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_compras_facturas: {
         Row: {
           anulada_en: string | null
@@ -3457,15 +3696,21 @@ export type Database = {
           confirmada_por_nombre: string | null
           creado_por_nombre: string | null
           created_at: string | null
+          diferencias_pendientes: number | null
           estado: string | null
           fecha: string | null
           fecha_vencimiento: string | null
+          gasto_estado: string | null
+          gasto_generado: boolean | null
+          gasto_id: string | null
+          gasto_local: string | null
           id: string | null
           iva: number | null
           mercaderia_llego: boolean | null
           numero: string | null
           numero_normalizado: string | null
           observaciones: string | null
+          pedido_estado_recepcion: string | null
           pedido_id: string | null
           pedido_numero: number | null
           proveedor_id: string | null
@@ -3476,6 +3721,13 @@ export type Database = {
           total_papel: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "compras_facturas_gasto_id_fkey"
+            columns: ["gasto_id"]
+            isOneToOne: false
+            referencedRelation: "gastos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "compras_facturas_pedido_id_fkey"
             columns: ["pedido_id"]
@@ -3711,6 +3963,18 @@ export type Database = {
         Args: { p_factura_id?: string; p_motivo?: string }
         Returns: Json
       }
+      compras_buscar_gasto_candidato: {
+        Args: { p_fecha?: string; p_monto?: number; p_proveedor_id?: string }
+        Returns: {
+          categoria: string
+          estado: string
+          fecha: string
+          id: string
+          local: string
+          monto: number
+          observaciones: string
+        }[]
+      }
       compras_cerrar_pedido_manual: {
         Args: { p_motivo: string; p_pedido_id: string }
         Returns: undefined
@@ -3719,6 +3983,8 @@ export type Database = {
         Args: {
           p_actualizar_precios?: boolean
           p_factura_id?: string
+          p_gasto_existente_id?: string
+          p_gasto_local?: string
           p_mercaderia_llego?: boolean
         }
         Returns: Json
@@ -3726,6 +3992,18 @@ export type Database = {
       compras_descartar_factura: {
         Args: { p_factura_id?: string }
         Returns: undefined
+      }
+      compras_diferencias_calculadas: {
+        Args: { p_factura_id: string }
+        Returns: {
+          clave: string
+          descripcion: string
+          facturada: number
+          item_id: string
+          pedido_item_id: string
+          recibida: number
+          unidad: string
+        }[]
       }
       compras_eliminar_pedido: {
         Args: { p_motivo?: string; p_pedido_id?: string }
@@ -3773,6 +4051,7 @@ export type Database = {
           p_anula_movimiento_id?: string
           p_conteo_id?: string
           p_delta: number
+          p_discrepancia_id?: string
           p_factura_id?: string
           p_item_id: string
           p_motivo?: string
@@ -3785,9 +4064,25 @@ export type Database = {
         Args: { p_pedido_id: string }
         Returns: undefined
       }
+      compras_recalcular_diferencias_factura: {
+        Args: { p_factura_id: string }
+        Returns: undefined
+      }
       compras_recalcular_estado_pedido: {
         Args: { p_pedido_id: string }
         Returns: undefined
+      }
+      compras_resolver_diferencia: {
+        Args: {
+          p_diferencia_id?: string
+          p_nota?: string
+          p_resolucion?: string
+        }
+        Returns: Json
+      }
+      compras_revertir_diferencia: {
+        Args: { p_diferencia_id?: string }
+        Returns: Json
       }
       compras_revertir_movimiento: {
         Args: { p_motivo?: string; p_movimiento_id?: string }
