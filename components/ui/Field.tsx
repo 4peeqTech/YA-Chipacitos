@@ -22,7 +22,7 @@ export function Field({
         {obligatorio && <span className="text-brand-red ml-0.5">*</span>}
       </label>
       {children}
-      {ayuda && <p className="text-3xs text-faint mt-1">{ayuda}</p>}
+      {ayuda && <p className="text-3xs text-muted mt-1">{ayuda}</p>}
     </div>
   )
 }

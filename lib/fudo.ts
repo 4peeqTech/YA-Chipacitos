@@ -37,28 +37,39 @@ export async function fudoGet(token: string, path: string): Promise<unknown> {
   return res.json()
 }
 
+type Ref = { type: string; id: string }
+type Relaciones = Record<string, { data?: Ref | Ref[] | null }>
+type Recurso = { id: string; type: string; attributes?: Record<string, unknown>; relationships?: Relaciones }
+
 export function normalizeJsonApi(data: {
   data: Array<{ id: string; type: string; attributes?: Record<string, unknown>; relationships?: Record<string, unknown> }>;
-  included?: Array<{ id: string; type: string; attributes?: Record<string, unknown> }>;
+  included?: Array<{ id: string; type: string; attributes?: Record<string, unknown>; relationships?: Record<string, unknown> }>;
 }): Array<Record<string, unknown>> {
-  const includedMap = new Map<string, Record<string, unknown>>()
+  const includedMap = new Map<string, Recurso>()
   for (const item of data.included ?? []) {
-    includedMap.set(`${item.type}:${item.id}`, item.attributes ?? {})
+    includedMap.set(`${item.type}:${item.id}`, item as Recurso)
   }
 
-  return data.data.map(item => {
-    const attrs: Record<string, unknown> = { id: item.id, ...item.attributes }
-    const rels = item.relationships as Record<string, { data: { type: string; id: string } | Array<{ type: string; id: string }> | null }> | undefined
-    if (rels) {
-      for (const [key, rel] of Object.entries(rels)) {
-        if (!rel.data) continue
-        if (Array.isArray(rel.data)) {
-          attrs[key] = rel.data.map(r => ({ id: r.id, ...includedMap.get(`${r.type}:${r.id}`) }))
-        } else {
-          attrs[key] = { id: rel.data.id, ...includedMap.get(`${rel.data.type}:${rel.data.id}`) }
-        }
-      }
+  // Resuelve las relaciones de un recurso contra lo incluido. `nivel` limita la
+  // profundidad: con 2 llega, por ejemplo, venta → pagos → forma de pago
+  // (include=payments.paymentMethod), que antes quedaba sin nombre.
+  function resolver(rels: Relaciones | undefined, nivel: number): Record<string, unknown> {
+    const res: Record<string, unknown> = {}
+    if (!rels || nivel <= 0) return res
+    const uno = (r: Ref) => {
+      const inc = includedMap.get(`${r.type}:${r.id}`)
+      return { id: r.id, ...inc?.attributes, ...resolver(inc?.relationships, nivel - 1) }
     }
-    return attrs
-  })
+    for (const [key, rel] of Object.entries(rels)) {
+      if (!rel?.data) continue
+      res[key] = Array.isArray(rel.data) ? rel.data.map(uno) : uno(rel.data)
+    }
+    return res
+  }
+
+  return data.data.map(item => ({
+    id: item.id,
+    ...item.attributes,
+    ...resolver(item.relationships as Relaciones | undefined, 2),
+  }))
 }

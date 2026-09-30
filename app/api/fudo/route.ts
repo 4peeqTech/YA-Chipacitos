@@ -36,20 +36,25 @@ export async function GET(req: NextRequest) {
 
     let path = ''
     if (tipo === 'expenses') {
-      path = `/expenses?fields[expense]=amount,date,description,status,canceled`
-            + `&fields[expenseCategory]=name&fields[provider]=name&fields[payment]=amount,paid_at,canceled&fields[paymentMethod]=name`
+      // En JSON:API los campos parciales tienen que nombrar también las
+      // relaciones: sin expenseCategory/provider/payments en fields[expense], el
+      // include no llegaba y la categoría y el proveedor salían vacíos.
+      path = `/expenses?fields[expense]=amount,date,description,status,canceled,expenseCategory,provider,payments`
+            + `&fields[expenseCategory]=name&fields[provider]=name&fields[payment]=amount,paid_at,canceled,paymentMethod&fields[paymentMethod]=name`
             + `&include=expenseCategory,provider,payments,payments.paymentMethod`
             + `&filter[date]=and(gte.${desde},lte.${hasta})`
             + `&page[size]=500&sort=-id`
     } else if (tipo === 'sales') {
-      path = `/sales?fields[sale]=total,createdAt,closedAt,saleType,saleState`
-            + `&fields[cashRegister]=name&fields[paymentMethod]=name`
+      // Ojo: /sales rechaza con 400 fields[payment] y fields[paymentMethod]
+      // (probado contra Fudo el 2026-09-30); los pagos llegan completos sin ellos.
+      path = `/sales?fields[sale]=total,createdAt,closedAt,saleType,saleState,cashRegister,payments`
+            + `&fields[cashRegister]=name`
             + `&include=cashRegister,payments,payments.paymentMethod`
             + `&filter[saleState]=in.(CLOSED)`
             + `&filter[createdAt]=and(gte.${desde}T00:00:00Z,lte.${hasta}T23:59:59Z)`
             + `&page[size]=500&sort=-id`
     } else if (tipo === 'payments') {
-      path = `/payments?fields[payment]=amount,paidAt,canceled,receivedAmount`
+      path = `/payments?fields[payment]=amount,paidAt,canceled,receivedAmount,paymentMethod`
             + `&fields[paymentMethod]=name`
             + `&include=paymentMethod`
             + `&filter[paidAt]=and(gte.${desde}T00:00:00Z,lte.${hasta}T23:59:59Z)`

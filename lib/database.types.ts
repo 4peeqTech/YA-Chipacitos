@@ -148,6 +148,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "compras_factura_discrepancias_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
+          },
+          {
             foreignKeyName: "compras_factura_discrepancias_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
@@ -255,6 +262,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_compras_facturas"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_items_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
           },
           {
             foreignKeyName: "compras_factura_items_item_id_fkey"
@@ -405,10 +419,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "compras_facturas_factura_origen_id_fkey"
+            columns: ["factura_origen_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
+          },
+          {
             foreignKeyName: "compras_facturas_gasto_id_fkey"
             columns: ["gasto_id"]
             isOneToOne: false
             referencedRelation: "gastos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_gasto_id_fkey"
+            columns: ["gasto_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
             referencedColumns: ["id"]
           },
           {
@@ -980,6 +1008,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "compras_remitos_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
+          },
+          {
             foreignKeyName: "compras_remitos_pedido_id_fkey"
             columns: ["pedido_id"]
             isOneToOne: false
@@ -1282,6 +1317,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_compras_facturas"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
           },
           {
             foreignKeyName: "compras_stock_movimientos_item_id_fkey"
@@ -2285,6 +2327,59 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "fudo_proveedores"
             referencedColumns: ["fudo_id"]
+          },
+        ]
+      }
+      fudo_gastos_pagados: {
+        Row: {
+          caja: string
+          comprobante_url: string | null
+          created_at: string
+          descripcion: string | null
+          fecha_gasto: string | null
+          fecha_pago: string
+          forma_pago: string
+          fudo_expense_id: string
+          id: string
+          monto: number
+          pagado_por: string | null
+          sucursal: string
+        }
+        Insert: {
+          caja: string
+          comprobante_url?: string | null
+          created_at?: string
+          descripcion?: string | null
+          fecha_gasto?: string | null
+          fecha_pago: string
+          forma_pago: string
+          fudo_expense_id: string
+          id?: string
+          monto: number
+          pagado_por?: string | null
+          sucursal: string
+        }
+        Update: {
+          caja?: string
+          comprobante_url?: string | null
+          created_at?: string
+          descripcion?: string | null
+          fecha_gasto?: string | null
+          fecha_pago?: string
+          forma_pago?: string
+          fudo_expense_id?: string
+          id?: string
+          monto?: number
+          pagado_por?: string | null
+          sucursal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fudo_gastos_pagados_pagado_por_fkey"
+            columns: ["pagado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3637,6 +3732,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "compras_factura_discrepancias_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
+          },
+          {
             foreignKeyName: "compras_factura_discrepancias_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
@@ -3726,6 +3828,13 @@ export type Database = {
             columns: ["gasto_id"]
             isOneToOne: false
             referencedRelation: "gastos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_gasto_id_fkey"
+            columns: ["gasto_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
             referencedColumns: ["id"]
           },
           {
@@ -3944,6 +4053,65 @@ export type Database = {
           },
         ]
       }
+      v_fudo_gastos_pagados: {
+        Row: {
+          caja: string | null
+          comprobante_url: string | null
+          created_at: string | null
+          descripcion: string | null
+          fecha_gasto: string | null
+          fecha_pago: string | null
+          forma_pago: string | null
+          fudo_expense_id: string | null
+          id: string | null
+          monto: number | null
+          pagado_por: string | null
+          pagado_por_nombre: string | null
+          sucursal: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fudo_gastos_pagados_pagado_por_fkey"
+            columns: ["pagado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_gastos: {
+        Row: {
+          caja: string | null
+          categoria: string | null
+          comprobante_url: string | null
+          creado_por_nombre: string | null
+          created_at: string | null
+          estado: string | null
+          factura_id: string | null
+          factura_numero: string | null
+          factura_pedido_numero: number | null
+          fecha: string | null
+          fecha_pago: string | null
+          forma_pago: string | null
+          id: string | null
+          local: string | null
+          monto: number | null
+          observaciones: string | null
+          pagado_por_nombre: string | null
+          proveedor_id: string | null
+          proveedor_nombre: string | null
+          rubro: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gastos_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       ajustar_stock_terminado_manual: {
@@ -4132,6 +4300,48 @@ export type Database = {
       fabrica_puede_editar_fecha: {
         Args: { p_fecha: string }
         Returns: boolean
+      }
+      fudo_deshacer_pago: { Args: { p_id?: string }; Returns: undefined }
+      fudo_registrar_pago: {
+        Args: {
+          p_caja?: string
+          p_comprobante_url?: string
+          p_descripcion?: string
+          p_fecha_gasto?: string
+          p_fecha_pago?: string
+          p_forma_pago?: string
+          p_fudo_expense_id?: string
+          p_monto?: number
+          p_sucursal?: string
+        }
+        Returns: string
+      }
+      gastos_deshacer_pago: { Args: { p_id?: string }; Returns: undefined }
+      gastos_eliminar: { Args: { p_id?: string }; Returns: undefined }
+      gastos_guardar: {
+        Args: {
+          p_categoria?: string
+          p_fecha?: string
+          p_forma_pago?: string
+          p_id?: string
+          p_local?: string
+          p_monto?: number
+          p_observaciones?: string
+          p_pago?: Json
+          p_proveedor_id?: string
+          p_rubro?: string
+        }
+        Returns: string
+      }
+      gastos_registrar_pago: {
+        Args: {
+          p_caja?: string
+          p_comprobante_url?: string
+          p_fecha_pago?: string
+          p_forma_pago?: string
+          p_id?: string
+        }
+        Returns: undefined
       }
       generar_solicitud_base: { Args: never; Returns: string }
       get_user_rol: { Args: never; Returns: string }

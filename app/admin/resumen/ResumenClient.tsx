@@ -1,8 +1,16 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { mensajeError } from '@/lib/errores'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, BarChart3, ChevronDown, Package, RefreshCw, ShoppingBag, Store, Wallet } from 'lucide-react'
+import PageHeader from '@/components/ui/PageHeader'
+import KpiCard from '@/components/ui/KpiCard'
+import EmptyState from '@/components/ui/EmptyState'
 import DateRangePicker from '@/components/ui/DateRangePicker'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { controlClass } from '@/components/ui/Field'
+import { formatearMoneda } from '@/lib/formato'
+import { calcularRangoPreset } from '@/lib/compras/rangoFechas'
+import { mensajeError } from '@/lib/errores'
 
 interface CatRow { categoria: string; total: number }
 interface VentaRow { producto: string; cantidad: number; importe: number }
@@ -15,240 +23,220 @@ interface LocalData {
   totalMontoVendido: number
 }
 
-function hoy() { return new Date().toISOString().slice(0, 10) }
-function primerDelMes() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
-function fmt(n: number) {
-  return n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 })
+const PRODUCTOS_VISIBLES = 8
+
+function unidades(n: number): string {
+  return `${n.toLocaleString('es-AR', { maximumFractionDigits: 2 })} u`
 }
 
-const inputClass =
-  'bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] [color-scheme:dark]'
+function TarjetaLocal({ d }: { d: LocalData }) {
+  const [abierta, setAbierta] = useState(true)
+  const [todosProductos, setTodosProductos] = useState(false)
+  const mayorGasto = d.gastos[0]?.total ?? 0
+  const productos = todosProductos ? d.ventas : d.ventas.slice(0, PRODUCTOS_VISIBLES)
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border bg-surface">
+      <button
+        type="button"
+        onClick={() => setAbierta(a => !a)}
+        aria-expanded={abierta}
+        className="flex w-full flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3.5 text-left transition-colors hover:bg-surface2"
+      >
+        <span className="flex items-center gap-2 font-bold text-text">
+          <Store size={16} className="text-accent-fg" /> {d.local}
+        </span>
+        <span className="flex items-center gap-5 text-right">
+          <span>
+            <span className="block text-2xs uppercase tracking-wider text-muted">Gastos</span>
+            <span className="block text-sm font-semibold tabular-nums text-text">{formatearMoneda(d.totalGastos)}</span>
+          </span>
+          <span>
+            <span className="block text-2xs uppercase tracking-wider text-muted">Vendido</span>
+            <span className="block text-sm font-semibold tabular-nums text-text">{d.totalMontoVendido > 0 ? formatearMoneda(d.totalMontoVendido) : '—'}</span>
+          </span>
+          <span className="hidden sm:block">
+            <span className="block text-2xs uppercase tracking-wider text-muted">Unidades</span>
+            <span className="block text-sm font-semibold tabular-nums text-text">{unidades(d.totalVendido)}</span>
+          </span>
+          <ChevronDown size={16} className={`shrink-0 text-muted transition-transform duration-200 ${abierta ? '' : '-rotate-90'}`} />
+        </span>
+      </button>
+
+      {abierta && (
+        <div className="grid divide-y divide-border border-t border-border md:grid-cols-2 md:divide-x md:divide-y-0">
+          <div className="space-y-3 p-4">
+            <h3 className="flex items-center gap-2 text-sm font-bold text-text">
+              <Wallet size={15} className="text-accent" /> Gastos por categoría
+            </h3>
+            {d.gastos.length === 0 ? (
+              <p className="text-sm text-muted">No hay gastos cargados para este local en el período.</p>
+            ) : (
+              <ul className="space-y-2.5">
+                {d.gastos.map(g => {
+                  const pct = d.totalGastos > 0 ? Math.round((g.total / d.totalGastos) * 100) : 0
+                  return (
+                    <li key={g.categoria} className="space-y-1">
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="min-w-0 truncate text-text">{g.categoria}</span>
+                        <span className="whitespace-nowrap tabular-nums">
+                          <span className="font-semibold text-text">{formatearMoneda(g.total)}</span>
+                          <span className="ml-2 inline-block w-9 text-right text-xs text-muted">{pct} %</span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-surface2" aria-hidden>
+                        <div className="h-full rounded-full bg-accent" style={{ width: `${mayorGasto > 0 ? (g.total / mayorGasto) * 100 : 0}%` }} />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="space-y-3 p-4">
+            <h3 className="flex items-center gap-2 text-sm font-bold text-text">
+              <ShoppingBag size={15} className="text-accent" /> Ventas por producto
+              <span className="font-normal text-muted">(Posberry)</span>
+            </h3>
+            {d.ventas.length === 0 ? (
+              <p className="text-sm text-muted">No hay ventas registradas para este local en el período.</p>
+            ) : (
+              <>
+                <table className="w-full text-sm">
+                  <thead className="text-2xs uppercase tracking-wider text-muted">
+                    <tr>
+                      <th className="pb-2 text-left font-semibold">Producto</th>
+                      <th className="pb-2 text-right font-semibold">Cantidad</th>
+                      <th className="pb-2 text-right font-semibold">Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {productos.map(v => (
+                      <tr key={v.producto}>
+                        <td className="py-1.5 pr-3 text-text">{v.producto}</td>
+                        <td className="whitespace-nowrap py-1.5 text-right tabular-nums text-text">{v.cantidad.toLocaleString('es-AR')}</td>
+                        <td className="whitespace-nowrap py-1.5 pl-3 text-right tabular-nums text-muted">{v.importe > 0 ? formatearMoneda(v.importe) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {d.ventas.length > PRODUCTOS_VISIBLES && (
+                  <button
+                    type="button"
+                    onClick={() => setTodosProductos(t => !t)}
+                    className="inline-flex min-h-11 items-center text-sm font-medium text-text underline decoration-accent decoration-2 underline-offset-4 hover:opacity-80"
+                  >
+                    {todosProductos ? 'Ver menos' : `Ver los ${d.ventas.length} productos`}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
 
 export default function ResumenClient() {
-  const [desde, setDesde] = useState(primerDelMes())
-  const [hasta, setHasta] = useState(hoy())
+  const mesActual = useMemo(() => calcularRangoPreset('mes_actual', new Date()), [])
+  const [desde, setDesde] = useState(mesActual.desde)
+  const [hasta, setHasta] = useState(mesActual.hasta)
+  const [local, setLocal] = useState('')
   const [data, setData] = useState<LocalData[] | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [expandido, setExpandido] = useState<Record<string, boolean>>({})
-  const [filtroLocal, setFiltroLocal] = useState('todos')
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [intento, setIntento] = useState(0)
+  const consulta = useRef(0)
 
-  const consultar = useCallback(async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const params = new URLSearchParams()
-      if (desde) params.set('desde', desde)
-      if (hasta) params.set('hasta', hasta)
-      const res = await fetch(`/api/resumen?${params}`)
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? 'Error')
-      setData(json)
-      // Expand all by default
-      const exp: Record<string, boolean> = {}
-      for (const d of json) exp[d.local] = true
-      setExpandido(exp)
-    } catch (e: unknown) {
-      setError(mensajeError(e, 'No se pudo cargar el resumen'))
-    } finally {
-      setLoading(false)
-    }
-  }, [desde, hasta])
+  // Se consulta solo al cambiar el período: no hay botón que apretar.
+  useEffect(() => {
+    const n = ++consulta.current
+    const params = new URLSearchParams()
+    if (desde) params.set('desde', desde)
+    if (hasta) params.set('hasta', hasta)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCargando(true)
+    setError(null)
+    fetch(`/api/resumen?${params}`)
+      .then(async r => {
+        const json = await r.json()
+        if (!r.ok) throw new Error(json?.error ?? 'No se pudo cargar el resumen.')
+        if (n === consulta.current) setData(json as LocalData[])
+      })
+      .catch((e: unknown) => { if (n === consulta.current) setError(mensajeError(e, 'No se pudo cargar el resumen.')) })
+      .finally(() => { if (n === consulta.current) setCargando(false) })
+  }, [desde, hasta, intento])
 
-  const toggle = (local: string) =>
-    setExpandido(prev => ({ ...prev, [local]: !prev[local] }))
-
-  const dataFiltrada = filtroLocal === 'todos' ? (data ?? []) : (data ?? []).filter(d => d.local === filtroLocal)
-  const totalGastos = dataFiltrada.reduce((s, d) => s + d.totalGastos, 0)
-  const totalVendido = dataFiltrada.reduce((s, d) => s + d.totalVendido, 0)
-  const totalMontoVendido = dataFiltrada.reduce((s, d) => s + d.totalMontoVendido, 0)
+  const filtrada = (data ?? []).filter(d => !local || d.local === local)
+  const totalGastos = filtrada.reduce((s, d) => s + d.totalGastos, 0)
+  const totalMonto = filtrada.reduce((s, d) => s + d.totalMontoVendido, 0)
+  const totalUnidades = filtrada.reduce((s, d) => s + d.totalVendido, 0)
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#f0f0f0]">Resumen por local</h1>
-        <p className="text-[#888] text-sm mt-0.5">Gastos por categoría y pedidos por producto</p>
-      </div>
+      <PageHeader
+        icono={BarChart3}
+        titulo="Resumen por local"
+        descripcion="Cuánto se gastó y cuánto se vendió en cada local en el período."
+      />
 
-      {/* Filtros */}
-      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs font-semibold text-accent-fg uppercase tracking-wider mb-1.5">Período</label>
-          <DateRangePicker desde={desde} hasta={hasta} limpiable={false}
-            onChange={(d, h) => { setDesde(d); setHasta(h) }} />
-        </div>
-        {data && data.length > 0 && (
-          <div>
-            <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Sucursal</label>
-            <select className={inputClass} value={filtroLocal} onChange={e => setFiltroLocal(e.target.value)}>
-              <option value="todos">Todas</option>
-              {data.map(d => <option key={d.local} value={d.local}>{d.local}</option>)}
-            </select>
-          </div>
-        )}
-        <button
-          onClick={consultar}
-          disabled={loading}
-          className="px-5 py-2 bg-[#e8c547] text-black text-sm font-bold rounded-lg hover:bg-[#f0d060] disabled:opacity-50 transition-colors"
+      <div className="flex flex-wrap items-center gap-3">
+        <DateRangePicker
+          desde={desde}
+          hasta={hasta}
+          limpiable={false}
+          onChange={(d, h) => { setDesde(d); setHasta(h) }}
+          ariaLabel="Período del resumen"
+        />
+        <select
+          aria-label="Filtrar por local"
+          value={local}
+          onChange={e => setLocal(e.target.value)}
+          disabled={!data?.length}
+          className={`${controlClass} min-h-11 w-full sm:w-52`}
         >
-          {loading ? 'Cargando…' : 'Consultar'}
-        </button>
+          <option value="">Todos los locales</option>
+          {(data ?? []).map(d => <option key={d.local} value={d.local}>{d.local}</option>)}
+        </select>
       </div>
 
-      {error && (
-        <div className="bg-red-900/20 border border-red-800 text-red-400 rounded-xl px-4 py-3 text-sm">{error}</div>
-      )}
-
-      {data && (
-        <>
-          {/* Stats globales */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-              <p className="text-[#888] text-xs uppercase tracking-wider">Locales</p>
-              <p className="text-xl font-bold text-[#f0f0f0] mt-1">{dataFiltrada.length}</p>
-            </div>
-            <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-              <p className="text-[#888] text-xs uppercase tracking-wider">Total gastos</p>
-              <p className="text-xl font-bold text-red-400 mt-1">{fmt(totalGastos)}</p>
-            </div>
-            <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-              <p className="text-[#888] text-xs uppercase tracking-wider">Total vendido</p>
-              <p className="text-xl font-bold text-[#f0f0f0] mt-1">{totalVendido.toLocaleString('es-AR')} u</p>
-            </div>
-            <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-              <p className="text-[#888] text-xs uppercase tracking-wider">Monto vendido</p>
-              <p className="text-xl font-bold text-green-400 mt-1">{fmt(totalMontoVendido)}</p>
-            </div>
+      {error ? (
+        <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-warning bg-warning-bg px-4 py-3">
+          <p className="flex items-start gap-2 text-sm font-medium text-warning">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {error}
+          </p>
+          <button type="button" onClick={() => setIntento(i => i + 1)} className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-text hover:bg-surface2">
+            <RefreshCw size={15} /> Reintentar
+          </button>
+        </div>
+      ) : cargando && !data ? (
+        <div className="space-y-4" aria-live="polite">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[0, 1, 2].map(i => <Skeleton key={i} className="h-18.5 w-full rounded-2xl" />)}
+          </div>
+          {[0, 1].map(i => <Skeleton key={i} className="h-48 w-full rounded-2xl" />)}
+        </div>
+      ) : (
+        <div className={`space-y-4 transition-opacity duration-200 ${cargando ? 'opacity-60' : ''}`} aria-busy={cargando}>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <KpiCard icon={<Wallet size={18} />} label="Gastos del período" value={formatearMoneda(totalGastos)} />
+            <KpiCard icon={<ShoppingBag size={18} />} label="Vendido" value={formatearMoneda(totalMonto)} detalle="según Posberry" />
+            <KpiCard icon={<Package size={18} />} label="Unidades vendidas" value={unidades(totalUnidades)} />
           </div>
 
-          {dataFiltrada.length === 0 && (
-            <div className="text-center py-16 text-[#888]">Sin datos para el período seleccionado</div>
-          )}
-
-          {/* Cards por local */}
-          {dataFiltrada.map(d => (
-            <div key={d.local} className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-              {/* Header */}
-              <button
-                onClick={() => toggle(d.local)}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#1a1a1a] transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-base font-bold text-[#f0f0f0] uppercase tracking-wide">{d.local}</span>
-                  <span className="text-xs text-[#555] bg-[#1a1a1a] px-2 py-0.5 rounded-full">
-                    {d.gastos.length} categorías · {d.ventas.length} productos
-                  </span>
-                </div>
-                <div className="flex items-center gap-6 text-right">
-                  <div>
-                    <p className="text-[10px] text-[#555] uppercase">Gastos</p>
-                    <p className="text-sm font-bold text-red-400">{fmt(d.totalGastos)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#555] uppercase">Vendido</p>
-                    <p className="text-sm font-bold text-green-400">{fmt(d.totalMontoVendido)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#555] uppercase">Unidades</p>
-                    <p className="text-sm font-bold text-[#f0f0f0]">{d.totalVendido.toLocaleString('es-AR')} u</p>
-                  </div>
-                  <span className={`text-[#555] text-xs transition-transform ${expandido[d.local] ? '' : '-rotate-90'}`}>▼</span>
-                </div>
-              </button>
-
-              {expandido[d.local] && (
-                <div className="border-t border-[#2a2a2a] grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#2a2a2a]">
-                  {/* Gastos por categoría */}
-                  <div className="p-4">
-                    <h3 className="text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-3">Gastos por categoría</h3>
-                    {d.gastos.length === 0 ? (
-                      <p className="text-[#555] text-sm">Sin gastos en el período</p>
-                    ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-[#555] text-xs">
-                            <th className="text-left pb-2 font-medium">Categoría</th>
-                            <th className="text-right pb-2 font-medium">Total</th>
-                            <th className="text-right pb-2 font-medium w-16">%</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#1a1a1a]">
-                          {d.gastos.map(g => (
-                            <tr key={g.categoria}>
-                              <td className="py-1.5 text-[#f0f0f0]">{g.categoria}</td>
-                              <td className="py-1.5 text-right text-[#f0f0f0] font-medium">{fmt(g.total)}</td>
-                              <td className="py-1.5 text-right text-[#555] text-xs">
-                                {d.totalGastos > 0 ? Math.round((g.total / d.totalGastos) * 100) : 0}%
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr className="border-t border-[#2a2a2a]">
-                            <td className="pt-2 text-[#888] font-semibold text-xs">TOTAL</td>
-                            <td className="pt-2 text-right text-red-400 font-bold">{fmt(d.totalGastos)}</td>
-                            <td />
-                          </tr>
-                        </tfoot>
-                      </table>
-                    )}
-                  </div>
-
-                  {/* Ventas Posberry por producto */}
-                  <div className="p-4">
-                    <h3 className="text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-3">Ventas por producto (Posberry)</h3>
-                    {d.ventas.length === 0 ? (
-                      <p className="text-[#555] text-sm">Sin ventas registradas en el período</p>
-                    ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-[#555] text-xs">
-                            <th className="text-left pb-2 font-medium">Producto</th>
-                            <th className="text-right pb-2 font-medium">Cant.</th>
-                            <th className="text-right pb-2 font-medium">Importe</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#1a1a1a]">
-                          {d.ventas.map(v => (
-                            <tr key={v.producto}>
-                              <td className="py-1.5 text-[#f0f0f0]">{v.producto}</td>
-                              <td className="py-1.5 text-right text-[#f0f0f0] font-medium">
-                                {v.cantidad.toLocaleString('es-AR')}
-                              </td>
-                              <td className="py-1.5 text-right text-green-400 text-xs">
-                                {v.importe > 0 ? fmt(v.importe) : '—'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr className="border-t border-[#2a2a2a]">
-                            <td className="pt-2 text-[#888] font-semibold text-xs">TOTAL</td>
-                            <td className="pt-2 text-right text-[#f0f0f0] font-bold">
-                              {d.totalVendido.toLocaleString('es-AR')} u
-                            </td>
-                            <td className="pt-2 text-right text-green-400 font-bold text-xs">
-                              {d.totalMontoVendido > 0 ? fmt(d.totalMontoVendido) : '—'}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    )}
-                  </div>
-                </div>
-              )}
+          {filtrada.length === 0 ? (
+            <div className="overflow-hidden rounded-2xl border border-border">
+              <EmptyState
+                icono={BarChart3}
+                titulo="No hay gastos ni ventas en el período"
+                descripcion="Probá con otro período. Los gastos salen de Gastos y las ventas, de Posberry."
+              />
             </div>
-          ))}
-        </>
-      )}
-
-      {!data && !loading && (
-        <div className="text-center py-20 text-[#555]">
-          <p className="text-4xl mb-3">📊</p>
-          <p className="text-[#888]">Seleccioná un período y presioná Consultar</p>
+          ) : (
+            filtrada.map(d => <TarjetaLocal key={d.local} d={d} />)
+          )}
         </div>
       )}
     </div>

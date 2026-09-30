@@ -62,7 +62,13 @@ export function atajosDeRango(): Atajo[] {
 /** Etiqueta del botón de rango: usa el nombre del atajo si el rango coincide con uno. */
 export function nombreDeRango(desde: string, hasta: string): string | null {
   if (!desde || !hasta) return null
-  return atajosDeRango().find(a => a.desde === desde && a.hasta === hasta)?.etiqueta ?? null
+  // El mes calendario completo también es "Este mes" (el atajo corta en hoy).
+  const hoy = new Date()
+  if (desde === aISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1))
+    && hasta === aISO(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0))) return 'Este mes'
+  const coinciden = atajosDeRango().filter(a => a.desde === desde && a.hasta === hasta)
+  // Un 30 de septiembre, "Últimos 30 días" y "Este mes" son el mismo rango: gana el nombre del calendario.
+  return (coinciden.find(a => a.etiqueta === 'Este mes' || a.etiqueta === 'Mes pasado') ?? coinciden[0])?.etiqueta ?? null
 }
 
 /**

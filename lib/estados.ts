@@ -53,6 +53,18 @@ export const ESTADOS = {
     'Parcial':            { label: 'Parcial',           tono: 'alerta' },
     'Pagado':              { label: 'Pagado',            tono: 'exito' },
   },
+  // Estados tal como los devuelve Fudo (Gastos › Fudo / Caja). cancelado y ok
+  // son nuestros: Fudo los marca con un booleano, no con un estado.
+  fudo: {
+    PAID:        { label: 'Pagado',    tono: 'exito' },
+    UNPAID:      { label: 'Impago',    tono: 'alerta' },
+    PENDING:     { label: 'Pendiente', tono: 'alerta' },
+    CLOSED:      { label: 'Cerrada',   tono: 'exito' },
+    'IN-COURSE': { label: 'En curso',  tono: 'info' },
+    CANCELED:    { label: 'Cancelada', tono: 'neutro' },
+    cancelado:   { label: 'Cancelado', tono: 'neutro' },
+    ok:          { label: 'Registrado', tono: 'exito' },
+  },
 } as const satisfies Record<string, Record<string, DefinicionEstado>>
 
 export type Dominio = keyof typeof ESTADOS

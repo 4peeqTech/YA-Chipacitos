@@ -1,307 +1,257 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import InputNumero from '@/components/ui/InputNumero'
-import { RUBROS_CATEGORIAS, RUBROS, LOCALES, FORMAS_PAGO, ESTADOS_GASTO } from '@/lib/gastos-constants'
-import { mensajeError } from '@/lib/errores'
-import DatePicker from '@/components/ui/DatePicker'
+import { useMemo, useState } from 'react'
+import { CalendarRange, CircleDollarSign, Clock, Plus, ReceiptText, Wallet } from 'lucide-react'
+import PageHeader from '@/components/ui/PageHeader'
+import AyudaLink from '@/components/ui/AyudaLink'
+import Modal from '@/components/ui/Modal'
+import KpiCard from '@/components/ui/KpiCard'
+import EmptyState from '@/components/ui/EmptyState'
+import EstadoBadge from '@/components/ui/EstadoBadge'
+import DataTable, { type Columna } from '@/components/ui/DataTable'
+import SearchInput from '@/components/ui/SearchInput'
+import DateRangePicker from '@/components/ui/DateRangePicker'
+import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
+import { ChipGroup } from '@/components/ui/Chip'
+import { controlClass } from '@/components/ui/Field'
+import { useConfirmar } from '@/components/ui/ProveedorUI'
+import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
+import { calcularRangoPreset } from '@/lib/compras/rangoFechas'
+import {
+  armarGastos, filtrarGastos, pendiente, resumirGastos,
+  type FiltroEstadoGasto, type GastoFila, type GastoVista,
+} from '@/lib/gastos/modelo'
+import GastoForm from './GastoForm'
 
-interface Proveedor { id: string; nombre: string }
-interface Gasto {
-  id: string
-  fecha: string
-  local: string
-  rubro: string
-  categoria: string
-  proveedor_id: string | null
-  monto: number
-  forma_pago: string
-  estado: string
-  observaciones: string | null
-  proveedores?: { nombre: string } | null
-}
+const FILTROS: { value: FiltroEstadoGasto; label: string }[] = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'pendientes', label: 'Pendientes de pago' },
+  { value: 'pagados', label: 'Pagados' },
+]
 
-const hoy = () => new Date().toISOString().split('T')[0]
+type Abierto = { id: string } | 'nuevo' | null
 
-const emptyForm = () => ({
-  fecha: hoy(),
-  local: '',
-  rubro: '',
-  categoria: '',
-  proveedor_id: '',
-  monto: '',
-  forma_pago: '',
-  estado: 'Pendiente de pago',
-  observaciones: '',
-})
+export default function GastosClient({
+  gastos: filas,
+  proveedores,
+  cajas,
+  formasPago,
+  gastoInicial,
+}: {
+  gastos: GastoFila[]
+  proveedores: { id: string; nombre: string }[]
+  cajas: string[]
+  formasPago: string[]
+  gastoInicial?: string
+}) {
+  const confirmar = useConfirmar()
+  const mesActual = useMemo(() => calcularRangoPreset('mes_actual', new Date()), [])
+  const [estado, setEstado] = useState<FiltroEstadoGasto>('todos')
+  const [local, setLocal] = useState('')
+  const [busqueda, setBusqueda] = useState('')
+  const [desde, setDesde] = useState(mesActual.desde)
+  const [hasta, setHasta] = useState(mesActual.hasta)
+  const [abierto, setAbierto] = useState<Abierto>(gastoInicial ? { id: gastoInicial } : null)
+  const [conCambios, setConCambios] = useState(false)
 
-const estadoBadge = (estado: string) => {
-  if (estado === 'Pagado') return 'bg-green-900/50 text-green-300'
-  if (estado === 'Parcial') return 'bg-yellow-900/50 text-yellow-300'
-  return 'bg-red-900/30 text-red-300'
-}
+  // Todo sale de las props: las acciones llaman a refresh() y la pantalla se
+  // vuelve a armar con lo que quedó en la base.
+  const gastos = useMemo(() => armarGastos(filas), [filas])
+  const resumen = useMemo(() => resumirGastos(gastos, desde, hasta), [gastos, desde, hasta])
+  const filtrados = useMemo(
+    () => filtrarGastos(gastos, { estado, local, busqueda, desde, hasta }),
+    [gastos, estado, local, busqueda, desde, hasta],
+  )
+  const locales = useMemo(() => [...new Set(gastos.map(g => g.local))].sort(), [gastos])
+  const totalFiltrado = filtrados.reduce((s, g) => s + g.monto, 0)
 
-export default function GastosClient() {
-  const [supabase] = useState(() => createClient())
-  const [gastos, setGastos] = useState<Gasto[]>([])
-  const [proveedores, setProveedores] = useState<Proveedor[]>([])
-  const [form, setForm] = useState(emptyForm())
-  const [error, setError] = useState('')
-  const [exito, setExito] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const [filtroEstado, setFiltroEstado] = useState<string>('todos')
+  const esMesActual = desde === mesActual.desde && hasta === mesActual.hasta
+  const hayFiltros = estado !== 'todos' || !!local || !!busqueda || !esMesActual
+  function limpiar() {
+    setEstado('todos'); setLocal(''); setBusqueda(''); setDesde(mesActual.desde); setHasta(mesActual.hasta)
+  }
 
-  useEffect(() => {
-    supabase.from('proveedores').select('id, nombre').eq('estado', 'activo').order('nombre')
-      .then(({ data }) => setProveedores(data ?? []))
-
-    supabase.from('gastos')
-      .select('*, proveedores(nombre)')
-      .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(100)
-      .then(({ data }) => setGastos(data ?? []))
-  }, [])
-
-  const categorias = form.rubro ? (RUBROS_CATEGORIAS[form.rubro] ?? []) : []
-
-  function setField(key: string, value: string) {
-    setForm(f => {
-      const updated = { ...f, [key]: value }
-      if (key === 'rubro') updated.categoria = ''
-      return updated
+  function abrir(a: Abierto) { setAbierto(a); setConCambios(false) }
+  function cerrarYa() { setAbierto(null); setConCambios(false) }
+  function cerrar() {
+    if (!conCambios) { cerrarYa(); return }
+    confirmar({
+      titulo: 'Descartar cambios',
+      mensaje: 'Tenés cambios sin guardar en el gasto. ¿Descartarlos?',
+      textoConfirmar: 'Descartar',
+      textoCancelar: 'Seguir editando',
+      peligroso: true,
+      onConfirmar: cerrarYa,
     })
   }
 
-  async function guardar(e: React.FormEvent) {
-    e.preventDefault()
-    if (!form.local || !form.rubro || !form.categoria || !form.monto || !form.forma_pago) {
-      setError('Completá todos los campos requeridos')
-      return
-    }
-    setError('')
+  const gastoAbierto = abierto && abierto !== 'nuevo' ? gastos.find(g => g.id === abierto.id) ?? null : null
+  const modalAbierto = abierto === 'nuevo' || gastoAbierto != null
 
-    startTransition(async () => {
-      const payload = {
-        fecha: form.fecha,
-        local: form.local,
-        rubro: form.rubro,
-        categoria: form.categoria,
-        proveedor_id: form.proveedor_id || null,
-        monto: parseFloat(form.monto),
-        forma_pago: form.forma_pago,
-        estado: form.estado,
-        observaciones: form.observaciones || null,
-      }
-
-      const { data, error: err } = await supabase
-        .from('gastos')
-        .insert([payload])
-        .select('*, proveedores(nombre)')
-        .single()
-
-      if (err) { setError(mensajeError(err, 'No se pudo guardar el gasto')); return }
-
-      setGastos(prev => [data, ...prev])
-      setForm(emptyForm())
-      setExito(true)
-      setTimeout(() => setExito(false), 2500)
-    })
-  }
-
-  const gastosFiltrados = filtroEstado === 'todos'
-    ? gastos
-    : gastos.filter(g => g.estado === filtroEstado)
-
-  const totalFiltrado = gastosFiltrados.reduce((s, g) => s + g.monto, 0)
-  const totalPendiente = gastos.filter(g => g.estado === 'Pendiente de pago').reduce((s, g) => s + g.monto, 0)
-
-  const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#e8c547] transition-colors [color-scheme:dark]"
-  const labelClass = "block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5"
-  const selectClass = `${inputClass} cursor-pointer`
+  const columnas: Columna<GastoVista>[] = [
+    {
+      key: 'fecha',
+      header: 'Fecha',
+      render: g => <span className="whitespace-nowrap tabular-nums">{g.fecha ? formatearFecha(g.fecha) : '—'}</span>,
+      ordenar: g => g.fecha,
+    },
+    {
+      key: 'concepto',
+      header: 'Concepto',
+      render: g => (
+        <span className="block min-w-0">
+          <span className="block font-medium text-text">{g.proveedor ?? g.categoria}</span>
+          <span className="block text-xs text-muted">
+            {g.proveedor ? g.categoria : g.rubro}
+            <span className="sm:hidden"> · {g.local}</span>
+          </span>
+          {g.factura && (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-surface2 px-2 py-0.5 text-2xs font-medium text-muted">
+              <ReceiptText size={11} /> Factura <span className="font-mono tabular-nums">{g.factura.numero}</span>
+            </span>
+          )}
+        </span>
+      ),
+      ordenar: g => (g.proveedor ?? g.categoria).toLowerCase(),
+    },
+    { key: 'local', header: 'Local', render: g => <span className="whitespace-nowrap">{g.local}</span>, ordenar: g => g.local, ocultarHasta: 'sm' },
+    { key: 'forma', header: 'Forma de pago', render: g => <span className="text-muted">{g.formaPago}</span>, ordenar: g => g.formaPago, ocultarHasta: 'lg' },
+    {
+      key: 'monto',
+      header: 'Monto',
+      alinear: 'right',
+      render: g => <span className="whitespace-nowrap font-semibold tabular-nums text-text">{formatearMonedaExacta(g.monto)}</span>,
+      ordenar: g => g.monto,
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      render: g => (
+        <span className="inline-flex flex-col items-start gap-0.5">
+          <EstadoBadge dominio="gastos" estado={g.estado} />
+          {g.estado === 'Pagado' && g.fechaPago && (
+            <span className="whitespace-nowrap text-2xs text-muted">el {formatearFecha(g.fechaPago)}</span>
+          )}
+        </span>
+      ),
+      ordenar: g => (pendiente(g) ? 0 : 1),
+      ocultarHasta: 'md',
+    },
+  ]
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[#f0f0f0]">Registro de Egresos</h1>
-        <p className="text-[#888] text-sm mt-0.5">Cargá y seguí los gastos operativos</p>
+      <PageHeader
+        icono={Wallet}
+        titulo="Gastos"
+        descripcion="Lo que se gasta en cada local. Cargalo, pagalo y seguilo desde acá."
+        acciones={
+          <>
+            <AyudaLink seccion="admin" ancla="gastos" />
+            <button
+              type="button"
+              onClick={() => abrir('nuevo')}
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
+            >
+              <Plus size={16} /> Nuevo gasto
+            </button>
+          </>
+        }
+      />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <KpiCard
+          icon={<Clock size={18} />}
+          label="Pendiente de pago"
+          value={formatearMonedaExacta(resumen.pendiente)}
+          detalle={resumen.pendientesCount === 0 ? 'Todo al día' : `${resumen.pendientesCount} gasto${resumen.pendientesCount === 1 ? '' : 's'}, de cualquier fecha`}
+          tono={resumen.pendientesCount > 0 ? 'peligro' : 'exito'}
+        />
+        <KpiCard
+          icon={<CircleDollarSign size={18} />}
+          label="Pagado en el período"
+          value={formatearMonedaExacta(resumen.pagadoPeriodo)}
+          detalle="por fecha de pago"
+        />
+        <KpiCard
+          icon={<CalendarRange size={18} />}
+          label="Gastado en el período"
+          value={formatearMonedaExacta(resumen.totalPeriodo)}
+          detalle={`${resumen.gastosPeriodo} gasto${resumen.gastosPeriodo === 1 ? '' : 's'}, por fecha del gasto`}
+        />
       </div>
 
-      {/* Stats rápidas */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-xs uppercase tracking-wider">Total registrado</p>
-          <p className="text-xl font-bold text-[#f0f0f0] mt-1">${gastos.reduce((s,g) => s+g.monto, 0).toLocaleString('es-AR', {minimumFractionDigits:2})}</p>
-        </div>
-        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-xs uppercase tracking-wider">Pendiente de pago</p>
-          <p className="text-xl font-bold text-red-400 mt-1">${totalPendiente.toLocaleString('es-AR', {minimumFractionDigits:2})}</p>
-        </div>
-        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-xs uppercase tracking-wider">Gastos cargados</p>
-          <p className="text-xl font-bold text-[#f0f0f0] mt-1">{gastos.length}</p>
-        </div>
-      </div>
-
-      {/* Formulario */}
-      <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-xl p-6">
-        <h2 className="text-base font-bold text-[#f0f0f0] mb-5">Nuevo egreso</h2>
-        <form onSubmit={guardar} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-
-            {/* FECHA */}
-            <div>
-              <label className={labelClass}>📅 Fecha</label>
-              <DatePicker className={inputClass} value={form.fecha} onChange={fecha => setField('fecha', fecha)} />
-            </div>
-
-            {/* LOCAL */}
-            <div>
-              <label className={labelClass}>🏠 Local</label>
-              <select className={selectClass} value={form.local} onChange={e => setField('local', e.target.value)}>
-                <option value="">— elegí de la lista —</option>
-                {LOCALES.map(l => <option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
-
-            {/* RUBRO */}
-            <div>
-              <label className={labelClass}>📁 Rubro</label>
-              <select className={selectClass} value={form.rubro} onChange={e => setField('rubro', e.target.value)}>
-                <option value="">— elegí primero el rubro —</option>
-                {RUBROS.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-
-            {/* CATEGORIA */}
-            <div>
-              <label className={labelClass}>🏷️ Categoría</label>
-              <select className={selectClass} value={form.categoria} onChange={e => setField('categoria', e.target.value)} disabled={!form.rubro}>
-                <option value="">— se filtra según el rubro —</option>
-                {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-
-            {/* PROVEEDOR */}
-            <div>
-              <label className={labelClass}>🚚 Proveedor</label>
-              <select className={selectClass} value={form.proveedor_id} onChange={e => setField('proveedor_id', e.target.value)}>
-                <option value="">— elegí de la lista —</option>
-                {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-              </select>
-            </div>
-
-            {/* MONTO */}
-            <div>
-              <label className={labelClass}>$ Monto ARS</label>
-              <InputNumero
-                min={0}
-                placeholder="solo el número, sin $"
-                className={inputClass}
-                value={form.monto === '' ? null : Number(form.monto)}
-                onChange={v => setField('monto', v == null ? '' : String(v))}
-              />
-            </div>
-
-            {/* FORMA DE PAGO */}
-            <div>
-              <label className={labelClass}>💳 Forma de pago</label>
-              <select className={selectClass} value={form.forma_pago} onChange={e => setField('forma_pago', e.target.value)}>
-                <option value="">— elegí de la lista —</option>
-                {FORMAS_PAGO.map(fp => <option key={fp} value={fp}>{fp}</option>)}
-              </select>
-            </div>
-
-            {/* ESTADO */}
-            <div>
-              <label className={labelClass}>🎯 Estado</label>
-              <select className={selectClass} value={form.estado} onChange={e => setField('estado', e.target.value)}>
-                {ESTADOS_GASTO.map(es => <option key={es} value={es}>{es}</option>)}
-              </select>
-            </div>
-
-            {/* OBSERVACIONES */}
-            <div className="sm:col-span-2 lg:col-span-1">
-              <label className={labelClass}>📝 Observaciones</label>
-              <input
-                type="text"
-                placeholder="opcional"
-                className={inputClass}
-                value={form.observaciones}
-                onChange={e => setField('observaciones', e.target.value)}
-              />
-            </div>
-          </div>
-
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          {exito && <p className="text-green-400 text-sm">✓ Egreso guardado correctamente</p>}
-
-          <button
-            type="submit"
-            disabled={isPending}
-            className="w-full bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-bold py-3 rounded-xl transition-all tracking-wide"
+      <div className="space-y-3">
+        <ChipGroup opciones={FILTROS} value={estado} onChange={setEstado} />
+        <div className="flex flex-wrap items-center gap-3">
+          <DateRangePicker
+            desde={desde}
+            hasta={hasta}
+            onChange={(d, h) => { setDesde(d); setHasta(h) }}
+            ariaLabel="Período de los gastos"
+          />
+          <select
+            aria-label="Filtrar por local"
+            value={local}
+            onChange={e => setLocal(e.target.value)}
+            className={`${controlClass} min-h-11 w-full sm:w-52`}
           >
-            {isPending ? 'Guardando...' : 'GUARDAR EGRESO'}
-          </button>
-        </form>
-      </div>
-
-      {/* Lista de gastos */}
-      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#2a2a2a] flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-bold text-[#f0f0f0]">Egresos registrados</h2>
-          <div className="flex gap-2 flex-wrap">
-            {['todos', ...ESTADOS_GASTO].map(e => (
-              <button
-                key={e}
-                onClick={() => setFiltroEstado(e)}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${filtroEstado === e ? 'bg-[#e8c547] text-black' : 'bg-[#2a2a2a] text-[#888] hover:text-[#f0f0f0]'}`}
-              >
-                {e === 'todos' ? 'Todos' : e}
-              </button>
-            ))}
-            {filtroEstado !== 'todos' && (
-              <span className="px-3 py-1 text-xs text-[#888]">
-                ${totalFiltrado.toLocaleString('es-AR', {minimumFractionDigits:2})}
-              </span>
-            )}
-          </div>
+            <option value="">Todos los locales</option>
+            {locales.map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+          <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar proveedor o factura" className="w-full sm:w-72" />
+          <ClearFiltersButton visible={hayFiltros} onClick={limpiar} />
         </div>
-
-        {gastosFiltrados.length === 0 ? (
-          <p className="p-8 text-center text-[#888]">No hay egresos registrados</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[#1a1a1a]">
-                <tr>
-                  {['Fecha', 'Local', 'Rubro', 'Categoría', 'Proveedor', 'Monto', 'Forma pago', 'Estado'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#2a2a2a]">
-                {gastosFiltrados.map(g => (
-                  <tr key={g.id} className="hover:bg-[#1a1a1a] transition-colors">
-                    <td className="px-4 py-3 text-[#888] whitespace-nowrap">{new Date(g.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td>
-                    <td className="px-4 py-3 text-[#f0f0f0]">{g.local}</td>
-                    <td className="px-4 py-3 text-[#888]">{g.rubro}</td>
-                    <td className="px-4 py-3 text-[#888]">{g.categoria}</td>
-                    <td className="px-4 py-3 text-[#888]">{g.proveedores?.nombre ?? '—'}</td>
-                    <td className="px-4 py-3 text-[#f0f0f0] font-medium whitespace-nowrap">${g.monto.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
-                    <td className="px-4 py-3 text-[#888] whitespace-nowrap">{g.forma_pago}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${estadoBadge(g.estado)}`}>{g.estado}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
+
+      {filtrados.length === 0 ? (
+        <div className="overflow-hidden rounded-2xl border border-border">
+          {gastos.length === 0 ? (
+            <EmptyState
+              icono={Wallet}
+              titulo="Todavía no hay gastos"
+              descripcion="Cargá el primero con Nuevo gasto. Los de las facturas de proveedores aparecen solos cuando se confirman."
+            />
+          ) : (
+            <EmptyState
+              icono={Wallet}
+              titulo="No hay gastos con estos filtros"
+              descripcion={esMesActual && !busqueda && !local && estado === 'todos' ? 'Este mes todavía no se cargó ninguno. Probá con otro período.' : 'Probá con otro período o limpiá los filtros.'}
+              accion={<ClearFiltersButton visible={hayFiltros} onClick={limpiar} />}
+            />
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <DataTable filas={filtrados} columnas={columnas} filaKey={g => g.id} onFilaClick={g => abrir({ id: g.id })} />
+          <p className="px-1 text-right text-sm text-muted">
+            {filtrados.length} gasto{filtrados.length === 1 ? '' : 's'} ·{' '}
+            <span className="font-semibold tabular-nums text-text">{formatearMonedaExacta(totalFiltrado)}</span>
+          </p>
+        </div>
+      )}
+
+      <Modal
+        open={modalAbierto}
+        onClose={cerrar}
+        title={gastoAbierto ? 'Gasto' : 'Nuevo gasto'}
+        encabezado={gastoAbierto ? <>Gasto de <span className="tabular-nums">{formatearMonedaExacta(gastoAbierto.monto)}</span></> : undefined}
+        size="xl"
+        pantallaCompletaMobile
+      >
+        {modalAbierto && (
+          <GastoForm
+            key={gastoAbierto?.id ?? 'nuevo'}
+            gasto={gastoAbierto}
+            proveedores={proveedores}
+            cajas={cajas}
+            formasPago={formasPago}
+            onCambios={setConCambios}
+            onListo={cerrarYa}
+            onCancelar={cerrar}
+          />
+        )}
+      </Modal>
     </div>
   )
 }

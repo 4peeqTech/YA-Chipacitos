@@ -2,6 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getFudoToken, fudoGet, normalizeJsonApi, getFudoCredentials } from '@/lib/fudo'
 
+class SinCredenciales extends Error {
+  constructor() { super('La sucursal no tiene Fudo conectado.') }
+}
+
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -15,12 +19,14 @@ export async function GET() {
     .select('sucursal')
     .eq('activo', true)
 
-  if (!locales?.length) return NextResponse.json([])
+  if (!locales?.length) return NextResponse.json({ items: [], errores: [] })
 
-  // Traer IDs ya pagados en nuestro sistema
-  const { data: yaPagados } = await supabase
-    .from('fudo_pagos')
+  // Los que ya se pagaron desde la app (Gastos › Pendientes de pago). Fudo los
+  // sigue viendo impagos: el pago se anota acá, no allá.
+  const { data: yaPagados, error: errPagados } = await supabase
+    .from('fudo_gastos_pagados')
     .select('fudo_expense_id, sucursal')
+  if (errPagados) return NextResponse.json({ error: 'No pudimos leer los pagos ya registrados.' }, { status: 500 })
 
   const pagadosSet = new Set(
     (yaPagados ?? []).map(p => `${p.sucursal}::${p.fudo_expense_id}`)
@@ -30,10 +36,11 @@ export async function GET() {
   const resultados = await Promise.allSettled(
     locales.map(async (local) => {
       const credenciales = getFudoCredentials(local.sucursal)
-      if (!credenciales) throw new Error(`Sucursal "${local.sucursal}" sin credenciales Fudo configuradas`)
+      if (!credenciales) throw new SinCredenciales()
       const token = await getFudoToken(credenciales.apiKey, credenciales.apiSecret)
-      const path = `/expenses?fields[expense]=amount,date,description,status,canceled`
-        + `&fields[expenseCategory]=name&fields[provider]=name&fields[paymentMethod]=name`
+      // Las relaciones van en fields[expense]: si no, el include no llega (JSON:API).
+      const path = `/expenses?fields[expense]=amount,date,description,status,canceled,expenseCategory,provider,payments`
+        + `&fields[expenseCategory]=name&fields[provider]=name&fields[payment]=amount,paymentMethod&fields[paymentMethod]=name`
         + `&include=expenseCategory,provider,payments.paymentMethod`
         + `&filter[status]=eq.UNPAID`
         + `&page[size]=500&sort=-id`
@@ -45,6 +52,15 @@ export async function GET() {
     })
   )
 
-  const todos = resultados.flatMap(r => r.status === 'fulfilled' ? r.value : [])
-  return NextResponse.json(todos)
+  const items = resultados.flatMap(r => r.status === 'fulfilled' ? r.value : [])
+  // Una sucursal que no responde no tapa a las demás, pero la pantalla lo avisa.
+  // sin_conexion = la sucursal no tiene Fudo configurado (no se arregla reintentando).
+  const errores = resultados.flatMap((r, i) => r.status === 'rejected'
+    ? [{
+      sucursal: locales[i].sucursal,
+      motivo: r.reason instanceof SinCredenciales ? 'sin_conexion' : 'error',
+      error: r.reason instanceof Error ? r.reason.message : 'No respondió',
+    }]
+    : [])
+  return NextResponse.json({ items, errores })
 }
