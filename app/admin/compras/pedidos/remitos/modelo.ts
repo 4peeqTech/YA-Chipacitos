@@ -30,6 +30,8 @@ export interface LineaLibre {
 
 export interface EstadoRemito {
   fecha: string
+  /** Número de remito que imprime el proveedor (opcional, texto libre). */
+  numero: string
   porLinea: Record<string, CantidadLinea>
   libres: LineaLibre[]
 }
@@ -100,7 +102,7 @@ export function estadoInicial(remito: RemitoFila | null, lineasPedido: LineaPedi
       }
     }
   }
-  return { fecha: remito?.fecha ?? hoyISO(), porLinea, libres }
+  return { fecha: remito?.fecha ?? hoyISO(), numero: remito?.numero ?? '', porLinea, libres }
 }
 
 /** Lo que este remito ya había cargado, por línea del pedido (para no contarlo dos veces en "Ya llegó"). */

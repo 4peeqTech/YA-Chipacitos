@@ -215,7 +215,7 @@ export default function RemitoForm({
     if (problema) { setIntentoGuardar(true); toast.error(mensajeProblema()); return }
 
     const ejecutar = () => startTransition(async () => {
-      const r = await guardarRemito({ remitoId: remito?.id ?? null, pedidoId: pedido.id, fecha: estado.fecha, lineas: envio })
+      const r = await guardarRemito({ remitoId: remito?.id ?? null, pedidoId: pedido.id, fecha: estado.fecha, numero: estado.numero, lineas: envio })
       if (!r.ok) { toast.error(r.error); return }
       toast.success(remito ? `Remito ${r.data.codigo} actualizado` : `Remito ${r.data.codigo} guardado`)
       onListo()
@@ -272,16 +272,30 @@ export default function RemitoForm({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-[1fr_11rem]">
-        <Field label="Pedido" obligatorio>
-          {remito ? (
-            <p className="flex min-h-11 items-center text-sm text-text">
-              <span className="font-mono tabular-nums">{pedido ? codigoPedido(pedido.numero) : '—'}</span>
-              <span className="text-muted">&nbsp;·&nbsp;{pedido?.proveedores?.nombre ?? '—'}</span>
-            </p>
-          ) : (
-            <SelectBuscador value={pedidoId} onChange={elegirPedido} opciones={opcionesPedido} placeholderVacio="Elegí un pedido…" />
-          )}
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-[1fr_11rem_11rem]">
+        <div className="sm:col-span-2 md:col-span-1">
+          <Field label="Pedido" obligatorio>
+            {remito ? (
+              <p className="flex min-h-11 items-center text-sm text-text">
+                <span className="font-mono tabular-nums">{pedido ? codigoPedido(pedido.numero) : '—'}</span>
+                <span className="text-muted">&nbsp;·&nbsp;{pedido?.proveedores?.nombre ?? '—'}</span>
+              </p>
+            ) : (
+              <SelectBuscador value={pedidoId} onChange={elegirPedido} opciones={opcionesPedido} placeholderVacio="Elegí un pedido…" />
+            )}
+          </Field>
+        </div>
+        <Field label="N° del proveedor">
+          <input
+            type="text"
+            inputMode="text"
+            maxLength={60}
+            aria-label="Número de remito del proveedor"
+            placeholder="Ej. 0001-00012345"
+            className={`${controlClass} min-h-11 font-mono tabular-nums`}
+            value={estado.numero}
+            onChange={e => { const numero = e.target.value; cambiar(s => ({ ...s, numero })) }}
+          />
         </Field>
         <Field label="Llegó el" obligatorio>
           <DatePicker
@@ -301,7 +315,7 @@ export default function RemitoForm({
         <>
           {!remito && codigo && (
             <p className="-mt-2 text-xs text-muted">
-              Se guarda como <span className="font-mono tabular-nums text-text">{codigo}</span>. No hace falta copiar el número impreso del proveedor.
+              Se guarda como <span className="font-mono tabular-nums text-text">{codigo}</span>. El número impreso del proveedor es opcional: sirve para encontrarlo después.
             </p>
           )}
 

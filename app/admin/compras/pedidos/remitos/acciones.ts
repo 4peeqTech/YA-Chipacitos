@@ -31,6 +31,7 @@ const GuardarRemito = z.object({
   remitoId: z.uuid().nullable(),
   pedidoId: z.uuid(),
   fecha: z.iso.date(),
+  numero: z.string().trim().max(60).optional(),
   lineas: z.array(Linea).min(1),
 })
 
@@ -39,13 +40,14 @@ export async function guardarRemito(
 ): Promise<Resultado<{ id: string; codigo: string; impacto: ImpactoStock }>> {
   const parsed = GuardarRemito.safeParse(entrada)
   if (!parsed.success) return fallo(null, 'Revisá el remito: hace falta la fecha y al menos una línea con cantidad mayor a 0.')
-  const { remitoId, pedidoId, fecha, lineas } = parsed.data
+  const { remitoId, pedidoId, fecha, numero, lineas } = parsed.data
   try {
     const supabase = await createClientTipado()
     const { data, error } = await supabase.rpc('compras_guardar_remito', {
       p_remito_id: remitoId ?? undefined,
       p_pedido_id: pedidoId,
       p_fecha: fecha,
+      p_numero: numero || undefined,
       p_items: lineas.map(l => ({
         id: l.id,
         pedido_item_id: l.pedidoItemId,

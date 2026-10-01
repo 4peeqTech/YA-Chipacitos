@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Inbox, ClipboardList, TrendingUp, Truck, ChevronRight,
   Ban, Send, History, Scale, PackageMinus, PackagePlus, Undo2,
@@ -14,6 +15,8 @@ import InputNumero from '@/components/ui/InputNumero'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { useToast } from '@/components/ui/ProveedorUI'
+import { codigoPedido } from '@/lib/compras/codigos'
 import { mensajeError } from '@/lib/errores'
 
 interface ConteoRef {
@@ -103,6 +106,9 @@ export default function SolicitudesClient({
 }) {
   const supabase = createClient()
   const toast = useToasts()
+  // El de la app: sobrevive al salto a la tab Pedidos.
+  const toastGlobal = useToast()
+  const router = useRouter()
 
   const [solicitudes, setSolicitudes] = useState(solicitudesIniciales)
   const [filtro, setFiltro] = useState<'abiertas' | 'todas'>('abiertas')
@@ -225,12 +231,28 @@ export default function SolicitudesClient({
     if (!abierta) return
     setProcesando(true)
     const { data: creados, error } = await supabase.rpc('convertir_solicitud_a_pedidos', { p_solicitud_id: abierta.id })
-    setProcesando(false)
-    if (error) { toast.error(mensajeError(error, 'No se pudieron generar los pedidos')); return }
+    if (error) { setProcesando(false); toast.error(mensajeError(error, 'No se pudieron generar los pedidos')); return }
     setSolicitudes(prev => prev.map(s => s.id === abierta.id ? { ...s, estado: 'convertida' } : s))
-    toast.success(`${creados} pedido${creados === 1 ? '' : 's'} en borrador — revisalos en la tab Pedidos`)
+
+    // Se salta a la tab Pedidos con el primero abierto; los demás quedan arriba en la lista.
+    const { data: pedidos } = await supabase
+      .from('compras_pedidos')
+      .select('id, numero')
+      .eq('solicitud_id', abierta.id)
+      .order('numero')
+    setProcesando(false)
     setConfirmando(null)
     cerrar()
+    const primero = pedidos?.[0]
+    if (!primero) {
+      toast.success(`${creados} pedido${creados === 1 ? '' : 's'} en borrador — revisalos en la tab Pedidos`)
+      return
+    }
+    const codigos = pedidos.map(p => codigoPedido(p.numero))
+    toastGlobal.success(codigos.length === 1
+      ? `Pedido ${codigos[0]} generado en borrador`
+      : `${codigos.length} pedidos generados en borrador: ${codigos.join(', ')}`)
+    router.push(`/admin/compras/pedidos?pedido=${primero.id}`)
   }
 
   async function confirmarDescartar() {

@@ -52,7 +52,7 @@ igual('libre → línea del pedido mueve su insumo', calcularImpacto(armarEnvio(
 
 // Edición: el remito tenía Fécula 5 (dos líneas de 3 y 2) y Sal 1 libre.
 const remito: RemitoFila = {
-  id: 'R', pedido_id: 'P', secuencia: 1, fecha: '2026-09-25', created_at: null,
+  id: 'R', pedido_id: 'P', secuencia: 1, fecha: '2026-09-25', numero: '0003-00012345', created_at: null,
   compras_remito_items: [
     { id: 'r1', pedido_item_id: 'a', item_id: 'FEC', descripcion: 'Línea a', cantidad: 3 },
     { id: 'r2', pedido_item_id: 'a', item_id: 'FEC', descripcion: 'Línea a', cantidad: 2 },
@@ -60,6 +60,8 @@ const remito: RemitoFila = {
   ],
 }
 const ed = estadoInicial(remito, lineas)
+igual('edición conserva el N° del proveedor', ed.numero, '0003-00012345')
+igual('nuevo arranca sin N° del proveedor', vacio.numero, '')
 igual('edición: la primera línea con la descripción del pedido vuelve a su fila', ed.porLinea.a, { id: 'r1', cantidad: 3 })
 igual('edición: otro nombre / repetida y la libre quedan libres', ed.libres.map(l => [l.id, l.corresponde, l.itemId, l.descripcion]), [
   ['r2', 'a', null, 'Línea a'], ['r3', 'nada', 'SAL', 'Sal fina'],

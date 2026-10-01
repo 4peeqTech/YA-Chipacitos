@@ -30,11 +30,19 @@ interface RemitoVista {
 
 type Abierto = { remitoId: string } | { pedidoId: string | null } | null
 
-// Busca por código de remito ("R-0025-02", "25-02"), de pedido ("P-0025") o proveedor.
+/** De dónde salió el pedido: la tanda semanal (base) o lo que pidió el conteo (complementario). */
+function origenPedido(p: PedidoRemito): string | null {
+  if (!p.solicitud_id) return null
+  return p.compras_solicitudes?.tipo === 'base' ? 'Pedido base' : 'Complementario'
+}
+
+// Busca por código de remito ("R-0025-02", "25-02"), de pedido ("P-0025"),
+// número impreso del proveedor o nombre del proveedor.
 function coincide(r: RemitoVista, busqueda: string): boolean {
   const texto = busqueda.trim().toLowerCase()
   if (!texto) return true
   if (r.proveedor.toLowerCase().includes(texto)) return true
+  if (r.fila.numero?.toLowerCase().includes(texto)) return true
   if (r.codigo.toLowerCase().includes(texto)) return true
   if (r.pedido && codigoPedido(r.pedido.numero).toLowerCase().includes(texto)) return true
   const m = texto.replace(/^[rp]-?/, '').match(/^0*(\d+)(?:-0*(\d+))?$/)
@@ -144,14 +152,23 @@ export default function RemitosClient({
     {
       key: 'codigo',
       header: 'Remito',
-      render: r => <span className="font-mono tabular-nums font-medium text-text">{r.codigo}</span>,
+      render: r => <span className="whitespace-nowrap font-mono tabular-nums font-medium text-text">{r.codigo}</span>,
       ordenar: r => r.codigo,
     },
     {
       key: 'pedido',
       header: 'Pedido',
-      render: r => <span className="font-mono tabular-nums text-muted">{r.pedido ? codigoPedido(r.pedido.numero) : '—'}</span>,
+      render: r => <span className="whitespace-nowrap font-mono tabular-nums text-muted">{r.pedido ? codigoPedido(r.pedido.numero) : '—'}</span>,
       ordenar: r => r.pedido?.numero ?? 0,
+      ocultarHasta: 'sm',
+    },
+    {
+      key: 'numero',
+      header: 'N° proveedor',
+      render: r => r.fila.numero
+        ? <span className="whitespace-nowrap font-mono tabular-nums text-text">{r.fila.numero}</span>
+        : <span className="text-muted">—</span>,
+      ordenar: r => r.fila.numero ?? '',
       ocultarHasta: 'sm',
     },
     { key: 'proveedor', header: 'Proveedor', render: r => <span className="font-medium">{r.proveedor}</span>, ordenar: r => r.proveedor },
@@ -209,7 +226,9 @@ export default function RemitosClient({
             {esperando.length === 1 ? '1 pedido esperando mercadería' : `${esperando.length} pedidos esperando mercadería`}
           </p>
           <div className="flex flex-wrap gap-2">
-            {esperando.map(p => (
+            {esperando.map(p => {
+              const origen = origenPedido(p)
+              return (
               <button
                 key={p.id}
                 type="button"
@@ -217,15 +236,21 @@ export default function RemitosClient({
                 className="presionable min-h-11 sm:min-h-9 rounded-full border border-border bg-surface2 px-3 text-xs font-medium text-text hover:border-accent"
               >
                 <span className="font-mono tabular-nums">{codigoPedido(p.numero)}</span> · {p.proveedores?.nombre ?? '—'}
+                {origen && (
+                  <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-2xs font-semibold ${origen === 'Pedido base' ? 'bg-info-bg text-info' : 'bg-accent-bg text-accent-fg'}`}>
+                    {origen}
+                  </span>
+                )}
                 {p.estado_recepcion === 'parcial' && <span className="text-muted"> · parcial</span>}
               </button>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar R-0001-01, P-0001 o proveedor" className="w-full sm:w-80" />
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar remito, pedido, N° o proveedor" className="w-full sm:w-80" />
         <DateRangeInputs desde={desde} hasta={hasta} onChangeDesde={setDesde} onChangeHasta={setHasta} />
         <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
       </div>

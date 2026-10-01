@@ -40,7 +40,7 @@ export const comprasSolicitudes: SeccionManual = {
             { texto: 'En la línea, tocá **Aplicar sugerencia**: la cantidad baja lo sugerido (por ejemplo, de 50 a 44).' },
             { texto: 'Si te arrepentís, tocá **Deshacer**: vuelve a la cantidad de la plantilla.' },
             { texto: 'Para todas juntas, usá **Aplicar todas** arriba de la tabla. Se deshace con **Deshacer todas**.', captura: { src: '/manual/compras-solicitudes/sugerencias-aplicadas.png', alt: 'Las mismas líneas con la sugerencia aplicada: Fécula pasó de 50 a 44 y el botón dice Deshacer todas', ancho: 1440, alto: 900 } },
-            { texto: 'Cuando esté bien, tocá **Generar pedidos**.' },
+            { texto: 'Cuando esté bien, tocá **Generar pedidos**. Te lleva a la tab **Pedidos** con el pedido generado abierto (si salió más de uno, el primero; los demás quedan arriba en la lista).' },
           ],
         },
         { tipo: 'tip', texto: 'La sugerencia nunca descuenta más de lo que pide la plantilla: si sobran 6 y la plantilla pide 2, sugiere pedir 2 menos, o sea no pedir esa semana.' },

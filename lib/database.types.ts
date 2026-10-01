@@ -4205,6 +4205,7 @@ export type Database = {
         Args: {
           p_fecha?: string
           p_items?: Json
+          p_numero?: string
           p_pedido_id?: string
           p_remito_id?: string
         }
