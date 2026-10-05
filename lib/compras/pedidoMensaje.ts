@@ -37,7 +37,7 @@ function formatearLineaItem(item: ItemMensaje): string {
   return `   — ${formatearCantidad(item.cantidad)}${unidad} ${item.descripcion}`.toUpperCase()
 }
 
-function interpolar(texto: string, vars: Record<string, string>): string {
+export function interpolar(texto: string, vars: Record<string, string>): string {
   return texto.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? '')
 }
 
@@ -81,10 +81,4 @@ export function renderPlantilla(cuerpo: string, ctx: ContextoMensaje): string {
 
 export function construirMensajePedido(proveedorNombre: string, local: DatosLocal | null, items: ItemMensaje[], numero?: number | null): string {
   return renderPlantilla(CUERPO_FALLBACK, { proveedorNombre, local, items, numero })
-}
-
-export function linkWhatsApp(telefono: string | null, mensaje: string): string {
-  const texto = encodeURIComponent(mensaje)
-  const numero = telefono ? telefono.replace(/[^\d]/g, '') : ''
-  return numero ? `https://wa.me/${numero}?text=${texto}` : `https://api.whatsapp.com/send?text=${texto}`
 }
