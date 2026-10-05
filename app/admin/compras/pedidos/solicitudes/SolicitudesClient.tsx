@@ -17,6 +17,9 @@ import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 import { useToast } from '@/components/ui/ProveedorUI'
 import { codigoPedido } from '@/lib/compras/codigos'
+import { rutaDe } from '@/lib/compras/rutas'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { mensajeError } from '@/lib/errores'
 
 interface ConteoRef {
@@ -71,6 +74,10 @@ const ESTADO_LABEL: Record<Solicitud['estado'], string> = {
 }
 
 /** Cantidad con la sugerencia de sobrestock aplicada. */
+function ordenarItems(items: SolicitudItem[]) {
+  return [...items].sort((a, b) => (a.orden - b.orden) || a.descripcion.localeCompare(b.descripcion))
+}
+
 function cantidadConDescuento(i: SolicitudItem) {
   return Math.max(0, i.cantidad_sugerida - (i.descuento_sugerido ?? 0))
 }
@@ -98,11 +105,16 @@ export default function SolicitudesClient({
   proveedores,
   proveedoresPorItem,
   sobrestockPorConteoItem,
+  pedidosPorSolicitud,
+  solicitudInicial,
 }: {
   solicitudesIniciales: Solicitud[]
   proveedores: ProveedorOption[]
   proveedoresPorItem: Record<string, string[]>
   sobrestockPorConteoItem: Record<string, number>
+  pedidosPorSolicitud: Record<string, { id: string; numero: number; proveedor: string }[]>
+  /** ?solicitud=<id>: abre esa solicitud. */
+  solicitudInicial?: string
 }) {
   const supabase = createClient()
   const toast = useToasts()
@@ -114,8 +126,12 @@ export default function SolicitudesClient({
   const [filtro, setFiltro] = useState<'abiertas' | 'todas'>('abiertas')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
-  const [abiertaId, setAbiertaId] = useState<string | null>(null)
-  const [items, setItems] = useState<SolicitudItem[]>([])
+  const [abiertaId, setAbiertaId] = useState<string | null>(() =>
+    solicitudesIniciales.some(s => s.id === solicitudInicial) ? solicitudInicial ?? null : null)
+  const [items, setItems] = useState<SolicitudItem[]>(() => {
+    const s = solicitudesIniciales.find(x => x.id === solicitudInicial)
+    return s ? ordenarItems(s.compras_solicitud_items) : []
+  })
   const [guardado, setGuardado] = useState<'idle' | 'guardando' | 'guardado'>('idle')
   const [confirmando, setConfirmando] = useState<'generar' | 'descartar' | null>(null)
   const [procesando, setProcesando] = useState(false)
@@ -147,15 +163,26 @@ export default function SolicitudesClient({
     setTimeout(() => setGuardado('guardado'), 300)
   }
 
+  const quitarParam = useQuitarParams('solicitud')
+  useAlCambiarParam(solicitudInicial, id => {
+    const s = solicitudes.find(x => x.id === id)
+    if (s) abrir(s)
+  })
+
   function abrir(s: Solicitud) {
     setAbiertaId(s.id)
-    setItems([...s.compras_solicitud_items].sort((a, b) => (a.orden - b.orden) || a.descripcion.localeCompare(b.descripcion)))
+    setItems(ordenarItems(s.compras_solicitud_items))
     setGuardado('idle')
   }
 
-  function cerrar() {
+  function soltar() {
     setAbiertaId(null)
     setItems([])
+  }
+
+  function cerrar() {
+    quitarParam()
+    soltar()
   }
 
   function excesoDe(s: Solicitud, i: SolicitudItem): number | null {
@@ -242,7 +269,8 @@ export default function SolicitudesClient({
       .order('numero')
     setProcesando(false)
     setConfirmando(null)
-    cerrar()
+    // Sin limpiar la URL: el salto a Pedidos de abajo la reemplaza entera.
+    soltar()
     const primero = pedidos?.[0]
     if (!primero) {
       toast.success(`${creados} pedido${creados === 1 ? '' : 's'} en borrador — revisalos en la tab Pedidos`)
@@ -252,7 +280,7 @@ export default function SolicitudesClient({
     toastGlobal.success(codigos.length === 1
       ? `Pedido ${codigos[0]} generado en borrador`
       : `${codigos.length} pedidos generados en borrador: ${codigos.join(', ')}`)
-    router.push(`/admin/compras/pedidos?pedido=${primero.id}`)
+    router.push(rutaDe({ tipo: 'pedido', id: primero.id }))
   }
 
   async function confirmarDescartar() {
@@ -502,7 +530,22 @@ export default function SolicitudesClient({
             )}
 
             {abierta.estado === 'convertida' && (
-              <p className="text-sm text-[#56d68a]">Convertida el {abierta.convertida_en ? new Date(abierta.convertida_en).toLocaleDateString('es-AR') : '—'}. Los pedidos ya están en la bandeja de Pedidos.</p>
+              <div className="space-y-2">
+                <p className="text-sm text-[#56d68a]">Convertida el {abierta.convertida_en ? new Date(abierta.convertida_en).toLocaleDateString('es-AR') : '—'}.</p>
+                {(pedidosPorSolicitud[abierta.id] ?? []).length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">Pedidos que generó</p>
+                    <ul className="divide-y divide-border rounded-xl border border-border">
+                      {pedidosPorSolicitud[abierta.id].map(p => (
+                        <li key={p.id} className="flex min-h-11 items-center gap-2 px-3 py-2 text-sm">
+                          <LinkEntidad entidad={{ tipo: 'pedido', id: p.id }} className="font-medium text-text">{codigoPedido(p.numero)}</LinkEntidad>
+                          <span className="text-muted">· {p.proveedor}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             )}
             {abierta.estado === 'descartada' && (
               <p className="text-sm text-[#888]">Descartada el {abierta.convertida_en ? new Date(abierta.convertida_en).toLocaleDateString('es-AR') : '—'}.</p>

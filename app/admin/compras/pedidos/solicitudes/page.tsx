@@ -4,19 +4,34 @@ import SolicitudesClient from './SolicitudesClient'
 
 export const metadata = { title: 'Solicitudes | YA! Chipacitos' }
 
-export default async function SolicitudesPage() {
+export default async function SolicitudesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ solicitud?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: solicitudes }, { data: proveedores }, { data: itemsProveedores }] = await Promise.all([
+  const { solicitud } = await searchParams
+
+  const [{ data: solicitudes }, { data: proveedores }, { data: itemsProveedores }, { data: pedidosGenerados }] = await Promise.all([
     supabase
       .from('compras_solicitudes')
       .select('*, fabrica_conteos(semana_desde, semana_hasta, masas_proyectadas), compras_solicitud_items(*)')
       .order('created_at', { ascending: false }),
     supabase.from('proveedores').select('id, nombre').eq('estado', 'activo').order('nombre'),
     supabase.from('compras_item_proveedores').select('item_id, proveedor_id').eq('activo', true),
+    // Los pedidos que generó cada solicitud convertida.
+    supabase.from('compras_pedidos').select('id, numero, solicitud_id, proveedores(nombre)').not('solicitud_id', 'is', null).order('numero'),
   ])
+
+  const pedidosPorSolicitud: Record<string, { id: string; numero: number; proveedor: string }[]> = {}
+  for (const p of pedidosGenerados ?? []) {
+    if (!p.solicitud_id) continue
+    pedidosPorSolicitud[p.solicitud_id] ??= []
+    pedidosPorSolicitud[p.solicitud_id].push({ id: p.id, numero: p.numero, proveedor: (p.proveedores as unknown as { nombre: string } | null)?.nombre ?? '—' })
+  }
 
   const proveedoresPorItem: Record<string, string[]> = {}
   for (const ip of itemsProveedores ?? []) {
@@ -41,6 +56,8 @@ export default async function SolicitudesPage() {
       proveedores={proveedores ?? []}
       proveedoresPorItem={proveedoresPorItem}
       sobrestockPorConteoItem={sobrestockPorConteoItem}
+      pedidosPorSolicitud={pedidosPorSolicitud}
+      solicitudInicial={solicitud}
     />
   )
 }
