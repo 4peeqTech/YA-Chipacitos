@@ -3756,6 +3756,7 @@ export type Database = {
           definicion_id: string | null
           definicion_nombre: string | null
           diferencias_pendientes: number | null
+          diferencias_resueltas: number | null
           estado: string | null
           fecha: string | null
           id: string | null
@@ -4149,6 +4150,7 @@ export type Database = {
           item_id: string | null
           item_nombre: string | null
           movido_desde_cierre: number | null
+          movido_mientras_contaba: number | null
           stock_hoy: number | null
           stock_teorico: number | null
           superado_por: string | null
