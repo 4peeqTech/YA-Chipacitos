@@ -5,7 +5,8 @@ import { Info, Loader2, MessageCircle, RefreshCw, Repeat, Send, TriangleAlert } 
 import CompartirMensaje from '@/components/ui/CompartirMensaje'
 import { Field, controlClass } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/ProveedorUI'
-import { construirMensajePedido, renderPlantilla } from '@/lib/compras/pedidoMensaje'
+import { construirMensajePedido, renderPlantilla, type ItemMensaje } from '@/lib/compras/pedidoMensaje'
+import { esCobraPor, esUnidadBase } from '@/lib/compras/unidades'
 import { guardarMensaje, marcarPedidoEnviado, marcarPedidoReenviado } from './acciones'
 import type { PedidoVista } from './modelo'
 import type { LocalFacturacion, Plantilla } from './datos'
@@ -37,7 +38,17 @@ export default function PedidoEnvio({
   const [compartido, setCompartido] = useState(false)
   const [accion, setAccion] = useState<'generar' | 'enviar' | 'reenviar' | null>(null)
 
-  const items = [...fila.compras_pedido_items].sort((a, b) => a.orden - b.orden)
+  // A2b: unidades y cómo cobra el proveedor, desde v_compras_pedido_pendiente.
+  const unidadesPorLinea = new Map(pedido.lineas.map(l => [l.pedido_item_id, l]))
+  const items: ItemMensaje[] = [...fila.compras_pedido_items].sort((a, b) => a.orden - b.orden).map(i => {
+    const l = unidadesPorLinea.get(i.id)
+    return {
+      ...i,
+      contenido: l?.contenido ?? null,
+      unidadBase: esUnidadBase(l?.unidad_base) ? l.unidad_base : null,
+      cobraPor: esCobraPor(l?.cobra_por) ? l.cobra_por : null,
+    }
+  })
 
   function generar() {
     const local = localesFacturacion.find(l => l.id === localId) ?? null

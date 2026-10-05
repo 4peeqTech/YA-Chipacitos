@@ -2,6 +2,7 @@ import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import InsumosClient, { type CompraItem, type PedidoAbierto, type ResumenInsumo } from './InsumosClient'
 import type { ModoCalculo } from '@/lib/fabrica/calculoSugerido'
+import { esCobraPor } from '@/lib/compras/unidades'
 
 export const metadata = { title: 'Insumos | YA! Chipacitos' }
 
@@ -22,7 +23,7 @@ export default async function InsumosPage() {
     supabase.from('profiles').select('rol').eq('id', user.id).single(),
     supabase
       .from('compras_items')
-      .select('id, nombre, unidad, categoria_id, stock_minimo, cantidad_por_unidad, cantidad_por_masa, redondeo, stock_maximo, a_demanda, alicuota_iva, estado, compras_item_proveedores(proveedor_id, es_principal, activo, precio_ref, codigo_proveedor, created_at)')
+      .select('id, nombre, unidad, categoria_id, stock_minimo, cantidad_por_unidad, cantidad_por_masa, redondeo, stock_maximo, a_demanda, alicuota_iva, estado, unidad_base, cobra_por_default, compras_item_proveedores(proveedor_id, es_principal, activo, precio_ref, codigo_proveedor, created_at, cobra_por)')
       .order('nombre'),
     // A2a (C2): todos los proveedores, sin filtrar por "Sugerir cantidades al
     // pedir". Los archivados sirven para mostrar el nombre de un par viejo; el
@@ -63,6 +64,8 @@ export default async function InsumosPage() {
       ultimoPrecioProveedorId: r.ultimo_precio_proveedor_id,
       pedidosAbiertos: (Array.isArray(r.pedidos_abiertos) ? r.pedidos_abiertos : []) as unknown as PedidoAbierto[],
       puedeEliminar: r.puede_eliminar ?? false,
+      cobraPorPrincipal: esCobraPor(r.cobra_por_principal) ? r.cobra_por_principal : null,
+      ultimoPrecioPor: esCobraPor(r.ultimo_precio_por) ? r.ultimo_precio_por : null,
     }
   }
 

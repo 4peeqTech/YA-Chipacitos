@@ -17,6 +17,7 @@ import { useConfirmar } from '@/components/ui/ProveedorUI'
 import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { formatearRelativo } from '@/lib/formato'
 import { conUnidad } from '../pedidos/modelo'
+import { textoBaseItem } from '@/lib/compras/unidades'
 import StockFicha from './StockFicha'
 
 export interface InsumoStock {
@@ -26,6 +27,9 @@ export interface InsumoStock {
   stock_minimo: number
   /** A2a: los archivados se listan solo si tienen stock ≠ 0; la ficha abre igual por ?insumo=. */
   estado: string
+  /** A2b: para mostrar la equivalencia (≈ 56,1 kg). El stock sigue en `unidad`. */
+  unidad_base: string
+  cantidad_por_unidad: number
 }
 
 export interface StockActual {
@@ -143,8 +147,13 @@ export default function StockClient({
       header: 'Stock',
       alinear: 'right',
       render: f => (
-        <span className={`tabular-nums font-semibold ${f.bajo ? 'text-brand-red' : 'text-text'}`}>
-          {conUnidad(f.cantidad, null)}
+        <span className="flex flex-col items-end">
+          <span className={`tabular-nums font-semibold ${f.bajo ? 'text-brand-red' : 'text-text'}`}>
+            {conUnidad(f.cantidad, null)}
+          </span>
+          {textoBaseItem(f.cantidad, f.item) && (
+            <span className="whitespace-nowrap text-2xs text-muted tabular-nums">{textoBaseItem(f.cantidad, f.item)}</span>
+          )}
         </span>
       ),
       ordenar: f => f.cantidad,

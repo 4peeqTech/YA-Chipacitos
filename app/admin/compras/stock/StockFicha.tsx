@@ -17,6 +17,7 @@ import type { Database } from '@/lib/database.types'
 import { conUnidad } from '../pedidos/modelo'
 import { ajustarStock, revertirMovimiento } from './acciones'
 import type { FilaStock } from './StockClient'
+import { textoBaseItem } from '@/lib/compras/unidades'
 
 type Movimiento = Database['public']['Views']['v_compras_stock_movimientos']['Row']
 
@@ -136,6 +137,9 @@ export default function StockFicha({
           <p className={`text-3xl font-bold tabular-nums ${fila.bajo ? 'text-brand-red' : 'text-text'}`}>
             {conUnidad(fila.cantidad, unidad)}
           </p>
+          {textoBaseItem(fila.cantidad, fila.item) && (
+            <p className="text-sm text-muted tabular-nums">{textoBaseItem(fila.cantidad, fila.item)}</p>
+          )}
         </div>
         <p className="text-sm text-muted tabular-nums">
           Mínimo {conUnidad(fila.item.stock_minimo, unidad)}

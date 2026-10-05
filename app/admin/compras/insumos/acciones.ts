@@ -19,14 +19,19 @@ const Datos = z.object({
   nombre: z.string().trim().min(1, 'El nombre es obligatorio.').max(120, 'El nombre es demasiado largo.'),
   unidad: z.string().trim().min(1, 'La unidad de compra es obligatoria.').max(40, 'La unidad es demasiado larga.'),
   categoriaId: z.uuid().nullable(),
-  cantidadPorUnidad: numero.gt(0, 'La cantidad por unidad tiene que ser mayor a 0.'),
+  cantidadPorUnidad: numero.gt(0, 'Lo que trae cada unidad tiene que ser mayor a 0.'),
   cantidadPorMasa: numero.min(0, 'La cantidad por masa no puede ser negativa.'),
   stockMinimo: numero.min(0, 'El stock mínimo no puede ser negativo.'),
   redondeo: z.enum(['estandar', 'siempre_arriba', 'siempre_abajo', 'sin_calculo']),
   stockMaximo: numero.gt(0, 'El stock máximo tiene que ser mayor a 0, o quedar vacío.').nullable(),
   aDemanda: z.boolean(),
   alicuotaIva: numero.refine(v => (ALICUOTAS as readonly number[]).includes(v), 'Elegí una alícuota de IVA válida.'),
+  // A2b
+  unidadBase: z.enum(['kg', 'unidades', 'litros'], { message: 'Elegí la unidad base: kg, unidades o litros.' }),
+  cobraPorDefault: z.enum(['unidad', 'base'], { message: 'Elegí cómo se cobra por defecto.' }),
 }).partial().strict()
+
+const CobraPor = z.enum(['unidad', 'base'], { message: 'Elegí cómo cobra cada proveedor.' })
 
 const Proveedor = z.object({
   proveedorId: z.uuid({ message: 'Elegí el proveedor de cada línea.' }),
@@ -35,6 +40,9 @@ const Proveedor = z.object({
   codigo: z.string().trim().max(60, 'El código del proveedor es demasiado largo.').nullable(),
   precioRef: numero.min(0, 'El precio de referencia no puede ser negativo.').nullable(),
   precioRefAnterior: numero.nullable(),
+  // A2b: cómo cobra (y con qué se abrió el form, para detectar que lo cambió una factura).
+  cobraPor: CobraPor.nullable().optional(),
+  cobraPorAnterior: CobraPor.nullable().optional(),
 })
 
 const Guardar = z.object({
@@ -55,6 +63,8 @@ const COLUMNA: Record<keyof z.infer<typeof Datos>, string> = {
   stockMaximo: 'stock_maximo',
   aDemanda: 'a_demanda',
   alicuotaIva: 'alicuota_iva',
+  unidadBase: 'unidad_base',
+  cobraPorDefault: 'cobra_por_default',
 }
 
 // Los mensajes por defecto de zod vienen en inglés: solo se muestran los
@@ -84,6 +94,8 @@ export async function guardarInsumo(
     codigo_proveedor: p.codigo || null,
     precio_ref: p.precioRef,
     precio_ref_anterior: p.precioRefAnterior,
+    cobra_por: p.cobraPor ?? null,
+    cobra_por_anterior: p.cobraPorAnterior ?? null,
   })) ?? null
 
   try {

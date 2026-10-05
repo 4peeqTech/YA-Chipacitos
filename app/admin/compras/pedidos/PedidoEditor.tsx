@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/ProveedorUI'
 import { formatearMoneda } from '@/lib/formato'
 import { guardarPedido } from './acciones'
 import { conUnidad, type PedidoVista } from './modelo'
+import { esCobraPor, esUnidadBase, textoBase, type UnidadesInsumo } from '@/lib/compras/unidades'
 import type { ItemCatalogo, ProveedorPedido } from './datos'
 
 interface Linea {
@@ -88,6 +89,25 @@ export default function PedidoEditor({
       .filter(x => !!x.asociado)
       .map(x => ({ ...x.item, precioRef: x.asociado?.precio_ref ?? null }))
   }, [itemsCatalogo, proveedorId])
+
+  // A2b (E12): la unidad de una línea con insumo sale del insumo (la server action
+  // la normaliza). Si el par cobra por kg, debajo de la cantidad va el equivalente.
+  const itemPorId = useMemo(() => new Map(itemsCatalogo.map(i => [i.id, i])), [itemsCatalogo])
+
+  function unidadFija(l: Linea): string | null {
+    const item = l.item_id ? itemPorId.get(l.item_id) : undefined
+    return item?.unidad?.trim() || l.unidad.trim() || null
+  }
+
+  function equivalenteKg(l: Linea): string | null {
+    const item = l.item_id ? itemPorId.get(l.item_id) : undefined
+    if (!item || !l.cantidad || !esUnidadBase(item.unidad_base)) return null
+    const par = item.compras_item_proveedores.find(cp => cp.proveedor_id === proveedorId)
+    const cobraPor = par && esCobraPor(par.cobra_por) ? par.cobra_por : item.cobra_por_default
+    if (cobraPor !== 'base') return null
+    const u: UnidadesInsumo = { unidad: item.unidad, unidadBase: item.unidad_base, contenido: item.cantidad_por_unidad }
+    return textoBase(l.cantidad, u)
+  }
 
   const idsEnPedido = new Set(lineas.map(l => l.item_id).filter(Boolean))
   const catalogoRestante = catalogoProveedor.filter(i => !idsEnPedido.has(i.id))
@@ -242,22 +262,39 @@ export default function PedidoEditor({
                       onChange={e => actualizar(l.clave, { descripcion: e.target.value })}
                       className={`${controlClass} col-span-3 sm:col-span-1 min-h-11 ${marcarError && !l.descripcion.trim() ? 'border-brand-red' : ''}`}
                     />
-                    <InputNumero
-                      ariaLabel={`Cantidad de ${l.descripcion || 'la línea'}`}
-                      placeholder="Cant."
-                      value={l.cantidad}
-                      onChange={v => actualizar(l.clave, { cantidad: v })}
-                      min={0}
-                      className={`${controlClass} min-h-11 text-right tabular-nums ${marcarError && (!l.cantidad || l.cantidad <= 0) ? 'border-brand-red' : ''}`}
-                    />
-                    <input
-                      type="text"
-                      aria-label="Unidad"
-                      placeholder="Unidad"
-                      value={l.unidad}
-                      onChange={e => actualizar(l.clave, { unidad: e.target.value })}
-                      className={`${controlClass} min-h-11`}
-                    />
+                    <div className="flex flex-col gap-0.5">
+                      <InputNumero
+                        ariaLabel={`Cantidad de ${l.descripcion || 'la línea'}`}
+                        placeholder="Cant."
+                        value={l.cantidad}
+                        onChange={v => actualizar(l.clave, { cantidad: v })}
+                        min={0}
+                        className={`${controlClass} min-h-11 text-right tabular-nums ${marcarError && (!l.cantidad || l.cantidad <= 0) ? 'border-brand-red' : ''}`}
+                      />
+                      {equivalenteKg(l) && (
+                        <span className="pr-1 text-right text-2xs text-muted tabular-nums">{equivalenteKg(l)}</span>
+                      )}
+                    </div>
+                    {l.item_id ? (
+                      unidadFija(l) ? (
+                        <span className="flex min-h-11 items-center px-1 text-sm text-muted" title="Sale de la unidad de compra del insumo">
+                          {unidadFija(l)}
+                        </span>
+                      ) : (
+                        <span className="flex min-h-11 items-center px-1 text-sm text-warning" title="Cargale la unidad de compra en Insumos">
+                          sin unidad
+                        </span>
+                      )
+                    ) : (
+                      <input
+                        type="text"
+                        aria-label="Unidad"
+                        placeholder="Unidad"
+                        value={l.unidad}
+                        onChange={e => actualizar(l.clave, { unidad: e.target.value })}
+                        className={`${controlClass} min-h-11`}
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => setLineas(prev => prev.filter(x => x.clave !== l.clave))}

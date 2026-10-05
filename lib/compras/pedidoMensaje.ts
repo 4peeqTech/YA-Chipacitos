@@ -1,9 +1,14 @@
 import { codigoPedido } from './codigos'
+import { cantidadMensaje, type CobraPor, type UnidadBase } from './unidades'
 
 export interface ItemMensaje {
   descripcion: string
   unidad: string | null
   cantidad: number
+  /** A2b: si el proveedor cobra por kg, la línea suma el equivalente: "2 CAJAS (~33 KG)". */
+  contenido?: number | null
+  unidadBase?: UnidadBase | null
+  cobraPor?: CobraPor | null
 }
 
 // Espeja una fila de `locales_facturacion`. El módulo ya no resuelve slugs:
@@ -28,13 +33,11 @@ export const BLOQUE_FACTURACION =
 // (mismo formato que el seed de esa tabla).
 const CUERPO_FALLBACK = '🧾 *PEDIDO {{numero}} · {{proveedor}}* — {{dia}} {{fecha}}{{entrega}}\n\n*Detalle del pedido:*\n{{items}}{{facturacion}}'
 
-function formatearCantidad(cantidad: number): string {
-  return cantidad % 1 === 0 ? String(Math.floor(cantidad)) : String(cantidad)
-}
-
 function formatearLineaItem(item: ItemMensaje): string {
-  const unidad = item.unidad ? ` ${item.unidad}` : ''
-  return `   — ${formatearCantidad(item.cantidad)}${unidad} ${item.descripcion}`.toUpperCase()
+  const u = item.unidadBase && item.contenido != null
+    ? { unidad: item.unidad, unidadBase: item.unidadBase, contenido: item.contenido }
+    : null
+  return `   — ${cantidadMensaje(item.cantidad, item.unidad, u, item.cobraPor ?? null)} ${item.descripcion}`.toUpperCase()
 }
 
 export function interpolar(texto: string, vars: Record<string, string>): string {
