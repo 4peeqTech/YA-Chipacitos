@@ -12,6 +12,8 @@ import SearchInput from '@/components/ui/SearchInput'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useConfirmar } from '@/components/ui/ProveedorUI'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { formatearFecha } from '@/lib/formato'
 import { codigoPedido, codigoRemito } from '@/lib/compras/codigos'
 import { porcentajeRecibido } from '../modelo'
@@ -75,6 +77,9 @@ export default function RemitosClient({
     remitoInicial ? { remitoId: remitoInicial } : pedidoInicial ? { pedidoId: pedidoInicial } : null,
   )
   const [conCambios, setConCambios] = useState(false)
+  const quitarParams = useQuitarParams('remito', 'pedido')
+  useAlCambiarParam(remitoInicial, id => abrir({ remitoId: id }))
+  useAlCambiarParam(pedidoInicial, id => abrir({ pedidoId: id }))
 
   // Todo sale de las props: las acciones llaman a refresh() y la pantalla se
   // vuelve a armar con lo que quedó en la base.
@@ -127,6 +132,7 @@ export default function RemitosClient({
   }
 
   function cerrarYa() {
+    quitarParams()
     setAbierto(null)
     setConCambios(false)
   }
@@ -158,7 +164,9 @@ export default function RemitosClient({
     {
       key: 'pedido',
       header: 'Pedido',
-      render: r => <span className="whitespace-nowrap font-mono tabular-nums text-muted">{r.pedido ? codigoPedido(r.pedido.numero) : '—'}</span>,
+      render: r => r.pedido
+        ? <LinkEntidad entidad={{ tipo: 'pedido', id: r.pedido.id }} className="text-muted">{codigoPedido(r.pedido.numero)}</LinkEntidad>
+        : <span className="text-muted">—</span>,
       ordenar: r => r.pedido?.numero ?? 0,
       ocultarHasta: 'sm',
     },

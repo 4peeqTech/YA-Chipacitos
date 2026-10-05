@@ -13,6 +13,8 @@ import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { ChipGroup } from '@/components/ui/Chip'
 import { useConfirmar } from '@/components/ui/ProveedorUI'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { codigoPedido } from '@/lib/compras/codigos'
@@ -74,6 +76,9 @@ export default function FacturasClient({
   // Recién confirmada con diferencias: el modal queda abierto (con un esqueleto)
   // hasta que el refresh traiga la factura, en vez de cerrarse y volver a abrirse.
   const [recienConfirmada, setRecienConfirmada] = useState<string | null>(null)
+  const quitarParams = useQuitarParams('factura', 'pedido')
+  useAlCambiarParam(facturaInicial, id => abrir({ facturaId: id }))
+  useAlCambiarParam(pedidoInicial, id => abrir({ pedidoId: id }))
 
   // Todo sale de las props: las acciones llaman a refresh() y la pantalla se
   // vuelve a armar con lo que quedó en la base.
@@ -106,6 +111,7 @@ export default function FacturasClient({
   }
 
   function cerrarYa() {
+    quitarParams()
     setAbierto(null)
     setConCambios(false)
   }
@@ -142,7 +148,7 @@ export default function FacturasClient({
     {
       key: 'pedido',
       header: 'Pedido',
-      render: v => <span className="font-mono tabular-nums text-muted">{v.codigo}</span>,
+      render: v => <LinkEntidad entidad={{ tipo: 'pedido', id: v.pedidoId }} className="text-muted">{v.codigo}</LinkEntidad>,
       ordenar: v => v.pedidoNumero ?? 0,
       ocultarHasta: 'sm',
     },

@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import Link from 'next/link'
 import {
-  ArrowRight, CheckCircle2, FileText, Loader2, Lock, ReceiptText, RotateCcw, Save, Trash2, Wallet,
+  CheckCircle2, FileText, Loader2, Lock, ReceiptText, RotateCcw, Save, Trash2, Wallet,
 } from 'lucide-react'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 import DatePicker from '@/components/ui/DatePicker'
 import InputNumero from '@/components/ui/InputNumero'
 import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
@@ -240,19 +240,19 @@ export default function GastoForm({
       )}
 
       {gasto?.factura && (
-        <Link
-          href={`/admin/compras/pedidos/facturas?factura=${gasto.factura.id}`}
-          className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-border px-4 py-2.5 text-sm transition-colors hover:bg-surface2"
-        >
-          <span className="flex items-center gap-2 text-text">
-            <ReceiptText size={16} className="shrink-0 text-accent-fg" />
-            <span>
-              Salió de la factura <span className="font-mono tabular-nums font-semibold">{gasto.factura.numero}</span>
-              {gasto.factura.codigoPedido && <span className="text-muted"> · pedido <span className="font-mono tabular-nums">{gasto.factura.codigoPedido}</span></span>}
+        <p className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border px-4 py-2.5 text-sm text-text">
+          <ReceiptText size={16} className="shrink-0 text-accent-fg" />
+          Salió de la factura{' '}
+          <LinkEntidad entidad={{ tipo: 'factura', id: gasto.factura.id }} className="font-semibold">{gasto.factura.numero}</LinkEntidad>
+          {gasto.factura.codigoPedido && (
+            <span className="text-muted">
+              · pedido{' '}
+              {gasto.factura.pedidoId
+                ? <LinkEntidad entidad={{ tipo: 'pedido', id: gasto.factura.pedidoId }}>{gasto.factura.codigoPedido}</LinkEntidad>
+                : <span className="font-mono tabular-nums">{gasto.factura.codigoPedido}</span>}
             </span>
-          </span>
-          <ArrowRight size={14} className="shrink-0 text-muted" />
-        </Link>
+          )}
+        </p>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">

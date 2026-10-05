@@ -13,6 +13,8 @@ import { ChipGroup } from '@/components/ui/Chip'
 import { Field, controlClass } from '@/components/ui/Field'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { formatearFecha, formatearFechaHora, formatearMonedaExacta } from '@/lib/formato'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { rutaDe } from '@/lib/compras/rutas'
 import { codigoPedido } from '@/lib/compras/codigos'
 import {
   ALICUOTAS, avisaPorPapel, diferenciaPapel, etiquetaAlicuota, subtotalLinea, variacionPrecio,
@@ -485,7 +487,9 @@ export default function FacturaForm({
         <Field label="Pedido" obligatorio>
           {factura ? (
             <p className="flex min-h-11 items-center text-sm text-text">
-              <span className="font-mono tabular-nums">{pedido ? codigoPedido(pedido.numero) : '—'}</span>
+              {pedido
+                ? <LinkEntidad entidad={{ tipo: 'pedido', id: pedido.id }}>{codigoPedido(pedido.numero)}</LinkEntidad>
+                : <span className="font-mono tabular-nums">—</span>}
               <span className="text-muted">&nbsp;·&nbsp;{pedido?.proveedores?.nombre ?? '—'}</span>
             </p>
           ) : (
@@ -775,7 +779,7 @@ export default function FacturaForm({
           {factura && estadoFactura === 'confirmada' && (
             factura.gastoId ? (
               <Link
-                href="/admin/gastos/pendientes"
+                href={rutaDe({ tipo: 'gasto', id: factura.gastoId })}
                 className="flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2.5 text-sm transition-colors hover:bg-surface2"
               >
                 <span className="flex items-center gap-2 text-text">

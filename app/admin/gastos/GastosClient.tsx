@@ -15,6 +15,8 @@ import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { ChipGroup } from '@/components/ui/Chip'
 import { controlClass } from '@/components/ui/Field'
 import { useConfirmar } from '@/components/ui/ProveedorUI'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { calcularRangoPreset } from '@/lib/compras/rangoFechas'
 import {
@@ -36,12 +38,14 @@ export default function GastosClient({
   proveedores,
   cajas,
   formasPago,
+  pedidoDeFactura,
   gastoInicial,
 }: {
   gastos: GastoFila[]
   proveedores: { id: string; nombre: string }[]
   cajas: string[]
   formasPago: string[]
+  pedidoDeFactura: Record<string, string>
   gastoInicial?: string
 }) {
   const confirmar = useConfirmar()
@@ -53,10 +57,12 @@ export default function GastosClient({
   const [hasta, setHasta] = useState(mesActual.hasta)
   const [abierto, setAbierto] = useState<Abierto>(gastoInicial ? { id: gastoInicial } : null)
   const [conCambios, setConCambios] = useState(false)
+  const quitarParam = useQuitarParams('gasto')
+  useAlCambiarParam(gastoInicial, id => abrir({ id }))
 
   // Todo sale de las props: las acciones llaman a refresh() y la pantalla se
   // vuelve a armar con lo que quedó en la base.
-  const gastos = useMemo(() => armarGastos(filas), [filas])
+  const gastos = useMemo(() => armarGastos(filas, pedidoDeFactura), [filas, pedidoDeFactura])
   const resumen = useMemo(() => resumirGastos(gastos, desde, hasta), [gastos, desde, hasta])
   const filtrados = useMemo(
     () => filtrarGastos(gastos, { estado, local, busqueda, desde, hasta }),
@@ -72,7 +78,7 @@ export default function GastosClient({
   }
 
   function abrir(a: Abierto) { setAbierto(a); setConCambios(false) }
-  function cerrarYa() { setAbierto(null); setConCambios(false) }
+  function cerrarYa() { quitarParam(); setAbierto(null); setConCambios(false) }
   function cerrar() {
     if (!conCambios) { cerrarYa(); return }
     confirmar({
@@ -106,9 +112,9 @@ export default function GastosClient({
             <span className="sm:hidden"> · {g.local}</span>
           </span>
           {g.factura && (
-            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-surface2 px-2 py-0.5 text-2xs font-medium text-muted">
+            <LinkEntidad entidad={{ tipo: 'factura', id: g.factura.id }} variante="chip" className="mt-1" title="Ver la factura">
               <ReceiptText size={11} /> Factura <span className="font-mono tabular-nums">{g.factura.numero}</span>
-            </span>
+            </LinkEntidad>
           )}
         </span>
       ),

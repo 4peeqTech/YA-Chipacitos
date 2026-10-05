@@ -33,10 +33,11 @@ export interface GastoVista {
   pagadoPor: string | null
   creadoPor: string | null
   /** La factura de compras de la que salió (F5), si salió de una. */
-  factura: { id: string; numero: string; codigoPedido: string | null } | null
+  factura: { id: string; numero: string; codigoPedido: string | null; pedidoId: string | null } | null
 }
 
-export function armarGastos(filas: GastoFila[]): GastoVista[] {
+/** `pedidoDeFactura` (factura → pedido) sirve para linkear el pedido; v_gastos solo trae su número. */
+export function armarGastos(filas: GastoFila[], pedidoDeFactura: Record<string, string> = {}): GastoVista[] {
   const res: GastoVista[] = []
   for (const g of filas) {
     if (!g.id) continue
@@ -62,6 +63,7 @@ export function armarGastos(filas: GastoFila[]): GastoVista[] {
           id: g.factura_id,
           numero: g.factura_numero ?? '—',
           codigoPedido: g.factura_pedido_numero == null ? null : codigoPedido(g.factura_pedido_numero),
+          pedidoId: pedidoDeFactura[g.factura_id] ?? null,
         }
         : null,
     })

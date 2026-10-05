@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import {
   Truck, Plus, Pencil, Archive, ArchiveRestore, Trash2, MessageCircle,
   User, Phone, Mail, MapPin, CreditCard, Package, ClipboardList, PackageSearch, Star,
@@ -13,6 +13,8 @@ import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { mensajeError } from '@/lib/errores'
 import { useConfirmar } from '@/components/ui/ProveedorUI'
 import { codigoPedido } from '@/lib/compras/codigos'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 
 interface InsumoAsociado {
   itemId: string
@@ -77,10 +79,13 @@ export default function ProveedoresClient({
   proveedoresIniciales,
   proveedorIdsConInsumos,
   localesFacturacion,
+  proveedorInicial,
 }: {
   proveedoresIniciales: Proveedor[]
   proveedorIdsConInsumos: string[]
   localesFacturacion: LocalFacturacion[]
+  /** ?proveedor=<id>: abre su ficha. */
+  proveedorInicial?: string
 }) {
   const supabase = createClient()
   const confirmar = useConfirmar()
@@ -94,8 +99,10 @@ export default function ProveedoresClient({
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
-  const [ficha, setFicha] = useState<Proveedor | null>(null)
-  const [fichaCargando, setFichaCargando] = useState(false)
+  const [ficha, setFicha] = useState<Proveedor | null>(
+    () => proveedoresIniciales.find(p => p.id === proveedorInicial) ?? null,
+  )
+  const [fichaCargando, setFichaCargando] = useState(ficha != null)
   const [fichaInsumos, setFichaInsumos] = useState<InsumoAsociado[]>([])
   const [fichaPedidos, setFichaPedidos] = useState<PedidoResumen[]>([])
 
@@ -111,22 +118,43 @@ export default function ProveedoresClient({
   const hayFiltros = !!busqueda || filtro !== 'activo' || soloSinInsumos
   function limpiarFiltros() { setBusqueda(''); setFiltro('activo'); setSoloSinInsumos(false) }
 
-  async function abrirFicha(p: Proveedor) {
+  const quitarParam = useQuitarParams('proveedor')
+  useAlCambiarParam(proveedorInicial, id => {
+    const p = proveedores.find(x => x.id === id)
+    if (p) abrirFicha(p)
+  })
+
+  function abrirFicha(p: Proveedor) {
     setFicha(p)
     setFichaCargando(true)
+  }
+
+  // Los insumos y pedidos de la ficha se traen cada vez que se abre una.
+  const fichaId = ficha?.id ?? null
+  useEffect(() => {
+    if (!fichaId) return
+    let vigente = true
+    cargarFicha(fichaId, () => vigente)
+    return () => { vigente = false }
+    // cargarFicha solo lee el cliente de Supabase: alcanza con el id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fichaId])
+
+  async function cargarFicha(proveedorId: string, vigente: () => boolean) {
     const [{ data: insumos }, { data: pedidos }] = await Promise.all([
       supabase
         .from('compras_item_proveedores')
         .select('item_id, es_principal, precio_ref, compras_items(nombre, unidad)')
-        .eq('proveedor_id', p.id)
+        .eq('proveedor_id', proveedorId)
         .eq('activo', true),
       supabase
         .from('compras_pedidos')
         .select('id, numero, estado, created_at')
-        .eq('proveedor_id', p.id)
+        .eq('proveedor_id', proveedorId)
         .order('created_at', { ascending: false })
         .limit(10),
     ])
+    if (!vigente()) return
     type FilaInsumoAsociado = {
       item_id: string
       es_principal: boolean
@@ -147,6 +175,7 @@ export default function ProveedoresClient({
   }
 
   function cerrarFicha() {
+    quitarParam()
     setFicha(null)
     setFichaInsumos([])
     setFichaPedidos([])
@@ -490,7 +519,7 @@ export default function ProveedoresClient({
                     {fichaInsumos.map(i => (
                       <div key={i.itemId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
                         <span className="text-[#f0f0f0] flex items-center gap-1.5">
-                          {i.itemNombre} <span className="text-[#666]">({i.unidad})</span>
+                          <LinkEntidad entidad={{ tipo: 'insumo', id: i.itemId }} variante="texto" title="Ver el stock de este insumo">{i.itemNombre}</LinkEntidad> <span className="text-[#666]">({i.unidad})</span>
                           {i.esPrincipal && <span className="flex items-center gap-1 text-xs text-[#e8c547]"><Star size={11} fill="currentColor" /> principal</span>}
                         </span>
                         <span className="text-[#888]">{i.precioRef != null ? `$${i.precioRef.toLocaleString('es-AR')}` : '—'}</span>
@@ -513,7 +542,7 @@ export default function ProveedoresClient({
                     {fichaPedidos.map(p => (
                       <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
                         <span className="text-[#f0f0f0]">
-                          <span className="font-mono tabular-nums">{codigoPedido(p.numero)}</span>
+                          <LinkEntidad entidad={{ tipo: 'pedido', id: p.id }}>{codigoPedido(p.numero)}</LinkEntidad>
                           <span className="text-[#888]"> · {new Date(p.createdAt).toLocaleDateString('es-AR')}</span>
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoPedidoBadge[p.estado]}`}>{p.estado}</span>

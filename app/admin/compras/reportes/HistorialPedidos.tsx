@@ -4,6 +4,7 @@ import { Fragment, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { calcularHistorialPedidos, type FacturaReporte, type PedidoReporte } from '@/lib/compras/reportes'
 import { codigoPedido } from '@/lib/compras/codigos'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 
 function money(n: number): string {
   return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -107,7 +108,8 @@ export default function HistorialPedidos({
                   onClick={() => setExpandidoId(prev => (prev === p.pedidoId ? null : p.pedidoId))}
                 >
                   <td className="px-4 py-3 text-[#f0f0f0] font-mono tabular-nums whitespace-nowrap">
-                    {expandidoId === p.pedidoId ? '▼ ' : '▶ '}{codigoPedido(p.numero)}
+                    {expandidoId === p.pedidoId ? '▼ ' : '▶ '}
+                    <LinkEntidad entidad={{ tipo: 'pedido', id: p.pedidoId }}>{codigoPedido(p.numero)}</LinkEntidad>
                   </td>
                   <td className="px-4 py-3 text-[#f0f0f0] font-medium">{p.proveedorNombre}</td>
                   <td className="px-4 py-3">
@@ -140,7 +142,7 @@ export default function HistorialPedidos({
                           <tbody>
                             {p.remitos.map(r => (
                               <tr key={r.remitoId} className="text-[#ccc]">
-                                <td className="py-1 pr-3 font-mono tabular-nums">{r.numero}</td>
+                                <td className="py-1 pr-3"><LinkEntidad entidad={{ tipo: 'remito', id: r.remitoId }}>{r.numero}</LinkEntidad></td>
                                 <td className="py-1 pr-3">{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td>
                                 <td className="py-1">{r.lineasCount}</td>
                               </tr>

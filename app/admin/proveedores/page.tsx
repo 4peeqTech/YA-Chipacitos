@@ -4,10 +4,16 @@ import ProveedoresClient from './ProveedoresClient'
 
 export const metadata = { title: 'Proveedores | YA! Chipacitos' }
 
-export default async function ProveedoresPage() {
+export default async function ProveedoresPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ proveedor?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const { proveedor } = await searchParams
 
   const [{ data: proveedores }, { data: itemsProveedores }, { data: locales }] = await Promise.all([
     supabase.from('proveedores').select('*').order('nombre'),
@@ -22,6 +28,7 @@ export default async function ProveedoresPage() {
       proveedoresIniciales={proveedores ?? []}
       proveedorIdsConInsumos={proveedorIdsConInsumos}
       localesFacturacion={locales ?? []}
+      proveedorInicial={proveedor}
     />
   )
 }

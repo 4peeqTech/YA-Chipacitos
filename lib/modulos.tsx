@@ -92,6 +92,24 @@ export function esRolConModulos(rol: string | null | undefined): boolean {
   return !!rol && rol !== 'admin' && !ROLES_OPERATIVOS.includes(rol as typeof ROLES_OPERATIVOS[number])
 }
 
+/**
+ * Si un rol con módulos (squad o personalizado) puede entrar a un pathname de
+ * /admin/*: el módulo tiene que estar asignado y no ser solo de admin. Es el
+ * chequeo de proxy.ts; los links entre pantallas (LinkEntidad) lo usan para no
+ * ofrecer un salto que el proxy rebotaría.
+ */
+export function moduloPermitido(pathname: string, modulosPermitidos: string[]): boolean {
+  const modulo = getModuloPorPath(pathname)
+  return !!modulo && !modulo.soloAdmin && modulosPermitidos.includes(modulo.key)
+}
+
+/** Si el usuario puede abrir ese pathname de /admin/*. Admin entra a todo. */
+export function puedeEntrarAdmin(pathname: string, rol: string | null | undefined, modulosPermitidos: string[]): boolean {
+  if (rol === 'admin') return true
+  if (!esRolConModulos(rol)) return false
+  return moduloPermitido(pathname, modulosPermitidos)
+}
+
 export function getRoleHome(rol: string | null | undefined): string {
   if (rol === 'local') return '/local/pedidos'
   if (rol === 'deposito') return '/deposito/pedidos'

@@ -14,6 +14,7 @@ import SelectBuscador from '@/components/ui/SelectBuscador'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 import { mensajeError } from '@/lib/errores'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 
 interface ProveedorOption {
   id: string
@@ -378,7 +379,7 @@ export default function InsumosClient({
                   <tr key={i.id} className="hover:bg-[#1a1a1a] transition-colors">
                     <td className="px-4 py-3 text-[#f0f0f0] font-medium">
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        {i.nombre}
+                        <LinkEntidad entidad={{ tipo: 'insumo', id: i.id }} variante="texto" title="Ver el stock de este insumo">{i.nombre}</LinkEntidad>
                         {i.a_demanda && (
                           <span
                             title={i.stock_maximo != null ? `Se pide según se necesite. Avisa sobrestock si el conteo pasa de ${i.stock_maximo} ${i.unidad}.` : 'Se pide según se necesite, no por proyección de masas. No avisa sobrestock.'}

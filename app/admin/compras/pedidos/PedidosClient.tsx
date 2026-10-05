@@ -13,6 +13,7 @@ import SearchInput from '@/components/ui/SearchInput'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { codigoPedido } from '@/lib/compras/codigos'
 import { DIAS_DEMORA, subtextoEstado, type FiltroPedidos } from '@/lib/compras/estadoPedido'
@@ -90,6 +91,8 @@ export default function PedidosClient({
   const [vista, setVista] = useState<Vista>('detalle')
   const [avisoReenvio, setAvisoReenvio] = useState(false)
   const [editorConCambios, setEditorConCambios] = useState(false)
+  const quitarParam = useQuitarParams('pedido')
+  useAlCambiarParam(pedidoInicial, id => abrir(id))
 
   // Los datos vienen siempre del servidor: las acciones llaman a refresh() y
   // la pantalla se vuelve a armar con lo que quedó en la base.
@@ -133,6 +136,7 @@ export default function PedidosClient({
   }
 
   function cerrarModalYa() {
+    quitarParam()
     setCreando(false)
     setAbiertoId(null)
     setVista('detalle')
@@ -340,7 +344,7 @@ export default function PedidosClient({
             <AyudaLink seccion="compras-pedidos" />
             <button
               type="button"
-              onClick={() => { setAbiertoId(null); setCreando(true); setVista('editar'); setEditorConCambios(false) }}
+              onClick={() => { quitarParam(); setAbiertoId(null); setCreando(true); setVista('editar'); setEditorConCambios(false) }}
               className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
             >
               <Plus size={16} /> Crear pedido

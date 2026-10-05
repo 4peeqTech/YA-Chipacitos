@@ -4,19 +4,37 @@ import SolicitudesClient from './SolicitudesClient'
 
 export const metadata = { title: 'Solicitudes | YA! Chipacitos' }
 
-export default async function SolicitudesPage() {
+export default async function SolicitudesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ solicitud?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { solicitud } = await searchParams
+
   const [{ data: solicitudes }, { data: proveedores }, { data: itemsProveedores }] = await Promise.all([
     supabase
       .from('compras_solicitudes')
-      .select('*, fabrica_conteos(semana_desde, semana_hasta, masas_proyectadas), compras_solicitud_items(*)')
+      // compras_pedidos: los que generó cada solicitud convertida. Embebidos, se
+      // traen solo los de las solicitudes listadas (sin un tope de filas aparte).
+      .select('*, fabrica_conteos(semana_desde, semana_hasta, masas_proyectadas), compras_solicitud_items(*), compras_pedidos(id, numero, proveedores(nombre))')
       .order('created_at', { ascending: false }),
     supabase.from('proveedores').select('id, nombre').eq('estado', 'activo').order('nombre'),
     supabase.from('compras_item_proveedores').select('item_id, proveedor_id').eq('activo', true),
   ])
+
+  type PedidoGenerado = { id: string; numero: number; proveedores: { nombre: string } | null }
+  const pedidosPorSolicitud: Record<string, { id: string; numero: number; proveedor: string }[]> = {}
+  for (const s of solicitudes ?? []) {
+    const pedidos = (s.compras_pedidos ?? []) as PedidoGenerado[]
+    if (!pedidos.length) continue
+    pedidosPorSolicitud[s.id] = [...pedidos]
+      .sort((a, b) => a.numero - b.numero)
+      .map(p => ({ id: p.id, numero: p.numero, proveedor: p.proveedores?.nombre ?? '—' }))
+  }
 
   const proveedoresPorItem: Record<string, string[]> = {}
   for (const ip of itemsProveedores ?? []) {
@@ -41,6 +59,8 @@ export default async function SolicitudesPage() {
       proveedores={proveedores ?? []}
       proveedoresPorItem={proveedoresPorItem}
       sobrestockPorConteoItem={sobrestockPorConteoItem}
+      pedidosPorSolicitud={pedidosPorSolicitud}
+      solicitudInicial={solicitud}
     />
   )
 }

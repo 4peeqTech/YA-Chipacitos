@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { getRoleHome, getModuloPorPath, MODULOS, esRolConModulos } from '@/lib/modulos'
+import { getRoleHome, getModuloPorPath, MODULOS, esRolConModulos, moduloPermitido } from '@/lib/modulos'
 import { verificarEntorno } from '@/lib/entorno'
 
 export async function proxy(request: NextRequest) {
@@ -141,8 +141,7 @@ export async function proxy(request: NextRequest) {
       // entrar a los módulos que tienen asignados en modulos_permitidos.
       if (esRolConModulos(rol) && pathname.startsWith('/admin')) {
         const modulo = getModuloPorPath(pathname)
-        const tieneAcceso = modulo && !modulo.soloAdmin && modulosPermitidos.includes(modulo.key)
-        if (!tieneAcceso) {
+        if (!moduloPermitido(pathname, modulosPermitidos)) {
           const primerModulo = MODULOS.find(m => !m.oculto && modulosPermitidos.includes(m.key))
           // Si no tiene NINGÚN módulo asignado, '/ayuda' es la única ruta
           // permitida sin permisos — evita un loop con /login.

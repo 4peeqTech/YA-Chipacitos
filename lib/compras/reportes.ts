@@ -27,6 +27,7 @@ export interface RemitoReporte {
 export interface DetalleFacturaGasto {
   facturaId: string
   numero: string
+  pedidoId: string | null
   pedidoNumero: number | null
   fecha: string
   esNotaCredito: boolean
@@ -99,6 +100,7 @@ export function calcularGastoPorProveedor(facturas: FacturaReporte[], pedidos: P
     g.detalle.push({
       facturaId: f.id,
       numero: f.numero ?? '—',
+      pedidoId: f.pedido_id,
       pedidoNumero: f.pedido_numero,
       fecha: f.fecha ?? '',
       esNotaCredito: s < 0,

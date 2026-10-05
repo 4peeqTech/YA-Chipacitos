@@ -3,6 +3,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { enviarPush } from '@/lib/push/sendPush'
 import { NextRequest, NextResponse } from 'next/server'
 import { formatearNumero } from '@/lib/formato'
+import { rutaDe } from '@/lib/compras/rutas'
 
 // Los módulos de Compras vigentes (lib/modulos.tsx). tiene_acceso_compras()
 // suma fabrica-conteos para lectura, pero ese módulo no abre las pantallas de
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
       userIds,
       title: '🏭 Nueva solicitud de Fábrica',
       body: 'Fábrica cerró el conteo semanal y pide revisar la compra complementaria.',
-      url: '/admin/compras/pedidos/solicitudes',
+      url: rutaDe({ tipo: 'solicitud', id: solicitudId }),
       tipo: 'solicitud_fabrica',
     })
 
