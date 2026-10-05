@@ -117,20 +117,26 @@ order by masas_fecula desc;
 --
 --   inicio      = contado en el conteo i      × base_por_unidad
 --   remitos     = entrada_remito + salida_remito_anulado en la ventana × base_por_unidad
---   otros       = cualquier otro movimiento salvo conteo_fabrica (ajustes manuales,
---                 de factura, apertura, reversión) × base_por_unidad
+--   otros       = cualquier otro movimiento salvo el pisado del conteo (ajustes
+--                 manuales, de factura, apertura, reversión) × base_por_unidad
+--   pisado del conteo = conteo_fabrica del conteo i+1, o bien (antes de la
+--                 migración 20260908140000, cuando el conteo grababa 'ajuste_manual'
+--                 sin conteo_id) los ajuste_manual sin conteo_id del día del
+--                 conteo i+1 (fecha del conteo o día de cierre). Un ajuste
+--                 manual real de Compras ese mismo día queda mal clasificado:
+--                 se ve en la columna ajustes_dia_conteo.
 --   fin         = contado en el conteo i+1    × base_por_unidad
 --   real        = inicio + remitos + otros − fin
 --   teorico     = masas (fécula/30) del período × base_por_masa
 --   dif         = real − teorico;  dif_pct = dif / teorico
---   conteo_dice = −Σ delta conteo_fabrica del conteo i+1 × base_por_unidad
+--   conteo_dice = −Σ delta del pisado del conteo i+1 × base_por_unidad
 --                 (lo que "faltó" según el pisado del conteo: con el stock
 --                 al día debería parecerse a `real`)
 --   conteos_intermedios = movimientos conteo_fabrica de OTROS conteos dentro de
 --                 la ventana (un conteo descartado igual pisó stock): si es > 0
 --                 el período no es confiable.
 -- ─────────────────────────────────────────────────────────────────────────────
-with params as (select 30.0::numeric as fecula_por_masa),
+with params as (select 30.0::numeric as fecula_por_masa, 'America/Argentina/Buenos_Aires'::text as tz),
 ci as (
   select i.item_id, it.nombre, c.id as conteo_id, c.fecha, i.cantidad,
          coalesce(nullif(i.cantidad_por_unidad, 0), it.cantidad_por_unidad) as cpu,
@@ -154,17 +160,33 @@ per as (
   from ci
   window w as (partition by item_id order by t)
 ),
+movc as (
+  -- clasifica cada movimiento de la ventana
+  select p.item_id, p.conteo_id, m.delta,
+         case
+           when m.tipo in ('entrada_remito', 'salida_remito_anulado') then 'remito'
+           when m.tipo = 'conteo_fabrica' and m.conteo_id = p.conteo_fin then 'pisado'
+           when m.tipo = 'conteo_fabrica' then 'conteo_intermedio'
+           when m.tipo = 'ajuste_manual' and m.conteo_id is null
+                and (m.created_at at time zone pa.tz)::date in (p.fecha_fin, (p.t_fin at time zone pa.tz)::date)
+             then 'pisado_legacy'
+           else 'otro'
+         end as clase
+  from per p
+  cross join params pa
+  join compras_stock_movimientos m
+    on m.item_id = p.item_id and m.created_at > p.t and m.created_at <= p.t_fin
+  where p.conteo_fin is not null
+),
 mov as (
   select p.item_id, p.conteo_id,
-         coalesce(sum(m.delta) filter (where m.tipo in ('entrada_remito', 'salida_remito_anulado')), 0) as remitos,
-         coalesce(sum(m.delta) filter (where m.tipo <> 'conteo_fabrica'
-                                         and m.tipo not in ('entrada_remito', 'salida_remito_anulado')), 0) as otros,
-         count(*) filter (where m.tipo = 'conteo_fabrica' and m.conteo_id is distinct from p.conteo_fin
-                                                          and m.conteo_id is distinct from p.conteo_id) as conteos_intermedios,
-         coalesce(sum(m.delta) filter (where m.tipo = 'conteo_fabrica' and m.conteo_id = p.conteo_fin), 0) as delta_conteo_fin
+         coalesce(sum(mc.delta) filter (where mc.clase = 'remito'), 0) as remitos,
+         coalesce(sum(mc.delta) filter (where mc.clase in ('otro', 'conteo_intermedio')), 0) as otros,
+         count(mc.delta) filter (where mc.clase = 'conteo_intermedio') as conteos_intermedios,
+         count(mc.delta) filter (where mc.clase = 'pisado_legacy') as ajustes_dia_conteo,
+         coalesce(sum(mc.delta) filter (where mc.clase in ('pisado', 'pisado_legacy')), 0) as delta_conteo_fin
   from per p
-  left join compras_stock_movimientos m
-         on m.item_id = p.item_id and m.created_at > p.t and m.created_at <= p.t_fin
+  left join movc mc on mc.item_id = p.item_id and mc.conteo_id = p.conteo_id
   where p.conteo_fin is not null
   group by p.item_id, p.conteo_id
 ),
@@ -188,7 +210,7 @@ bal as (
          (p.cantidad + mo.remitos + mo.otros - p.cantidad_fin) * p.cpu as real,
          ma.masas * p.cpm            as teorico,
          -mo.delta_conteo_fin * p.cpu as conteo_dice,
-         mo.conteos_intermedios
+         mo.conteos_intermedios, mo.ajustes_dia_conteo
   from per p
   join mov mo on mo.item_id = p.item_id and mo.conteo_id = p.conteo_id
   join masas ma on ma.item_id = p.item_id and ma.conteo_id = p.conteo_id
@@ -201,7 +223,7 @@ select nombre, desde, hasta, masas, cargas,
        round(real / nullif(masas, 0), 3) as real_por_masa,
        cpm as receta_por_masa,
        round(conteo_dice, 2) as conteo_dice,
-       conteos_intermedios
+       conteos_intermedios, ajustes_dia_conteo
 from bal
 order by nombre, desde;
 
