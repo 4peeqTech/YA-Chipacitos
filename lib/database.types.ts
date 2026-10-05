@@ -1147,6 +1147,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "compras_solicitudes_conteo_id_fkey"
+            columns: ["conteo_id"]
+            isOneToOne: false
+            referencedRelation: "v_fabrica_conteo_diferencias"
+            referencedColumns: ["superado_por_conteo_id"]
+          },
+          {
             foreignKeyName: "compras_solicitudes_convertida_por_fkey"
             columns: ["convertida_por"]
             isOneToOne: false
@@ -1282,6 +1289,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_compras_conteos_historial"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_conteo_id_fkey"
+            columns: ["conteo_id"]
+            isOneToOne: false
+            referencedRelation: "v_fabrica_conteo_diferencias"
+            referencedColumns: ["superado_por_conteo_id"]
           },
           {
             foreignKeyName: "compras_stock_movimientos_creado_por_fkey"
@@ -1544,8 +1558,15 @@ export type Database = {
           cantidad_fija: number | null
           cantidad_por_masa: number | null
           cantidad_por_unidad: number | null
+          contado_en: string | null
           conteo_id: string
           descuento_base_sugerido: number | null
+          diferencia: number | null
+          diferencia_estado: string | null
+          diferencia_mov_id: string | null
+          diferencia_nota: string | null
+          diferencia_resuelta_en: string | null
+          diferencia_resuelta_por: string | null
           exceso: number | null
           id: string
           item_id: string
@@ -1554,6 +1575,7 @@ export type Database = {
           necesidad: number | null
           redondeo: string | null
           sobrestock: boolean
+          stock_teorico: number | null
           sugerido: number | null
           unidad_compra: string | null
         }
@@ -1562,8 +1584,15 @@ export type Database = {
           cantidad_fija?: number | null
           cantidad_por_masa?: number | null
           cantidad_por_unidad?: number | null
+          contado_en?: string | null
           conteo_id: string
           descuento_base_sugerido?: number | null
+          diferencia?: number | null
+          diferencia_estado?: string | null
+          diferencia_mov_id?: string | null
+          diferencia_nota?: string | null
+          diferencia_resuelta_en?: string | null
+          diferencia_resuelta_por?: string | null
           exceso?: number | null
           id?: string
           item_id: string
@@ -1572,6 +1601,7 @@ export type Database = {
           necesidad?: number | null
           redondeo?: string | null
           sobrestock?: boolean
+          stock_teorico?: number | null
           sugerido?: number | null
           unidad_compra?: string | null
         }
@@ -1580,8 +1610,15 @@ export type Database = {
           cantidad_fija?: number | null
           cantidad_por_masa?: number | null
           cantidad_por_unidad?: number | null
+          contado_en?: string | null
           conteo_id?: string
           descuento_base_sugerido?: number | null
+          diferencia?: number | null
+          diferencia_estado?: string | null
+          diferencia_mov_id?: string | null
+          diferencia_nota?: string | null
+          diferencia_resuelta_en?: string | null
+          diferencia_resuelta_por?: string | null
           exceso?: number | null
           id?: string
           item_id?: string
@@ -1590,6 +1627,7 @@ export type Database = {
           necesidad?: number | null
           redondeo?: string | null
           sobrestock?: boolean
+          stock_teorico?: number | null
           sugerido?: number | null
           unidad_compra?: string | null
         }
@@ -1606,6 +1644,34 @@ export type Database = {
             columns: ["conteo_id"]
             isOneToOne: false
             referencedRelation: "v_compras_conteos_historial"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_conteo_id_fkey"
+            columns: ["conteo_id"]
+            isOneToOne: false
+            referencedRelation: "v_fabrica_conteo_diferencias"
+            referencedColumns: ["superado_por_conteo_id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_diferencia_mov_id_fkey"
+            columns: ["diferencia_mov_id"]
+            isOneToOne: false
+            referencedRelation: "compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_diferencia_mov_id_fkey"
+            columns: ["diferencia_mov_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_diferencia_resuelta_por_fkey"
+            columns: ["diferencia_resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -3689,11 +3755,15 @@ export type Database = {
           definicion_icono: string | null
           definicion_id: string | null
           definicion_nombre: string | null
+          diferencias_pendientes: number | null
+          estado: string | null
           fecha: string | null
           id: string | null
           masas_proyectadas: number | null
           semana_desde: string | null
           semana_hasta: string | null
+          solicitud_estado: string | null
+          solicitud_id: string | null
         }
         Relationships: []
       }
@@ -4031,6 +4101,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "compras_stock_movimientos_conteo_id_fkey"
+            columns: ["conteo_id"]
+            isOneToOne: false
+            referencedRelation: "v_fabrica_conteo_diferencias"
+            referencedColumns: ["superado_por_conteo_id"]
+          },
+          {
             foreignKeyName: "compras_stock_movimientos_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
@@ -4049,6 +4126,83 @@ export type Database = {
             columns: ["remito_id"]
             isOneToOne: false
             referencedRelation: "compras_remitos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_fabrica_conteo_diferencias: {
+        Row: {
+          contado: number | null
+          contado_en: string | null
+          conteo_cerrado_en: string | null
+          conteo_estado: string | null
+          conteo_fecha: string | null
+          conteo_id: string | null
+          definicion_nombre: string | null
+          diferencia: number | null
+          diferencia_estado: string | null
+          diferencia_mov_id: string | null
+          diferencia_nota: string | null
+          diferencia_resuelta_en: string | null
+          diferencia_resuelta_por_nombre: string | null
+          id: string | null
+          item_id: string | null
+          item_nombre: string | null
+          movido_desde_cierre: number | null
+          stock_hoy: number | null
+          stock_teorico: number | null
+          superado_por: string | null
+          superado_por_conteo_id: string | null
+          unidad: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fabrica_conteo_items_conteo_id_fkey"
+            columns: ["conteo_id"]
+            isOneToOne: false
+            referencedRelation: "fabrica_conteos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_conteo_id_fkey"
+            columns: ["conteo_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_conteos_historial"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_conteo_id_fkey"
+            columns: ["conteo_id"]
+            isOneToOne: false
+            referencedRelation: "v_fabrica_conteo_diferencias"
+            referencedColumns: ["superado_por_conteo_id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_diferencia_mov_id_fkey"
+            columns: ["diferencia_mov_id"]
+            isOneToOne: false
+            referencedRelation: "compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_diferencia_mov_id_fkey"
+            columns: ["diferencia_mov_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_stock_movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_items"
             referencedColumns: ["id"]
           },
         ]
@@ -4249,6 +4403,15 @@ export type Database = {
         }
         Returns: Json
       }
+      compras_resolver_diferencias_conteo: {
+        Args: {
+          p_accion?: string
+          p_conteo_id?: string
+          p_item_ids?: string[]
+          p_nota?: string
+        }
+        Returns: Json
+      }
       compras_revertir_diferencia: {
         Args: { p_diferencia_id?: string }
         Returns: Json
@@ -4292,6 +4455,10 @@ export type Database = {
       es_admin: { Args: never; Returns: boolean }
       fabrica_confirmar_recepcion_pedido: {
         Args: { p_items: Json; p_items_nuevos?: Json; p_pedido_id: string }
+        Returns: undefined
+      }
+      fabrica_guardar_cantidad_conteo: {
+        Args: { p_cantidad?: number; p_conteo_item_id?: string }
         Returns: undefined
       }
       fabrica_marcar_pedido_enviado: {
