@@ -2,15 +2,24 @@
 
 import { useRef, useState, useTransition } from 'react'
 import {
-  Pencil, Plus, Star, Trash2,
+  Loader2, Pencil, Phone, Plus, Star, Trash2,
   Truck, User, Hash, Package, CalendarDays, MapPin, Receipt, Store, CreditCard, Building2, Maximize2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { renderPlantilla, BLOQUE_ENTREGA, BLOQUE_FACTURACION, type ContextoMensaje, type DatosLocal } from '@/lib/compras/pedidoMensaje'
+import { EJEMPLO_FACTURA, VARIABLES_FACTURA, renderPlantillaFactura } from '@/lib/compras/facturaMensaje'
+import { normalizarTelefono, telefonoValido } from '@/lib/compartir'
 import Modal from '@/components/ui/Modal'
+import Pestanas from '@/components/ui/Pestanas'
+import { controlClass } from '@/components/ui/Field'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 import { mensajeError } from '@/lib/errores'
+import { guardarWhatsappAdministracion, marcarPlantillaDefault } from './acciones'
+
+type TipoPlantilla = 'pedido' | 'factura'
+
+const tipoDe = (p: { tipo: string }): TipoPlantilla => (p.tipo === 'factura' ? 'factura' : 'pedido')
 
 interface Plantilla {
   id: string
@@ -19,6 +28,7 @@ interface Plantilla {
   es_default: boolean
   activo: boolean
   orden: number
+  tipo: string
 }
 
 interface LocalFacturacion {
@@ -30,7 +40,7 @@ interface LocalFacturacion {
   direccion: string
 }
 
-const VARIABLES: { key: string; label: string; desc: string; icon: typeof Truck }[] = [
+const VARIABLES_PEDIDO: { key: string; label: string; desc: string; icon: typeof Truck }[] = [
   { key: 'proveedor', label: 'Proveedor', desc: 'Nombre del proveedor (mayúsculas)', icon: Truck },
   { key: 'numero', label: 'N° de pedido', desc: 'Número del pedido (P-0001)', icon: Hash },
   { key: 'contacto', label: 'Contacto', desc: 'Contacto del proveedor', icon: User },
@@ -120,12 +130,20 @@ function posicionDeDrop(textarea: HTMLTextAreaElement, clientX: number, clientY:
 export default function PlantillasClient({
   plantillasIniciales,
   localesFacturacion,
+  tipoInicial,
+  whatsappAdmin,
 }: {
   plantillasIniciales: Plantilla[]
   localesFacturacion: LocalFacturacion[]
+  tipoInicial: TipoPlantilla
+  whatsappAdmin: string
 }) {
   const supabase = createClient()
   const toast = useToasts()
+  const [tipo, setTipo] = useState<TipoPlantilla>(tipoInicial)
+  const [whatsapp, setWhatsapp] = useState(whatsappAdmin)
+  const [whatsappGuardado, setWhatsappGuardado] = useState(whatsappAdmin)
+  const [guardandoWhatsapp, startWhatsapp] = useTransition()
   const [plantillas, setPlantillas] = useState<Plantilla[]>(plantillasIniciales)
   const [editando, setEditando] = useState<Plantilla | null>(null)
   const [creando, setCreando] = useState(false)
@@ -211,7 +229,7 @@ export default function PlantillasClient({
         const orden = plantillas.length ? Math.max(...plantillas.map(p => p.orden)) + 1 : 0
         const { data, error } = await supabase
           .from('compras_plantillas_mensaje')
-          .insert([{ nombre, cuerpo, es_default: false, activo: true, orden }])
+          .insert([{ nombre, cuerpo, tipo, es_default: false, activo: true, orden }])
           .select()
           .single()
         if (error) { toast.error(mensajeError(error, 'No se pudo crear la plantilla')); return }
@@ -234,17 +252,33 @@ export default function PlantillasClient({
 
   async function marcarDefault(p: Plantilla) {
     if (p.es_default) return
-    const { error: errUnset } = await supabase.from('compras_plantillas_mensaje').update({ es_default: false }).eq('es_default', true)
-    if (errUnset) { toast.error(mensajeError(errUnset, 'No se pudo actualizar la plantilla default anterior')); return }
-    const { data, error } = await supabase
-      .from('compras_plantillas_mensaje')
-      .update({ es_default: true, updated_at: new Date().toISOString() })
-      .eq('id', p.id)
-      .select()
-      .single()
-    if (error) { toast.error(mensajeError(error, 'No se pudo marcar la plantilla como default')); return }
-    setPlantillas(prev => prev.map(x => x.id === p.id ? data : { ...x, es_default: false }))
-    toast.success('Marcada como default')
+    // Atómico y por tipo (RPC): marcar una de factura no toca la default de pedido.
+    const r = await marcarPlantillaDefault(p.id)
+    if (!r.ok) { toast.error(r.error); return }
+    setPlantillas(prev => prev.map(x => x.id === p.id ? { ...x, es_default: true } : tipoDe(x) === tipoDe(p) ? { ...x, es_default: false } : x))
+    toast.success('Marcada como predeterminada')
+  }
+
+  function cambiarTipo(t: string) {
+    const nuevo: TipoPlantilla = t === 'factura' ? 'factura' : 'pedido'
+    setTipo(nuevo)
+    // Solo refleja el filtro en la URL: replaceState no vuelve a pedir la página
+    // al servidor (router.replace sí, y la lista ya está toda en el cliente).
+    window.history.replaceState(null, '', `?tipo=${nuevo}`)
+  }
+
+  function guardarWhatsapp() {
+    if (!telefonoValido(whatsapp)) {
+      toast.error('Poné el número con código de país, solo dígitos (ej.: 5493511234567)')
+      return
+    }
+    startWhatsapp(async () => {
+      const r = await guardarWhatsappAdministracion(normalizarTelefono(whatsapp))
+      if (!r.ok) { toast.error(r.error); return }
+      setWhatsapp(r.data.numero)
+      setWhatsappGuardado(r.data.numero)
+      toast.success(r.data.numero ? 'Número guardado' : 'Número borrado')
+    })
   }
 
   async function toggleActivo(p: Plantilla) {
@@ -271,7 +305,14 @@ export default function PlantillasClient({
 
   const localPreview: DatosLocal | null = localesFacturacion.find(l => l.id === localPreviewId) ?? null
   const ejemplo: ContextoMensaje = { ...EJEMPLO_BASE, local: localPreview }
-  const preview = form.cuerpo?.trim() ? renderPlantilla(form.cuerpo, ejemplo) : ''
+  // Al editar, el tipo es el de la plantilla (no se cambia después de crearla); al crear, el del filtro.
+  const tipoForm: TipoPlantilla = editando ? tipoDe(editando) : tipo
+  const variables = tipoForm === 'factura' ? VARIABLES_FACTURA : VARIABLES_PEDIDO
+  const preview = !form.cuerpo?.trim()
+    ? ''
+    : tipoForm === 'factura' ? renderPlantillaFactura(form.cuerpo, EJEMPLO_FACTURA) : renderPlantilla(form.cuerpo, ejemplo)
+  const delTipo = plantillas.filter(p => tipoDe(p) === tipo)
+  const cuantas = (t: TipoPlantilla) => plantillas.filter(p => tipoDe(p) === t).length
   const esBorrador = !!editando && form.cuerpo !== editando.cuerpo
 
   const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
@@ -282,16 +323,55 @@ export default function PlantillasClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#f0f0f0]">Plantillas de mensaje</h1>
-          <p className="text-[#888] text-sm mt-0.5">Formato del mensaje de WhatsApp al armar un pedido a proveedor.</p>
+          <p className="text-[#888] text-sm mt-0.5">
+            {tipo === 'factura' ? 'Formato del mensaje de facturación para la administración.' : 'Formato del mensaje de WhatsApp al proveedor.'}
+          </p>
         </div>
         <button onClick={abrirCrear} className="flex items-center gap-1.5 bg-[#e8c547] hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
           <Plus size={16} /> Nueva plantilla
         </button>
       </div>
 
+      <Pestanas
+        etiqueta="Tipo de plantilla"
+        activa={tipo}
+        onCambiar={cambiarTipo}
+        items={[
+          { id: 'pedido', label: 'Pedido', icon: <Package size={16} />, contador: cuantas('pedido') },
+          { id: 'factura', label: 'Factura', icon: <Receipt size={16} />, contador: cuantas('factura') },
+        ]}
+      />
+
+      {tipo === 'factura' && (
+        <section className="space-y-3 rounded-xl border border-border bg-surface p-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-text">
+            <Phone size={16} className="text-accent-fg" /> WhatsApp de la administración
+          </h2>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              aria-label="WhatsApp de la administración"
+              inputMode="tel"
+              placeholder="5493511234567"
+              value={whatsapp}
+              onChange={e => setWhatsapp(e.target.value)}
+              className={`${controlClass} min-h-11 sm:max-w-xs`}
+            />
+            <button
+              type="button"
+              onClick={guardarWhatsapp}
+              disabled={guardandoWhatsapp || normalizarTelefono(whatsapp) === whatsappGuardado}
+              className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
+            >
+              {guardandoWhatsapp && <Loader2 size={16} className="animate-spin" />} Guardar
+            </button>
+          </div>
+          <p className="text-xs text-muted">Con código de país y sin espacios. Si lo dejás vacío, WhatsApp se abre para que elijas el contacto.</p>
+        </section>
+      )}
+
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-        {plantillas.length === 0 ? (
-          <p className="p-8 text-center text-[#888] text-sm">Todavía no hay plantillas.</p>
+        {delTipo.length === 0 ? (
+          <p className="p-8 text-center text-[#888] text-sm">Todavía no hay plantillas de {tipo}.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -304,7 +384,7 @@ export default function PlantillasClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#2a2a2a]">
-                {[...plantillas].sort((a, b) => a.orden - b.orden).map(p => (
+                {[...delTipo].sort((a, b) => a.orden - b.orden).map(p => (
                   <tr key={p.id} className={`hover:bg-[#1a1a1a] transition-colors ${!p.activo ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3 text-[#f0f0f0] font-medium">{p.nombre}</td>
                     <td className="px-4 py-3">
@@ -356,7 +436,7 @@ export default function PlantillasClient({
         )}
       </div>
 
-      <Modal open={creando || !!editando} onClose={cerrarForm} title={creando ? 'Nueva plantilla' : `Editar — ${editando?.nombre}`} size="xl">
+      <Modal open={creando || !!editando} onClose={cerrarForm} title={creando ? `Nueva plantilla de ${tipo}` : `Editar — ${editando?.nombre}`} size="xl">
         <div className="grid grid-cols-1 gap-4">
           <div>
             <label className={labelClass}>Nombre *</label>
@@ -369,7 +449,7 @@ export default function PlantillasClient({
               <HelpTooltip text="Arrastrá una variable hasta el punto exacto del mensaje, o hacé clic para agregarla donde tengas el cursor (al final si no tocaste el texto todavía)." />
             </label>
             <div className="flex flex-wrap gap-1.5">
-              {VARIABLES.map(v => (
+              {variables.map(v => (
                 <button
                   key={v.key}
                   type="button"
@@ -384,7 +464,7 @@ export default function PlantillasClient({
                 </button>
               ))}
             </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            {tipoForm === 'pedido' && <div className="flex flex-wrap gap-1.5 mt-2">
               <button
                 type="button"
                 disabled={!form.cuerpo?.includes('{{entrega}}')}
@@ -403,7 +483,7 @@ export default function PlantillasClient({
               >
                 <Maximize2 size={13} /> Expandir bloque de facturación
               </button>
-            </div>
+            </div>}
           </div>
 
           <div>
@@ -428,7 +508,7 @@ export default function PlantillasClient({
               <label className="flex items-center text-xs font-semibold text-[#888] uppercase tracking-wider">
                 Vista previa (con datos de ejemplo){esBorrador && <span className="ml-1.5 text-[#e8c547] normal-case tracking-normal">— borrador sin guardar</span>}
               </label>
-              <select
+              {tipoForm === 'pedido' && <select
                 value={localPreviewId}
                 onChange={e => setLocalPreviewId(e.target.value)}
                 className={`${inputClass.replace('w-full ', '')} w-auto text-xs py-1`}
@@ -436,7 +516,7 @@ export default function PlantillasClient({
               >
                 <option value="">Ver como: Sin asignar</option>
                 {localesFacturacion.map(l => <option key={l.id} value={l.id}>Ver como: {l.nombre}</option>)}
-              </select>
+              </select>}
             </div>
             <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4">
               <pre className="text-[#e0e0e0] text-sm whitespace-pre-wrap font-sans">{preview || 'Escribí el cuerpo para ver la vista previa.'}</pre>

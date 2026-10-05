@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Check, Copy, Info, Loader2, MessageCircle, RefreshCw, Repeat, Send, TriangleAlert } from 'lucide-react'
+import { Info, Loader2, MessageCircle, RefreshCw, Repeat, Send, TriangleAlert } from 'lucide-react'
+import CompartirMensaje from '@/components/ui/CompartirMensaje'
 import { Field, controlClass } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/ProveedorUI'
-import { construirMensajePedido, linkWhatsApp, renderPlantilla } from '@/lib/compras/pedidoMensaje'
+import { construirMensajePedido, renderPlantilla } from '@/lib/compras/pedidoMensaje'
 import { guardarMensaje, marcarPedidoEnviado, marcarPedidoReenviado } from './acciones'
 import type { PedidoVista } from './modelo'
 import type { LocalFacturacion, Plantilla } from './datos'
@@ -34,7 +35,6 @@ export default function PedidoEnvio({
   // Si se editó un pedido enviado, el mensaje guardado quedó viejo hasta regenerarlo.
   const [mensajeDesactualizado, setMensajeDesactualizado] = useState(avisoReenvio)
   const [compartido, setCompartido] = useState(false)
-  const [copiado, setCopiado] = useState(false)
   const [accion, setAccion] = useState<'generar' | 'enviar' | 'reenviar' | null>(null)
 
   const items = [...fila.compras_pedido_items].sort((a, b) => a.orden - b.orden)
@@ -60,26 +60,7 @@ export default function PedidoEnvio({
       if (!r.ok) { toast.error(r.error); setLocalId(fila.local_facturacion_id ?? ''); return }
       setMensajeDesactualizado(false)
       setCompartido(false)
-      setCopiado(false)
     })
-  }
-
-  async function copiar() {
-    if (!fila.mensaje) return
-    try {
-      await navigator.clipboard.writeText(fila.mensaje)
-      setCopiado(true)
-      setCompartido(true)
-      setTimeout(() => setCopiado(false), 2000)
-    } catch {
-      toast.error('No se pudo copiar. Seleccioná el texto y copialo a mano.')
-    }
-  }
-
-  function whatsapp() {
-    if (!fila.mensaje) return
-    window.open(linkWhatsApp(fila.proveedores?.contacto_telefono ?? null, fila.mensaje), '_blank')
-    setCompartido(true)
   }
 
   function marcarEnviado() {
@@ -173,22 +154,12 @@ export default function PedidoEnvio({
       )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <button
-          type="button"
-          onClick={copiar}
-          disabled={!hayMensaje || mensajeDesactualizado}
-          className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50"
-        >
-          {copiado ? <Check size={16} className="text-success" /> : <Copy size={16} />} {copiado ? 'Copiado' : 'Copiar mensaje'}
-        </button>
-        <button
-          type="button"
-          onClick={whatsapp}
-          disabled={!hayMensaje || mensajeDesactualizado}
-          className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-success px-4 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
-        >
-          <MessageCircle size={16} /> Enviar por WhatsApp
-        </button>
+        <CompartirMensaje
+          mensaje={fila.mensaje}
+          deshabilitado={!hayMensaje || mensajeDesactualizado}
+          telefono={fila.proveedores?.contacto_telefono ?? null}
+          onCompartido={() => setCompartido(true)}
+        />
         <div className="sm:ml-auto">
           {sinEnviar ? (
             <button

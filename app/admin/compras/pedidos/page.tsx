@@ -42,6 +42,7 @@ export default async function PedidosPage({
       .from('compras_plantillas_mensaje')
       .select('id, nombre, cuerpo, es_default')
       .eq('activo', true)
+      .eq('tipo', 'pedido')
       .order('orden'),
     supabase.from('locales_facturacion').select('*').eq('activo', true).order('orden'),
     supabase.from('v_compras_pedidos_eliminados').select('*').order('numero', { ascending: false }),
