@@ -150,7 +150,7 @@ export default function HistoricoInsumoClient({
     const [{ data: conteoItems }, { data: movimientos }] = await Promise.all([
       supabase
         .from('fabrica_conteo_items')
-        .select('cantidad, fabrica_conteos(id, fecha, cerrado_en, estado, definicion_id, fabrica_conteo_definiciones(nombre))')
+        .select('cantidad, contado_en, fabrica_conteos(id, fecha, cerrado_en, estado, definicion_id, fabrica_conteo_definiciones(nombre))')
         .eq('item_id', id),
       supabase
         .from('compras_stock_movimientos')
@@ -162,6 +162,7 @@ export default function HistoricoInsumoClient({
 
     type FilaConteoItem = {
       cantidad: number
+      contado_en: string | null
       fabrica_conteos: {
         id: string
         fecha: string
@@ -175,7 +176,8 @@ export default function HistoricoInsumoClient({
     const porLista = new Map<string, { lista: string; puntos: { conteoId: string; fecha: string; cerradoEn: string; cantidad: number }[] }>()
     for (const c of (conteoItems ?? []) as unknown as FilaConteoItem[]) {
       const conteo = c.fabrica_conteos
-      if (!conteo || conteo.estado !== 'cerrado') continue
+      // Un ítem sin contar (A1) tomó el stock del sistema al cerrar: no es un "había" medido.
+      if (!conteo || conteo.estado !== 'cerrado' || !c.contado_en) continue
       const grupo = porLista.get(conteo.definicion_id) ?? { lista: conteo.fabrica_conteo_definiciones?.nombre ?? '—', puntos: [] }
       grupo.puntos.push({ conteoId: conteo.id, fecha: conteo.fecha, cerradoEn: conteo.cerrado_en ?? conteo.fecha, cantidad: c.cantidad })
       porLista.set(conteo.definicion_id, grupo)

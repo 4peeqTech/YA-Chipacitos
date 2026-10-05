@@ -1,6 +1,6 @@
 import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import StockClient from './StockClient'
+import StockClient, { type ConteoConDiferencias } from './StockClient'
 
 export const metadata = { title: 'Stock | YA! Chipacitos' }
 
@@ -15,10 +15,40 @@ export default async function StockPage({
 
   const { insumo } = await searchParams
 
-  const [{ data: items }, { data: stock }] = await Promise.all([
+  const [{ data: items }, { data: stock }, { data: difs }] = await Promise.all([
     supabase.from('compras_items').select('id, nombre, unidad, stock_minimo').eq('estado', 'activo').order('nombre'),
     supabase.from('v_compras_stock_actual').select('item_id, cantidad, actualizado_en, actualizado_por_nombre'),
+    // A1: diferencias de conteo que Compras todavía no aplicó ni ignoró
+    // (sin las superadas por un conteo más nuevo: esas no se pueden aplicar).
+    supabase
+      .from('v_fabrica_conteo_diferencias')
+      .select('conteo_id, definicion_nombre, conteo_fecha, conteo_cerrado_en')
+      .eq('diferencia_estado', 'pendiente')
+      .eq('conteo_estado', 'cerrado')
+      .is('superado_por_conteo_id', null),
   ])
 
-  return <StockClient items={items ?? []} stock={stock ?? []} insumoInicial={insumo} />
+  const porConteo = new Map<string, ConteoConDiferencias & { cerradoEn: string }>()
+  for (const d of difs ?? []) {
+    if (!d.conteo_id) continue
+    const actual = porConteo.get(d.conteo_id)
+    if (actual) { actual.pendientes++; continue }
+    porConteo.set(d.conteo_id, {
+      conteoId: d.conteo_id,
+      etiqueta: `${d.definicion_nombre ?? 'Conteo'} ${formatearDiaMes(d.conteo_fecha)}`,
+      pendientes: 1,
+      cerradoEn: d.conteo_cerrado_en ?? '',
+    })
+  }
+  const conteosConDiferencias = [...porConteo.values()]
+    .sort((a, b) => b.cerradoEn.localeCompare(a.cerradoEn))
+    .map(({ conteoId, etiqueta, pendientes }) => ({ conteoId, etiqueta, pendientes }))
+
+  return <StockClient items={items ?? []} stock={stock ?? []} insumoInicial={insumo} conteosConDiferencias={conteosConDiferencias} />
+}
+
+function formatearDiaMes(fecha: string | null): string {
+  if (!fecha) return ''
+  const [, mm, dd] = fecha.split('-')
+  return `${dd}/${mm}`
 }

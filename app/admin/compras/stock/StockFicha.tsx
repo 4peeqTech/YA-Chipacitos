@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ArrowRight, History, Loader2, RotateCcw, SlidersHorizontal, Truck } from 'lucide-react'
+import { ArrowRight, ClipboardCheck, History, Loader2, RotateCcw, SlidersHorizontal, Truck } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import InputNumero from '@/components/ui/InputNumero'
 import { Field, controlClass } from '@/components/ui/Field'
@@ -258,6 +258,17 @@ export default function StockFicha({
                           <Truck size={13} /> {m.remito_codigo}
                         </Link>
                       )}
+                      {m.conteo_id && (
+                        // TODO(B0): LinkEntidad
+                        <Link
+                          href={`/admin/fabrica/conteos?conteo=${m.conteo_id}`}
+                          onClick={onCerrar}
+                          aria-label="Abrir el conteo de fábrica"
+                          className="presionable min-h-11 inline-flex items-center gap-1 rounded-xl border border-border px-3 text-xs font-semibold text-text hover:bg-surface2"
+                        >
+                          <ClipboardCheck size={13} /> Conteo
+                        </Link>
+                      )}
                       <p className="min-w-16 text-right text-sm tabular-nums">
                         <span className={d > 0 ? 'text-success' : 'text-warning'}>{textoDelta(d)}</span>
                         {m.cantidad_despues != null && <span className="block text-xs text-muted">queda {conUnidad(m.cantidad_despues, null)}</span>}
@@ -270,6 +281,9 @@ export default function StockFicha({
                         >
                           <RotateCcw size={13} /> Revertir
                         </button>
+                      )}
+                      {tipo === 'ajuste_conteo' && m.conteo_id && !m.revertido && (
+                        <span className="text-xs text-muted">Se revierte desde el conteo</span>
                       )}
                     </div>
                   </div>

@@ -4,8 +4,9 @@ import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Inbox, ClipboardList, TrendingUp, Truck, ChevronRight,
-  Ban, Send, History, Scale, PackageMinus, PackagePlus, Undo2,
+  Ban, Send, History, Scale, PackageMinus, PackagePlus, Undo2, ClipboardCheck,
 } from 'lucide-react'
+import Link from 'next/link'
 import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
@@ -386,11 +387,21 @@ export default function SolicitudesClient({
             </div>
 
             {abierta.tipo === 'complementario' && abierta.fabrica_conteos && (
-              <div className="flex items-center gap-2 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-4 py-3">
                 <Scale size={16} className="text-[#e8c547] shrink-0" />
-                <p className="text-sm text-[#ccc]">
+                <p className="flex-1 min-w-48 text-sm text-[#ccc]">
                   Masas proyectadas ({formatearFechaCorta(abierta.fabrica_conteos.semana_desde)} a {formatearFechaCorta(abierta.fabrica_conteos.semana_hasta)}): <span className="text-[#f0f0f0] font-bold">{abierta.fabrica_conteos.masas_proyectadas}</span>
                 </p>
+                {abierta.conteo_id && (
+                  // TODO(B0): LinkEntidad
+                  <Link
+                    href={`/admin/fabrica/conteos?conteo=${abierta.conteo_id}`}
+                    onClick={cerrar}
+                    className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold text-text hover:bg-surface2"
+                  >
+                    <ClipboardCheck size={13} /> Ver el conteo
+                  </Link>
+                )}
               </div>
             )}
 

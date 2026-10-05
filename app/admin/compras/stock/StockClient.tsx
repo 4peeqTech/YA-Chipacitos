@@ -1,7 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Package } from 'lucide-react'
+import Link from 'next/link'
+import { ClipboardCheck, Package } from 'lucide-react'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 import Modal from '@/components/ui/Modal'
 import PageHeader from '@/components/ui/PageHeader'
 import AyudaLink from '@/components/ui/AyudaLink'
@@ -39,15 +41,26 @@ export interface FilaStock {
   actualizadoPor: string | null
 }
 
+/** Conteo cerrado con diferencias pendientes (A1), para el banner. */
+export interface ConteoConDiferencias {
+  conteoId: string
+  /** "Global 06/10" */
+  etiqueta: string
+  pendientes: number
+}
+
 export default function StockClient({
   items,
   stock,
   insumoInicial,
+  conteosConDiferencias,
 }: {
   items: InsumoStock[]
   stock: StockActual[]
   insumoInicial?: string
+  conteosConDiferencias: ConteoConDiferencias[]
 }) {
+  const totalDiferencias = conteosConDiferencias.reduce((s, c) => s + c.pendientes, 0)
   const confirmar = useConfirmar()
   const [busqueda, setBusqueda] = useState('')
   const [soloBajo, setSoloBajo] = useState(false)
@@ -158,9 +171,37 @@ export default function StockClient({
       <PageHeader
         icono={Package}
         titulo="Stock"
-        descripcion="Cuánto hay de cada insumo. Los remitos lo suman solos; si no coincide con lo que hay en el depósito, tocá el insumo y ajustalo con un motivo."
-        acciones={<AyudaLink seccion="compras-stock" />}
+        descripcion="Cuánto hay de cada insumo. Lo mueven los remitos, las facturas y los ajustes. El conteo de fábrica no lo pisa: lo controla. Si hay diferencias, se aplican desde Fábrica › Conteos."
+        acciones={
+          <>
+            <HelpTooltip text="Antes el conteo reemplazaba el stock y tapaba los errores de carga. Ahora queda la diferencia a la vista y vos decidís." />
+            <AyudaLink seccion="compras-stock" />
+          </>
+        }
       />
+
+      {totalDiferencias > 0 && (
+        <div role="status" className="flex flex-col gap-3 rounded-2xl border border-warning bg-warning-bg px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-center gap-2 text-sm text-text">
+            <ClipboardCheck size={18} className="shrink-0 text-warning" />
+            <span>
+              Hay <strong>{totalDiferencias} diferencia{totalDiferencias === 1 ? '' : 's'} de conteo</strong> sin aplicar.
+            </span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {conteosConDiferencias.map(c => (
+              // TODO(B0): LinkEntidad
+              <Link
+                key={c.conteoId}
+                href={`/admin/fabrica/conteos?conteo=${c.conteoId}`}
+                className="presionable min-h-11 sm:min-h-9 inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-xs font-semibold text-text hover:bg-surface2"
+              >
+                <ClipboardCheck size={13} /> {c.etiqueta} · {c.pendientes}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar insumo" className="w-full sm:w-72" />
