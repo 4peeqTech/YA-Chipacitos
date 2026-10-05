@@ -97,7 +97,7 @@ export default async function FabricaStockPage() {
         .from('fabrica_conteo_definicion_items')
         .select(`
           definicion_id, item_id, modo_calculo, meta, cantidad_fija, orden,
-          compras_items(nombre, unidad, cantidad_por_unidad, cantidad_por_masa, redondeo, stock_maximo, a_demanda)
+          compras_items(nombre, unidad, cantidad_por_unidad, cantidad_por_masa, redondeo, stock_maximo, a_demanda, estado)
         `)
         .eq('activo', true)
         .in('definicion_id', definiciones.map(d => d.id))
@@ -110,9 +110,12 @@ export default async function FabricaStockPage() {
     modo_calculo: ModoCalculo
     meta: number
     cantidad_fija: number
-    compras_items: { nombre: string; unidad: string; cantidad_por_unidad: number; cantidad_por_masa: number; redondeo: Redondeo; stock_maximo: number | null; a_demanda: boolean } | null
+    compras_items: { nombre: string; unidad: string; cantidad_por_unidad: number; cantidad_por_masa: number; redondeo: Redondeo; stock_maximo: number | null; a_demanda: boolean; estado: string } | null
   }
-  const definicionItems = (definicionItemsData ?? []) as unknown as DefinicionItemRow[]
+  // A2a: un insumo archivado no se cuenta. Su membresía queda en la lista
+  // (si se reactiva, vuelve solo), pero no se siembra ni se muestra.
+  const definicionItems = ((definicionItemsData ?? []) as unknown as DefinicionItemRow[])
+    .filter(di => di.compras_items?.estado === 'activo')
 
   // Sembrar fabrica_conteo_items del borrador de cada definición con las
   // líneas de su membresía. A1: se cuenta a ciegas — el ítem arranca vacío

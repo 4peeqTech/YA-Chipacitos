@@ -94,10 +94,13 @@ export default function ConteosFabricaClient({
   conteosIniciales,
   conteoInicial,
   umbralPct,
+  puedeResolver,
 }: {
   conteosIniciales: ConteoHistorial[]
   conteoInicial: string | null
   umbralPct: number
+  /** Aplicar / ignorar / revertir diferencias es de Compras (tiene_acceso_compras). */
+  puedeResolver: boolean
 }) {
   const supabase = createClient()
   const toast = useToast()
@@ -298,6 +301,7 @@ export default function ConteosFabricaClient({
                 conteoId={abierto.id ?? ''}
                 descartado={descartado}
                 umbralPct={umbralPct}
+                puedeResolver={puedeResolver}
                 onNavegar={cerrar}
                 onAbrirConteo={abrirOtroConteo}
               />

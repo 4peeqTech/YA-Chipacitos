@@ -47,6 +47,7 @@ interface CatalogoItem {
   nombre: string
   unidad: string
   categoria_id: string | null
+  estado: string
 }
 
 interface CategoriaOption {
@@ -248,6 +249,7 @@ export default function ConteosClient({
 
   const itemsDisponibles = gestionando
     ? catalogo
+        .filter(c => c.estado === 'activo')
         .filter(c => !itemsDe(gestionando.id).some(i => i.item_id === c.id))
         .filter(c => categoriaFiltroItem === 'todas' || c.categoria_id === categoriaFiltroItem)
         .map(c => ({ value: c.id, label: c.nombre, grupo: nombreCategoria(c.categoria_id) }))
@@ -454,7 +456,16 @@ export default function ConteosClient({
                     <tbody className="divide-y divide-[#2a2a2a]">
                       {itemsDe(gestionando.id).map(i => (
                         <tr key={i.id} className="hover:bg-[#1a1a1a] transition-colors">
-                          <td className="px-3 py-2 text-[#f0f0f0]">{nombreCatalogo(i.item_id)}</td>
+                          <td className="px-3 py-2 text-[#f0f0f0]">
+                            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              {nombreCatalogo(i.item_id)}
+                              {catalogo.find(c => c.id === i.item_id)?.estado === 'archivado' && (
+                                <span className="rounded-full bg-surface2 px-2 py-0.5 text-2xs font-semibold text-muted" title="Queda en la lista: si reactivás el insumo, se vuelve a contar.">
+                                  Archivado · no se cuenta
+                                </span>
+                              )}
+                            </span>
+                          </td>
                           <td className="px-3 py-2 text-[#888] text-xs">{MODO_LABEL[i.modo_calculo]}</td>
                           <td className="px-3 py-2 text-[#888]">{i.modo_calculo === 'cantidad_fija' ? i.cantidad_fija : (i.meta || '—')}</td>
                           <td className="px-3 py-2 text-right">

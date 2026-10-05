@@ -19,6 +19,8 @@ import { conUnidad } from '../../pedidos/modelo'
 interface CatalogoItem {
   id: string
   nombre: string
+  /** A2a: los archivados van al final del selector, marcados. */
+  estado?: string
   unidad: string | null
 }
 
@@ -203,7 +205,7 @@ export default function HistoricoInsumoClient({
       <SelectBuscador
         value={itemId}
         onChange={elegirItem}
-        opciones={itemsCatalogo.map(i => ({ value: i.id, label: i.nombre }))}
+        opciones={itemsCatalogo.map(i => ({ value: i.id, label: i.estado === 'archivado' ? `${i.nombre} (archivado)` : i.nombre }))}
         placeholderVacio="Elegir insumo…"
         className="max-w-sm"
       />

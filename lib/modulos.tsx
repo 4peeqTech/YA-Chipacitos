@@ -110,6 +110,18 @@ export function puedeEntrarAdmin(pathname: string, rol: string | null | undefine
   return moduloPermitido(pathname, modulosPermitidos)
 }
 
+/**
+ * Módulos que dan acceso a Compras. Replica tiene_acceso_compras() en SQL
+ * (desde 20261005160000, sin fabrica-conteos: ese módulo solo lee conteos).
+ */
+export const MODULOS_COMPRAS = ['compras-insumos', 'compras-stock', 'compras-pedidos', 'compras-reportes'] as const
+
+/** Mismo criterio que tiene_acceso_compras(): admin, o algún módulo de Compras. */
+export function tieneAccesoCompras(rol: string | null | undefined, modulosPermitidos: string[] | null | undefined): boolean {
+  if (rol === 'admin') return true
+  return (modulosPermitidos ?? []).some(m => (MODULOS_COMPRAS as readonly string[]).includes(m))
+}
+
 export function getRoleHome(rol: string | null | undefined): string {
   if (rol === 'local') return '/local/pedidos'
   if (rol === 'deposito') return '/deposito/pedidos'

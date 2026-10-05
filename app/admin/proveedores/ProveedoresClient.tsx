@@ -365,16 +365,18 @@ export default function ProveedoresClient({
               <textarea className={`${inputClass} resize-none`} rows={2} value={form.notas ?? ''} onChange={e => setForm(f => ({...f, notas: e.target.value}))} />
             </div>
 
-            <div className="md:col-span-2 lg:col-span-3 flex items-center gap-2">
+            <div className="md:col-span-2 lg:col-span-3 flex items-start gap-2">
               <input
                 type="checkbox"
                 id="maneja_stock"
                 checked={form.maneja_stock ?? false}
                 onChange={e => setForm(f => ({...f, maneja_stock: e.target.checked}))}
-                className="w-4 h-4 accent-[#e8c547]"
+                className="w-4 h-4 mt-0.5 accent-[#e8c547]"
               />
+              {/* A2a (C2): la columna sigue siendo maneja_stock; su único uso real es la autosugerencia de PedidoEditor. */}
               <label htmlFor="maneja_stock" className="text-sm text-[#f0f0f0]">
-                Maneja stock (aparece como proveedor de insumos en Compras)
+                Sugerir cantidades al pedir
+                <span className="block text-muted">Al crear un pedido a este proveedor, arranca con lo que falta para llegar al stock mínimo de cada insumo.</span>
               </label>
             </div>
 

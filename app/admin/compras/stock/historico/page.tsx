@@ -15,11 +15,12 @@ export default async function HistoricoInsumoPage({
 
   const { insumo } = await searchParams
 
+  // A2a: también los archivados, así el ?insumo= de uno archivado entra. Van al final.
   const { data: items } = await supabase
     .from('compras_items')
-    .select('id, nombre, unidad')
-    .eq('estado', 'activo')
+    .select('id, nombre, unidad, estado')
     .order('nombre')
+  const catalogo = [...(items ?? [])].sort((a, b) => Number(a.estado === 'archivado') - Number(b.estado === 'archivado'))
 
-  return <HistoricoInsumoClient itemsCatalogo={items ?? []} insumoInicial={insumo} />
+  return <HistoricoInsumoClient itemsCatalogo={catalogo} insumoInicial={insumo} />
 }
