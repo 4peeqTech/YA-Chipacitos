@@ -16,7 +16,7 @@ export interface Columna<T> {
    * tablas. Ojo con el ancho real: dentro de /admin el sidebar se come 240px, así
    * que una tabla de muchas columnas necesita 'xl' para no desbordar.
    */
-  ocultarHasta?: 'sm' | 'md' | 'lg' | 'xl'
+  ocultarHasta?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   className?: string
 }
 
@@ -25,6 +25,7 @@ const OCULTAR_CLASS: Record<NonNullable<Columna<unknown>['ocultarHasta']>, strin
   md: 'hidden md:table-cell',
   lg: 'hidden lg:table-cell',
   xl: 'hidden xl:table-cell',
+  '2xl': 'hidden 2xl:table-cell',
 }
 
 const ALINEAR_CLASS: Record<NonNullable<Columna<unknown>['alinear']>, string> = {

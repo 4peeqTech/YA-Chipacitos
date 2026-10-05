@@ -175,6 +175,7 @@ export default function InsumosClient({
     {
       key: 'insumo',
       header: 'Insumo',
+      className: 'min-w-52',
       ordenar: i => i.nombre.toLowerCase(),
       render: i => (
         <div className="min-w-0">
@@ -234,7 +235,7 @@ export default function InsumosClient({
       ordenar: i => resumen(i.id).stock,
       render: i => {
         const stock = resumen(i.id).stock
-        const bajo = i.stock_minimo > 0 && stock < i.stock_minimo
+        const bajo = i.estado === 'activo' && i.stock_minimo > 0 && stock < i.stock_minimo
         return (
           <div className="flex flex-col items-end gap-0.5 tabular-nums">
             <LinkEntidad entidad={{ tipo: 'insumo', id: i.id }} variante="texto" title="Ver la ficha de stock de este insumo" className="whitespace-nowrap text-text">
@@ -251,7 +252,7 @@ export default function InsumosClient({
     },
     {
       key: 'pedido',
-      header: 'Pedido abierto',
+      header: <span className="whitespace-nowrap">Pedido abierto</span>,
       ocultarHasta: 'lg',
       ordenar: i => resumen(i.id).pedidosAbiertos.length,
       render: i => {
@@ -279,7 +280,7 @@ export default function InsumosClient({
     {
       key: 'precioRef',
       header: (
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
           Precio ref.
           <HelpTooltip text="Precio de referencia del proveedor principal. Lo actualiza la factura al confirmarla, o lo cargás en el insumo." />
         </span>
@@ -294,7 +295,7 @@ export default function InsumosClient({
     },
     ...(esAdmin ? [{
       key: 'ultimaFactura',
-      header: 'Última factura',
+      header: <span className="whitespace-nowrap">Última factura</span>,
       alinear: 'right' as const,
       ocultarHasta: 'lg' as const,
       ordenar: (i: CompraItem) => resumen(i.id).ultimoPrecioFecha ?? '',
@@ -331,26 +332,26 @@ export default function InsumosClient({
       key: 'masa',
       header: 'Cant./masa',
       alinear: 'right',
-      ocultarHasta: 'xl',
+      ocultarHasta: '2xl',
       render: i => <span className="tabular-nums text-muted">{i.cantidad_por_masa > 0 ? formatearNumero(i.cantidad_por_masa) : '—'}</span>,
     },
     {
       key: 'minimo',
       header: (
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
           Stock mín.
           <HelpTooltip text="Piso general de este insumo para cualquier proveedor, sin relación con los conteos — lo usan la sugerencia de /admin/compras/pedidos y el indicador de bajo stock de /admin/compras/stock." />
         </span>
       ),
       alinear: 'right',
-      ocultarHasta: 'xl',
+      ocultarHasta: '2xl',
       render: i => <span className="tabular-nums text-muted">{i.stock_minimo > 0 ? formatearNumero(i.stock_minimo) : '—'}</span>,
     },
     {
       key: 'redondeo',
       header: 'Redondeo',
-      ocultarHasta: 'xl',
-      render: i => <span className="text-xs text-muted">{REDONDEO_LABEL[i.redondeo] ?? i.redondeo}</span>,
+      ocultarHasta: '2xl',
+      render: i => <span className="block max-w-40 text-xs text-muted">{REDONDEO_LABEL[i.redondeo] ?? i.redondeo}</span>,
     },
     {
       key: 'listas',
