@@ -2,14 +2,21 @@
 // Correr con: npx tsx lib/compras/_check_diferencias.ts
 import {
   agruparDiferencias, armarDiferencias, cantidadAResolver, explicacionResolucion,
-  recepcionCompleta, textoDelta, textoDiferencia, textoResuelta, type DiferenciaFila,
+  muestraKg, recepcionCompleta, textoDelta, textoDiferencia, textoKg, textoResuelta, type DiferenciaFila,
 } from './diferencias'
 
 const fila = (p: Partial<DiferenciaFila>): DiferenciaFila => ({
   id: 'd1', factura_id: 'f1', pedido_id: 'p1', clave: 'x', pedido_item_id: 'pi1', item_id: 'i1',
   descripcion: 'Fécula', unidad: 'Bolsa', cantidad_recibida: 19, cantidad_facturada: 21, diferencia: 2,
-  resolucion: 'pendiente', movimiento_id: null, nota: null, resuelto_en: null, resuelto_por_nombre: null, ...p,
+  resolucion: 'pendiente', movimiento_id: null, nota: null, resuelto_en: null, resuelto_por_nombre: null,
+  unidad_base: 'unidades', contenido: 1, facturada_base: 21, facturada_base_real: false, recibida_base: 19, recibida_base_real: false, ...p,
 })
+
+// A2b: Queso Barra, factura con kg reales y remito sin kg (cae a nominal).
+const queso = armarDiferencias([fila({
+  id: 'q', descripcion: 'Queso Barra', unidad: 'Caja', cantidad_recibida: 1, cantidad_facturada: 2, diferencia: 1,
+  unidad_base: 'kg', contenido: 16.5, facturada_base: 33.4, facturada_base_real: true, recibida_base: 16.5, recibida_base_real: false,
+})])[0]
 
 const difs = armarDiferencias([
   fila({}),
@@ -18,6 +25,11 @@ const difs = armarDiferencias([
 ])
 
 const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
+  { nombre: 'A2b kg reales', real: textoKg(queso.facturadaBase, queso.facturadaBaseReal, queso.unidadBase), esperado: '33,4 kg' },
+  { nombre: 'A2b kg nominales', real: textoKg(queso.recibidaBase, queso.recibidaBaseReal, queso.unidadBase), esperado: '≈ 16,5 kg' },
+  { nombre: 'A2b muestra kg con conversión', real: muestraKg(queso), esperado: true },
+  { nombre: 'A2b sin conversión no muestra kg', real: muestraKg(difs[1]), esperado: false },
+  { nombre: 'A2b la diferencia sigue en cajas', real: textoDiferencia(queso), esperado: textoDiferencia({ diferencia: 1, facturada: 2, unidad: 'Caja' }) },
   { nombre: 'descarta filas sin insumo', real: difs.length, esperado: 2 },
   { nombre: 'ordena por insumo', real: difs[0].descripcion, esperado: 'Azúcar' },
   { nombre: 'recibido = completa', real: recepcionCompleta('recibido'), esperado: true },

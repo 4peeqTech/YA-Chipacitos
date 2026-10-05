@@ -33,7 +33,7 @@ const filas = (extra: Partial<FilasComprobante> = {}): FilasComprobante => ({
 })
 
 const linea = (descripcion: string, alicuota = 21): LineaComprobante =>
-  ({ descripcion, cantidad: 1, unidad: 'kg', precioUnitario: 100, alicuota, subtotal: 100 })
+  ({ descripcion, cantidad: 1, unidad: 'kg', precioUnitario: 100, alicuota, subtotal: 100, cantidadBase: null, precioPor: 'unidad', unidadBase: null })
 const conLineas = (lineas: LineaComprobante[]): DatosComprobante => ({ ...EJEMPLO_FACTURA, lineas })
 
 caso('1. fechas', () => {
@@ -98,6 +98,22 @@ caso('9. alto', () => {
   assert.ok(altoComprobante(conLineas(cortas(10))) < altoComprobante(conLineas(largas(10))))
   assert.equal(altoComprobante(conLineas(cortas(130))), altoComprobante(conLineas(cortas(TOPE_LINEAS))) + ALTO.linea)
   assert.ok(altoComprobante(conLineas(cortas(1))) >= ALTO.minimo)
+})
+
+caso('11. A2b: línea por kg (el IVA sale de kg × precio)', () => {
+  const d = armarComprobante(filas({
+    factura: { ...filas().factura, subtotal: 41750, iva: 8767.5, total: 50517.5 },
+    items: [{
+      descripcion: 'Queso Barra', cantidad: 2, unidad: 'Caja', precio_unitario: 1250, alicuota_iva: 21, subtotal: 41750,
+      cantidad_base: 33.4, precio_por: 'base', compras_items: { unidad_base: 'kg' },
+    }],
+  }))
+  assert.equal(d.porAlicuota[0].base, 41750)
+  assert.equal(d.porAlicuota[0].iva, 8767.5)
+  assert.equal(d.lineas[0].unidadBase, 'kg')
+  const t = renderPlantillaFactura('{{detalle}}', d)
+  assert.ok(t.includes('2 CAJA (33,4 KG) QUESO BARRA'), t)
+  assert.match(t, /41\.750,00/)
 })
 
 caso('10. fallback = seed de la migración', () => {

@@ -36,6 +36,7 @@ export default function ConfirmarFacturaModal({
   impacto,
   nombres,
   preciosACambiar,
+  cambiosCobraPor = [],
   avisoPapel,
   candidatos,
   errorCandidatos,
@@ -54,6 +55,8 @@ export default function ConfirmarFacturaModal({
   impacto: ImpactoItem[]
   nombres: Record<string, NombresInsumo>
   preciosACambiar: number
+  /** A2b (E7): insumos que pasan a cobrarse en otra unidad al actualizar precios. */
+  cambiosCobraPor?: { descripcion: string; a: string }[]
   /** Diferencia con el total del papel, si supera el margen (FA6). */
   avisoPapel: number | null
   /** null mientras se buscan. */
@@ -109,6 +112,14 @@ export default function ConfirmarFacturaModal({
                 ? 'Se actualiza el precio de referencia de 1 insumo de este proveedor.'
                 : `Se actualizan los precios de referencia de ${preciosACambiar} insumos de este proveedor.`}
             </p>
+          )}
+          {cambiosCobraPor.length > 0 && (
+            <ul className="space-y-0.5 text-sm text-text">
+              {cambiosCobraPor.slice(0, 3).map(c => (
+                <li key={c.descripcion}>{c.descripcion} pasa a cobrarse por {c.a}.</li>
+              ))}
+              {cambiosCobraPor.length > 3 && <li className="text-muted">y {cambiosCobraPor.length - 3} más.</li>}
+            </ul>
           )}
           {avisoPapel != null && (
             <p className="flex items-start gap-1.5 text-sm text-warning">

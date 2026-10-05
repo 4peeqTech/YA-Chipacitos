@@ -29,6 +29,9 @@ const Linea = z.object({
   cantidad: z.number().min(0),
   precioUnitario: z.number().min(0),
   alicuotaIva: z.number().refine(v => (ALICUOTAS as readonly number[]).includes(v)),
+  // A2b: kg facturados (obligatorios si se cobra por kg) y en qué unidad es el precio.
+  cantidadBase: z.number().positive().nullable(),
+  precioPor: z.enum(['unidad', 'base']),
 })
 
 const GuardarFactura = z.object({
@@ -82,6 +85,8 @@ export async function guardarFactura(
         cantidad: l.cantidad,
         precio_unitario: l.precioUnitario,
         alicuota_iva: l.alicuotaIva,
+        cantidad_base: l.cantidadBase,
+        precio_por: l.precioPor,
       })),
       p_ids_conocidos: idsConocidos,
     })
@@ -114,6 +119,8 @@ export interface FacturaConfirmada {
   gastoCreado: boolean
   /** Diferencias con lo recibido que dejó la confirmación. */
   diferencias: number
+  /** A2b: pares cuyo precio de referencia (o cómo cobran) se actualizó. */
+  preciosActualizados: number
 }
 
 export async function confirmarFactura(
@@ -137,6 +144,7 @@ export async function confirmarFactura(
       impacto: Impacto,
       gasto_creado: z.boolean(),
       diferencias: z.number(),
+      precios_actualizados: z.number().optional(),
     }).safeParse(data)
     refresh()
     if (!res.success) return fallo(null, 'La factura se confirmó, pero no pudimos leer la respuesta. Recargá la página.')
@@ -145,6 +153,7 @@ export async function confirmarFactura(
       impacto: res.data.impacto,
       gastoCreado: res.data.gasto_creado,
       diferencias: res.data.diferencias,
+      preciosActualizados: res.data.precios_actualizados ?? 0,
     })
   } catch (e) {
     return fallo(e, 'No se pudo confirmar la factura.')

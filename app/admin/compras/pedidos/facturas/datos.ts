@@ -20,7 +20,7 @@ export function consultarFacturas(supabase: Cliente) {
 export function consultarFacturaItems(supabase: Cliente) {
   return supabase
     .from('compras_factura_items')
-    .select('id, factura_id, pedido_item_id, item_id, descripcion, unidad, cantidad, precio_unitario, alicuota_iva, subtotal, iva, orden')
+    .select('id, factura_id, pedido_item_id, item_id, descripcion, unidad, cantidad, precio_unitario, alicuota_iva, subtotal, iva, orden, cantidad_base, precio_por')
     .order('orden')
 }
 
@@ -36,7 +36,7 @@ export function consultarPedidosFactura(supabase: Cliente) {
     .select(`
       id, numero, proveedor_id, estado_recepcion, estado_facturacion, enviado_en,
       proveedores(nombre),
-      compras_remitos(id, secuencia, fecha, origen, compras_remito_items(pedido_item_id, item_id, descripcion, cantidad))
+      compras_remitos(id, secuencia, fecha, origen, compras_remito_items(pedido_item_id, item_id, descripcion, cantidad, cantidad_base))
     `)
     .neq('estado_recepcion', 'sin_enviar')
     .order('enviado_en', { ascending: false })
@@ -53,19 +53,19 @@ export async function consultarLocalGastoDefault(supabase: Cliente): Promise<str
   return typeof data?.valor === 'string' && data.valor.trim() ? data.valor : 'YA! FABRICA'
 }
 
-/** Precio de referencia por insumo y proveedor (FA4). */
+/** Precio de referencia por insumo y proveedor (FA4), con la unidad en que cobra (A2b). */
 export function consultarPreciosRef(supabase: Cliente) {
   return supabase
     .from('compras_item_proveedores')
-    .select('item_id, proveedor_id, precio_ref')
+    .select('item_id, proveedor_id, precio_ref, cobra_por')
     .eq('activo', true)
 }
 
-/** Alícuota y unidad de cada insumo: se copian a la línea nueva de la factura. */
+/** Alícuota y unidades de cada insumo: se copian a la línea nueva de la factura. */
 export function consultarInsumosFactura(supabase: Cliente) {
   return supabase
     .from('compras_items')
-    .select('id, nombre, unidad, alicuota_iva')
+    .select('id, nombre, unidad, alicuota_iva, unidad_base, cantidad_por_unidad, cobra_por_default')
     .eq('estado', 'activo')
     .order('nombre')
 }

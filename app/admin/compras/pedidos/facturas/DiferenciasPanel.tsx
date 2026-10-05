@@ -8,7 +8,7 @@ import { Field, controlClass } from '@/components/ui/Field'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { formatearFechaHora } from '@/lib/formato'
 import {
-  agruparDiferencias, explicacionResolucion, RESOLUCION_LABEL, textoDelta, textoDiferencia, textoResuelta,
+  agruparDiferencias, explicacionResolucion, muestraKg, RESOLUCION_LABEL, textoDelta, textoDiferencia, textoKg, textoResuelta,
   type DiferenciaVista, type ResolucionElegible,
 } from '@/lib/compras/diferencias'
 import { conUnidad } from '../modelo'
@@ -22,11 +22,14 @@ const OPCIONES: { valor: ResolucionElegible; icono: typeof Scale }[] = [
   { valor: 'ignorada', icono: EyeOff },
 ]
 
-/** Facturado · llegó, con la unidad, en una línea chica. */
+/** Facturado · llegó, con la unidad, en una línea chica. A2b: los kg entre paréntesis, como información. */
 function Cantidades({ d }: { d: DiferenciaVista }) {
+  const kg = muestraKg(d)
+  const kgFact = kg ? textoKg(d.facturadaBase, d.facturadaBaseReal, d.unidadBase) : null
+  const kgRec = kg ? textoKg(d.recibidaBase, d.recibidaBaseReal, d.unidadBase) : null
   return (
     <span className="tabular-nums">
-      Facturado {conUnidad(d.facturada, d.unidad)} · llegó {conUnidad(d.recibida, d.unidad)}
+      Facturado {conUnidad(d.facturada, d.unidad)}{kgFact && ` (${kgFact})`} · llegó {conUnidad(d.recibida, d.unidad)}{kgRec && ` (${kgRec})`}
     </span>
   )
 }

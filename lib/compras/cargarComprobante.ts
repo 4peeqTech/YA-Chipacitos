@@ -35,7 +35,7 @@ export async function cargarComprobante(supabase: SupabaseClient<Database>, fact
   const [items, pedido, proveedor] = await Promise.all([
     supabase
       .from('compras_factura_items')
-      .select('descripcion, cantidad, unidad, precio_unitario, alicuota_iva, subtotal')
+      .select('descripcion, cantidad, unidad, precio_unitario, alicuota_iva, subtotal, cantidad_base, precio_por, compras_items(unidad_base)')
       .eq('factura_id', facturaId)
       .order('orden'),
     supabase

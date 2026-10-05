@@ -9,7 +9,7 @@ import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscado
 import InputNumero from '@/components/ui/InputNumero'
 import DatePicker from '@/components/ui/DatePicker'
 import Modal from '@/components/ui/Modal'
-import { ChipGroup } from '@/components/ui/Chip'
+import { ChipGroup, SegmentedControl } from '@/components/ui/Chip'
 import { Field, controlClass } from '@/components/ui/Field'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { formatearFecha, formatearFechaHora, formatearMonedaExacta } from '@/lib/formato'
@@ -20,6 +20,9 @@ import {
   ALICUOTAS, avisaPorPapel, diferenciaPapel, etiquetaAlicuota, subtotalLinea, variacionPrecio,
 } from '@/lib/compras/totalesFactura'
 import type { DiferenciaVista } from '@/lib/compras/diferencias'
+import {
+  avisoNominal, avisoRemito, cortoBase, equivalenteBase, etiquetaCobraPor, numeroCorto, type CobraPor,
+} from '@/lib/compras/unidades'
 import { conUnidad } from '../modelo'
 import type { NombresInsumo } from '../remitos/RemitoForm'
 import type { ImpactoItem } from '../remitos/modelo'
@@ -31,8 +34,9 @@ import CompartirFacturaModal from './CompartirFacturaModal'
 import ConfirmarFacturaModal, { type EleccionGasto } from './ConfirmarFacturaModal'
 import DiferenciasPanel from './DiferenciasPanel'
 import {
-  agregarDelPedido, armarEnvio, estadoInicial, facturaDuplicada, faltantesDelPedido,
-  lineaLibre, mensajeProblema, pedidosFacturables, resumenRecepcion, tieneRemitos, totales, validar,
+  agregarDelPedido, armarEnvio, cambiarPrecioPor, cambiosDePrecio, estadoInicial, etiquetaPrecioPor, facturaDuplicada,
+  faltantesDelPedido, lineaLibre, mensajeProblema, muestraCobraPor, pedidosFacturables, precioRefEnLinea,
+  preciosDelProveedor, resumenRecepcion, tieneRemitos, totales, validar,
   type ContextoPedido, type EstadoFactura, type FacturaVista, type LineaFactura,
 } from './modelo'
 import type { FacturaItemFila, InsumoFactura, PedidoFactura, PrecioRef } from './datos'
@@ -255,10 +259,7 @@ export default function FacturaForm({
 
   const ctx = useMemo<ContextoPedido | null>(() => {
     if (!pedido) return null
-    const deEsteProveedor = new Map(
-      precios.filter(p => p.proveedor_id === pedido.proveedor_id && p.precio_ref != null).map(p => [p.item_id, p.precio_ref as number]),
-    )
-    return { pedido, lineas: lineasDelPedido, precios: deEsteProveedor, insumos: insumosPorId }
+    return { pedido, lineas: lineasDelPedido, precios: preciosDelProveedor(precios, pedido.proveedor_id), insumos: insumosPorId }
   }, [pedido, lineasDelPedido, precios, insumosPorId])
 
   const [estado, setEstado] = useState<EstadoFactura>(() => estadoInicial(factura, items, ctx))
@@ -304,10 +305,9 @@ export default function FacturaForm({
     })
   }, [estado.lineas, stockPorItem])
 
-  const preciosACambiar = useMemo(
-    () => estado.lineas.filter(l => l.itemId && (l.precioUnitario ?? 0) > 0 && l.precioUnitario !== l.precioRef).length,
-    [estado.lineas],
-  )
+  // E7: "Actualizar precios" también cambia cómo cobra el proveedor (con aviso).
+  const cambiosPrecio = useMemo(() => cambiosDePrecio(estado), [estado])
+  const preciosACambiar = cambiosPrecio.precios
 
   function cambiar(fn: (e: EstadoFactura) => EstadoFactura) {
     setEstado(fn)
@@ -325,7 +325,7 @@ export default function FacturaForm({
       ? estadoInicial(null, [], {
         pedido: p,
         lineas: lineas.filter(l => l.pedido_id === id),
-        precios: new Map(precios.filter(x => x.proveedor_id === p.proveedor_id && x.precio_ref != null).map(x => [x.item_id, x.precio_ref as number])),
+        precios: preciosDelProveedor(precios, p.proveedor_id),
         insumos: insumosPorId,
       })
       : estadoInicial(null, [], null)
@@ -428,6 +428,9 @@ export default function FacturaForm({
       const partes = ['Factura confirmada']
       if (r.data.remitoGenerado) partes.push(`remito ${r.data.remitoGenerado}`)
       partes.push(r.data.gastoCreado ? 'gasto creado' : 'gasto vinculado')
+      if (r.data.preciosActualizados > 0) {
+        partes.push(r.data.preciosActualizados === 1 ? '1 precio de referencia actualizado' : `${r.data.preciosActualizados} precios de referencia actualizados`)
+      }
       if (r.data.diferencias > 0) {
         partes.push(r.data.diferencias === 1 ? '1 diferencia con lo recibido' : `${r.data.diferencias} diferencias con lo recibido`)
       }
@@ -577,8 +580,18 @@ export default function FacturaForm({
             ) : (
               <ul className="divide-y divide-border rounded-xl border border-border">
                 {estado.lineas.map(l => {
-                  const variacion = variacionPrecio(l.precioUnitario, l.precioRef)
+                  const refLinea = precioRefEnLinea(l)
+                  const variacion = variacionPrecio(l.precioUnitario, refLinea)
                   const vacia = intentoGuardar && problema?.tipo === 'linea_incompleta' && problema.clave === l.clave
+                  // A2b: cajas + kg + $/kg.
+                  const conCobro = muestraCobraPor(l)
+                  const porBase = conCobro && l.precioPor === 'base'
+                  const base = l.unidades ? cortoBase(l.unidades.unidadBase) : 'kg'
+                  const faltaKg = intentoGuardar && (problema?.tipo === 'falta_kg' || problema?.tipo === 'base_sin_cantidad') && problema.clave === l.clave
+                  const nominal = l.unidades && l.cantidad ? equivalenteBase(l.cantidad, l.unidades) : null
+                  const avisoKgRemito = porBase && l.recibidoBaseCompleto && l.unidades
+                    ? avisoRemito(l.cantidadBase, l.recibidoBase, l.unidades) : null
+                  const avisoKgNominal = porBase && l.unidades ? avisoNominal(l.cantidadBase, l.cantidad, l.unidades) : null
                   return (
                     <li key={l.clave} className="space-y-2 px-3 py-3">
                       <div className="flex items-start gap-2">
@@ -605,20 +618,56 @@ export default function FacturaForm({
                       </div>
 
                       <div className="flex flex-wrap items-end gap-2">
-                        <div className="w-24">
-                          <span className="mb-1 block text-2xs uppercase tracking-wider text-muted" aria-hidden>Cantidad</span>
-                          <InputNumero
-                            value={l.cantidad}
-                            onChange={v => actualizarLinea(l.clave, x => ({ ...x, cantidad: v }))}
-                            placeholder="0"
-                            min={0}
-                            disabled={soloLectura}
-                            className={`${controlClass} min-h-11 text-right tabular-nums`}
-                            ariaLabel={`Cantidad facturada de ${l.descripcion || 'la línea'}`}
-                          />
+                        <div className="flex items-end gap-1.5">
+                          <div className="w-24">
+                            <span className="mb-1 block text-2xs uppercase tracking-wider text-muted" aria-hidden>Cantidad</span>
+                            <InputNumero
+                              value={l.cantidad}
+                              onChange={v => actualizarLinea(l.clave, x => ({ ...x, cantidad: v }))}
+                              placeholder="0"
+                              min={0}
+                              disabled={soloLectura}
+                              className={`${controlClass} min-h-11 text-right tabular-nums ${faltaKg && problema?.tipo === 'base_sin_cantidad' ? 'border-brand-red' : ''}`}
+                              ariaLabel={`Cantidad facturada de ${l.descripcion || 'la línea'}`}
+                            />
+                          </div>
+                          {l.itemId && l.unidad && <span className="flex min-h-11 max-w-16 items-center truncate text-xs text-muted">{l.unidad}</span>}
                         </div>
+                        {conCobro && l.unidades && (
+                          <div>
+                            <span className="mb-1 block text-2xs uppercase tracking-wider text-muted" aria-hidden>Cobra por</span>
+                            {soloLectura ? (
+                              <span className="flex min-h-11 items-center text-sm text-text">{etiquetaPrecioPor(l)}</span>
+                            ) : (
+                              <SegmentedControl<CobraPor>
+                                opciones={[
+                                  { value: 'unidad', label: etiquetaCobraPor('unidad', l.unidades) },
+                                  { value: 'base', label: etiquetaCobraPor('base', l.unidades) },
+                                ]}
+                                value={l.precioPor}
+                                onChange={v => actualizarLinea(l.clave, x => cambiarPrecioPor(x, v))}
+                              />
+                            )}
+                          </div>
+                        )}
+                        {porBase && (
+                          <div className="w-24">
+                            <span className="mb-1 block text-2xs uppercase tracking-wider text-muted" aria-hidden>{base === 'kg' ? 'Kg' : base}</span>
+                            <InputNumero
+                              value={l.cantidadBase}
+                              onChange={v => actualizarLinea(l.clave, x => ({ ...x, cantidadBase: v }))}
+                              placeholder={nominal != null ? `≈ ${numeroCorto(nominal)}` : base}
+                              min={0}
+                              disabled={soloLectura}
+                              className={`${controlClass} min-h-11 text-right tabular-nums ${faltaKg && problema?.tipo === 'falta_kg' ? 'border-brand-red' : ''}`}
+                              ariaLabel={`${base === 'kg' ? 'Kg' : base} facturados de ${l.descripcion || 'la línea'}`}
+                            />
+                          </div>
+                        )}
                         <div className="w-32">
-                          <span className="mb-1 block text-2xs uppercase tracking-wider text-muted" aria-hidden>Precio por unidad</span>
+                          <span className="mb-1 block text-2xs uppercase tracking-wider text-muted" aria-hidden>
+                            {conCobro ? `Precio por ${etiquetaPrecioPor(l)}` : 'Precio por unidad'}
+                          </span>
                           <InputNumero
                             value={l.precioUnitario}
                             onChange={v => actualizarLinea(l.clave, x => ({ ...x, precioUnitario: v }))}
@@ -626,7 +675,7 @@ export default function FacturaForm({
                             min={0}
                             disabled={soloLectura}
                             className={`${controlClass} min-h-11 text-right tabular-nums`}
-                            ariaLabel={`Precio por unidad de ${l.descripcion || 'la línea'}`}
+                            ariaLabel={`Precio por ${conCobro ? etiquetaPrecioPor(l) : 'unidad'} de ${l.descripcion || 'la línea'}`}
                           />
                         </div>
                         <div className="w-24">
@@ -650,14 +699,34 @@ export default function FacturaForm({
 
                       <p className="flex flex-wrap gap-x-3 text-xs text-muted tabular-nums">
                         {l.pedido != null && <span>Pedido {conUnidad(l.pedido, l.unidad)}</span>}
-                        {l.recibido != null && l.recibido > 0 && <span>llegó {conUnidad(l.recibido, l.unidad)}</span>}
+                        {l.recibido != null && l.recibido > 0 && (
+                          <span>
+                            llegó {conUnidad(l.recibido, l.unidad)}
+                            {conCobro && l.recibidoBaseCompleto && l.recibidoBase != null && <> · {numeroCorto(l.recibidoBase, 2)} {base} (remito)</>}
+                          </span>
+                        )}
+                        {porBase && !(l.recibidoBaseCompleto && l.recibidoBase != null) && nominal != null && (
+                          <span>≈ {numeroCorto(nominal)} {base} nominal</span>
+                        )}
+                        {porBase && l.precioUnitario != null && l.unidades && (
+                          <span>≈ {formatearMonedaExacta(equivalenteBase(l.precioUnitario, l.unidades))} por {l.unidades.unidad || 'unidad'} nominal</span>
+                        )}
                         {variacion != null && (
                           <span className={variacion > 0 ? 'font-semibold text-warning' : 'font-semibold text-success'}>
-                            {variacion > 0 ? '↑' : '↓'} {Math.abs(variacion)} % vs. el último precio ({formatearMonedaExacta(l.precioRef ?? 0)})
+                            {variacion > 0 ? '↑' : '↓'} {Math.abs(variacion)} % vs. el último precio ({formatearMonedaExacta(refLinea ?? 0)}{conCobro ? ` /${etiquetaPrecioPor(l)}` : ''})
                           </span>
                         )}
                         {!l.itemId && <span>No mueve stock</span>}
                       </p>
+                      {(avisoKgRemito || avisoKgNominal) && (
+                        <div className="space-y-0.5">
+                          {[avisoKgRemito, avisoKgNominal].filter(Boolean).map(a => (
+                            <p key={a} className="flex items-start gap-1.5 text-xs font-medium text-warning">
+                              <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {a}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </li>
                   )
                 })}
@@ -884,6 +953,7 @@ export default function FacturaForm({
           impacto={impactoStock}
           nombres={nombres}
           preciosACambiar={estado.actualizarPrecios ? preciosACambiar : 0}
+          cambiosCobraPor={estado.actualizarPrecios ? cambiosPrecio.cobraPor : []}
           avisoPapel={avisaPapel ? Math.abs(diferencia ?? 0) : null}
           candidatos={candidatos}
           errorCandidatos={errorCandidatos}
