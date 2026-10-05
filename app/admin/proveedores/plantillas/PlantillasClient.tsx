@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   Loader2, Pencil, Phone, Plus, Star, Trash2,
   Truck, User, Hash, Package, CalendarDays, MapPin, Receipt, Store, CreditCard, Building2, Maximize2,
@@ -140,7 +139,6 @@ export default function PlantillasClient({
   whatsappAdmin: string
 }) {
   const supabase = createClient()
-  const router = useRouter()
   const toast = useToasts()
   const [tipo, setTipo] = useState<TipoPlantilla>(tipoInicial)
   const [whatsapp, setWhatsapp] = useState(whatsappAdmin)
@@ -264,7 +262,9 @@ export default function PlantillasClient({
   function cambiarTipo(t: string) {
     const nuevo: TipoPlantilla = t === 'factura' ? 'factura' : 'pedido'
     setTipo(nuevo)
-    router.replace(`?tipo=${nuevo}`, { scroll: false })
+    // Solo refleja el filtro en la URL: replaceState no vuelve a pedir la página
+    // al servidor (router.replace sí, y la lista ya está toda en el cliente).
+    window.history.replaceState(null, '', `?tipo=${nuevo}`)
   }
 
   function guardarWhatsapp() {
