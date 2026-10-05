@@ -47,7 +47,7 @@ Rama `bloque2/pedidos` (sale de `qa`). Solo pantalla: sin migraciones ni SQL.
 ## Desvíos y decisiones
 
 - **`onNavegar` existe, pero ninguna pantalla lo necesitó.** Todos los saltos van a otra página, y esa página desmonta el modal de origen. Si el destino es la misma página, `useAlCambiarParam` abre el modal nuevo. No se puede cerrar con `cerrarYa` antes de navegar: el `router.replace` de la limpieza le gana al `push` del link. Por eso Solicitudes, al generar pedidos, cierra sin limpiar la URL.
-- **v_gastos no expone el `pedido_id` de la factura.** Para no tocar SQL, `gastos/page.tsx` consulta `compras_facturas(id, pedido_id)` y `armarGastos` recibe ese mapa (parámetro opcional).
+- **v_gastos no expone el `pedido_id` de la factura.** Para no tocar SQL, `gastos/page.tsx` consulta `compras_facturas(id, pedido_id)` y `armarGastos` recibe ese mapa (parámetro opcional). Se consultan solo las facturas de los gastos cargados, en tandas de 100 ids (corrección del Revisor: antes eran todas, con el tope de 1000 filas).
 - **`GastoForm`:** antes era un solo `<Link>` a la factura con el P-xxxx adentro. Ahora son dos links hermanos (no se pueden anidar `<a>`).
 - **Ficha de Proveedores:** la carga de insumos y pedidos pasó a un efecto sobre el id de la ficha, con guarda para respuestas viejas. Así el deep link y el clic usan el mismo camino. El resto de la pantalla no cambió (sigue con su estilo viejo: no se rediseñó).
 - **Lo que quedó afuera a propósito:**
@@ -55,6 +55,13 @@ Rama `bloque2/pedidos` (sale de `qa`). Solo pantalla: sin migraciones ni SQL.
   - **Conteos:** ni `?conteo=`, ni `ConteoDesplegable`, ni `admin/fabrica/conteos`.
   - **`CabeceraRemito` y `CabeceraFactura`:** son encabezados de diálogos de confirmación, sin links.
   - **`?dia=` de `SelectorDia`:** no es una entidad.
+- **Pedidos de una solicitud:** se traen embebidos en la consulta de solicitudes (`compras_pedidos(...)` por `solicitud_id`). Así llegan solo los de las solicitudes listadas, sin una consulta aparte con su propio tope (corrección del Revisor).
+- **Links sin permiso del módulo destino (corrección del Revisor):** si el usuario no puede abrir el destino, `LinkEntidad` muestra el mismo texto, sin link y sin `title`.
+  - **Chequeo:** es el mismo del proxy. La regla pasó a `moduloPermitido` y `puedeEntrarAdmin` en `lib/modulos.tsx`, y `proxy.ts` ahora usa `moduloPermitido` (misma lógica, sin duplicarla).
+  - **Datos:** el rol y los módulos llegan por un contexto (`components/ui/AccesoModulos.tsx`) que carga el layout de `/admin`.
+  - **Alcance:** vale para todos los tipos (Stock, Facturas y Proveedores, que son solo admin, Gastos, Solicitudes…). `PendientesClient` (link al gasto, módulo `gastos`) usa el mismo hook.
+  - **Fuera de `LinkEntidad`:** quedan `<Link>` con permiso garantizado, al mismo módulo o detrás de `esAdmin` (remitos, "cargar factura" y gasto de la factura). También queda el aviso "sin facturar" del reporte, que es anterior a B0.
+- **"Crear pedido"** también limpia `?pedido=` (corrección del Revisor).
 - **Costo de limpiar con `router.replace`:** es una navegación suave a la misma ruta, así que la página vuelve a pedir sus datos al servidor. Por eso el param desaparece de la URL ~1–2 s después de cerrar, mientras el modal se cierra al instante.
 
 ## Verificación
@@ -79,6 +86,16 @@ Rama `bloque2/pedidos` (sale de `qa`). Solo pantalla: sin migraciones ni SQL.
   14. Reportes › Historial → P-0029 en una fila expandible → pedido. Además, en el gasto, el link al pedido P-0016 lleva al pedido.
   
   Remito por deep link: al cerrar y recargar no se reabre.
+- **Correcciones del Revisor:**
+  - tsc, `npm run build` y lint de los archivos tocados: limpios.
+  - Para el QA, a `qa-coordinador@chipacitos.test` se le sacó `compras-stock` en dev y después se le restauró.
+  - **Sin el módulo:**
+    - en el pedido P-0031, los 5 insumos quedan como texto;
+    - en Insumos, ninguna de las 57 filas linkea a Stock;
+    - los links a Remitos, Solicitud y Pedidos (mismo módulo) siguen;
+    - la solicitud lista P-0031.
+  - **Con admin:** los 5 links a Stock vuelven. La solicitud lista P-0031 (consulta embebida), el gasto linkea a la factura y al pedido P-0016 (consulta acotada) y Pendientes muestra 3 links a gastos.
+  - **"Crear pedido"** con un `?pedido=` en la URL lo limpia y abre el editor.
 - **No probado en el navegador:**
   - **Chip "Factura N°" de Gastos:** no hay gastos de factura en octubre (el filtro arranca en el mes actual). El código es el mismo `LinkEntidad` que en los otros saltos.
   - **Push con `?solicitud=`:** no se generó ninguna solicitud nueva.
@@ -108,3 +125,4 @@ En `https://qa.yachipacitos.com.ar`, con `qa-admin@chipacitos.test` (contraseña
 9. **Reportes.** En "Historial de pedidos y remitos", tocá el P-xxxx de una fila. Tiene que ir al pedido, sin expandir la fila. La fila expandida tiene el remito como link. En "Movimiento de stock", el nombre del insumo lleva a Stock.
 10. **Cierre y recarga.** Desde cualquiera de estos saltos, cerrá el modal y recargá la página (F5). El modal **no** tiene que volver a abrirse y la URL ya no tiene `?pedido=`, `?remito=`, etc.
 11. **Push de Fábrica.** Cuando Fábrica cierre un conteo y llegue el aviso "Nueva solicitud de Fábrica", tocalo. Tiene que abrir esa solicitud, no la lista.
+12. **Sin permiso.** Entrá con un usuario que no tenga el módulo Stock (por ejemplo, uno de rol personalizado sin "Stock") y abrí un pedido. Los insumos de los ítems se ven como texto, no como link. Lo mismo en Insumos. Con admin vuelven a ser links.

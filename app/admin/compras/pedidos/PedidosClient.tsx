@@ -344,7 +344,7 @@ export default function PedidosClient({
             <AyudaLink seccion="compras-pedidos" />
             <button
               type="button"
-              onClick={() => { setAbiertoId(null); setCreando(true); setVista('editar'); setEditorConCambios(false) }}
+              onClick={() => { quitarParam(); setAbiertoId(null); setCreando(true); setVista('editar'); setEditorConCambios(false) }}
               className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
             >
               <Plus size={16} /> Crear pedido

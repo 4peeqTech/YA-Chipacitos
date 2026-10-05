@@ -15,6 +15,7 @@ import { SegmentedControl } from '@/components/ui/Chip'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { controlClass } from '@/components/ui/Field'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
+import { usePuedeEntrar } from '@/components/ui/AccesoModulos'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { hoyISO } from '@/lib/fechas'
 import {
@@ -61,6 +62,8 @@ function GrupoPendientes({
   onPagar: (p: PendienteVista) => void
 }) {
   const [visibles, setVisibles] = useState(POR_TANDA)
+  // Gastos es otro módulo: sin él, el título queda como texto.
+  const puedeEntrar = usePuedeEntrar()
   const mostrados = items.slice(0, visibles)
   const resto = items.length - mostrados.length
   return (
@@ -81,7 +84,7 @@ function GrupoPendientes({
             <li key={p.clave} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:flex-nowrap">
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-text">
-                  {p.origen === 'app' ? (
+                  {p.origen === 'app' && puedeEntrar(rutaDe({ tipo: 'gasto', id: p.id })) ? (
                     <Link href={rutaDe({ tipo: 'gasto', id: p.id })} className="-my-3 inline-block py-3 hover:underline hover:decoration-accent hover:decoration-2 hover:underline-offset-4">
                       {p.titulo}
                     </Link>
