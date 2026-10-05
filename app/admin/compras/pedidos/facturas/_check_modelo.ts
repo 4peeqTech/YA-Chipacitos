@@ -79,7 +79,7 @@ const estado = (p: Partial<EstadoFactura> = {}): EstadoFactura => ({
 })
 
 const vista = (p: Partial<FacturaVista> = {}): FacturaVista => ({
-  id: 'f-1', numero: '0003-00012345', estado: 'confirmada', pedidoId: 'ped-1', pedidoNumero: 25,
+  id: 'f-1', numero: '0003-00012345', estado: 'confirmada', tipoComprobante: 'factura', pedidoId: 'ped-1', pedidoNumero: 25,
   codigo: 'P-0025', proveedorId: PROV, proveedor: 'GLOBAL', fecha: '2026-09-28', vencimiento: null,
   subtotal: 8000, iva: 1680, total: 9680, totalPapel: null, observaciones: '', mercaderiaLlego: null,
   confirmadaEn: null, confirmadaPor: null, anuladaEn: null, anuladaPor: null, anuladaMotivo: null,

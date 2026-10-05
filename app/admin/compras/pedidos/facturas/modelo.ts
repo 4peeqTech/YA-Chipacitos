@@ -331,6 +331,8 @@ export interface FacturaVista {
   id: string
   numero: string
   estado: EstadoFacturaValor
+  /** B2: solo se comparte una 'factura'; la nota de crédito llega en B4. */
+  tipoComprobante: 'factura' | 'nota_credito'
   pedidoId: string
   pedidoNumero: number | null
   codigo: string
@@ -368,6 +370,7 @@ export function armarVistas(facturas: FacturaFila[]): FacturaVista[] {
       id: f.id,
       numero: f.numero ?? '',
       estado: aEstadoFactura(f.estado),
+      tipoComprobante: f.tipo_comprobante === 'nota_credito' ? 'nota_credito' : 'factura',
       pedidoId: f.pedido_id,
       pedidoNumero: f.pedido_numero,
       codigo: f.pedido_numero == null ? '—' : codigoPedido(f.pedido_numero),

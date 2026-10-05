@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
-  AlertTriangle, ArrowRight, Ban, Check, Info, Loader2, PackageCheck, PackageX, Plus, ReceiptText, Trash2, Wallet, X,
+  AlertTriangle, ArrowRight, Ban, Check, Info, Loader2, PackageCheck, PackageX, Plus, ReceiptText, Share2, Trash2, Wallet, X,
 } from 'lucide-react'
 import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
 import InputNumero from '@/components/ui/InputNumero'
@@ -27,6 +27,7 @@ import {
   anularFactura, buscarGastosCandidatos, confirmarFactura, descartarFactura, guardarFactura, type GastoCandidato,
 } from './acciones'
 import CabeceraFactura from './CabeceraFactura'
+import CompartirFacturaModal from './CompartirFacturaModal'
 import ConfirmarFacturaModal, { type EleccionGasto } from './ConfirmarFacturaModal'
 import DiferenciasPanel from './DiferenciasPanel'
 import {
@@ -237,6 +238,7 @@ export default function FacturaForm({
   const [intentoGuardar, setIntentoGuardar] = useState(false)
   const [preguntaAbierta, setPreguntaAbierta] = useState(false)
   const [anularAbierto, setAnularAbierto] = useState(false)
+  const [compartirAbierto, setCompartirAbierto] = useState(false)
   // Paso final de confirmación: llego = respuesta de FA1/FA2 (null si no hubo que preguntar).
   const [confirmacion, setConfirmacion] = useState<{ llego: boolean | null } | null>(null)
   const [candidatos, setCandidatos] = useState<GastoCandidato[] | null>(null)
@@ -837,6 +839,11 @@ export default function FacturaForm({
           <button type="button" onClick={onCancelar} disabled={isPending} className={botonSecundario}>
             {soloLectura ? 'Cerrar' : 'Cancelar'}
           </button>
+          {factura && estadoFactura === 'confirmada' && factura.tipoComprobante === 'factura' && (
+            <button type="button" onClick={() => setCompartirAbierto(true)} disabled={isPending} className={botonPrimario}>
+              <Share2 size={16} /> Compartir
+            </button>
+          )}
           {!soloLectura && (
             <>
               <button type="button" onClick={onGuardarBorrador} disabled={isPending || !pedido} className={botonSecundario}>
@@ -861,6 +868,10 @@ export default function FacturaForm({
         onAnular={motivo => { setAnularAbierto(false); onAnular(motivo) }}
         onCerrar={() => setAnularAbierto(false)}
       />
+
+      {factura && compartirAbierto && (
+        <CompartirFacturaModal facturaId={factura.id} numero={factura.numero} onCerrar={() => setCompartirAbierto(false)} />
+      )}
 
       {confirmacion && (
         <ConfirmarFacturaModal
