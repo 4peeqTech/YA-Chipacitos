@@ -30,7 +30,8 @@ export default function StockClient({
       ) : (
         <div className="space-y-3">
           {definiciones.map(def => (
-            <ConteoDesplegable key={def.id} definicion={def} umbralSobrestock={umbralSobrestock} />
+            // key por conteo: al cerrar, el borrador nuevo arranca con estado propio (no el del cerrado).
+            <ConteoDesplegable key={def.conteo.id} definicion={def} umbralSobrestock={umbralSobrestock} />
           ))}
         </div>
       )}

@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Ban, ClipboardCheck, FileText, PackagePlus, User } from 'lucide-react'
 import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
@@ -18,6 +16,8 @@ import { Chip, SegmentedControl } from '@/components/ui/Chip'
 import { IconoRenderer } from '@/components/ui/IconoPicker'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import { useToast } from '@/components/ui/ProveedorUI'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { MODO_LABEL, REDONDEO_LABEL } from '@/lib/estados'
 import DiferenciasConteo from './DiferenciasConteo'
 
@@ -36,6 +36,7 @@ interface ConteoHistorial {
   solicitud_id: string | null
   solicitud_estado: string | null
   diferencias_pendientes: number | null
+  diferencias_resueltas: number | null
 }
 
 interface DetalleItem {
@@ -93,32 +94,19 @@ export default function ConteosFabricaClient({
   conteosIniciales,
   conteoInicial,
   umbralPct,
-  conResueltas,
 }: {
   conteosIniciales: ConteoHistorial[]
   conteoInicial: string | null
   umbralPct: number
-  /** Conteos con alguna diferencia aplicada o ignorada. */
-  conResueltas: string[]
 }) {
-  const revisados = useMemo(() => new Set(conResueltas), [conResueltas])
   const supabase = createClient()
   const toast = useToast()
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
 
   const [abiertoId, setAbiertoId] = useState<string | null>(conteoInicial)
-  // Si ?conteo= cambia sin desmontar (link desde otra pantalla al mismo route),
-  // se abre el nuevo. Patrón "estado derivado de props" de React, sin effect.
-  // TODO(B0): useAlCambiarParam
-  const [paramPrevio, setParamPrevio] = useState(conteoInicial)
-  if (conteoInicial !== paramPrevio) {
-    setParamPrevio(conteoInicial)
-    if (conteoInicial) setAbiertoId(conteoInicial)
-  }
-
   const [pestania, setPestania] = useState<Pestania>('diferencias')
+  // Si ?conteo= cambia sin desmontar (link desde otra pantalla al mismo route), se abre el nuevo.
+  useAlCambiarParam(conteoInicial ?? undefined, id => { setAbiertoId(id); setPestania('diferencias') })
+  const quitarParam = useQuitarParams('conteo')
   const [detalle, setDetalle] = useState<{ id: string; items: DetalleItem[] } | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [desde, setDesde] = useState('')
@@ -172,15 +160,6 @@ export default function ConteosFabricaClient({
     setPestania('diferencias')
   }
 
-  function quitarParam() {
-    // TODO(B0): useQuitarParams('conteo')
-    if (!searchParams.has('conteo')) return
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete('conteo')
-    const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }
-
   function cerrar() {
     setAbiertoId(null)
     quitarParam()
@@ -199,7 +178,7 @@ export default function ConteosFabricaClient({
     if (c.estado === 'descartado') return <Pill tono="neutro"><Ban size={11} /> Descartado</Pill>
     const pendientes = c.diferencias_pendientes ?? 0
     if (pendientes > 0) return <Pill tono="alerta">{pendientes} pendiente{pendientes === 1 ? '' : 's'}</Pill>
-    if (c.id && revisados.has(c.id)) return <Pill tono="exito">Revisado</Pill>
+    if ((c.diferencias_resueltas ?? 0) > 0) return <Pill tono="exito">Revisado</Pill>
     return <Pill tono="neutro">Sin diferencias</Pill>
   }
 
@@ -286,14 +265,14 @@ export default function ConteosFabricaClient({
                 )}
               </p>
               {abierto.solicitud_id && (
-                // TODO(B0): LinkEntidad (hasta que B0 entre, ?solicitud= no abre el modal)
-                <Link
-                  href={`/admin/compras/pedidos/solicitudes?solicitud=${abierto.solicitud_id}`}
-                  onClick={cerrar}
-                  className="presionable min-h-11 sm:min-h-9 inline-flex items-center gap-1.5 rounded-full border border-border bg-surface2 px-3 text-xs font-semibold text-text hover:text-accent"
+                <LinkEntidad
+                  entidad={{ tipo: 'solicitud', id: abierto.solicitud_id }}
+                  variante="chip"
+                  onNavegar={cerrar}
+                  className="min-h-11 sm:min-h-9 px-3 text-xs font-semibold text-text"
                 >
                   <FileText size={13} /> Solicitud de compra · {SOLICITUD_LABEL[abierto.solicitud_estado ?? ''] ?? abierto.solicitud_estado}
-                </Link>
+                </LinkEntidad>
               )}
             </div>
 

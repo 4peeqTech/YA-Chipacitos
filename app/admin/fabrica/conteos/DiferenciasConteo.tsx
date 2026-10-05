@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react'
-import Link from 'next/link'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 import { Check, ClipboardCheck, EyeOff, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
@@ -29,6 +29,8 @@ interface Fila {
   resueltaEn: string | null
   stockHoy: number
   movidoDesdeCierre: number
+  /** Lo que se movió el stock entre que Fábrica contó el ítem y el cierre (ya está dentro del esperado). */
+  movidoMientras: number
   superadoPor: string | null
   superadoPorConteoId: string | null
   grande: boolean
@@ -75,6 +77,7 @@ function aFila(v: FilaVista, umbralPct: number): Fila {
     resueltaEn: v.diferencia_resuelta_en,
     stockHoy: v.stock_hoy ?? 0,
     movidoDesdeCierre: v.movido_desde_cierre ?? 0,
+    movidoMientras: v.movido_mientras_contaba ?? 0,
     superadoPor: v.superado_por,
     superadoPorConteoId: v.superado_por_conteo_id,
     grande,
@@ -166,12 +169,22 @@ export default function DiferenciasConteo({
   }
 
   function avisoMovido(f: Fila): ReactNode {
-    if (f.movidoDesdeCierre === 0) return null
     return (
-      <p className="mt-2 text-sm text-warning">
-        Desde el cierre el stock se movió {conSigno(f.movidoDesdeCierre)} (remitos, facturas o ajustes). La diferencia se
-        calculó al cerrar: si esa mercadería ya estaba cuando se contó, ya está explicada y conviene ignorarla.
-      </p>
+      <>
+        {f.movidoMientras !== 0 && (
+          <p className="mt-2 text-sm text-warning">
+            Hubo movimientos mientras se contaba ({conSigno(f.movidoMientras)}): entre que Fábrica contó y el cierre entró
+            un remito, una factura o un ajuste, y ya está sumado en lo esperado. Revisá antes de aplicar: si esa mercadería no
+            estaba cuando se contó, la diferencia no es real.
+          </p>
+        )}
+        {f.movidoDesdeCierre !== 0 && (
+          <p className="mt-2 text-sm text-warning">
+            Desde el cierre el stock se movió {conSigno(f.movidoDesdeCierre)} (remitos, facturas o ajustes). La diferencia se
+            calculó al cerrar: si esa mercadería ya estaba cuando se contó, ya está explicada y conviene ignorarla.
+          </p>
+        )}
+      </>
     )
   }
 
@@ -202,6 +215,7 @@ export default function DiferenciasConteo({
     const top = [...aplicables].sort((a, b) => Math.abs(b.diferencia ?? 0) - Math.abs(a.diferencia ?? 0)).slice(0, 3)
     const negativas = aplicables.filter(f => f.stockHoy + (f.diferencia ?? 0) < 0).length
     const conMovimiento = aplicables.filter(f => f.movidoDesdeCierre !== 0).length
+    const movidasMientras = aplicables.filter(f => f.movidoMientras !== 0)
     confirmar({
       titulo: 'Aplicar todas las diferencias',
       textoConfirmar: `Aplicar ${aplicables.length}`,
@@ -223,6 +237,12 @@ export default function DiferenciasConteo({
             </p>
           )}
           {negativas > 0 && <p className="text-warning">{negativas} quedan en negativo.</p>}
+          {movidasMientras.length > 0 && (
+            <p className="text-warning">
+              Hubo movimientos mientras se contaba en {movidasMientras.map(f => `${f.nombre} (${conSigno(f.movidoMientras)})`).join(', ')}:
+              revisalas antes de aplicar.
+            </p>
+          )}
           {conMovimiento > 0 && (
             <p className="text-warning">
               En {conMovimiento} el stock se movió desde el cierre: revisalas una por una si esa mercadería ya estaba cuando se contó.
@@ -335,14 +355,14 @@ export default function DiferenciasConteo({
   function insumo(f: Fila): ReactNode {
     return (
       <>
-        {/* TODO(B0): LinkEntidad */}
-        <Link
-          href={`/admin/compras/stock?insumo=${f.itemId}`}
-          onClick={onNavegar}
-          className="font-medium text-text underline decoration-border decoration-1 underline-offset-4 hover:decoration-accent"
-        >
+        <LinkEntidad entidad={{ tipo: 'insumo', id: f.itemId }} variante="texto" onNavegar={onNavegar} className="font-medium text-text">
           {f.nombre}
-        </Link>
+        </LinkEntidad>
+        {(f.estado === 'pendiente' || f.estado === 'superada') && f.movidoMientras !== 0 && (
+          <span className="mt-0.5 flex items-center gap-1 text-2xs text-warning">
+            <TriangleAlert size={11} /> Hubo movimientos mientras se contaba ({conSigno(f.movidoMientras)}): revisá antes de aplicar
+          </span>
+        )}
         {f.estado === 'pendiente' && f.movidoDesdeCierre !== 0 && (
           <span className="mt-0.5 flex items-center gap-1 text-2xs text-warning">
             <TriangleAlert size={11} /> Desde el cierre el stock se movió {conSigno(f.movidoDesdeCierre)}

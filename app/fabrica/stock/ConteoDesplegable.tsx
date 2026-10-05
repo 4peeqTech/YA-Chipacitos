@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, TrendingUp, AlertTriangle, Trash2, TriangleAlert, PackagePlus } from 'lucide-react'
+import { Loader2, Lock, TrendingUp, AlertTriangle, Trash2, TriangleAlert, PackagePlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { calcularNecesidadYSugerido, calcularSobrestock, type ModoCalculo, type Redondeo } from '@/lib/fabrica/calculoSugerido'
 import { formatearNumero } from '@/lib/formato'
@@ -109,15 +109,44 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
   const [cerrando, setCerrando] = useState(false)
   const [borrando, setBorrando] = useState(false)
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  // Guardados programados (debounce) y en vuelo: "Cerrar" espera a que terminen,
+  // así lo último que se cargó entra al cierre y no queda "sin contar".
+  const programados = useRef(new Map<string, () => Promise<boolean>>())
+  const enVuelo = useRef(new Set<Promise<boolean>>())
+  const [pendientes, setPendientes] = useState(0)
 
   const hoyIso = new Date().getDay() || 7
   const esHoy = hoyIso === definicion.diaSemana
   const cerradoEstaSemana = historial[0]?.semana_desde === conteo.semana_desde
   const rechazoPendiente = !cerradoEstaSemana ? definicion.rechazo : null
 
-  function debounced(key: string, fn: () => Promise<void>) {
+  function debounced(key: string, fn: () => Promise<boolean>) {
     if (timers.current[key]) clearTimeout(timers.current[key])
-    timers.current[key] = setTimeout(() => { setGuardado('guardando'); fn() }, 500)
+    else setPendientes(n => n + 1)
+    programados.current.set(key, fn)
+    timers.current[key] = setTimeout(() => { correr(key) }, 500)
+  }
+
+  function correr(key: string): Promise<boolean> {
+    const fn = programados.current.get(key)
+    clearTimeout(timers.current[key])
+    delete timers.current[key]
+    programados.current.delete(key)
+    if (!fn) return Promise.resolve(true)
+    setGuardado('guardando')
+    const p = fn().finally(() => {
+      enVuelo.current.delete(p)
+      setPendientes(n => n - 1)
+    })
+    enVuelo.current.add(p)
+    return p
+  }
+
+  /** Corre ya los guardados programados y espera los que están en vuelo. */
+  async function guardarTodo(): Promise<boolean> {
+    for (const key of [...programados.current.keys()]) correr(key)
+    const resultados = await Promise.all([...enVuelo.current])
+    return resultados.every(Boolean)
   }
 
   async function actualizarMasasProyectadas(valor: number) {
@@ -144,9 +173,10 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
       if (error) {
         setGuardado('error')
         toast.error(mensajeError(error, 'No se guardó lo contado'))
-      } else {
-        setGuardado('guardado')
+        return false
       }
+      setGuardado('guardado')
+      return true
     })
   }
 
@@ -179,6 +209,11 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
 
   async function confirmarCierre() {
     setCerrando(true)
+    if (!(await guardarTodo())) {
+      toast.error('Hay cantidades que no se guardaron: revisalas antes de cerrar.')
+      setCerrando(false)
+      return
+    }
     const { data: solicitudId, error } = await supabase.rpc('cerrar_conteo_fabrica', { p_conteo_id: conteo.id })
     if (error) {
       toast.error(mensajeError(error, 'No se pudo cerrar el conteo'))
@@ -347,9 +382,12 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
 
       <button
         onClick={() => setConfirmando(true)}
-        className="w-full flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 text-black font-['Syne'] font-bold text-sm py-3.5 rounded-xl transition-all"
+        disabled={pendientes > 0}
+        className="w-full flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 text-black font-['Syne'] font-bold text-sm py-3.5 rounded-xl transition-all disabled:opacity-50"
       >
-        <Lock size={16} /> Cerrar control y pedir a Compras
+        {pendientes > 0
+          ? <><Loader2 size={16} className="animate-spin" /> Guardando lo contado…</>
+          : <><Lock size={16} /> Cerrar control y pedir a Compras</>}
       </button>
 
       <Modal open={confirmando} onClose={() => !cerrando && setConfirmando(false)} title={`Cerrar control — ${definicion.nombre}`} accent="red">
@@ -382,8 +420,8 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
           <button onClick={() => setConfirmando(false)} disabled={cerrando} className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] transition-colors disabled:opacity-40">
             Cancelar
           </button>
-          <button onClick={confirmarCierre} disabled={cerrando} className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold disabled:opacity-40 transition-colors">
-            {cerrando ? 'Cerrando...' : 'Cerrar y pedir'}
+          <button onClick={confirmarCierre} disabled={cerrando || pendientes > 0} className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold disabled:opacity-40 transition-colors">
+            {cerrando ? 'Cerrando...' : pendientes > 0 ? 'Guardando…' : 'Cerrar y pedir'}
           </button>
         </div>
       </Modal>

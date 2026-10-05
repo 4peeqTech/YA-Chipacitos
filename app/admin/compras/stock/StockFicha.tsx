@@ -8,6 +8,7 @@ import InputNumero from '@/components/ui/InputNumero'
 import { Field, controlClass } from '@/components/ui/Field'
 import { ChipGroup } from '@/components/ui/Chip'
 import { Skeleton } from '@/components/ui/Skeleton'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 import { useToast } from '@/components/ui/ProveedorUI'
 import { formatearFechaHora } from '@/lib/formato'
 import { mensajeError } from '@/lib/errores'
@@ -259,15 +260,15 @@ export default function StockFicha({
                         </Link>
                       )}
                       {m.conteo_id && (
-                        // TODO(B0): LinkEntidad
-                        <Link
-                          href={`/admin/fabrica/conteos?conteo=${m.conteo_id}`}
-                          onClick={onCerrar}
-                          aria-label="Abrir el conteo de fábrica"
-                          className="presionable min-h-11 inline-flex items-center gap-1 rounded-xl border border-border px-3 text-xs font-semibold text-text hover:bg-surface2"
+                        <LinkEntidad
+                          entidad={{ tipo: 'conteo', id: m.conteo_id }}
+                          variante="chip"
+                          onNavegar={onCerrar}
+                          title="Abrir el conteo de fábrica"
+                          className="min-h-11 sm:min-h-9 px-3 text-xs font-semibold text-text"
                         >
                           <ClipboardCheck size={13} /> Conteo
-                        </Link>
+                        </LinkEntidad>
                       )}
                       <p className="min-w-16 text-right text-sm tabular-nums">
                         <span className={d > 0 ? 'text-success' : 'text-warning'}>{textoDelta(d)}</span>

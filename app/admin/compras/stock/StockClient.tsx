@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
 import { ClipboardCheck, Package } from 'lucide-react'
 import HelpTooltip from '@/components/ui/HelpTooltip'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 import Modal from '@/components/ui/Modal'
 import PageHeader from '@/components/ui/PageHeader'
 import AyudaLink from '@/components/ui/AyudaLink'
@@ -190,14 +190,14 @@ export default function StockClient({
           </p>
           <div className="flex flex-wrap gap-2">
             {conteosConDiferencias.map(c => (
-              // TODO(B0): LinkEntidad
-              <Link
+              <LinkEntidad
                 key={c.conteoId}
-                href={`/admin/fabrica/conteos?conteo=${c.conteoId}`}
-                className="presionable min-h-11 sm:min-h-9 inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-xs font-semibold text-text hover:bg-surface2"
+                entidad={{ tipo: 'conteo', id: c.conteoId }}
+                variante="chip"
+                className="min-h-11 sm:min-h-9 px-3 text-xs font-semibold text-text"
               >
                 <ClipboardCheck size={13} /> {c.etiqueta} · {c.pendientes}
-              </Link>
+              </LinkEntidad>
             ))}
           </div>
         </div>

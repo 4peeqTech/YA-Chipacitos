@@ -6,7 +6,6 @@ import {
   Inbox, ClipboardList, TrendingUp, Truck, ChevronRight,
   Ban, Send, History, Scale, PackageMinus, PackagePlus, Undo2, ClipboardCheck,
 } from 'lucide-react'
-import Link from 'next/link'
 import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
@@ -393,14 +392,14 @@ export default function SolicitudesClient({
                   Masas proyectadas ({formatearFechaCorta(abierta.fabrica_conteos.semana_desde)} a {formatearFechaCorta(abierta.fabrica_conteos.semana_hasta)}): <span className="text-[#f0f0f0] font-bold">{abierta.fabrica_conteos.masas_proyectadas}</span>
                 </p>
                 {abierta.conteo_id && (
-                  // TODO(B0): LinkEntidad
-                  <Link
-                    href={`/admin/fabrica/conteos?conteo=${abierta.conteo_id}`}
-                    onClick={cerrar}
-                    className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold text-text hover:bg-surface2"
+                  <LinkEntidad
+                    entidad={{ tipo: 'conteo', id: abierta.conteo_id }}
+                    variante="chip"
+                    onNavegar={cerrar}
+                    className="min-h-11 sm:min-h-9 px-3 text-xs font-semibold text-text"
                   >
                     <ClipboardCheck size={13} /> Ver el conteo
-                  </Link>
+                  </LinkEntidad>
                 )}
               </div>
             )}
