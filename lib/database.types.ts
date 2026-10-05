@@ -1036,6 +1036,7 @@ export type Database = {
           id: string
           nombre: string
           orden: number
+          tipo: string
           updated_at: string
         }
         Insert: {
@@ -1046,6 +1047,7 @@ export type Database = {
           id?: string
           nombre: string
           orden?: number
+          tipo?: string
           updated_at?: string
         }
         Update: {
@@ -1056,6 +1058,7 @@ export type Database = {
           id?: string
           nombre?: string
           orden?: number
+          tipo?: string
           updated_at?: string
         }
         Relationships: []
@@ -4693,6 +4696,10 @@ export type Database = {
       }
       compras_marcar_pedido_enviado: {
         Args: { p_pedido_id: string; p_reenvio?: boolean }
+        Returns: undefined
+      }
+      compras_marcar_plantilla_default: {
+        Args: { p_plantilla_id: string }
         Returns: undefined
       }
       compras_mover_stock: {
