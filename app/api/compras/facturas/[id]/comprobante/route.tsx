@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { NextRequest } from 'next/server'
 import { ImageResponse } from 'next/og'
+import { z } from 'zod'
 import { createClientTipado } from '@/lib/supabase/server'
 import { cargarComprobante } from '@/lib/compras/cargarComprobante'
 import ComprobanteImagen, { ANCHO_COMPROBANTE } from '@/lib/compras/ComprobanteImagen'
@@ -49,11 +50,11 @@ function cargarRecursos(): Promise<Recursos> {
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  // Un id que no es uuid no llega a la base (daría 22P02 → 500): no existe.
+  if (!z.uuid().safeParse(id).success) return texto('La factura no existe', 404)
   const supabase = await createClientTipado()
   const r = await cargarComprobante(supabase, id)
-  if (!r.ok) {
-    return new Response(r.error, { status: r.status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'private, no-store' } })
-  }
+  if (!r.ok) return texto(r.error, r.status)
 
   try {
     const { fonts, logo } = await cargarRecursos()
@@ -74,6 +75,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     })
   } catch (e) {
     console.error(e)
-    return new Response('No se pudo generar la imagen', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+    return texto('No se pudo generar la imagen', 500)
   }
+}
+
+function texto(mensaje: string, status: number): Response {
+  return new Response(mensaje, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'private, no-store' } })
 }
