@@ -569,6 +569,48 @@ export type Database = {
           },
         ]
       }
+      compras_pedido_eventos: {
+        Row: {
+          creado_en: string
+          creado_por: string | null
+          detalle: Json
+          id: string
+          pedido_id: string
+          tipo: string
+        }
+        Insert: {
+          creado_en?: string
+          creado_por?: string | null
+          detalle?: Json
+          id?: string
+          pedido_id: string
+          tipo: string
+        }
+        Update: {
+          creado_en?: string
+          creado_por?: string | null
+          detalle?: Json
+          id?: string
+          pedido_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_pedido_eventos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_pedido_eventos_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compras_pedido_items: {
         Row: {
           cantidad: number
@@ -577,6 +619,7 @@ export type Database = {
           item_id: string | null
           orden: number
           pedido_id: string
+          solicitud_item_id: string | null
           unidad: string | null
         }
         Insert: {
@@ -586,6 +629,7 @@ export type Database = {
           item_id?: string | null
           orden?: number
           pedido_id: string
+          solicitud_item_id?: string | null
           unidad?: string | null
         }
         Update: {
@@ -595,6 +639,7 @@ export type Database = {
           item_id?: string | null
           orden?: number
           pedido_id?: string
+          solicitud_item_id?: string | null
           unidad?: string | null
         }
         Relationships: [
@@ -619,10 +664,19 @@ export type Database = {
             referencedRelation: "compras_pedidos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "compras_pedido_items_solicitud_item_id_fkey"
+            columns: ["solicitud_item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_solicitud_items"
+            referencedColumns: ["id"]
+          },
         ]
       }
       compras_pedidos: {
         Row: {
+          actualizado_en: string | null
+          actualizado_por: string | null
           cerrado_en: string | null
           cerrado_manual_en: string | null
           cerrado_manual_por: string | null
@@ -645,6 +699,8 @@ export type Database = {
           ultima_secuencia_remito: number
         }
         Insert: {
+          actualizado_en?: string | null
+          actualizado_por?: string | null
           cerrado_en?: string | null
           cerrado_manual_en?: string | null
           cerrado_manual_por?: string | null
@@ -667,6 +723,8 @@ export type Database = {
           ultima_secuencia_remito?: number
         }
         Update: {
+          actualizado_en?: string | null
+          actualizado_por?: string | null
           cerrado_en?: string | null
           cerrado_manual_en?: string | null
           cerrado_manual_por?: string | null
@@ -689,6 +747,13 @@ export type Database = {
           ultima_secuencia_remito?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "compras_pedidos_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "compras_pedidos_cerrado_manual_por_fkey"
             columns: ["cerrado_manual_por"]
@@ -3959,11 +4024,12 @@ export type Database = {
       }
       v_compras_pedido_eventos: {
         Row: {
-          detalle: string | null
+          detalle: Json | null
           fecha: string | null
+          id: string | null
           pedido_id: string | null
           persona: string | null
-          remito_id: string | null
+          persona_id: string | null
           tipo: string | null
         }
         Relationships: []
@@ -4329,6 +4395,10 @@ export type Database = {
           unidad: string
         }[]
       }
+      compras_diff_lineas: {
+        Args: { p_antes: Json; p_despues: Json }
+        Returns: Json
+      }
       compras_eliminar_pedido: {
         Args: { p_motivo?: string; p_pedido_id?: string }
         Returns: undefined
@@ -4347,6 +4417,14 @@ export type Database = {
           p_vencimiento?: string
         }
         Returns: Json
+      }
+      compras_guardar_mensaje_pedido: {
+        Args: {
+          p_local_facturacion_id?: string
+          p_mensaje: string
+          p_pedido_id: string
+        }
+        Returns: undefined
       }
       compras_guardar_pedido: {
         Args: {
@@ -4367,8 +4445,12 @@ export type Database = {
         }
         Returns: Json
       }
-      compras_marcar_pedido_enviado: {
+      compras_lineas_pedido_snapshot: {
         Args: { p_pedido_id: string }
+        Returns: Json
+      }
+      compras_marcar_pedido_enviado: {
+        Args: { p_pedido_id: string; p_reenvio?: boolean }
         Returns: undefined
       }
       compras_mover_stock: {
@@ -4396,6 +4478,10 @@ export type Database = {
       compras_recalcular_estado_pedido: {
         Args: { p_pedido_id: string }
         Returns: undefined
+      }
+      compras_registrar_evento_pedido: {
+        Args: { p_detalle?: Json; p_pedido_id: string; p_tipo: string }
+        Returns: string
       }
       compras_resolver_diferencia: {
         Args: {
