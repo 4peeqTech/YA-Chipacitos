@@ -246,7 +246,12 @@ export default function InsumoModal({
               activo: l.activo,
               codigo: l.codigo.trim() || null,
               precioRef: l.precioRef,
-              precioRefAnterior: l.existente ? l.precioRefAnterior : null,
+              // Un proveedor quitado y vuelto a agregar en la misma edición sigue
+              // siendo un par de la base: viaja con el precio con que se abrió el
+              // form, si no la RPC lo toma como un conflicto (E2).
+              precioRefAnterior: l.existente
+                ? l.precioRefAnterior
+                : inicial.find(i => i.proveedorId === l.proveedorId)?.precioRefAnterior ?? null,
             }))
           : null,
       })

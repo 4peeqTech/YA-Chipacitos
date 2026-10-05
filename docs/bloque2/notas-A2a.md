@@ -22,7 +22,7 @@
 
 1. **`lib/database.types.ts`**: lo escribí a mano hasta el `db push` (el CLI genera contra dev) y después lo regeneré con `npm run types`.
 2. **Helpers SQL extra:** `_compras_num_txt(numeric)` (`trim_scale`, para que el historial diga `16.5` y no `16.50`) y `_compras_par_tiene_historia(item, proveedor)` (E4). Los dos tienen `revoke` para `public`, `anon` y `authenticated`.
-3. **Locks:** archivar y eliminar bloquean primero los conteos en borrador que tienen el ítem (`for update`) y después borran sus filas. Es el mismo orden que el cierre y el descarte de A1.
+3. **Locks:** corregido en la vuelta 1 (ver "Vuelta 1 de revisión"). En `150000`, archivar y eliminar bloqueaban el insumo **antes** que el conteo, y eso armaba un deadlock con `cerrar_conteo_fabrica`.
 4. **Mensaje de eliminar:** cuenta pedidos, remitos, facturas, solicitudes y conteos **distintos**, no líneas. Por ejemplo: "tiene 26 movimientos de stock, 14 pedidos, 6 remitos, 4 facturas, 16 solicitudes y 9 conteos".
 5. **Historial:**
    - Al quitar un par con historia se registran `proveedor.activo` (sí → no) y `proveedor.principal` (sí → no), si era principal.
@@ -76,9 +76,32 @@
 
 Sin errores de consola en admin, fábrica ni coordinador.
 
+## Vuelta 1 de revisión
+
+Review: `artifacts/review-a2a-insumos-base`. Los arreglos de SQL van en `supabase/migrations/20261005160500_compras_insumos_base_fixes.sql`, porque `150000` y `160000` ya estaban aplicadas en dev.
+
+1. **Deadlock con el cierre de un conteo (medio).**
+   - **Causa:** `cerrar_conteo_fabrica` bloquea el conteo y después, al insertar `compras_solicitud_items`, toma `FOR KEY SHARE` sobre el insumo. Archivar tomaba `FOR UPDATE` del insumo antes del conteo, es decir, en el orden inverso.
+   - **Archivar** pasa a `FOR NO KEY UPDATE`: solo cambia `estado`, y ese lock no choca con `KEY SHARE`.
+   - **Eliminar** sigue con `FOR UPDATE`, pero ahora bloquea primero los conteos en borrador que tienen el insumo y recién después el insumo, el mismo orden que el cierre.
+   - **Reproducido en dev con dos sesiones concurrentes:** la sesión A bloquea el conteo, espera y toma `KEY SHARE`; la sesión B archiva Queso Barra. Las dos se revierten solas.
+     - Con el cuerpo de `150000`: A da `40P01 deadlock detected`.
+     - Con el de `160500`: las dos terminan.
+   - **Límite de la prueba en eliminar:** con un insumo con historia no se pudo provocar, porque corta antes de tomar locks. El orden quedó igual al del cierre por construcción.
+2. **Índices por `item_id` (bajo):** en `compras_solicitud_items`, `compras_factura_items`, `compras_remito_items` y `compras_factura_discrepancias`. Antes chequeé en dev que no existieran con otro nombre.
+3. **Consulta de release (bajo):** corregida (ver "Para otras fases").
+4. **Proveedor quitado y vuelto a agregar en la misma edición (bajo):** la línea nueva ahora viaja con el `precioRefAnterior` de `inicial`. Antes viajaba con `null`, y la RPC lo tomaba como conflicto de precio.
+   - QA en el navegador: en "QA A2a Insumo" quité AL SA y lo volví a agregar con $125 y la estrella. Resultado: "Cambios guardados", mismo `id` del par y `precio_ref` 125.
+
+**Verificación de la vuelta:**
+- Lote revertido con `160500` + S1–S16: OK.
+- `db push` de `160500` a dev con dry-run antes.
+- Invariante del ledger en 0, los 4 índices creados, `FOR NO KEY UPDATE` en dev y los grants de las RPC conservados.
+- `npm run types` sin cambios, `tsc` y `eslint` limpios, `npm run build` OK.
+
 ## Qué quedó en dev
 
-- **"QA A2a Insumo":** archivado, sin historia (se puede eliminar). AL SA tiene `precio_ref` 120 (puesto por SQL en la prueba de conflicto).
+- **"QA A2a Insumo":** archivado, sin historia (se puede eliminar). AL SA tiene `precio_ref` 125: 120 por SQL en la prueba de conflicto y 125 en la QA de la vuelta 1.
 - **Polvo de Hornear:** archivado y reactivado dos veces. Activo, con 4 filas `estado` en el historial. Sus filas del borrador de Global se borraron y se volvieron a sembrar al abrir Fábrica, sin cantidad cargada.
 - **Bolsa Consorcio 60x90:** igual que antes (BOLSAPLAST principal), con historial de la prueba.
 - 17 filas en `compras_items_historial`.
@@ -90,7 +113,14 @@ Sin errores de consola en admin, fábrica ni coordinador.
   - antes del `drop column compras_items.precio`, recrear `v_compras_items` sin `precio` y copiar los no nulos a `compras_items_historial` (`campo = 'precio_legacy'`, `origen = 'migracion'`);
   - granularidad por módulo de los RPCs de Compras: hoy cualquier `compras-*` llama a las RPCs de Insumos por POST.
 - **B1 (no se tocó):** una solicitud abierta con una línea de un insumo archivado se convierte igual.
-- **Release (§8.3):** antes de pasar a prod, correr en prod la consulta de quién tiene solo `fabrica-conteos`. Está en el encabezado de `20261005160000`.
+- **Release (§8.3):** antes de pasar a prod, correr en prod esta consulta para saber quién tiene solo `fabrica-conteos`. La del encabezado de `20261005160000` usaba `profiles.email`, que no existe. Esta es la corregida: está en el encabezado de `20261005160500` y la probé en dev en solo lectura (0 filas).
+
+  ```sql
+  select u.email, p.nombre, p.rol, p.modulos_permitidos
+  from profiles p join auth.users u on u.id = p.id
+  where p.estado = 'activo' and p.rol <> 'admin' and 'fabrica-conteos' = any(p.modulos_permitidos)
+    and not p.modulos_permitidos && array['compras-insumos','compras-stock','compras-pedidos','compras-reportes'];
+  ```
 
 ## Manual (`/ayuda`), para cuando se haga la guía
 
