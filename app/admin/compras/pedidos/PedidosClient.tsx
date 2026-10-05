@@ -25,7 +25,7 @@ import CerrarPedidoModal from './CerrarPedidoModal'
 import PedidosEliminados from './PedidosEliminados'
 import { reabrirPedido } from './acciones'
 import type { DiferenciaFila } from '@/lib/compras/diferencias'
-import type { EventoPedido, FacturaDePedido, ItemCatalogo, LineaPendiente, LocalFacturacion, PedidoEliminado, PedidoFila, Plantilla, ProveedorPedido } from './datos'
+import type { FacturaDePedido, ItemCatalogo, LineaPendiente, LocalFacturacion, PedidoEliminado, PedidoFila, Plantilla, ProveedorPedido } from './datos'
 
 type Vista = 'detalle' | 'editar' | 'enviar' | 'cerrar' | 'eliminar'
 
@@ -52,7 +52,6 @@ function ordenActivos(a: PedidoVista, b: PedidoVista): number {
 export default function PedidosClient({
   pedidos,
   lineas,
-  eventos,
   proveedores,
   itemsCatalogo,
   stock,
@@ -66,7 +65,6 @@ export default function PedidosClient({
 }: {
   pedidos: PedidoFila[]
   lineas: LineaPendiente[]
-  eventos: EventoPedido[]
   proveedores: ProveedorPedido[]
   itemsCatalogo: ItemCatalogo[]
   stock: { item_id: string; cantidad: number }[]
@@ -97,8 +95,8 @@ export default function PedidosClient({
   // Los datos vienen siempre del servidor: las acciones llaman a refresh() y
   // la pantalla se vuelve a armar con lo que quedó en la base.
   const vistas = useMemo(
-    () => armarVistas(pedidos, lineas, eventos, facturas, esAdmin, undefined, diferencias),
-    [pedidos, lineas, eventos, facturas, esAdmin, diferencias],
+    () => armarVistas(pedidos, lineas, facturas, esAdmin, undefined, diferencias),
+    [pedidos, lineas, facturas, esAdmin, diferencias],
   )
   const stockPorItem = useMemo(() => Object.fromEntries(stock.map(s => [s.item_id, s.cantidad])), [stock])
   const abierto = abiertoId ? vistas.find(v => v.fila.id === abiertoId) ?? null : null

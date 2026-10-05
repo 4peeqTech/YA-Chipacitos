@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { createBrowserClient } from '@supabase/ssr'
 import {
   ArrowRight, Ban, Clock, FilePen, History, ListChecks, Loader2, Lock, MapPin, MessageCircle, MoreHorizontal,
   PackageOpen, PencilLine, ReceiptText, Repeat, RotateCcw, Scale, Send, Store, Trash2, Truck, type LucideIcon,
@@ -18,7 +19,49 @@ import {
 } from '@/lib/compras/historialPedido'
 import { ESTADOS } from '@/lib/estados'
 import DiferenciasPanel from './facturas/DiferenciasPanel'
+import { mensajeError } from '@/lib/errores'
+import type { Database } from '@/lib/database.types'
 import { conUnidad, type PedidoVista } from './modelo'
+import type { EventoPedido, PedidoFila } from './datos'
+
+/**
+ * Eventos de un solo pedido, pedidos al abrir el detalle (no todos los de la
+ * página: la vista crece con cada acción y PostgREST corta en 1000 filas).
+ * La clave es la "versión" del pedido: cada evento de las RPC mueve
+ * actualizado_en, y remito y factura cambian los estados o los remitos. Cuando
+ * refresh() la cambia, se vuelven a pedir, mostrando mientras tanto los
+ * anteriores del mismo pedido.
+ */
+function useHistorialPedido(fila: PedidoFila) {
+  const supabase = useMemo(() => createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  ), [])
+  const clave = [
+    fila.id, fila.actualizado_en, fila.estado_recepcion, fila.estado_facturacion,
+    fila.compras_remitos.map(r => r.id).join(','),
+  ].join('|')
+  const [estado, setEstado] = useState<{ clave: string; pedidoId: string; eventos: EventoPedido[]; error: string | null } | null>(null)
+
+  useEffect(() => {
+    let vigente = true
+    const pedidoId = clave.split('|')[0]
+    supabase
+      .from('v_compras_pedido_eventos')
+      .select('*')
+      .eq('pedido_id', pedidoId)
+      .order('fecha')
+      .then(({ data, error }) => {
+        if (!vigente) return
+        setEstado({ clave, pedidoId, eventos: data ?? [], error: error ? mensajeError(error, 'No se pudo cargar el historial.') : null })
+      })
+    return () => { vigente = false }
+  }, [supabase, clave])
+
+  const delMismo = estado?.pedidoId === fila.id ? estado : null
+  const historial = useMemo(() => (delMismo ? agruparEventos(delMismo.eventos) : null), [delMismo])
+  return { historial, cargando: estado?.clave !== clave, error: delMismo?.error ?? null }
+}
 
 export interface AccionesDetalle {
   onEnviar: () => void
@@ -307,7 +350,7 @@ export default function PedidoDetalle({
   const subtexto = subtextoEstado(entrada)
   const esperaMercaderia = entrada.estado_recepcion === 'enviado' || entrada.estado_recepcion === 'parcial'
   const remitos = [...fila.compras_remitos].sort((a, b) => a.secuencia - b.secuencia)
-  const historial = agruparEventos(pedido.eventos)
+  const { historial, cargando: cargandoHistorial, error: errorHistorial } = useHistorialPedido(fila)
   const hrefRemito = rutaCargarDePedido('remito', fila.id)
   const hrefFactura = pedido.factura
     ? rutaDe({ tipo: 'factura', id: pedido.factura.id })
@@ -547,13 +590,17 @@ export default function PedidoDetalle({
       <section className="space-y-2">
         <h4 className="flex items-center gap-2 text-sm font-bold text-text">
           <History size={16} className="text-accent" /> Historial
-          <span className="font-normal text-muted">({historial.length})</span>
+          {historial && <span className="font-normal text-muted">({historial.length})</span>}
+          {cargandoHistorial && <Loader2 size={14} className="animate-spin text-muted" aria-label="Cargando el historial" />}
         </h4>
-        <ol className="relative space-y-3 border-l border-border pl-5 ml-2">
-          {historial.map(entrada => (
-            <EntradaDelHistorial key={entrada.key} entrada={entrada} numeroPedido={fila.numero} />
-          ))}
-        </ol>
+        {errorHistorial && <p className="text-sm text-brand-red">{errorHistorial}</p>}
+        {historial && (
+          <ol className="relative space-y-3 border-l border-border pl-5 ml-2">
+            {historial.map(entrada => (
+              <EntradaDelHistorial key={entrada.key} entrada={entrada} numeroPedido={fila.numero} />
+            ))}
+          </ol>
+        )}
       </section>
     </div>
   )

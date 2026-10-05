@@ -24,7 +24,6 @@ export default async function PedidosPage({
   const [
     { data: pedidos },
     { data: lineas },
-    { data: eventos },
     { data: proveedores },
     { data: itemsCatalogo },
     { data: stock },
@@ -36,7 +35,6 @@ export default async function PedidosPage({
   ] = await Promise.all([
     consultarPedidos(supabase),
     supabase.from('v_compras_pedido_pendiente').select('*').order('orden'),
-    supabase.from('v_compras_pedido_eventos').select('*').order('fecha'),
     consultarProveedores(supabase),
     consultarCatalogo(supabase),
     supabase.from('compras_stock_actual').select('item_id, cantidad'),
@@ -56,7 +54,6 @@ export default async function PedidosPage({
     <PedidosClient
       pedidos={pedidos ?? []}
       lineas={lineas ?? []}
-      eventos={eventos ?? []}
       proveedores={proveedores ?? []}
       itemsCatalogo={itemsCatalogo ?? []}
       stock={stock ?? []}

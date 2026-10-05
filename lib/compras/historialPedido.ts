@@ -339,12 +339,27 @@ function cerrarGrupo(grupo: EventoLeido[]): EntradaHistorial | null {
 }
 
 /**
+ * Editar los ítems borra el mensaje, así que la base registra la siguiente
+ * generación como 'generado'. Si el pedido ya tuvo un mensaje antes, para quien
+ * lee es "Regeneró".
+ */
+function marcarRegenerados(eventos: EventoLeido[]): EventoLeido[] {
+  let huboMensaje = false
+  return eventos.map(e => {
+    if (e.tipo !== 'mensaje') return e
+    const regenerado = huboMensaje && e.d?.accion === 'generado'
+    huboMensaje = true
+    return regenerado ? ({ ...e, d: { accion: 'regenerado' } } as EventoLeido) : e
+  })
+}
+
+/**
  * Ordena y agrupa: las ediciones (ítems, proveedor, local, mensaje) seguidas de
  * la misma persona dentro de los 5 minutos del primero van en una entrada.
  * Cualquier otro evento en el medio corta el grupo.
  */
 export function agruparEventos(crudos: EventoCrudo[]): EntradaHistorial[] {
-  const eventos = ordenarEventos(crudos.map(leerEvento))
+  const eventos = marcarRegenerados(ordenarEventos(crudos.map(leerEvento)))
   const entradas: EntradaHistorial[] = []
   let grupo: EventoLeido[] = []
 

@@ -53,7 +53,17 @@ const malo = leerEvento(ev('items_editados', 0, { cambiados: 'no' }))
 // 15: creado y enviado en el mismo instante, enviado primero en la lista
 const g15 = agruparEventos([ev('enviado', 0, {}), ev('creado', 0, { origen: 'manual' })])
 
+// Generó → editó (borra el mensaje) → generó otra vez: la segunda se lee "Regeneró".
+const gRegen = agruparEventos([
+  ev('mensaje', 0, { accion: 'generado' }),
+  ev('enviado', 1, { mensaje: 'hola' }),
+  ev('items_editados', 10, queso(40, 45)),
+  ev('mensaje', 11, { accion: 'generado' }),
+])
+
 const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
+  { nombre: 'primer mensaje: Generó', real: gRegen[0]?.etiqueta, esperado: 'Generó el mensaje' },
+  { nombre: 'generado después de otro mensaje: Regeneró', real: gRegen[2]?.eventos.map(e => etiquetaEvento(e)).join(','), esperado: 'Editó ítems,Regeneró el mensaje' },
   { nombre: '1 cantidad con unidad', real: partesDiff(queso(40, 45))[0].texto, esperado: 'Queso 40 → 45 kg' },
   { nombre: '2a unidad null → kg', real: partesDiff({ cambiados: [cambio('l1', 'Queso', 40, 40, 'kg', null)] })[0].texto, esperado: 'Queso 40 → 40 kg' },
   { nombre: '2b unidad kg → Caja', real: partesDiff({ cambiados: [cambio('l1', 'Queso', 40, 40, 'Caja', 'kg')] })[0].texto, esperado: 'Queso 40 kg → 40 Caja' },

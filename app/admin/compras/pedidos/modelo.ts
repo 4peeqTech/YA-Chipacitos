@@ -4,7 +4,7 @@ import {
   type EstadoFacturacion, type EstadoPedidoEntrada, type EstadoRecepcion, type EstadoVisible, type FiltroPedidos,
 } from '@/lib/compras/estadoPedido'
 import { armarDiferencias, recepcionCompleta, type DiferenciaFila, type DiferenciaVista } from '@/lib/compras/diferencias'
-import type { EventoPedido, FacturaDePedido, LineaPendiente, PedidoFila } from './datos'
+import type { FacturaDePedido, LineaPendiente, PedidoFila } from './datos'
 
 export type Origen = 'Pedido base' | 'Complementario' | 'Manual'
 
@@ -15,7 +15,6 @@ export interface PedidoVista {
   creado: string
   proveedor: string
   lineas: LineaPendiente[]
-  eventos: EventoPedido[]
   entrada: EstadoPedidoEntrada
   visible: EstadoVisible
   filtro: FiltroPedidos | null
@@ -52,7 +51,6 @@ function origenDe(fila: PedidoFila): Origen {
 export function armarVistas(
   pedidos: PedidoFila[],
   lineas: LineaPendiente[],
-  eventos: EventoPedido[],
   facturas: FacturaDePedido[] = [],
   puedeFacturar = false,
   ahora: Date = new Date(),
@@ -69,13 +67,6 @@ export function armarVistas(
     const lista = lineasPorPedido.get(l.pedido_id) ?? []
     lista.push(l)
     lineasPorPedido.set(l.pedido_id, lista)
-  }
-  const eventosPorPedido = new Map<string, EventoPedido[]>()
-  for (const e of eventos) {
-    if (!e.pedido_id) continue
-    const lista = eventosPorPedido.get(e.pedido_id) ?? []
-    lista.push(e)
-    eventosPorPedido.set(e.pedido_id, lista)
   }
 
   return pedidos.map(fila => {
@@ -103,7 +94,6 @@ export function armarVistas(
       creado: fila.created_at ?? '',
       proveedor: fila.proveedores?.nombre ?? '—',
       lineas: propias,
-      eventos: eventosPorPedido.get(fila.id) ?? [],
       entrada,
       visible,
       filtro: filtroDelPedido({ ...entrada, recibioAlgo }),

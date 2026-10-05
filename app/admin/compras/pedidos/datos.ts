@@ -12,7 +12,7 @@ export function consultarPedidos(supabase: Cliente) {
     .from('compras_pedidos')
     .select(`
       id, numero, proveedor_id, local_facturacion_id, estado_recepcion, estado_facturacion,
-      mensaje, created_at, enviado_en, cierre_motivo, solicitud_id,
+      mensaje, created_at, enviado_en, cierre_motivo, solicitud_id, actualizado_en,
       proveedores(id, nombre, local_facturacion_id, contacto_nombre, contacto_telefono, maneja_stock),
       compras_solicitudes(tipo),
       compras_pedido_items(id, item_id, descripcion, unidad, cantidad, orden),
