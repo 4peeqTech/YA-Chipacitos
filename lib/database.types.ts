@@ -216,6 +216,7 @@ export type Database = {
         Row: {
           alicuota_iva: number
           cantidad: number
+          cantidad_base: number | null
           descripcion: string
           factura_id: string
           id: string
@@ -223,6 +224,7 @@ export type Database = {
           iva: number | null
           orden: number
           pedido_item_id: string | null
+          precio_por: string
           precio_unitario: number
           subtotal: number | null
           unidad: string | null
@@ -230,6 +232,7 @@ export type Database = {
         Insert: {
           alicuota_iva?: number
           cantidad: number
+          cantidad_base?: number | null
           descripcion: string
           factura_id: string
           id?: string
@@ -237,6 +240,7 @@ export type Database = {
           iva?: number | null
           orden?: number
           pedido_item_id?: string | null
+          precio_por?: string
           precio_unitario?: number
           subtotal?: number | null
           unidad?: string | null
@@ -244,6 +248,7 @@ export type Database = {
         Update: {
           alicuota_iva?: number
           cantidad?: number
+          cantidad_base?: number | null
           descripcion?: string
           factura_id?: string
           id?: string
@@ -251,6 +256,7 @@ export type Database = {
           iva?: number | null
           orden?: number
           pedido_item_id?: string | null
+          precio_por?: string
           precio_unitario?: number
           subtotal?: number | null
           unidad?: string | null
@@ -472,6 +478,7 @@ export type Database = {
       compras_item_proveedores: {
         Row: {
           activo: boolean
+          cobra_por: string
           codigo_proveedor: string | null
           created_at: string
           es_principal: boolean
@@ -482,6 +489,7 @@ export type Database = {
         }
         Insert: {
           activo?: boolean
+          cobra_por?: string
           codigo_proveedor?: string | null
           created_at?: string
           es_principal?: boolean
@@ -492,6 +500,7 @@ export type Database = {
         }
         Update: {
           activo?: boolean
+          cobra_por?: string
           codigo_proveedor?: string | null
           created_at?: string
           es_principal?: boolean
@@ -538,6 +547,7 @@ export type Database = {
           cantidad_por_masa: number
           cantidad_por_unidad: number
           categoria_id: string | null
+          cobra_por_default: string
           created_at: string | null
           estado: string
           id: string
@@ -547,6 +557,7 @@ export type Database = {
           stock_maximo: number | null
           stock_minimo: number
           unidad: string | null
+          unidad_base: string
         }
         Insert: {
           a_demanda?: boolean
@@ -554,6 +565,7 @@ export type Database = {
           cantidad_por_masa?: number
           cantidad_por_unidad?: number
           categoria_id?: string | null
+          cobra_por_default?: string
           created_at?: string | null
           estado?: string
           id?: string
@@ -563,6 +575,7 @@ export type Database = {
           stock_maximo?: number | null
           stock_minimo?: number
           unidad?: string | null
+          unidad_base?: string
         }
         Update: {
           a_demanda?: boolean
@@ -570,6 +583,7 @@ export type Database = {
           cantidad_por_masa?: number
           cantidad_por_unidad?: number
           categoria_id?: string | null
+          cobra_por_default?: string
           created_at?: string | null
           estado?: string
           id?: string
@@ -579,6 +593,7 @@ export type Database = {
           stock_maximo?: number | null
           stock_minimo?: number
           unidad?: string | null
+          unidad_base?: string
         }
         Relationships: [
           {
@@ -1066,6 +1081,7 @@ export type Database = {
       compras_remito_items: {
         Row: {
           cantidad: number
+          cantidad_base: number | null
           descripcion: string
           id: string
           item_id: string | null
@@ -1075,6 +1091,7 @@ export type Database = {
         }
         Insert: {
           cantidad?: number
+          cantidad_base?: number | null
           descripcion: string
           id?: string
           item_id?: string | null
@@ -1084,6 +1101,7 @@ export type Database = {
         }
         Update: {
           cantidad?: number
+          cantidad_base?: number | null
           descripcion?: string
           id?: string
           item_id?: string | null
@@ -3993,19 +4011,25 @@ export type Database = {
           cantidad_facturada: number | null
           cantidad_recibida: number | null
           clave: string | null
+          contenido: number | null
           descripcion: string | null
           diferencia: number | null
           factura_id: string | null
+          facturada_base: number | null
+          facturada_base_real: boolean | null
           id: string | null
           item_id: string | null
           movimiento_id: string | null
           nota: string | null
           pedido_id: string | null
           pedido_item_id: string | null
+          recibida_base: number | null
+          recibida_base_real: boolean | null
           resolucion: string | null
           resuelto_en: string | null
           resuelto_por_nombre: string | null
           unidad: string | null
+          unidad_base: string | null
         }
         Relationships: [
           {
@@ -4153,6 +4177,8 @@ export type Database = {
       }
       v_compras_insumos_resumen: {
         Row: {
+          cobra_por_principal: string | null
+          contenido: number | null
           conteos: number | null
           facturas: number | null
           item_id: string | null
@@ -4168,8 +4194,10 @@ export type Database = {
           ultimo_precio: number | null
           ultimo_precio_factura_id: string | null
           ultimo_precio_fecha: string | null
+          ultimo_precio_por: string | null
           ultimo_precio_proveedor_id: string | null
           ultimo_precio_unidad: string | null
+          unidad_base: string | null
         }
         Relationships: [
           {
@@ -4229,6 +4257,8 @@ export type Database = {
       v_compras_pedido_pendiente: {
         Row: {
           cantidad: number | null
+          cobra_por: string | null
+          contenido: number | null
           descripcion: string | null
           excedente: number | null
           item_id: string | null
@@ -4237,8 +4267,11 @@ export type Database = {
           pedido_item_id: string | null
           pendiente: number | null
           recibido: number | null
+          recibido_base: number | null
+          recibido_base_completo: boolean | null
           remitos: number | null
           unidad: string | null
+          unidad_base: string | null
         }
         Relationships: [
           {
@@ -4556,6 +4589,10 @@ export type Database = {
       }
     }
     Functions: {
+      _compras_cobra_por: {
+        Args: { p_item: string; p_prov: string }
+        Returns: string
+      }
       _compras_item_hist: {
         Args: {
           p_ant: string
@@ -4627,15 +4664,25 @@ export type Database = {
         Args: { p_factura_id: string }
         Returns: {
           clave: string
+          contenido: number
           descripcion: string
           facturada: number
+          facturada_base: number
+          facturada_base_real: boolean
           item_id: string
           pedido_item_id: string
           recibida: number
+          recibida_base: number
+          recibida_base_real: boolean
           unidad: string
+          unidad_base: string
         }[]
       }
       compras_diff_lineas: {
+        Args: { p_antes: Json; p_despues: Json }
+        Returns: Json
+      }
+      compras_diff_lineas_remito: {
         Args: { p_antes: Json; p_despues: Json }
         Returns: Json
       }
@@ -4692,6 +4739,10 @@ export type Database = {
       }
       compras_lineas_pedido_snapshot: {
         Args: { p_pedido_id: string }
+        Returns: Json
+      }
+      compras_lineas_remito_snapshot: {
+        Args: { p_remito_id: string }
         Returns: Json
       }
       compras_marcar_pedido_enviado: {
