@@ -175,12 +175,15 @@ export default function PedidosClient({
 
   const alCambiarEditor = useCallback((hay: boolean) => setEditorConCambios(hay), [])
 
-  function alGuardar(r: { id: string; numero: number; nuevo: boolean; yaEnviado: boolean }) {
+  function alGuardar(r: { id: string; numero: number; cambios: boolean; nuevo: boolean; yaEnviado: boolean }) {
     setEditorConCambios(false)
     setCreando(false)
     setAbiertoId(r.id)
     if (r.nuevo) {
       toast.success(`Pedido ${codigoPedido(r.numero)} creado`)
+      setVista('detalle')
+    } else if (!r.cambios) {
+      toast.success('Sin cambios')
       setVista('detalle')
     } else if (r.yaEnviado) {
       toast.success('Cambios guardados')

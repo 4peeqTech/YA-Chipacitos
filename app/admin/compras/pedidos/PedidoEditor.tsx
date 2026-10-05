@@ -58,7 +58,7 @@ export default function PedidoEditor({
   stockPorItem: Record<string, number>
   /** Pedidos activos, para avisar si ya hay uno con el mismo proveedor (P4). */
   pedidosAbiertos: PedidoVista[]
-  onGuardado: (r: { id: string; numero: number; nuevo: boolean; yaEnviado: boolean }) => void
+  onGuardado: (r: { id: string; numero: number; cambios: boolean; nuevo: boolean; yaEnviado: boolean }) => void
   onCancelar: () => void
   onCambios: (hay: boolean) => void
   onVerPedido: (id: string) => void
@@ -167,7 +167,8 @@ export default function PedidoEditor({
       onGuardado({
         ...r.data,
         nuevo: !pedido,
-        yaEnviado: !!pedido && pedido.entrada.estado_recepcion !== 'sin_enviar',
+        // Sin cambios el mensaje se conserva: no hace falta reenviar.
+        yaEnviado: !!pedido && pedido.entrada.estado_recepcion !== 'sin_enviar' && r.data.cambios,
       })
     })
   }

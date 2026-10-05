@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Check, Copy, Info, Loader2, MessageCircle, RefreshCw, Send, TriangleAlert } from 'lucide-react'
+import { Check, Copy, Info, Loader2, MessageCircle, RefreshCw, Repeat, Send, TriangleAlert } from 'lucide-react'
 import { Field, controlClass } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/ProveedorUI'
 import { construirMensajePedido, linkWhatsApp, renderPlantilla } from '@/lib/compras/pedidoMensaje'
-import { guardarMensaje, marcarPedidoEnviado } from './acciones'
+import { guardarMensaje, marcarPedidoEnviado, marcarPedidoReenviado } from './acciones'
 import type { PedidoVista } from './modelo'
 import type { LocalFacturacion, Plantilla } from './datos'
 
@@ -27,13 +27,15 @@ export default function PedidoEnvio({
   const [isPending, startTransition] = useTransition()
   const { fila } = pedido
   const sinEnviar = pedido.entrada.estado_recepcion === 'sin_enviar'
+  // La RPC igual lo bloquea: el local de un pedido facturado no se cambia.
+  const facturado = pedido.entrada.estado_facturacion === 'facturado'
   const [plantillaId, setPlantillaId] = useState(plantillas.find(p => p.es_default)?.id ?? plantillas[0]?.id ?? '')
   const [localId, setLocalId] = useState(fila.local_facturacion_id ?? fila.proveedores?.local_facturacion_id ?? '')
   // Si se editó un pedido enviado, el mensaje guardado quedó viejo hasta regenerarlo.
   const [mensajeDesactualizado, setMensajeDesactualizado] = useState(avisoReenvio)
   const [compartido, setCompartido] = useState(false)
   const [copiado, setCopiado] = useState(false)
-  const [accion, setAccion] = useState<'generar' | 'enviar' | null>(null)
+  const [accion, setAccion] = useState<'generar' | 'enviar' | 'reenviar' | null>(null)
 
   const items = [...fila.compras_pedido_items].sort((a, b) => a.orden - b.orden)
 
@@ -54,7 +56,8 @@ export default function PedidoEnvio({
     startTransition(async () => {
       const r = await guardarMensaje({ pedidoId: fila.id, mensaje, localFacturacionId: localId || null })
       setAccion(null)
-      if (!r.ok) { toast.error(r.error); return }
+      // Si la RPC rechazó el cambio de local, el select vuelve al del pedido.
+      if (!r.ok) { toast.error(r.error); setLocalId(fila.local_facturacion_id ?? ''); return }
       setMensajeDesactualizado(false)
       setCompartido(false)
       setCopiado(false)
@@ -90,6 +93,17 @@ export default function PedidoEnvio({
     })
   }
 
+  function marcarReenviado() {
+    setAccion('reenviar')
+    startTransition(async () => {
+      const r = await marcarPedidoReenviado({ pedidoId: fila.id })
+      setAccion(null)
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success(`${pedido.codigo} reenviado`)
+      onListo(false)
+    })
+  }
+
   const hayMensaje = !!fila.mensaje
 
   return (
@@ -117,8 +131,14 @@ export default function PedidoEnvio({
             {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.es_default ? ' (predeterminada)' : ''}</option>)}
           </select>
         </Field>
-        <Field label="Facturar a">
-          <select aria-label="Facturar a" value={localId} onChange={e => setLocalId(e.target.value)} className={`${controlClass} min-h-11`}>
+        <Field label="Facturar a" ayuda={facturado ? 'El pedido ya está facturado: el local no se cambia.' : undefined}>
+          <select
+            aria-label="Facturar a"
+            value={localId}
+            onChange={e => setLocalId(e.target.value)}
+            disabled={facturado}
+            className={`${controlClass} min-h-11`}
+          >
             <option value="">Sin asignar</option>
             {localesFacturacion.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
           </select>
@@ -180,18 +200,31 @@ export default function PedidoEnvio({
               {accion === 'enviar' ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Marcar como enviado
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => onListo(false)}
-              className="presionable min-h-11 w-full rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90"
-            >
-              Listo
-            </button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => onListo(false)}
+                disabled={isPending}
+                className="presionable min-h-11 w-full rounded-xl px-4 text-sm font-medium text-muted hover:text-text hover:bg-surface2 disabled:opacity-50 sm:w-auto"
+              >
+                Cerrar sin reenviar
+              </button>
+              <button
+                type="button"
+                onClick={marcarReenviado}
+                disabled={!compartido || isPending}
+                className="presionable min-h-11 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50 sm:w-auto"
+              >
+                {accion === 'reenviar' ? <Loader2 size={16} className="animate-spin" /> : <Repeat size={16} />} Marcar como reenviado
+              </button>
+            </div>
           )}
         </div>
       </div>
-      {sinEnviar && !compartido && hayMensaje && (
-        <p className="text-xs text-muted">Copiá el mensaje o mandalo por WhatsApp para poder marcarlo como enviado.</p>
+      {!compartido && hayMensaje && !mensajeDesactualizado && (
+        <p className="text-xs text-muted">
+          Copiá el mensaje o mandalo por WhatsApp para poder marcarlo como {sinEnviar ? 'enviado' : 'reenviado'}.
+        </p>
       )}
     </div>
   )

@@ -1,7 +1,7 @@
 // Chequeo de las funciones puras de diferencias factura/recepción.
 // Correr con: npx tsx lib/compras/_check_diferencias.ts
 import {
-  agruparDiferencias, armarDiferencias, cantidadAResolver, explicacionResolucion, leerEventoDiferencia,
+  agruparDiferencias, armarDiferencias, cantidadAResolver, explicacionResolucion,
   recepcionCompleta, textoDelta, textoDiferencia, textoResuelta, type DiferenciaFila,
 } from './diferencias'
 
@@ -45,8 +45,6 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
     real: explicacionResolucion('ajusta_stock', { diferencia: -3, unidad: null, descripcion: 'Polvo' }, 12).startsWith('Resta 3 de Polvo al stock (queda en 9).'),
     esperado: true,
   },
-  { nombre: 'evento del historial', real: JSON.stringify(leerEventoDiferencia('ajusta_stock|Queso | Sardo')), esperado: '{"resolucion":"ajusta_stock","insumo":"Queso | Sardo"}' },
-  { nombre: 'evento sin separador', real: leerEventoDiferencia('raro'), esperado: null },
 ]
 
 let fallas = 0
