@@ -165,6 +165,13 @@ export type Database = {
             foreignKeyName: "compras_factura_discrepancias_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
             referencedRelation: "v_compras_items"
             referencedColumns: ["id"]
           },
@@ -276,6 +283,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "compras_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
           },
           {
             foreignKeyName: "compras_factura_items_item_id_fkey"
@@ -498,6 +512,13 @@ export type Database = {
             foreignKeyName: "compras_item_proveedores_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "compras_item_proveedores_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
             referencedRelation: "v_compras_items"
             referencedColumns: ["id"]
           },
@@ -565,6 +586,81 @@ export type Database = {
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "compras_categorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compras_items_historial: {
+        Row: {
+          campo: string
+          creado_en: string
+          creado_por: string | null
+          id: string
+          item_id: string
+          lote: string
+          origen: string
+          proveedor_id: string | null
+          valor_anterior: string | null
+          valor_nuevo: string | null
+        }
+        Insert: {
+          campo: string
+          creado_en?: string
+          creado_por?: string | null
+          id?: string
+          item_id: string
+          lote: string
+          origen?: string
+          proveedor_id?: string | null
+          valor_anterior?: string | null
+          valor_nuevo?: string | null
+        }
+        Update: {
+          campo?: string
+          creado_en?: string
+          creado_por?: string | null
+          id?: string
+          item_id?: string
+          lote?: string
+          origen?: string
+          proveedor_id?: string | null
+          valor_anterior?: string | null
+          valor_nuevo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_items_historial_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_items_historial_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_items_historial_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "compras_items_historial_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_items_historial_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
             referencedColumns: ["id"]
           },
         ]
@@ -649,6 +745,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "compras_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_pedido_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
           },
           {
             foreignKeyName: "compras_pedido_items_item_id_fkey"
@@ -905,6 +1008,13 @@ export type Database = {
             foreignKeyName: "compras_plantilla_base_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "compras_plantilla_base_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
             referencedRelation: "v_compras_items"
             referencedColumns: ["id"]
           },
@@ -985,6 +1095,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "compras_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_remito_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
           },
           {
             foreignKeyName: "compras_remito_items_item_id_fkey"
@@ -1146,6 +1263,13 @@ export type Database = {
             foreignKeyName: "compras_solicitud_items_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "compras_solicitud_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
             referencedRelation: "v_compras_items"
             referencedColumns: ["id"]
           },
@@ -1267,6 +1391,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "compras_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_actual_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: true
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
           },
           {
             foreignKeyName: "compras_stock_actual_item_id_fkey"
@@ -1410,6 +1541,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "compras_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
           },
           {
             foreignKeyName: "compras_stock_movimientos_item_id_fkey"
@@ -1559,6 +1697,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "compras_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_definicion_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
           },
           {
             foreignKeyName: "fabrica_conteo_definicion_items_item_id_fkey"
@@ -1745,6 +1890,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "compras_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
           },
           {
             foreignKeyName: "fabrica_conteo_items_item_id_fkey"
@@ -3885,6 +4037,13 @@ export type Database = {
             foreignKeyName: "compras_factura_discrepancias_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
             referencedRelation: "v_compras_items"
             referencedColumns: ["id"]
           },
@@ -3989,6 +4148,36 @@ export type Database = {
           },
         ]
       }
+      v_compras_insumos_resumen: {
+        Row: {
+          conteos: number | null
+          facturas: number | null
+          item_id: string | null
+          movimientos: number | null
+          pedidos: number | null
+          pedidos_abiertos: Json | null
+          precio_ref_principal: number | null
+          proveedor_principal_id: string | null
+          puede_eliminar: boolean | null
+          remitos: number | null
+          solicitudes: number | null
+          stock: number | null
+          ultimo_precio: number | null
+          ultimo_precio_factura_id: string | null
+          ultimo_precio_fecha: string | null
+          ultimo_precio_proveedor_id: string | null
+          ultimo_precio_unidad: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_item_proveedores_proveedor_id_fkey"
+            columns: ["proveedor_principal_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_compras_items: {
         Row: {
           cantidad_por_masa: number | null
@@ -4060,6 +4249,13 @@ export type Database = {
             foreignKeyName: "compras_pedido_items_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "compras_pedido_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
             referencedRelation: "v_compras_items"
             referencedColumns: ["id"]
           },
@@ -4110,6 +4306,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "compras_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_actual_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: true
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
           },
           {
             foreignKeyName: "compras_stock_actual_item_id_fkey"
@@ -4180,6 +4383,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "compras_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
           },
           {
             foreignKeyName: "compras_stock_movimientos_item_id_fkey"
@@ -4270,6 +4480,13 @@ export type Database = {
             foreignKeyName: "fabrica_conteo_items_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "fabrica_conteo_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
             referencedRelation: "v_compras_items"
             referencedColumns: ["id"]
           },
@@ -4336,6 +4553,22 @@ export type Database = {
       }
     }
     Functions: {
+      _compras_item_hist: {
+        Args: {
+          p_ant: string
+          p_campo: string
+          p_item: string
+          p_lote: string
+          p_nue: string
+          p_prov: string
+        }
+        Returns: undefined
+      }
+      _compras_num_txt: { Args: { p: number }; Returns: string }
+      _compras_par_tiene_historia: {
+        Args: { p_item: string; p_prov: string }
+        Returns: boolean
+      }
       ajustar_stock_terminado_manual: {
         Args: { p_delta_kg: number; p_producto_id: string }
         Returns: undefined
@@ -4351,6 +4584,10 @@ export type Database = {
       }
       compras_anular_factura: {
         Args: { p_factura_id?: string; p_motivo?: string }
+        Returns: Json
+      }
+      compras_archivar_insumo: {
+        Args: { p_archivar?: boolean; p_item_id?: string }
         Returns: Json
       }
       compras_buscar_gasto_candidato: {
@@ -4399,6 +4636,7 @@ export type Database = {
         Args: { p_antes: Json; p_despues: Json }
         Returns: Json
       }
+      compras_eliminar_insumo: { Args: { p_item_id?: string }; Returns: Json }
       compras_eliminar_pedido: {
         Args: { p_motivo?: string; p_pedido_id?: string }
         Returns: undefined
@@ -4416,6 +4654,10 @@ export type Database = {
           p_total_papel?: number
           p_vencimiento?: string
         }
+        Returns: Json
+      }
+      compras_guardar_insumo: {
+        Args: { p_datos?: Json; p_item_id?: string; p_proveedores?: Json }
         Returns: Json
       }
       compras_guardar_mensaje_pedido: {
@@ -4661,6 +4903,7 @@ export type Database = {
       }
       tiene_acceso_compras: { Args: never; Returns: boolean }
       tiene_acceso_fabrica: { Args: never; Returns: boolean }
+      tiene_lectura_conteos: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

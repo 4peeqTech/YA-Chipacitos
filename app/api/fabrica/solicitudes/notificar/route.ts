@@ -4,11 +4,8 @@ import { enviarPush } from '@/lib/push/sendPush'
 import { NextRequest, NextResponse } from 'next/server'
 import { formatearNumero } from '@/lib/formato'
 import { rutaDe } from '@/lib/compras/rutas'
-
-// Los módulos de Compras vigentes (lib/modulos.tsx). tiene_acceso_compras()
-// suma fabrica-conteos para lectura, pero ese módulo no abre las pantallas de
-// Compras a las que llevan estos avisos: queda afuera a propósito.
-const MODULOS_COMPRAS = ['compras-insumos', 'compras-stock', 'compras-pedidos', 'compras-reportes']
+// Replica tiene_acceso_compras() (sin fabrica-conteos desde A2a).
+import { MODULOS_COMPRAS } from '@/lib/modulos'
 
 function getAdminClient() {
   return createAdminClient(

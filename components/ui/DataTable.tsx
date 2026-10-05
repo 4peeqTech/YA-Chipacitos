@@ -16,7 +16,7 @@ export interface Columna<T> {
    * tablas. Ojo con el ancho real: dentro de /admin el sidebar se come 240px, así
    * que una tabla de muchas columnas necesita 'xl' para no desbordar.
    */
-  ocultarHasta?: 'sm' | 'md' | 'lg' | 'xl'
+  ocultarHasta?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   className?: string
 }
 
@@ -25,6 +25,7 @@ const OCULTAR_CLASS: Record<NonNullable<Columna<unknown>['ocultarHasta']>, strin
   md: 'hidden md:table-cell',
   lg: 'hidden lg:table-cell',
   xl: 'hidden xl:table-cell',
+  '2xl': 'hidden 2xl:table-cell',
 }
 
 const ALINEAR_CLASS: Record<NonNullable<Columna<unknown>['alinear']>, string> = {
@@ -41,12 +42,15 @@ export default function DataTable<T>({
   onFilaClick,
   vacio = 'No hay datos para mostrar.',
   filaKey,
+  filaClassName,
 }: {
   filas: T[]
   columnas: Columna<T>[]
   onFilaClick?: (fila: T) => void
   vacio?: ReactNode
   filaKey: (fila: T) => string
+  /** Clases extra por fila (ej. opacity-60 para una fila archivada). */
+  filaClassName?: (fila: T) => string
 }) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<1 | -1>(1)
@@ -73,7 +77,7 @@ export default function DataTable<T>({
   if (filas.length === 0) {
     return (
       <div className="rounded-2xl border border-border overflow-hidden">
-        <p className="p-8 text-center text-sm text-muted">{vacio}</p>
+        <div className="p-8 text-center text-sm text-muted">{vacio}</div>
       </div>
     )
   }
@@ -108,7 +112,7 @@ export default function DataTable<T>({
                 if (e.target !== e.currentTarget) return
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFilaClick(fila) }
               } : undefined}
-              className={onFilaClick ? 'hover:bg-surface2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:bg-surface2 focus-visible:shadow-[inset_3px_0_0_var(--color-accent)]' : ''}
+              className={`${onFilaClick ? 'hover:bg-surface2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:bg-surface2 focus-visible:shadow-[inset_3px_0_0_var(--color-accent)]' : ''} ${filaClassName?.(fila) ?? ''}`}
             >
               {columnas.map(c => (
                 <td key={c.key} className={`px-4 py-3 text-text ${ALINEAR_CLASS[c.alinear ?? 'left']} ${c.ocultarHasta ? OCULTAR_CLASS[c.ocultarHasta] : ''} ${c.className ?? ''}`}>

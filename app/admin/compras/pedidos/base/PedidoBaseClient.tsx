@@ -81,12 +81,15 @@ const emptyForm = (): Partial<PlantillaLinea> => ({
 
 function FilaPlantilla({
   linea,
+  archivado,
   nombreProveedor,
   onToggleActivo,
   onEditar,
   onEliminar,
 }: {
   linea: PlantillaLinea
+  /** A2a: el insumo está archivado, así que generar_solicitud_base() saltea la línea. */
+  archivado: boolean
   nombreProveedor: (id: string) => string
   onToggleActivo: (l: PlantillaLinea) => void
   onEditar: (l: PlantillaLinea) => void
@@ -117,7 +120,16 @@ function FilaPlantilla({
           <GripVertical size={15} />
         </button>
       </td>
-      <td className="px-4 py-3 text-[#f0f0f0] font-medium">{linea.descripcion}</td>
+      <td className="px-4 py-3 text-[#f0f0f0] font-medium">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {linea.descripcion}
+          {archivado && (
+            <span className="rounded-full bg-surface2 px-2 py-0.5 text-2xs font-semibold text-muted" title="Queda en la plantilla: si reactivás el insumo, vuelve a entrar.">
+              Insumo archivado · no entra al pedido base
+            </span>
+          )}
+        </span>
+      </td>
       <td className="px-4 py-3 text-[#888]">{nombreProveedor(linea.proveedor_id)}</td>
       <td className="px-4 py-3 text-[#888]">{linea.cantidad} {linea.unidad}</td>
       <td className="px-4 py-3">
@@ -162,12 +174,15 @@ export default function PedidoBaseClient({
   itemsCatalogo,
   sugerencias,
   ultimaBase,
+  itemsArchivados,
 }: {
   plantillaInicial: PlantillaLinea[]
   proveedores: ProveedorOption[]
   itemsCatalogo: CatalogoItem[]
   sugerencias: SugerenciaSobrestock[]
   ultimaBase: UltimaBase | null
+  /** Ids de insumos archivados que siguen en la plantilla (A2a). */
+  itemsArchivados: string[]
 }) {
   const supabase = createClient()
   const toast = useToasts()
@@ -377,6 +392,7 @@ export default function PedidoBaseClient({
                       <FilaPlantilla
                         key={l.id}
                         linea={l}
+                        archivado={!!l.item_id && itemsArchivados.includes(l.item_id)}
                         nombreProveedor={nombreProveedor}
                         onToggleActivo={toggleActivo}
                         onEditar={abrirEditar}

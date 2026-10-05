@@ -24,6 +24,8 @@ export interface InsumoStock {
   nombre: string
   unidad: string | null
   stock_minimo: number
+  /** A2a: los archivados se listan solo si tienen stock ≠ 0; la ficha abre igual por ?insumo=. */
+  estado: string
 }
 
 export interface StockActual {
@@ -78,7 +80,7 @@ export default function StockClient({
       return {
         item,
         cantidad,
-        bajo: cantidad < item.stock_minimo,
+        bajo: item.estado === 'activo' && cantidad < item.stock_minimo,
         actualizadoEn: s?.actualizado_en ?? null,
         actualizadoPor: s?.actualizado_por_nombre ?? null,
       }
@@ -90,6 +92,7 @@ export default function StockClient({
   const filtradas = useMemo(() => {
     const texto = busqueda.trim().toLowerCase()
     return filas
+      .filter(f => f.item.estado === 'activo' || f.cantidad !== 0)
       .filter(f => !texto || f.item.nombre.toLowerCase().includes(texto))
       .filter(f => !soloBajo || f.bajo)
   }, [filas, busqueda, soloBajo])
@@ -122,7 +125,19 @@ export default function StockClient({
   }
 
   const columnas: Columna<FilaStock>[] = [
-    { key: 'insumo', header: 'Insumo', render: f => <span className="font-medium">{f.item.nombre}</span>, ordenar: f => f.item.nombre },
+    {
+      key: 'insumo',
+      header: 'Insumo',
+      render: f => (
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-medium">{f.item.nombre}</span>
+          {f.item.estado === 'archivado' && (
+            <span className="rounded-full bg-surface2 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-muted">Archivado</span>
+          )}
+        </span>
+      ),
+      ordenar: f => f.item.nombre,
+    },
     {
       key: 'stock',
       header: 'Stock',

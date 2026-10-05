@@ -106,12 +106,15 @@ export default function DiferenciasConteo({
   conteoId,
   descartado,
   umbralPct,
+  puedeResolver,
   onNavegar,
   onAbrirConteo,
 }: {
   conteoId: string
   descartado: boolean
   umbralPct: number
+  /** A2a §8: con solo el módulo Conteos (sin Compras) se ven, pero no se aplican. */
+  puedeResolver: boolean
   /** Se llama antes de navegar a otra pantalla (cierra el modal). */
   onNavegar: () => void
   /** Abre otro conteo en el mismo modal (diferencia superada). */
@@ -320,7 +323,7 @@ export default function DiferenciasConteo({
   }
 
   function acciones(f: Fila): ReactNode {
-    if (descartado) return null
+    if (descartado || !puedeResolver) return null
     const ocupado = isPending
     const spinner = (id: string) => enCurso === id && <Loader2 size={13} className="animate-spin" />
     if (f.estado === 'pendiente') {
@@ -416,7 +419,11 @@ export default function DiferenciasConteo({
         aplicala. Si Fábrica contó mal, ignorala.
       </p>
 
-      {!descartado && (
+      {!descartado && !puedeResolver && (
+        <p className="rounded-xl border border-border bg-surface2 px-4 py-2.5 text-sm text-muted">Las diferencias las aplica Compras.</p>
+      )}
+
+      {!descartado && puedeResolver && (
         <div className="flex justify-end">
           <button
             type="button"

@@ -1,43 +1,49 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Archive, ArchiveRestore, Pencil, Plus, Search, Star, Trash2, TriangleAlert } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { Package, Plus, TriangleAlert } from 'lucide-react'
 import { esPorMasaSinReceta, type ModoCalculo, type Redondeo } from '@/lib/fabrica/calculoSugerido'
 import { REDONDEO_LABEL } from '@/lib/estados'
-import { ALICUOTA_DEFAULT, ALICUOTAS, etiquetaAlicuota } from '@/lib/compras/totalesFactura'
-import Modal from '@/components/ui/Modal'
-import HelpTooltip from '@/components/ui/HelpTooltip'
-import InputNumero from '@/components/ui/InputNumero'
-import SelectBuscador from '@/components/ui/SelectBuscador'
+import { formatearFecha, formatearMoneda, formatearNumero } from '@/lib/formato'
+import { codigoPedido } from '@/lib/compras/codigos'
+import PageHeader from '@/components/ui/PageHeader'
+import DataTable, { type Columna } from '@/components/ui/DataTable'
+import EmptyState from '@/components/ui/EmptyState'
+import SearchInput from '@/components/ui/SearchInput'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
-import { useToasts, ToastStack } from '@/components/ui/Toast'
-import { mensajeError } from '@/lib/errores'
+import { Chip, SegmentedControl } from '@/components/ui/Chip'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 import LinkEntidad from '@/components/ui/LinkEntidad'
+import InsumoModal from './InsumoModal'
 
-interface ProveedorOption {
+export interface ProveedorOption {
+  id: string
+  nombre: string
+  /** false = archivado: sirve para mostrar el nombre de un par viejo, no se ofrece. */
+  activo: boolean
+}
+
+export interface CategoriaOption {
   id: string
   nombre: string
 }
 
-interface CategoriaOption {
-  id: string
-  nombre: string
-}
-
-interface ItemProveedor {
+export interface ItemProveedor {
   proveedor_id: string
   es_principal: boolean
+  /** false = "Proveedores anteriores": quedó desactivado porque tenía historia (E4). */
+  activo: boolean
   precio_ref: number | null
   codigo_proveedor: string | null
+  created_at: string | null
 }
 
-interface CompraItem {
+export interface CompraItem {
   id: string
   categoria_id: string | null
   nombre: string
-  unidad: string
+  unidad: string | null
   stock_minimo: number
   cantidad_por_unidad: number
   cantidad_por_masa: number
@@ -48,56 +54,74 @@ interface CompraItem {
   a_demanda: boolean
   /** IVA con el que suele venir en la factura del proveedor. Se copia a la línea y ahí se puede cambiar (F3). */
   alicuota_iva: number
-  precio: number | null
   estado: 'activo' | 'archivado'
   compras_item_proveedores: ItemProveedor[]
 }
 
+export interface PedidoAbierto {
+  pedido_id: string
+  numero: number | null
+  pendiente: number
+  enviado_en: string | null
+}
+
+/** Una fila de v_compras_insumos_resumen. El último precio facturado es null si no es admin (E10). */
+export interface ResumenInsumo {
+  stock: number
+  precioRefPrincipal: number | null
+  ultimoPrecio: number | null
+  ultimoPrecioUnidad: string | null
+  ultimoPrecioFecha: string | null
+  ultimoPrecioFacturaId: string | null
+  ultimoPrecioProveedorId: string | null
+  pedidosAbiertos: PedidoAbierto[]
+  puedeEliminar: boolean
+}
+
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
 
-const emptyForm = (): Partial<CompraItem> => ({
-  categoria_id: null,
-  nombre: '',
-  unidad: '',
-  cantidad_por_unidad: 1,
-  cantidad_por_masa: 0,
-  stock_minimo: 0,
-  redondeo: 'estandar',
-  stock_maximo: null,
-  a_demanda: false,
-  alicuota_iva: ALICUOTA_DEFAULT,
-  precio: null,
-  estado: 'activo',
-})
+const RESUMEN_VACIO: ResumenInsumo = {
+  stock: 0, precioRefPrincipal: null, ultimoPrecio: null, ultimoPrecioUnidad: null, ultimoPrecioFecha: null,
+  ultimoPrecioFacturaId: null, ultimoPrecioProveedorId: null, pedidosAbiertos: [], puedeEliminar: false,
+}
 
-const proveedorLineaVacia = (): ItemProveedor => ({ proveedor_id: '', es_principal: false, precio_ref: null, codigo_proveedor: '' })
+const mismaUnidad = (a: string | null, b: string | null) =>
+  (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase()
 
 export default function InsumosClient({
-  itemsIniciales,
+  items,
   proveedores,
   categorias,
   conteosPorItem,
   modosPorItem,
+  resumenPorItem,
+  enPedidoBase,
+  esAdmin,
 }: {
-  itemsIniciales: CompraItem[]
+  items: CompraItem[]
   proveedores: ProveedorOption[]
   categorias: CategoriaOption[]
   conteosPorItem: Record<string, string[]>
   modosPorItem: Record<string, ModoCalculo[]>
+  resumenPorItem: Record<string, ResumenInsumo>
+  enPedidoBase: string[]
+  esAdmin: boolean
 }) {
-  const supabase = createClient()
-  const [items, setItems] = useState<CompraItem[]>(itemsIniciales)
   const [filtro, setFiltro] = useState<FiltroEstado>('activo')
   const [soloADemanda, setSoloADemanda] = useState(false)
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | 'todas'>('todas')
   const [busqueda, setBusqueda] = useState('')
-  const [editando, setEditando] = useState<CompraItem | null>(null)
+  // Se guarda el id, no la fila: después de cada acción refresh() trae los datos nuevos.
+  const [abiertoId, setAbiertoId] = useState<string | null>(null)
   const [creando, setCreando] = useState(false)
-  const [form, setForm] = useState<Partial<CompraItem>>(emptyForm())
-  const [proveedoresLinea, setProveedoresLinea] = useState<ItemProveedor[]>([])
-  const [eliminando, setEliminando] = useState<CompraItem | null>(null)
-  const [isPending, startTransition] = useTransition()
-  const toast = useToasts()
+  // Cambia en cada apertura: el form arranca de cero aunque sea el mismo insumo.
+  const [aperturas, setAperturas] = useState(0)
+
+  const abierto = abiertoId ? items.find(i => i.id === abiertoId) ?? null : null
+  const resumen = (id: string) => resumenPorItem[id] ?? RESUMEN_VACIO
+
+  const nombreProveedor = (id: string | null) => proveedores.find(p => p.id === id)?.nombre ?? '—'
+  const nombreCategoria = (id: string | null) => categorias.find(c => c.id === id)?.nombre ?? '—'
 
   // Por masa sin receta y sin la marca de a demanda: el conteo no puede
   // calcular su sobrestock (mismo criterio que cerrar_conteo_fabrica).
@@ -109,174 +133,269 @@ export default function InsumosClient({
   const sinUnidadCompra = items.filter(i =>
     i.estado === 'activo' && (conteosPorItem[i.id] ?? []).length > 0 && (!i.unidad?.trim() || !(i.cantidad_por_unidad > 0)))
 
-  const nombreProveedor = (id: string) => proveedores.find(p => p.id === id)?.nombre ?? '—'
-  const nombreCategoria = (id: string | null) => categorias.find(c => c.id === id)?.nombre ?? '—'
+  const activos = items.filter(i => i.estado === 'activo').length
+  const archivados = items.length - activos
 
-  function proveedorPrincipalLabel(i: CompraItem) {
-    const lista = i.compras_item_proveedores
-    if (!lista.length) return '—'
-    const principal = lista.find(p => p.es_principal) ?? lista[0]
-    const nombre = nombreProveedor(principal.proveedor_id)
-    return lista.length > 1 ? `${nombre} +${lista.length - 1}` : nombre
-  }
-
-  const filtrados = items
-    .filter(i => {
-      const matchEstado = filtro === 'todos' || i.estado === filtro
-      const matchCategoria = categoriaFiltro === 'todas' || i.categoria_id === categoriaFiltro
-      const matchBusqueda = i.nombre.toLowerCase().includes(busqueda.toLowerCase())
-      const matchDemanda = !soloADemanda || i.a_demanda
-      return matchEstado && matchCategoria && matchBusqueda && matchDemanda
-    })
-    .sort((a, b) => a.nombre.localeCompare(b.nombre))
+  const filtrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+    return items
+      .filter(i =>
+        (filtro === 'todos' || i.estado === filtro) &&
+        (categoriaFiltro === 'todas' || i.categoria_id === categoriaFiltro) &&
+        (!q || i.nombre.toLowerCase().includes(q)) &&
+        (!soloADemanda || i.a_demanda))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+  }, [items, filtro, categoriaFiltro, busqueda, soloADemanda])
 
   const hayFiltros = !!busqueda || categoriaFiltro !== 'todas' || filtro !== 'activo' || soloADemanda
   function limpiarFiltros() { setBusqueda(''); setCategoriaFiltro('todas'); setFiltro('activo'); setSoloADemanda(false) }
 
   function abrirCrear() {
-    setForm(emptyForm())
-    setProveedoresLinea([{ ...proveedorLineaVacia(), es_principal: true }])
-    setEditando(null)
+    setAbiertoId(null)
     setCreando(true)
+    setAperturas(n => n + 1)
   }
 
   function abrirEditar(i: CompraItem) {
-    setForm({ ...i })
-    setProveedoresLinea(i.compras_item_proveedores.length ? i.compras_item_proveedores : [{ ...proveedorLineaVacia(), es_principal: true }])
-    setEditando(i)
     setCreando(false)
+    setAbiertoId(i.id)
+    setAperturas(n => n + 1)
   }
 
   function cerrarForm() {
     setCreando(false)
-    setEditando(null)
+    setAbiertoId(null)
   }
 
-  function agregarProveedorLinea() {
-    setProveedoresLinea(prev => [...prev, proveedorLineaVacia()])
+  function proveedoresActivos(i: CompraItem) {
+    return i.compras_item_proveedores.filter(p => p.activo)
   }
 
-  function quitarProveedorLinea(idx: number) {
-    setProveedoresLinea(prev => {
-      const next = prev.filter((_, i) => i !== idx)
-      if (next.length && !next.some(p => p.es_principal)) next[0] = { ...next[0], es_principal: true }
-      return next
-    })
-  }
+  const columnas: Columna<CompraItem>[] = [
+    {
+      key: 'insumo',
+      header: 'Insumo',
+      className: 'min-w-52',
+      ordenar: i => i.nombre.toLowerCase(),
+      render: i => (
+        <div className="min-w-0">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-medium text-text">{i.nombre}</span>
+            {i.a_demanda && (
+              <span
+                title={i.stock_maximo != null ? `Se pide según se necesite. Avisa sobrestock si el conteo pasa de ${i.stock_maximo} ${i.unidad ?? ''}.` : 'Se pide según se necesite, no por proyección de masas. No avisa sobrestock.'}
+                className="rounded-full border border-border px-2 py-0.5 text-2xs font-medium text-muted"
+              >
+                A demanda{i.stock_maximo != null && ` · tope ${formatearNumero(i.stock_maximo)}`}
+              </span>
+            )}
+            {i.estado === 'archivado' && (
+              <span className="rounded-full bg-surface2 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-muted">Archivado</span>
+            )}
+          </span>
+          {i.categoria_id && <span className="mt-0.5 block text-xs text-muted xl:hidden">{nombreCategoria(i.categoria_id)}</span>}
+        </div>
+      ),
+    },
+    {
+      key: 'categoria',
+      header: 'Categoría',
+      ocultarHasta: 'xl',
+      ordenar: i => nombreCategoria(i.categoria_id),
+      render: i => <span className="text-muted">{nombreCategoria(i.categoria_id)}</span>,
+    },
+    {
+      key: 'proveedor',
+      header: 'Proveedor',
+      ocultarHasta: 'md',
+      ordenar: i => {
+        const lista = proveedoresActivos(i)
+        return nombreProveedor((lista.find(p => p.es_principal) ?? lista[0])?.proveedor_id ?? null)
+      },
+      render: i => {
+        const lista = proveedoresActivos(i)
+        if (!lista.length) return <span className="text-muted">—</span>
+        const principal = lista.find(p => p.es_principal) ?? lista[0]
+        return (
+          <span className="text-muted">
+            {nombreProveedor(principal.proveedor_id)}
+            {lista.length > 1 && (
+              <span className="ml-1 text-faint" title={lista.filter(p => p !== principal).map(p => nombreProveedor(p.proveedor_id)).join(', ')}>
+                +{lista.length - 1}
+              </span>
+            )}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'stock',
+      header: 'Stock',
+      alinear: 'right',
+      ordenar: i => resumen(i.id).stock,
+      render: i => {
+        const stock = resumen(i.id).stock
+        const bajo = i.estado === 'activo' && i.stock_minimo > 0 && stock < i.stock_minimo
+        return (
+          <div className="flex flex-col items-end gap-0.5 tabular-nums">
+            <LinkEntidad entidad={{ tipo: 'insumo', id: i.id }} variante="texto" title="Ver la ficha de stock de este insumo" className="whitespace-nowrap text-text">
+              {formatearNumero(stock)} {i.unidad ?? ''}
+            </LinkEntidad>
+            {bajo && (
+              <span className="inline-flex items-center gap-1 whitespace-nowrap text-2xs font-semibold text-warning" title={`Stock mínimo: ${formatearNumero(i.stock_minimo)} ${i.unidad ?? ''}`}>
+                <TriangleAlert size={12} /> bajo mín.
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'pedido',
+      header: <span className="whitespace-nowrap">Pedido abierto</span>,
+      ocultarHasta: 'lg',
+      ordenar: i => resumen(i.id).pedidosAbiertos.length,
+      render: i => {
+        const pedidos = resumen(i.id).pedidosAbiertos
+        if (!pedidos.length) return <span className="text-muted">—</span>
+        const [primero, ...otros] = pedidos
+        return (
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
+            <LinkEntidad entidad={{ tipo: 'pedido', id: primero.pedido_id }} title="Ver el pedido" className="text-text">
+              {primero.numero != null ? codigoPedido(primero.numero) : 'Pedido'}
+            </LinkEntidad>
+            <span className="whitespace-nowrap text-xs text-muted tabular-nums">faltan {formatearNumero(primero.pendiente)}</span>
+            {otros.length > 0 && (
+              <span
+                className="text-xs text-faint"
+                title={otros.map(p => `${p.numero != null ? codigoPedido(p.numero) : 'Pedido'}: faltan ${formatearNumero(p.pendiente)}`).join(' · ')}
+              >
+                +{otros.length}
+              </span>
+            )}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'precioRef',
+      header: (
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+          Precio ref.
+          <HelpTooltip text="Precio de referencia del proveedor principal. Lo actualiza la factura al confirmarla, o lo cargás en el insumo." />
+        </span>
+      ),
+      alinear: 'right',
+      ocultarHasta: 'md',
+      ordenar: i => resumen(i.id).precioRefPrincipal ?? -1,
+      render: i => {
+        const precio = resumen(i.id).precioRefPrincipal
+        return <span className="whitespace-nowrap tabular-nums text-muted">{precio != null ? formatearMoneda(precio) : '—'}</span>
+      },
+    },
+    ...(esAdmin ? [{
+      key: 'ultimaFactura',
+      header: <span className="whitespace-nowrap">Última factura</span>,
+      alinear: 'right' as const,
+      ocultarHasta: 'lg' as const,
+      ordenar: (i: CompraItem) => resumen(i.id).ultimoPrecioFecha ?? '',
+      render: (i: CompraItem) => {
+        const r = resumen(i.id)
+        if (r.ultimoPrecio == null) return <span className="text-muted">—</span>
+        const otraUnidad = !!r.ultimoPrecioUnidad && !mismaUnidad(r.ultimoPrecioUnidad, i.unidad)
+        return (
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="whitespace-nowrap tabular-nums text-text">
+              {formatearMoneda(r.ultimoPrecio)}
+              {r.ultimoPrecioUnidad && (
+                <span
+                  className={otraUnidad ? 'font-semibold text-warning' : 'text-muted'}
+                  title={otraUnidad ? `Facturado en ${r.ultimoPrecioUnidad}: el insumo se cuenta en ${i.unidad ?? 'otra unidad'}` : undefined}
+                >
+                  {' '}/ {r.ultimoPrecioUnidad}
+                </span>
+              )}
+            </span>
+            {r.ultimoPrecioFacturaId && r.ultimoPrecioFecha && (
+              <span className="whitespace-nowrap text-xs text-muted">
+                <LinkEntidad entidad={{ tipo: 'factura', id: r.ultimoPrecioFacturaId }} variante="texto" title="Ver la factura">
+                  {formatearFecha(r.ultimoPrecioFecha)}
+                </LinkEntidad>
+                {' · '}{nombreProveedor(r.ultimoPrecioProveedorId)}
+              </span>
+            )}
+          </div>
+        )
+      },
+    }] : []),
+    {
+      key: 'masa',
+      header: 'Cant./masa',
+      alinear: 'right',
+      ocultarHasta: '2xl',
+      render: i => <span className="tabular-nums text-muted">{i.cantidad_por_masa > 0 ? formatearNumero(i.cantidad_por_masa) : '—'}</span>,
+    },
+    {
+      key: 'minimo',
+      header: (
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+          Stock mín.
+          <HelpTooltip text="Piso general de este insumo para cualquier proveedor, sin relación con los conteos — lo usan la sugerencia de /admin/compras/pedidos y el indicador de bajo stock de /admin/compras/stock." />
+        </span>
+      ),
+      alinear: 'right',
+      ocultarHasta: '2xl',
+      render: i => <span className="tabular-nums text-muted">{i.stock_minimo > 0 ? formatearNumero(i.stock_minimo) : '—'}</span>,
+    },
+    {
+      key: 'redondeo',
+      header: 'Redondeo',
+      ocultarHasta: '2xl',
+      render: i => <span className="block max-w-40 text-xs text-muted">{REDONDEO_LABEL[i.redondeo] ?? i.redondeo}</span>,
+    },
+    {
+      key: 'listas',
+      header: (
+        <span className="inline-flex items-center gap-1">
+          Listas de conteo
+          <HelpTooltip text="En qué listas de conteo participa este insumo. Se gestiona desde Insumos → Listas de conteo." />
+        </span>
+      ),
+      ocultarHasta: 'xl',
+      render: i => (conteosPorItem[i.id] ?? []).length > 0 ? (
+        <Link
+          href="/admin/compras/insumos/listas-conteo"
+          onClick={e => e.stopPropagation()}
+          onKeyDown={e => e.stopPropagation()}
+          className="text-xs text-muted underline decoration-accent decoration-2 underline-offset-4 hover:text-text"
+        >
+          {conteosPorItem[i.id].join(', ')}
+        </Link>
+      ) : <span className="text-muted">—</span>,
+    },
+  ]
 
-  function actualizarProveedorLinea(idx: number, cambios: Partial<ItemProveedor>) {
-    setProveedoresLinea(prev => prev.map((p, i) => i === idx ? { ...p, ...cambios } : p))
-  }
-
-  function marcarPrincipal(idx: number) {
-    setProveedoresLinea(prev => prev.map((p, i) => ({ ...p, es_principal: i === idx })))
-  }
-
-  async function guardar() {
-    if (!form.nombre?.trim()) { toast.error('El nombre es requerido'); return }
-    if (!form.unidad?.trim()) { toast.error('La unidad es requerida'); return }
-
-    const validas = proveedoresLinea.filter(p => p.proveedor_id)
-    if (!validas.length) { toast.error('Agregá al menos un proveedor'); return }
-    if (new Set(validas.map(p => p.proveedor_id)).size !== validas.length) { toast.error('Hay un proveedor repetido'); return }
-    const principal = validas.find(p => p.es_principal) ?? validas[0]
-
-    startTransition(async () => {
-      // proveedor_id se descarta explícitamente: la columna vieja de compras_items
-      // ya no existe (ver 20260901150000_compras_items_drop_proveedor_id.sql) y el
-      // form puede seguir arrastrándola desde un select('*') cacheado.
-      const { id: _id, compras_item_proveedores: _cip, proveedor_id: _proveedorViejo, ...payload } =
-        form as CompraItem & { proveedor_id?: string }
-
-      let itemGuardado: Omit<CompraItem, 'compras_item_proveedores'>
-      if (creando) {
-        const { data, error: err } = await supabase.from('compras_items').insert([{ ...payload, estado: 'activo' }]).select().single()
-        if (err) { toast.error(mensajeError(err, 'No se pudo crear el insumo')); return }
-        itemGuardado = data
-      } else if (editando) {
-        const { data, error: err } = await supabase.from('compras_items').update(payload).eq('id', editando.id).select().single()
-        if (err) { toast.error(mensajeError(err, 'No se pudo guardar el insumo')); return }
-        itemGuardado = data
-      } else {
-        return
-      }
-
-      const { error: errDelete } = await supabase.from('compras_item_proveedores').delete().eq('item_id', itemGuardado.id)
-      if (errDelete) { toast.error(mensajeError(errDelete, 'No se pudieron actualizar los proveedores del insumo')); return }
-
-      const filasPivote = validas.map(p => ({
-        item_id: itemGuardado.id,
-        proveedor_id: p.proveedor_id,
-        es_principal: p.proveedor_id === principal.proveedor_id,
-        precio_ref: p.precio_ref,
-        codigo_proveedor: p.codigo_proveedor?.trim() || null,
-      }))
-      const { data: pivoteGuardado, error: errInsert } = await supabase
-        .from('compras_item_proveedores')
-        .insert(filasPivote)
-        .select('proveedor_id, es_principal, precio_ref, codigo_proveedor')
-      if (errInsert) { toast.error(mensajeError(errInsert, 'No se pudieron guardar los proveedores del insumo')); return }
-
-      const itemFinal: CompraItem = { ...itemGuardado, compras_item_proveedores: pivoteGuardado ?? [] }
-      if (creando) {
-        setItems(prev => [...prev, itemFinal])
-        toast.success('Insumo creado')
-      } else {
-        setItems(prev => prev.map(i => i.id === itemFinal.id ? itemFinal : i))
-        toast.success('Cambios guardados')
-      }
-      cerrarForm()
-    })
-  }
-
-  async function archivar(i: CompraItem) {
-    const nuevoEstado = i.estado === 'activo' ? 'archivado' : 'activo'
-    const { data, error: err } = await supabase
-      .from('compras_items')
-      .update({ estado: nuevoEstado })
-      .eq('id', i.id)
-      .select()
-      .single()
-    if (err) { toast.error(mensajeError(err, nuevoEstado === 'archivado' ? 'No se pudo archivar el insumo' : 'No se pudo reactivar el insumo')); return }
-    setItems(prev => prev.map(x => x.id === i.id ? { ...x, ...data } : x))
-    toast.success(nuevoEstado === 'archivado' ? 'Insumo archivado' : 'Insumo reactivado')
-  }
-
-  async function confirmarEliminar() {
-    if (!eliminando) return
-    startTransition(async () => {
-      const { error: err } = await supabase.from('compras_items').delete().eq('id', eliminando.id)
-      if (err) { toast.error('No se pudo eliminar — ya está en uso en algún conteo o pedido. Probá archivarlo en su lugar.'); return }
-      setItems(prev => prev.filter(i => i.id !== eliminando.id))
-      toast.success('Insumo eliminado')
-      setEliminando(null)
-    })
-  }
-
-  const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
-
-  // Campos de ancho fijo dentro de una fila flex: sin w-full, que le ganaría al w-NN
-
-  // y dejaría sin lugar al campo que se estira (el selector de proveedor quedaba en 0px).
-
-  const inputFijoClass = "bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors shrink-0"
-  const labelClass = "flex items-center text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
+  const proveedoresAbierto = abierto?.compras_item_proveedores ?? []
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#f0f0f0]">Insumos</h1>
-          <p className="text-[#888] text-sm mt-0.5">{items.filter(i => i.estado === 'activo').length} activos · {items.filter(i => i.estado === 'archivado').length} archivados</p>
-        </div>
-        <button onClick={abrirCrear} className="flex items-center gap-1.5 bg-[#e8c547] hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-          <Plus size={16} /> Nuevo insumo
-        </button>
-      </div>
+      <PageHeader
+        icono={Package}
+        titulo="Insumos"
+        descripcion={`${activos} activo${activos === 1 ? '' : 's'} · ${archivados} archivado${archivados === 1 ? '' : 's'}`}
+        acciones={
+          <button
+            onClick={abrirCrear}
+            className="flex min-h-11 items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90 sm:min-h-9"
+          >
+            <Plus size={16} /> Nuevo insumo
+          </button>
+        }
+      />
 
       {sinUnidadCompra.length > 0 && (
         <p className="flex items-start gap-2 rounded-xl border border-warning bg-warning-bg px-4 py-3 text-sm text-text">
-          <TriangleAlert size={16} className="text-warning shrink-0 mt-0.5" />
+          <TriangleAlert size={16} className="mt-0.5 shrink-0 text-warning" />
           <span>
             <span className="font-semibold">{sinUnidadCompra.length} insumo{sinUnidadCompra.length === 1 ? '' : 's'} sin unidad de compra: no se puede avisar sobrestock.</span>{' '}
             <span className="text-muted">Completá la unidad y la cantidad por unidad de {sinUnidadCompra.map(i => i.nombre).join(', ')}.</span>
@@ -286,7 +405,7 @@ export default function InsumosClient({
 
       {sinReceta.length > 0 && (
         <p className="flex items-start gap-2 rounded-xl border border-warning bg-warning-bg px-4 py-3 text-sm text-text">
-          <TriangleAlert size={16} className="text-warning shrink-0 mt-0.5" />
+          <TriangleAlert size={16} className="mt-0.5 shrink-0 text-warning" />
           <span>
             <span className="font-semibold">{sinReceta.length} insumo{sinReceta.length === 1 ? '' : 's'} sin receta: no se puede calcular el sobrestock.</span>{' '}
             <span className="text-muted">Cargale la cantidad por masa, o marcalo como que se pide a demanda: {sinReceta.map(i => i.nombre).join(', ')}.</span>
@@ -294,319 +413,76 @@ export default function InsumosClient({
         </p>
       )}
 
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666] pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Buscar insumo..."
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-            className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-[#e8c547] w-64"
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar insumo..." className="w-full sm:w-64" />
+          <SegmentedControl<FiltroEstado>
+            opciones={[
+              { value: 'activo', label: 'Activos' },
+              { value: 'archivado', label: 'Archivados' },
+              { value: 'todos', label: 'Todos' },
+            ]}
+            value={filtro}
+            onChange={setFiltro}
           />
+          <Chip active={soloADemanda} onClick={() => setSoloADemanda(v => !v)}>A demanda</Chip>
+          <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
         </div>
-        {(['activo', 'archivado', 'todos'] as FiltroEstado[]).map(f => (
-          <button
-            key={f}
-            onClick={() => setFiltro(f)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all capitalize ${filtro === f ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'}`}
-          >
-            {f}
-          </button>
-        ))}
-        <button
-          onClick={() => setSoloADemanda(v => !v)}
-          aria-pressed={soloADemanda}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${soloADemanda ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'}`}
-        >
-          A demanda
-        </button>
-        <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        <button
-          onClick={() => setCategoriaFiltro('todas')}
-          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoriaFiltro === 'todas' ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] border border-[#2a2a2a] hover:text-[#f0f0f0]'}`}
-        >
-          Todas las categorías
-        </button>
-        {categorias.map(c => (
-          <button
-            key={c.id}
-            onClick={() => setCategoriaFiltro(c.id)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoriaFiltro === c.id ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] border border-[#2a2a2a] hover:text-[#f0f0f0]'}`}
-          >
-            {c.nombre}
-          </button>
-        ))}
-      </div>
-
-      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-        {filtrados.length === 0 ? (
-          <p className="p-8 text-center text-[#888] text-sm">
-            {items.length === 0 ? 'Todavía no hay insumos. Usá "+ Nuevo insumo" para crear el primero.' : 'Ningún resultado para tu búsqueda.'}
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Nombre</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Categoría</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Proveedor</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Unidad</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Cant./masa</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">
-                    <span className="flex items-center gap-1">
-                      Stock mín.
-                      <HelpTooltip text="Piso general de este insumo para cualquier proveedor, sin relación con los conteos — lo usan la sugerencia de /admin/compras/pedidos y el indicador de bajo stock de /admin/compras/stock." />
-                    </span>
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Redondeo</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Precio</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">
-                    <span className="flex items-center gap-1">
-                      Listas de conteo
-                      <HelpTooltip text="En qué listas de conteo participa este insumo. Se gestiona desde Insumos → Listas de conteo." />
-                    </span>
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#2a2a2a]">
-                {filtrados.map(i => (
-                  <tr key={i.id} className="hover:bg-[#1a1a1a] transition-colors">
-                    <td className="px-4 py-3 text-[#f0f0f0] font-medium">
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <LinkEntidad entidad={{ tipo: 'insumo', id: i.id }} variante="texto" title="Ver el stock de este insumo">{i.nombre}</LinkEntidad>
-                        {i.a_demanda && (
-                          <span
-                            title={i.stock_maximo != null ? `Se pide según se necesite. Avisa sobrestock si el conteo pasa de ${i.stock_maximo} ${i.unidad}.` : 'Se pide según se necesite, no por proyección de masas. No avisa sobrestock.'}
-                            className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted"
-                          >
-                            A demanda{i.stock_maximo != null && ` · tope ${i.stock_maximo}`}
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[#888] hidden md:table-cell">{nombreCategoria(i.categoria_id)}</td>
-                    <td className="px-4 py-3 text-[#888]">{proveedorPrincipalLabel(i)}</td>
-                    <td className="px-4 py-3 text-[#888]">{i.unidad}</td>
-                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{i.cantidad_por_masa > 0 ? i.cantidad_por_masa : '—'}</td>
-                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{i.stock_minimo > 0 ? i.stock_minimo : '—'}</td>
-                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell text-xs">{REDONDEO_LABEL[i.redondeo] ?? i.redondeo}</td>
-                    <td className="px-4 py-3 text-[#888] hidden md:table-cell">{i.precio != null ? `$${i.precio.toLocaleString('es-AR')}` : '—'}</td>
-                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell text-xs">
-                      {(conteosPorItem[i.id] ?? []).length > 0 ? (
-                        <Link href="/admin/compras/insumos/listas-conteo" className="hover:text-[#e8c547] hover:underline">
-                          {conteosPorItem[i.id].join(', ')}
-                        </Link>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex gap-1 justify-end">
-                        <button
-                          onClick={() => abrirEditar(i)}
-                          title="Editar"
-                          aria-label={`Editar ${i.nombre}`}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#e8c547] hover:bg-[#2a2a2a] transition-colors"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                        <button
-                          onClick={() => archivar(i)}
-                          title={i.estado === 'activo' ? 'Archivar' : 'Reactivar'}
-                          aria-label={i.estado === 'activo' ? `Archivar ${i.nombre}` : `Reactivar ${i.nombre}`}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#f0f0f0] hover:bg-[#2a2a2a] transition-colors"
-                        >
-                          {i.estado === 'activo' ? <Archive size={15} /> : <ArchiveRestore size={15} />}
-                        </button>
-                        <button
-                          onClick={() => setEliminando(i)}
-                          title="Eliminar"
-                          aria-label={`Eliminar ${i.nombre}`}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-red-400 hover:bg-red-900/20 transition-colors"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {categorias.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <Chip active={categoriaFiltro === 'todas'} onClick={() => setCategoriaFiltro('todas')}>Todas las categorías</Chip>
+            {categorias.map(c => (
+              <Chip key={c.id} active={categoriaFiltro === c.id} onClick={() => setCategoriaFiltro(c.id)}>{c.nombre}</Chip>
+            ))}
           </div>
         )}
       </div>
 
-      <Modal open={creando || !!editando} onClose={cerrarForm} title={creando ? 'Nuevo insumo' : `Editar — ${editando?.nombre}`} size="lg">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="md:col-span-2">
-            <label className={labelClass}>Nombre *</label>
-            <input className={inputClass} value={form.nombre ?? ''} onChange={e => setForm(f => ({...f, nombre: e.target.value}))} />
-          </div>
-          <div className="md:col-span-2 space-y-2">
-            <label className={labelClass}>
-              Proveedores *
-              <HelpTooltip text="Un insumo puede cotizarse con varios proveedores. Marcá el principal con la estrella — es el que se usa por default al armar pedidos y plantillas." />
-            </label>
-            <div className="space-y-2">
-              {proveedoresLinea.map((p, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => marcarPrincipal(idx)}
-                    title={p.es_principal ? 'Proveedor principal' : 'Marcar como principal'}
-                    className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors ${p.es_principal ? 'text-[#e8c547]' : 'text-[#444] hover:text-[#888]'}`}
-                  >
-                    <Star size={16} fill={p.es_principal ? 'currentColor' : 'none'} />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <SelectBuscador
-                      value={p.proveedor_id}
-                      onChange={v => actualizarProveedorLinea(idx, { proveedor_id: v })}
-                      opciones={proveedores.map(pv => ({ value: pv.id, label: pv.nombre }))}
-                      placeholderVacio="Seleccionar proveedor..."
-                    />
-                  </div>
-                  <input
-                    className={`${inputFijoClass} w-28`}
-                    placeholder="Código"
-                    value={p.codigo_proveedor ?? ''}
-                    onChange={e => actualizarProveedorLinea(idx, { codigo_proveedor: e.target.value })}
-                  />
-                  <InputNumero
-                    placeholder="Precio ref."
-                    className={`${inputFijoClass} w-28`}
-                    value={p.precio_ref}
-                    onChange={v => actualizarProveedorLinea(idx, { precio_ref: v })}
-                  />
-                  <button onClick={() => quitarProveedorLinea(idx)} className="text-[#888] hover:text-red-400 text-lg px-2 shrink-0">✕</button>
-                </div>
-              ))}
-            </div>
-            <button onClick={agregarProveedorLinea} className="text-xs text-[#888] hover:text-[#e8c547] font-semibold py-1.5 px-3 rounded-lg border border-[#2a2a2a] hover:border-[#e8c547] transition-colors">
-              + Agregar proveedor
-            </button>
-          </div>
-          <div>
-            <label className={labelClass}>Categoría</label>
-            <select className={inputClass} value={form.categoria_id ?? ''} onChange={e => setForm(f => ({...f, categoria_id: e.target.value || null}))}>
-              <option value="">Sin categoría</option>
-              {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Unidad de compra *</label>
-            <input className={inputClass} placeholder="Ej: kg, Bolsa, Caja, Cajón" value={form.unidad ?? ''} onChange={e => setForm(f => ({...f, unidad: e.target.value}))} />
-          </div>
-          <div>
-            <label className={labelClass}>
-              Cantidad por unidad
-              <HelpTooltip text="Cuánto trae cada unidad de compra. Por ejemplo, una bolsa de fécula trae 25kg, o un cajón de huevos trae 360 unidades." />
-            </label>
-            <InputNumero placeholder="1" className={inputClass} value={form.cantidad_por_unidad ?? null} onChange={v => setForm(f => ({...f, cantidad_por_unidad: v ?? 1}))} />
-          </div>
-          <div>
-            <label className={labelClass}>
-              Cantidad por masa
-              <HelpTooltip text="Cuánto de este insumo entra en una masa (un batch de producción) — la receta. La necesidad sugerida = cantidad por masa × masas proyectadas. Dejalo en 0 si no entra en ninguna receta." />
-            </label>
-            <InputNumero placeholder="0" className={inputClass} value={!form.cantidad_por_masa ? null : form.cantidad_por_masa} onChange={v => setForm(f => ({...f, cantidad_por_masa: v ?? 0}))} />
-          </div>
-          <div>
-            <label className={labelClass}>
-              Stock mínimo
-              <HelpTooltip text="Piso general de este insumo, sin relación con ningún conteo — lo usan la sugerencia de /admin/compras/pedidos y el indicador de bajo stock de /admin/compras/stock. Si el insumo participa de un conteo, ese conteo tiene su propia meta independiente de esta." />
-            </label>
-            <InputNumero placeholder="0" className={inputClass} value={!form.stock_minimo ? null : form.stock_minimo} onChange={v => setForm(f => ({...f, stock_minimo: v ?? 0}))} />
-          </div>
-          <div>
-            <label className={labelClass}>
-              IVA
-              <HelpTooltip text="Con qué alícuota suele venir este insumo en la factura del proveedor. Se copia a la línea de la factura cuando la cargás, y ahí se puede cambiar si esa factura vino distinta." />
-            </label>
-            <select
-              className={inputClass}
-              value={String(form.alicuota_iva ?? ALICUOTA_DEFAULT)}
-              onChange={e => setForm(f => ({ ...f, alicuota_iva: Number(e.target.value) }))}
-            >
-              {ALICUOTAS.map(a => <option key={a} value={a}>{etiquetaAlicuota(a)}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>
-              Redondeo
-              <HelpTooltip text="Cómo redondear cuántas unidades pedir al cerrar el conteo. Estándar: si falta menos de media unidad no se pide, si falta media o más se pide una entera. Siempre hacia arriba: cualquier faltante pide una unidad completa. Siempre hacia abajo: un faltante menor a una unidad no pide nada. Sin cálculo: no participa del pedido complementario — se repone solo vía el Pedido base semanal. No cambia el aviso de sobrestock: eso lo decide «Se pide a demanda»." />
-            </label>
-            <select className={inputClass} value={form.redondeo ?? 'estandar'} onChange={e => setForm(f => ({...f, redondeo: e.target.value as Redondeo}))}>
-              {Object.entries(REDONDEO_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </div>
-          <div className="md:col-span-2 rounded-xl border border-border bg-surface2 p-3 space-y-3">
-            <label className="flex min-h-11 cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={form.a_demanda ?? false}
-                onChange={e => setForm(f => ({ ...f, a_demanda: e.target.checked }))}
-                className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-accent"
-              />
-              <span className="text-sm">
-                <span className="font-semibold text-text">Se pide a demanda</span>
-                <span className="block text-muted">Se pide según se necesite, no por proyección de masas. No avisa sobrestock en el conteo, salvo que le pongas un stock máximo.</span>
-              </span>
-            </label>
-            {form.a_demanda && (
-              <div className="pl-8">
-                <label className={labelClass}>
-                  Stock máximo (opcional)
-                  <HelpTooltip text="Si el conteo supera este número, se avisa sobrestock y se sugiere pedir menos en el Pedido base. Vacío: nunca avisa." />
-                </label>
-                <div className="flex items-center gap-2">
-                  <InputNumero
-                    placeholder="Sin tope"
-                    className={`${inputClass} max-w-40`}
-                    value={form.stock_maximo ?? null}
-                    onChange={v => setForm(f => ({ ...f, stock_maximo: v != null && v > 0 ? v : null }))}
-                  />
-                  <span className="text-sm text-muted">{form.unidad?.trim() || 'unidades de compra'}</span>
-                </div>
-                <p className="mt-1 text-xs text-muted">Si el conteo supera este número, se avisa sobrestock.</p>
-              </div>
-            )}
-          </div>
-          <div>
-            <label className={labelClass}>Precio</label>
-            <InputNumero className={inputClass} value={form.precio ?? null} onChange={v => setForm(f => ({...f, precio: v}))} />
-          </div>
-        </div>
+      <DataTable
+        filas={filtrados}
+        columnas={columnas}
+        filaKey={i => i.id}
+        onFilaClick={abrirEditar}
+        filaClassName={i => (i.estado === 'archivado' ? 'opacity-60' : '')}
+        vacio={items.length === 0
+          ? (
+            <EmptyState
+              icono={Package}
+              titulo="Todavía no hay insumos"
+              descripcion="Cargá el primero para poder pedirlo, contarlo y seguir su stock."
+              accion={
+                <button onClick={abrirCrear} className="flex min-h-11 items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-black hover:opacity-90 sm:min-h-9">
+                  <Plus size={16} /> Nuevo insumo
+                </button>
+              }
+            />
+          )
+          : (
+            <EmptyState
+              icono={Package}
+              titulo="Ningún insumo coincide con la búsqueda"
+              accion={
+                <button onClick={limpiarFiltros} className="min-h-11 rounded-xl border border-border px-4 py-2 text-sm font-medium text-muted hover:text-text sm:min-h-9">
+                  Limpiar filtros
+                </button>
+              }
+            />
+          )}
+      />
 
-        <div className="flex gap-3 pt-2">
-          <button onClick={guardar} disabled={isPending} className="flex-1 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2.5 px-6 rounded-xl transition-all">
-            {isPending ? 'Guardando...' : 'Guardar'}
-          </button>
-          <button onClick={cerrarForm} className="flex-1 border border-[#2a2a2a] text-[#888] hover:text-[#f0f0f0] font-semibold text-sm py-2.5 px-6 rounded-xl transition-all">
-            Cancelar
-          </button>
-        </div>
-      </Modal>
-
-      <Modal open={!!eliminando} onClose={() => setEliminando(null)} title="Eliminar insumo" accent="red">
-        <p className="text-sm text-[#888]">
-          ¿Eliminar <span className="text-[#f0f0f0] font-medium">{eliminando?.nombre}</span>? Esta acción no se puede deshacer. Si ya se usó en algún conteo o pedido, no se va a poder eliminar — archivalo en su lugar.
-        </p>
-        <div className="flex gap-2 pt-4">
-          <button onClick={() => setEliminando(null)} disabled={isPending} className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] transition-colors disabled:opacity-40">
-            Cancelar
-          </button>
-          <button onClick={confirmarEliminar} disabled={isPending} className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold disabled:opacity-40 transition-colors">
-            {isPending ? 'Eliminando...' : 'Eliminar'}
-          </button>
-        </div>
-      </Modal>
-
-      <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
+      {(creando || abierto) && (
+        <InsumoModal
+          key={`${abierto?.id ?? 'nuevo'}-${aperturas}`}
+          item={creando ? null : abierto}
+          proveedoresItem={proveedoresAbierto}
+          proveedores={proveedores}
+          categorias={categorias}
+          resumen={abierto ? resumen(abierto.id) : RESUMEN_VACIO}
+          listas={abierto ? conteosPorItem[abierto.id] ?? [] : []}
+          enPedidoBase={!!abierto && enPedidoBase.includes(abierto.id)}
+          onClose={cerrarForm}
+        />
+      )}
     </div>
   )
 }
