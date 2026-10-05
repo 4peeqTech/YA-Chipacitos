@@ -27,7 +27,7 @@ const GuardarPedido = z.object({
 
 export async function guardarPedido(
   entrada: z.input<typeof GuardarPedido>,
-): Promise<Resultado<{ id: string; numero: number }>> {
+): Promise<Resultado<{ id: string; numero: number; cambios: boolean }>> {
   const parsed = GuardarPedido.safeParse(entrada)
   if (!parsed.success) return fallo(null, 'Cada línea necesita una descripción y una cantidad mayor a 0.')
   const { pedidoId, proveedorId, localFacturacionId, lineas } = parsed.data
@@ -46,7 +46,8 @@ export async function guardarPedido(
       })),
     })
     if (error) { refresh(); return fallo(error, 'No se pudo guardar el pedido.') }
-    const res = z.object({ id: z.uuid(), numero: z.number() }).safeParse(data)
+    // cambios = false: guardó sin tocar nada (sin evento y el mensaje se conserva).
+    const res = z.object({ id: z.uuid(), numero: z.number(), cambios: z.boolean() }).safeParse(data)
     if (!res.success) return fallo(null, 'El pedido se guardó, pero no pudimos leer su número. Recargá la página.')
     refresh()
     return ok(res.data)
@@ -66,10 +67,13 @@ export async function guardarMensaje(entrada: z.input<typeof GuardarMensaje>): P
   if (!parsed.success) return fallo(null, 'El mensaje está vacío.')
   try {
     const supabase = await createClientTipado()
-    const { error } = await supabase
-      .from('compras_pedidos')
-      .update({ mensaje: parsed.data.mensaje, local_facturacion_id: parsed.data.localFacturacionId })
-      .eq('id', parsed.data.pedidoId)
+    // Por RPC: registra el cambio de local y la (re)generación en el historial y
+    // no deja cambiar el local de un pedido facturado.
+    const { error } = await supabase.rpc('compras_guardar_mensaje_pedido', {
+      p_pedido_id: parsed.data.pedidoId,
+      p_mensaje: parsed.data.mensaje,
+      p_local_facturacion_id: parsed.data.localFacturacionId ?? undefined,
+    })
     if (error) { refresh(); return fallo(error, 'No se pudo guardar el mensaje del pedido.') }
     refresh()
     return ok(null)
@@ -84,12 +88,13 @@ async function rpcSobrePedido(
   fn: 'compras_marcar_pedido_enviado' | 'compras_reabrir_pedido',
   entrada: z.input<typeof SoloPedido>,
   fallback: string,
+  extra: { p_reenvio?: boolean } = {},
 ): Promise<Resultado<null>> {
   const parsed = SoloPedido.safeParse(entrada)
   if (!parsed.success) return fallo(null, fallback)
   try {
     const supabase = await createClientTipado()
-    const { error } = await supabase.rpc(fn, { p_pedido_id: parsed.data.pedidoId })
+    const { error } = await supabase.rpc(fn, { p_pedido_id: parsed.data.pedidoId, ...extra })
     if (error) { refresh(); return fallo(error, fallback) }
     refresh()
     return ok(null)
@@ -100,6 +105,11 @@ async function rpcSobrePedido(
 
 export async function marcarPedidoEnviado(entrada: z.input<typeof SoloPedido>): Promise<Resultado<null>> {
   return rpcSobrePedido('compras_marcar_pedido_enviado', entrada, 'No se pudo marcar el pedido como enviado.')
+}
+
+/** Reenvío explícito: queda en el historial con el mensaje que salió. */
+export async function marcarPedidoReenviado(entrada: z.input<typeof SoloPedido>): Promise<Resultado<null>> {
+  return rpcSobrePedido('compras_marcar_pedido_enviado', entrada, 'No se pudo registrar el reenvío.', { p_reenvio: true })
 }
 
 export async function reabrirPedido(entrada: z.input<typeof SoloPedido>): Promise<Resultado<null>> {
