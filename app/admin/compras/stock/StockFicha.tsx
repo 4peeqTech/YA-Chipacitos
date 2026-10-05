@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ArrowRight, History, Loader2, RotateCcw, SlidersHorizontal, Truck } from 'lucide-react'
+import { ArrowRight, ClipboardCheck, History, Loader2, RotateCcw, SlidersHorizontal, Truck } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import InputNumero from '@/components/ui/InputNumero'
 import { Field, controlClass } from '@/components/ui/Field'
 import { ChipGroup } from '@/components/ui/Chip'
 import { Skeleton } from '@/components/ui/Skeleton'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 import { useToast } from '@/components/ui/ProveedorUI'
 import { formatearFechaHora } from '@/lib/formato'
 import { mensajeError } from '@/lib/errores'
@@ -258,6 +259,17 @@ export default function StockFicha({
                           <Truck size={13} /> {m.remito_codigo}
                         </Link>
                       )}
+                      {m.conteo_id && (
+                        <LinkEntidad
+                          entidad={{ tipo: 'conteo', id: m.conteo_id }}
+                          variante="chip"
+                          onNavegar={onCerrar}
+                          title="Abrir el conteo de fábrica"
+                          className="min-h-11 sm:min-h-9 px-3 text-xs font-semibold text-text"
+                        >
+                          <ClipboardCheck size={13} /> Conteo
+                        </LinkEntidad>
+                      )}
                       <p className="min-w-16 text-right text-sm tabular-nums">
                         <span className={d > 0 ? 'text-success' : 'text-warning'}>{textoDelta(d)}</span>
                         {m.cantidad_despues != null && <span className="block text-xs text-muted">queda {conUnidad(m.cantidad_despues, null)}</span>}
@@ -270,6 +282,9 @@ export default function StockFicha({
                         >
                           <RotateCcw size={13} /> Revertir
                         </button>
+                      )}
+                      {tipo === 'ajuste_conteo' && m.conteo_id && !m.revertido && (
+                        <span className="text-xs text-muted">Se revierte desde el conteo</span>
                       )}
                     </div>
                   </div>

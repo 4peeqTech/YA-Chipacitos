@@ -35,10 +35,11 @@ export const TIPO_MOVIMIENTO_LABEL: Record<TipoMovimiento, string> = {
 
 /**
  * Tipos que se pueden revertir desde la ficha del insumo (igual que
- * compras_revertir_movimiento). El ajuste por factura no: sale de una diferencia
- * y se revierte desde la factura, así la diferencia vuelve a quedar pendiente.
+ * compras_revertir_movimiento). Los ajustes por factura y por conteo no: salen
+ * de una diferencia y se revierten desde su origen (la factura o Fábrica ›
+ * Conteos), así la diferencia vuelve a quedar pendiente.
  */
-export const TIPOS_REVERTIBLES: readonly TipoMovimiento[] = ['ajuste_manual', 'ajuste_conteo']
+export const TIPOS_REVERTIBLES: readonly TipoMovimiento[] = ['ajuste_manual']
 
 export type GrupoMovimiento = 'entradas' | 'conteosFabrica' | 'ajustes' | 'devoluciones' | 'apertura'
 

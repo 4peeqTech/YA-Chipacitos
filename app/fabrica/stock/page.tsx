@@ -114,29 +114,22 @@ export default async function FabricaStockPage() {
   }
   const definicionItems = (definicionItemsData ?? []) as unknown as DefinicionItemRow[]
 
-  const itemIds = [...new Set(definicionItems.map(di => di.item_id))]
-  const { data: stockActual } = itemIds.length
-    ? await supabase.from('compras_stock_actual').select('item_id, cantidad').in('item_id', itemIds)
-    : { data: [] }
-  const stockPorItem = new Map((stockActual || []).map(s => [s.item_id, s.cantidad]))
-
   // Sembrar fabrica_conteo_items del borrador de cada definición con las
-  // líneas de su membresía — arranca del stock persistente actual (el mismo
-  // criterio que ya usaba Bolsaplast) para que abrir un conteo nuevo no
-  // vuelva a cero un stock que ya se venía contando.
+  // líneas de su membresía. A1: se cuenta a ciegas — el ítem arranca vacío
+  // ("Sin contar", contado_en null) y Fábrica no ve el stock del sistema.
   for (const def of definiciones) {
     const conteo = conteoPorDefinicion.get(def.id)
     const itemsDeEstaDef = definicionItems.filter(di => di.definicion_id === def.id)
     if (!conteo || itemsDeEstaDef.length === 0) continue
     await supabase.from('fabrica_conteo_items').upsert(
-      itemsDeEstaDef.map(di => ({ conteo_id: conteo.id, item_id: di.item_id, cantidad: stockPorItem.get(di.item_id) ?? 0 })),
+      itemsDeEstaDef.map(di => ({ conteo_id: conteo.id, item_id: di.item_id })),
       { onConflict: 'conteo_id,item_id', ignoreDuplicates: true }
     )
   }
 
   const conteoIds = [...conteoPorDefinicion.values()].map(c => c.id)
   const { data: conteoItemsData } = conteoIds.length
-    ? await supabase.from('fabrica_conteo_items').select('id, conteo_id, item_id, cantidad').in('conteo_id', conteoIds)
+    ? await supabase.from('fabrica_conteo_items').select('id, conteo_id, item_id, cantidad, contado_en').in('conteo_id', conteoIds)
     : { data: [] }
   const conteoItemPorClave = new Map((conteoItemsData || []).map(ci => [`${ci.conteo_id}:${ci.item_id}`, ci]))
 
@@ -213,7 +206,8 @@ export default async function FabricaStockPage() {
           modoCalculo: di.modo_calculo,
           meta: di.meta,
           cantidadFija: di.cantidad_fija,
-          cantidad: ci?.cantidad ?? 0,
+          cantidad: ci?.contado_en ? ci.cantidad : 0,
+          contado: !!ci?.contado_en,
           stockMaximo: catalogo.stock_maximo,
           aDemanda: catalogo.a_demanda,
         }
@@ -248,5 +242,5 @@ export default async function FabricaStockPage() {
     }
   })
 
-  return <StockClient definiciones={definicionesUI} historialGlobal={historialGlobal} usuarioId={user!.id} umbralSobrestock={umbralSobrestock} />
+  return <StockClient definiciones={definicionesUI} historialGlobal={historialGlobal} umbralSobrestock={umbralSobrestock} />
 }
