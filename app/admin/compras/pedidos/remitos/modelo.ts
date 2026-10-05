@@ -10,6 +10,8 @@ export interface CantidadLinea {
   /** Id de la línea del remito si ya existía (edición). */
   id: string | null
   cantidad: number | null
+  /** A2b: kg (o la unidad base) reales. Informativo: el stock se mueve con `cantidad`. */
+  cantidadBase: number | null
 }
 
 /** '' = todavía no se eligió; 'nada' = no está en el pedido; si no, id de la línea del pedido. */
@@ -24,6 +26,8 @@ export interface LineaLibre {
   corresponde: Corresponde
   /** Insumo opcional cuando corresponde = 'nada'. Sin insumo no mueve stock. */
   itemId: string | null
+  /** A2b: kg reales (solo con insumo). */
+  cantidadBase: number | null
   /** El usuario eligió "corresponde a" a mano: ya no se sugiere solo. */
   manual: boolean
 }
@@ -49,6 +53,8 @@ export interface LineaEnvio {
   itemId: string | null
   descripcion: string
   cantidad: number
+  /** A2b: solo si la línea tiene insumo y es > 0. */
+  cantidadBase: number | null
 }
 
 let contador = 0
@@ -63,7 +69,7 @@ export function hoyISO(): string {
 }
 
 export function libreVacia(): LineaLibre {
-  return { clave: nuevaClave(), id: null, descripcion: '', cantidad: null, corresponde: '', itemId: null, manual: false }
+  return { clave: nuevaClave(), id: null, descripcion: '', cantidad: null, corresponde: '', itemId: null, manual: false, cantidadBase: null }
 }
 
 /**
@@ -78,7 +84,7 @@ export function estadoInicial(remito: RemitoFila | null, lineasPedido: LineaPedi
   const descripcionDe = new Map<string, string>()
   for (const l of lineasPedido) {
     if (!l.pedido_item_id) continue
-    porLinea[l.pedido_item_id] = { id: null, cantidad: null }
+    porLinea[l.pedido_item_id] = { id: null, cantidad: null, cantidadBase: null }
     descripcionDe.set(l.pedido_item_id, l.descripcion ?? '')
   }
   const libres: LineaLibre[] = []
@@ -88,6 +94,7 @@ export function estadoInicial(remito: RemitoFila | null, lineasPedido: LineaPedi
       if (destino && destino.id == null && descripcionDe.get(ri.pedido_item_id ?? '') === ri.descripcion) {
         destino.id = ri.id
         destino.cantidad = ri.cantidad
+        destino.cantidadBase = ri.cantidad_base
       } else {
         libres.push({
           clave: nuevaClave(),
@@ -98,6 +105,7 @@ export function estadoInicial(remito: RemitoFila | null, lineasPedido: LineaPedi
           corresponde: ri.pedido_item_id ?? 'nada',
           itemId: ri.pedido_item_id ? null : ri.item_id,
           manual: true,
+          cantidadBase: ri.cantidad_base,
         })
       }
     }
@@ -152,10 +160,16 @@ export function validar(estado: EstadoRemito): ProblemaRemito | null {
 /** Líneas que se mandan a compras_guardar_remito. */
 export function armarEnvio(estado: EstadoRemito, lineasPedido: LineaPedido[]): LineaEnvio[] {
   const descripcionDe = new Map(lineasPedido.map(l => [l.pedido_item_id, l.descripcion ?? '']))
+  const itemDe = new Map(lineasPedido.map(l => [l.pedido_item_id ?? '', l.item_id]))
+  // Los kg van solo en líneas con insumo (la RPC rechaza el resto).
+  const kg = (itemId: string | null | undefined, base: number | null) => (itemId && positiva(base) ? base : null)
   const res: LineaEnvio[] = []
   for (const [pedidoItemId, c] of Object.entries(estado.porLinea)) {
     if (!positiva(c.cantidad)) continue
-    res.push({ id: c.id, pedidoItemId, itemId: null, descripcion: descripcionDe.get(pedidoItemId) || 'Línea del pedido', cantidad: c.cantidad })
+    res.push({
+      id: c.id, pedidoItemId, itemId: null, descripcion: descripcionDe.get(pedidoItemId) || 'Línea del pedido', cantidad: c.cantidad,
+      cantidadBase: kg(itemDe.get(pedidoItemId), c.cantidadBase),
+    })
   }
   for (const l of libresUsadas(estado.libres)) {
     if (!positiva(l.cantidad) || !l.descripcion.trim() || l.corresponde === '') continue
@@ -166,6 +180,7 @@ export function armarEnvio(estado: EstadoRemito, lineasPedido: LineaPedido[]): L
       itemId: esDelPedido ? null : l.itemId,
       descripcion: l.descripcion.trim(),
       cantidad: l.cantidad,
+      cantidadBase: kg(esDelPedido ? itemDe.get(l.corresponde) : l.itemId, l.cantidadBase),
     })
   }
   return res

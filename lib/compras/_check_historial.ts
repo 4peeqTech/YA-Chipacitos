@@ -1,15 +1,34 @@
 // Chequeo de las funciones puras del historial del pedido (B1).
 // Correr con: npx tsx lib/compras/_check_historial.ts
 import {
-  agruparEventos, etiquetaEvento, leerEvento, partesDiff, textoDiff, type DiffLineas, type EventoCrudo,
+  agruparEventos, combinarDiffs, etiquetaEvento, leerEvento, partesDiff, partesLineas, textoDiff, textosCabeceraRemito,
+  type DiffLineas, type EventoCrudo,
 } from './historialPedido'
 
 const linea = (id: string, descripcion: string, cantidad: number, unidad: string | null = null, item_id: string | null = null) =>
-  ({ id, item_id, descripcion, unidad, cantidad })
+  ({ id, item_id, descripcion, unidad, cantidad, cantidad_base: null as number | null, unidad_base: null as string | null })
 const cambio = (
   id: string, descripcion: string, de: number, a: number,
   unidad: string | null = null, antesUnidad: string | null = unidad, antesDescripcion = descripcion,
-) => ({ ...linea(id, descripcion, a, unidad), antes: { cantidad: de, unidad: antesUnidad, descripcion: antesDescripcion, item_id: null } })
+) => ({ ...linea(id, descripcion, a, unidad), antes: { cantidad: de, unidad: antesUnidad, descripcion: antesDescripcion, item_id: null, cantidad_base: null as number | null } })
+
+// A2b: remito con kg reales.
+const conKg = (cajasDe: number, cajasA: number, kgDe: number | null, kgA: number | null) => ({
+  ...cambio('r1', 'Queso Barra', cajasDe, cajasA, 'Caja'),
+  cantidad_base: kgA, unidad_base: 'kg',
+  antes: { cantidad: cajasDe, unidad: 'Caja', descripcion: 'Queso Barra', item_id: null, cantidad_base: kgDe },
+})
+const remitoEditadoKg = leerEvento(ev0('remito_editado', { remito_id: 'R', secuencia: 1, cambiados: [conKg(2, 2, 32.9, 33.4)] }))
+const dosEdicionesKg = combinarDiffs([{ cambiados: [conKg(2, 2, 32.9, 33.4)] }, { cambiados: [conKg(2, 2, 33.4, 33)] }])
+const remitoFactura = leerEvento(ev0('remito_creado', {
+  remito_id: 'R', secuencia: 1, fecha: '2026-10-05', origen: 'factura', factura_id: 'F', factura_numero: 'A-1',
+  lineas: [{ ...linea('r1', 'Queso Barra', 2, 'Caja', 'QB'), cantidad_base: 33.4, unidad_base: 'kg' }],
+}))
+const remitoViejo = leerEvento(ev0('remito_creado', { remito_id: 'R', secuencia: 1, fecha: '2026-09-01' }))
+const remitoBackfill = leerEvento(ev0('remito_creado', { remito_id: 'R', secuencia: 2, fecha: '2026-09-01', origen: 'manual', factura_id: null, numero: null, backfill: true }))
+function ev0(tipo: string, detalle: unknown): EventoCrudo {
+  return { id: `k-${tipo}`, pedido_id: 'p1', tipo, detalle, fecha: '2026-10-05T17:00:00Z', persona_id: 'ana', persona: 'Ana' }
+}
 
 let n = 0
 const ev = (tipo: string, minuto: number, detalle: unknown, persona = 'ana'): EventoCrudo => ({
@@ -91,6 +110,16 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: '14 local con de null', real: etiquetaEvento(leerEvento(ev('local_cambiado', 0, { de: null, a: { id: 'x', nombre: 'Paraguay 388' } }))), esperado: 'Asignó el local de facturación' },
   { nombre: '14b local con de', real: etiquetaEvento(leerEvento(ev('local_cambiado', 0, { de: { id: 'y', nombre: 'A' }, a: { id: 'x', nombre: 'B' } }))), esperado: 'Cambió el local de facturación' },
   { nombre: '15 empate creado / enviado', real: g15.map(e => e.tipo).join(','), esperado: 'creado,enviado' },
+  // A2b: remitos con kg
+  { nombre: 'A2b remito_editado solo kg', real: remitoEditadoKg.d && 'cambiados' in remitoEditadoKg.d ? partesDiff(remitoEditadoKg.d as DiffLineas)[0]?.texto : null, esperado: 'Queso Barra 2 Caja · 32,9 → 33,4 kg' },
+  { nombre: 'A2b dos ediciones de kg se combinan', real: partesDiff(dosEdicionesKg)[0]?.texto, esperado: 'Queso Barra 2 Caja · 32,9 → 33 kg' },
+  { nombre: 'A2b kg que vuelven al original: sin cambio', real: partesDiff(combinarDiffs([{ cambiados: [conKg(2, 2, 32.9, 33.4)] }, { cambiados: [conKg(2, 2, 33.4, 32.9)] }])).length, esperado: 0 },
+  { nombre: 'A2b cajas y kg', real: partesDiff({ cambiados: [conKg(2, 3, 33.4, 49.9)] })[0]?.texto, esperado: 'Queso Barra 2 → 3 Caja (33,4 → 49,9 kg)' },
+  { nombre: 'A2b agregado con kg', real: partesDiff({ agregados: [{ ...linea('r2', 'Queso Barra', 2, 'Caja'), cantidad_base: 33.4, unidad_base: 'kg' }] })[0]?.texto, esperado: 'agregó Queso Barra 2 Caja (33,4 kg)' },
+  { nombre: 'A2b remito desde factura parsea', real: remitoFactura.tipo === 'remito_creado' && remitoFactura.d ? `${remitoFactura.d.origen}|${remitoFactura.d.factura_numero}|${partesLineas(remitoFactura.d.lineas ?? [])[0]?.texto}` : null, esperado: 'factura|A-1|Queso Barra 2 Caja (33,4 kg)' },
+  { nombre: 'A2b remito_creado viejo sigue parseando', real: remitoViejo.d != null, esperado: true },
+  { nombre: 'A2b remito_creado de backfill parsea', real: remitoBackfill.d != null, esperado: true },
+  { nombre: 'A2b cabecera del remito', real: textosCabeceraRemito({ fecha: { de: '2026-10-03', a: '2026-10-04' }, numero: { de: null, a: '0001-123' } }).join(' | '), esperado: 'Fecha: 03/10 → 04/10 | N° del proveedor: — → 0001-123' },
   { nombre: 'creado desde solicitud', real: etiquetaEvento(leerEvento(ev('creado', 0, { origen: 'solicitud', solicitud_id: 's1' }))), esperado: 'Creado desde una solicitud' },
 ]
 
