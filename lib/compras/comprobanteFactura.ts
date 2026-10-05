@@ -143,7 +143,7 @@ export function nombreArchivoComprobante(d: Pick<DatosComprobante, 'numero' | 'p
 // cambian acá y el chequeo lo detecta.
 export const ALTO = {
   /** Cabecera, metadatos, encabezado de tabla, subtotal, una fila de IVA, total, pie y un margen. */
-  base: 980,
+  base: 1010,
   facturadoA: 64,
   estadoPago: 40,
   /** Cada alícuota con IVA después de la primera. */

@@ -65,12 +65,11 @@ export default function ComprobanteImagen({ d, logo }: { d: DatosComprobante; lo
   const proveedorLinea = d.proveedor.cuit
     ? `${d.proveedor.nombre.toUpperCase()} · CUIT ${d.proveedor.cuit}`
     : d.proveedor.nombre.toUpperCase()
-  const pie = [
-    d.confirmada.en
-      ? `Confirmada el ${fechaHoraNumerica(d.confirmada.en)}${d.confirmada.por ? ` por ${d.confirmada.por}` : ''}`
-      : null,
-    `Generado el ${fechaHoraNumerica(d.generado.en)} por ${d.generado.por}`,
-  ].filter(Boolean).join(' · ')
+  // Dos renglones fijos (el alto no depende del largo de los nombres).
+  const confirmada = d.confirmada.en
+    ? `Confirmada el ${fechaHoraNumerica(d.confirmada.en)}${d.confirmada.por ? ` por ${d.confirmada.por}` : ''}`
+    : 'Confirmada'
+  const generado = `Generado el ${fechaHoraNumerica(d.generado.en)} por ${d.generado.por}`
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', backgroundColor: C.fondo }}>
@@ -212,7 +211,8 @@ export default function ComprobanteImagen({ d, logo }: { d: DatosComprobante; lo
           <div style={{ display: 'flex' }}>
             {`Representación digital de la factura ${d.numero} de ${d.proveedor.nombre.toUpperCase()}, cargada en el sistema de compras de YA! Chipacitos. No es un comprobante fiscal: no la emitió ARCA y no reemplaza la factura original del proveedor.`}
           </div>
-          <div style={{ display: 'flex', marginTop: 12, color: C.tinta }}>{pie}</div>
+          <div style={{ display: 'flex', marginTop: 12, color: C.tinta }}>{confirmada}</div>
+          <div style={{ display: 'flex', color: C.tinta }}>{generado}</div>
         </div>
       </div>
 
