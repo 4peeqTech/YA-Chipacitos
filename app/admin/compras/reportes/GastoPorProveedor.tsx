@@ -8,6 +8,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import { calcularGastoPorProveedor, type FacturaReporte, type PedidoReporte } from '@/lib/compras/reportes'
 import { codigoPedido } from '@/lib/compras/codigos'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: { payload: { proveedorNombre: string; total: number } }[] }) {
   if (!active || !payload?.length) return null
@@ -157,16 +158,14 @@ export default function GastoPorProveedor({
                               {f.detalle.map(d => (
                                 <tr key={d.facturaId} className="text-text">
                                   <td className="py-1 pr-3">
-                                    <Link
-                                      href={`/admin/compras/pedidos/facturas?factura=${d.facturaId}`}
-                                      onClick={e => e.stopPropagation()}
-                                      className="font-mono tabular-nums underline decoration-accent decoration-2 underline-offset-2 hover:opacity-80"
-                                    >
-                                      {d.numero}
-                                    </Link>
+                                    <LinkEntidad entidad={{ tipo: 'factura', id: d.facturaId }}>{d.numero}</LinkEntidad>
                                     {d.esNotaCredito && <span className="ml-1.5 text-muted">nota de crédito</span>}
                                   </td>
-                                  <td className="py-1 pr-3 font-mono tabular-nums text-muted">{d.pedidoNumero != null ? codigoPedido(d.pedidoNumero) : '—'}</td>
+                                  <td className="py-1 pr-3 text-muted">
+                                    {d.pedidoId && d.pedidoNumero != null
+                                      ? <LinkEntidad entidad={{ tipo: 'pedido', id: d.pedidoId }}>{codigoPedido(d.pedidoNumero)}</LinkEntidad>
+                                      : <span className="font-mono tabular-nums">—</span>}
+                                  </td>
                                   <td className="py-1 pr-3 text-muted">{d.fecha ? formatearFecha(d.fecha) : '—'}</td>
                                   <td className="whitespace-nowrap py-1 pr-3 text-right tabular-nums">{formatearMonedaExacta(d.subtotal)}</td>
                                   <td className="whitespace-nowrap py-1 pr-3 text-right tabular-nums">{formatearMonedaExacta(d.iva)}</td>

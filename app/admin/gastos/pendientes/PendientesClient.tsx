@@ -23,6 +23,7 @@ import {
 } from '@/lib/gastos/modelo'
 import { deshacerPagoFudo, registrarPagoFudo, registrarPagoGasto } from '../acciones'
 import PagoModal, { type DatosPago } from '../PagoModal'
+import { rutaDe } from '@/lib/compras/rutas'
 
 type Pestana = 'app' | 'fudo' | 'pagados'
 
@@ -81,7 +82,7 @@ function GrupoPendientes({
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-text">
                   {p.origen === 'app' ? (
-                    <Link href={`/admin/gastos?gasto=${p.id}`} className="-my-3 inline-block py-3 hover:underline hover:decoration-accent hover:decoration-2 hover:underline-offset-4">
+                    <Link href={rutaDe({ tipo: 'gasto', id: p.id })} className="-my-3 inline-block py-3 hover:underline hover:decoration-accent hover:decoration-2 hover:underline-offset-4">
                       {p.titulo}
                     </Link>
                   ) : p.titulo}
