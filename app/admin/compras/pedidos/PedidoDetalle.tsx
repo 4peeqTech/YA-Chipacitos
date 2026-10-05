@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
-  ArrowRight, Ban, Clock, History, ListChecks, Loader2, Lock, MoreHorizontal, PackageOpen, PencilLine,
-  ReceiptText, RotateCcw, Scale, Send, Trash2, Truck, type LucideIcon,
+  ArrowRight, Ban, Clock, FilePen, History, ListChecks, Loader2, Lock, MapPin, MessageCircle, MoreHorizontal,
+  PackageOpen, PencilLine, ReceiptText, Repeat, RotateCcw, Scale, Send, Store, Trash2, Truck, type LucideIcon,
 } from 'lucide-react'
 import EstadoBadge from '@/components/ui/EstadoBadge'
 import LinkEntidad from '@/components/ui/LinkEntidad'
@@ -12,10 +12,13 @@ import { formatearFecha, formatearFechaHora, formatearMonedaExacta } from '@/lib
 import { proximaAccion, subtextoEstado } from '@/lib/compras/estadoPedido'
 import { codigoRemito } from '@/lib/compras/codigos'
 import { rutaCargarDePedido, rutaDe } from '@/lib/compras/rutas'
-import { leerEventoDiferencia, RESOLUCION_PASADO } from '@/lib/compras/diferencias'
+import {
+  agruparEventos, etiquetaEvento, leerDiferencia, partesDiff, textoCantidadItems, textoSolicitud,
+  type EntradaHistorial, type EventoLeido, type ParteDiff,
+} from '@/lib/compras/historialPedido'
+import { ESTADOS } from '@/lib/estados'
 import DiferenciasPanel from './facturas/DiferenciasPanel'
 import { conUnidad, type PedidoVista } from './modelo'
-import type { EventoPedido } from './datos'
 
 export interface AccionesDetalle {
   onEnviar: () => void
@@ -25,37 +28,211 @@ export interface AccionesDetalle {
   onEliminar: () => void
 }
 
-const EVENTO: Record<string, { label: string; icono: LucideIcon }> = {
-  creado: { label: 'Pedido creado', icono: PencilLine },
-  enviado: { label: 'Enviado al proveedor', icono: Send },
-  remito: { label: 'Llegó un remito', icono: Truck },
-  cerrado: { label: 'Cerrado a mano', icono: Lock },
-  reabierto: { label: 'Reabierto', icono: RotateCcw },
-  factura: { label: 'Factura confirmada', icono: ReceiptText },
-  factura_anulada: { label: 'Factura anulada', icono: Ban },
-  diferencia: { label: 'Diferencia con la factura resuelta', icono: Scale },
+const ICONO_EVENTO: Record<string, LucideIcon> = {
+  creado: PencilLine,
+  items_editados: ListChecks,
+  proveedor_cambiado: Store,
+  local_cambiado: MapPin,
+  mensaje: MessageCircle,
+  enviado: Send,
+  reenviado: Repeat,
+  cerrado: Lock,
+  reabierto: RotateCcw,
+  remito_creado: Truck,
+  remito_editado: FilePen,
+  remito_eliminado: Trash2,
+  factura: ReceiptText,
+  factura_anulada: Ban,
+  diferencia: Scale,
+  grupo: PencilLine,
 }
 
-// Desempate cuando dos eventos tienen la misma hora.
-const ORDEN_EVENTO = ['creado', 'enviado', 'remito', 'factura', 'diferencia', 'factura_anulada', 'cerrado', 'reabierto']
+const MAX_PARTES = 5
 
-function detalleEvento(e: EventoPedido, codigoDe: (remitoId: string | null) => string | null): ReactNode {
-  if (e.tipo === 'remito' && e.detalle) {
-    const codigo = codigoDe(e.remito_id)
-    return (
-      <>
-        {codigo && e.remito_id && <><LinkEntidad entidad={{ tipo: 'remito', id: e.remito_id }}>{codigo}</LinkEntidad> · </>}
-        llegó el {formatearFecha(e.detalle)}
-      </>
-    )
+/** Las líneas de un diff ("Queso 40 → 45 kg", "agregó Sal 2 Bolsa"), con el insumo linkeado. */
+function PartesDiff({ partes }: { partes: ParteDiff[] }) {
+  const [todas, setTodas] = useState(false)
+  const visibles = todas ? partes : partes.slice(0, MAX_PARTES)
+  const resto = partes.length - MAX_PARTES
+  return (
+    <>
+      <ul className="space-y-0.5">
+        {visibles.map((p, i) => (
+          <li key={`${p.tipo}-${i}`} className="flex gap-1.5 text-xs text-muted">
+            <span aria-hidden="true">•</span>
+            <span className="min-w-0 break-words">
+              {p.previo}
+              {p.itemId
+                ? <LinkEntidad entidad={{ tipo: 'insumo', id: p.itemId }} variante="texto" title="Ver el stock de este insumo">{p.nombre}</LinkEntidad>
+                : p.nombre}
+              {p.resto}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {resto > 0 && (
+        <button
+          type="button"
+          onClick={() => setTodas(t => !t)}
+          aria-expanded={todas}
+          className="min-h-11 rounded text-xs font-medium text-text underline decoration-accent decoration-2 underline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          {todas ? 'Ver menos' : `Ver ${resto} cambio${resto === 1 ? '' : 's'} más`}
+        </button>
+      )}
+    </>
+  )
+}
+
+function VerMensaje({ mensaje }: { mensaje: string }) {
+  return (
+    <details className="group text-xs">
+      <summary className="inline-flex min-h-11 cursor-pointer items-center rounded font-medium text-text underline decoration-accent decoration-2 underline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-accent">
+        <span className="group-open:hidden">Ver el mensaje</span>
+        <span className="hidden group-open:inline">Ocultar el mensaje</span>
+      </summary>
+      <pre className="mt-1 max-h-60 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-bg p-3 font-sans text-xs text-text">
+        {mensaje}
+      </pre>
+    </details>
+  )
+}
+
+/** Lo que va debajo de la etiqueta de un evento. null si no hay nada que agregar. */
+function detalleEvento(e: EventoLeido, numeroPedido: number): ReactNode {
+  switch (e.tipo) {
+    case 'creado': {
+      if (!e.d) return null
+      const items = e.d.lineas ? textoCantidadItems(e.d.lineas.length) : null
+      if (e.d.origen === 'solicitud') {
+        const texto = textoSolicitud(e.d.solicitud_tipo, e.d.solicitud_fecha)
+        return (
+          <p className="text-xs text-muted">
+            {e.d.solicitud_id
+              ? <LinkEntidad entidad={{ tipo: 'solicitud', id: e.d.solicitud_id }} variante="texto" title="Ver la solicitud">{texto}</LinkEntidad>
+              : texto}
+            {items && <> · {items}</>}
+          </p>
+        )
+      }
+      return items ? <p className="text-xs text-muted">{items}</p> : null
+    }
+    case 'items_editados':
+      return e.d ? <PartesDiff partes={partesDiff(e.d)} /> : null
+    case 'proveedor_cambiado': {
+      if (!e.d) return null
+      const { de, a } = e.d
+      return (
+        <p className="text-xs text-muted">
+          {de.nombre ?? 'Otro proveedor'} →{' '}
+          {a.id
+            ? <LinkEntidad entidad={{ tipo: 'proveedor', id: a.id }} variante="texto" title="Ver el proveedor">{a.nombre ?? 'proveedor'}</LinkEntidad>
+            : a.nombre}
+        </p>
+      )
+    }
+    case 'local_cambiado': {
+      if (!e.d) return null
+      const a = e.d.a?.nombre ?? 'sin asignar'
+      return <p className="text-xs text-muted">{e.d.de ? `${e.d.de.nombre ?? '—'} → ${a}` : a}</p>
+    }
+    case 'enviado':
+    case 'reenviado':
+      return e.d?.mensaje ? <VerMensaje mensaje={e.d.mensaje} /> : null
+    case 'cerrado':
+      return e.d?.motivo ? <p className="text-xs text-muted">Motivo: {e.d.motivo}</p> : null
+    case 'reabierto': {
+      const estado = e.d?.estado_recepcion
+      if (!estado) return null
+      const clave = estado === 'cerrado_manual' ? 'cerrado' : estado
+      const label = ESTADOS.compras_pedido[clave as keyof typeof ESTADOS.compras_pedido]?.label ?? estado
+      return <p className="text-xs text-muted">Volvió a {label}</p>
+    }
+    case 'remito_creado':
+      if (!e.d) return null
+      return (
+        <p className="text-xs text-muted">
+          <LinkEntidad entidad={{ tipo: 'remito', id: e.d.remito_id }}>{codigoRemito(numeroPedido, e.d.secuencia)}</LinkEntidad>
+          {e.d.fecha && <> · llegó el {formatearFecha(e.d.fecha)}</>}
+        </p>
+      )
+    case 'remito_editado':
+      if (!e.d) return null
+      return (
+        <>
+          <p className="text-xs text-muted">
+            <LinkEntidad entidad={{ tipo: 'remito', id: e.d.remito_id }}>{codigoRemito(numeroPedido, e.d.secuencia)}</LinkEntidad>
+          </p>
+          <PartesDiff partes={partesDiff(e.d)} />
+        </>
+      )
+    case 'remito_eliminado':
+      if (!e.d) return null
+      return (
+        <p className="text-xs text-muted">
+          <span className="font-mono tabular-nums">{codigoRemito(numeroPedido, e.d.secuencia)}</span>
+          {e.d.motivo && <> · Motivo: {e.d.motivo}</>}
+        </p>
+      )
+    case 'factura':
+    case 'factura_anulada':
+      if (!e.d) return null
+      return (
+        <p className="text-xs text-muted">
+          <LinkEntidad entidad={{ tipo: 'factura', id: e.d.factura_id }} variante="texto">N° {e.d.numero ?? '—'}</LinkEntidad>
+        </p>
+      )
+    case 'diferencia': {
+      if (!e.d) return null
+      const dif = leerDiferencia(e.d)
+      return (
+        <p className="text-xs text-muted">
+          {e.d.item_id
+            ? <LinkEntidad entidad={{ tipo: 'insumo', id: e.d.item_id }} variante="texto" title="Ver el stock de este insumo">{dif.insumo}</LinkEntidad>
+            : dif.insumo}
+          : {dif.texto}
+        </p>
+      )
+    }
+    default:
+      return null
   }
-  if (e.tipo === 'cerrado' && e.detalle) return `Motivo: ${e.detalle}`
-  if ((e.tipo === 'factura' || e.tipo === 'factura_anulada') && e.detalle) return `N° ${e.detalle}`
-  if (e.tipo === 'diferencia') {
-    const d = leerEventoDiferencia(e.detalle)
-    return d ? `${d.insumo}: ${RESOLUCION_PASADO[d.resolucion]}` : null
-  }
-  return null
+}
+
+/** '5 oct, 14:02' o '5 oct, 14:02–14:06' si el grupo pasa a otro minuto. */
+function rangoFecha(desde: string | null, hasta: string | null): string {
+  if (!desde) return '—'
+  const inicio = formatearFechaHora(desde)
+  if (!hasta || Math.floor(Date.parse(hasta) / 60_000) === Math.floor(Date.parse(desde) / 60_000)) return inicio
+  return `${inicio}–${new Date(hasta).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
+}
+
+function EntradaDelHistorial({ entrada, numeroPedido }: { entrada: EntradaHistorial; numeroPedido: number }) {
+  const Icono = ICONO_EVENTO[entrada.tipo] ?? History
+  const mixto = entrada.tipo === 'grupo'
+  return (
+    <li className="relative">
+      <span className="absolute -left-[1.95rem] top-0 flex size-6 items-center justify-center rounded-full border border-border bg-surface text-muted">
+        <Icono size={12} aria-hidden="true" />
+      </span>
+      <p className="text-sm text-text">{entrada.etiqueta}</p>
+      <p className="text-xs text-muted">
+        {rangoFecha(entrada.desde, entrada.hasta)}
+        {entrada.persona && <> · {entrada.persona}</>}
+      </p>
+      {entrada.eventos.map(e => {
+        const detalle = detalleEvento(e, numeroPedido)
+        if (!mixto) return detalle ? <div key={`${e.tipo}-${e.id}`} className="mt-0.5">{detalle}</div> : null
+        // En un grupo con varios tipos, cada sub-evento va con su propia etiqueta.
+        return (
+          <div key={`${e.tipo}-${e.id}`} className="mt-1">
+            <p className="text-xs font-medium text-text">{etiquetaEvento(e)}</p>
+            {detalle}
+          </div>
+        )
+      })}
+    </li>
+  )
 }
 
 function MenuSecundario({ items }: { items: { label: string; icono: LucideIcon; onClick: () => void; peligro?: boolean }[] }) {
@@ -130,12 +307,7 @@ export default function PedidoDetalle({
   const subtexto = subtextoEstado(entrada)
   const esperaMercaderia = entrada.estado_recepcion === 'enviado' || entrada.estado_recepcion === 'parcial'
   const remitos = [...fila.compras_remitos].sort((a, b) => a.secuencia - b.secuencia)
-  const codigoDe = (remitoId: string | null) => {
-    const r = remitoId ? fila.compras_remitos.find(x => x.id === remitoId) : undefined
-    return r ? codigoRemito(fila.numero, r.secuencia) : null
-  }
-  const eventos = [...pedido.eventos].sort((a, b) =>
-    (a.fecha ?? '').localeCompare(b.fecha ?? '') || ORDEN_EVENTO.indexOf(a.tipo ?? '') - ORDEN_EVENTO.indexOf(b.tipo ?? ''))
+  const historial = agruparEventos(pedido.eventos)
   const hrefRemito = rutaCargarDePedido('remito', fila.id)
   const hrefFactura = pedido.factura
     ? rutaDe({ tipo: 'factura', id: pedido.factura.id })
@@ -375,25 +547,12 @@ export default function PedidoDetalle({
       <section className="space-y-2">
         <h4 className="flex items-center gap-2 text-sm font-bold text-text">
           <History size={16} className="text-accent" /> Historial
+          <span className="font-normal text-muted">({historial.length})</span>
         </h4>
         <ol className="relative space-y-3 border-l border-border pl-5 ml-2">
-          {eventos.map((e, i) => {
-            const def = EVENTO[e.tipo ?? ''] ?? { label: e.tipo ?? '', icono: History }
-            const extra = detalleEvento(e, codigoDe)
-            return (
-              <li key={`${e.tipo}-${e.remito_id ?? ''}-${i}`} className="relative">
-                <span className="absolute -left-[1.95rem] top-0 flex size-6 items-center justify-center rounded-full border border-border bg-surface text-muted">
-                  <def.icono size={12} />
-                </span>
-                <p className="text-sm text-text">{def.label}</p>
-                <p className="text-xs text-muted">
-                  {e.fecha ? formatearFechaHora(e.fecha) : '—'}
-                  {e.persona && <> · {e.persona}</>}
-                </p>
-                {extra && <p className="text-xs text-muted">{extra}</p>}
-              </li>
-            )
-          })}
+          {historial.map(entrada => (
+            <EntradaDelHistorial key={entrada.key} entrada={entrada} numeroPedido={fila.numero} />
+          ))}
         </ol>
       </section>
     </div>

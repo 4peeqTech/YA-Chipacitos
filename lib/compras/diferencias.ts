@@ -153,11 +153,3 @@ export function explicacionResolucion(
       return 'El stock no se mueve. Elegilo si la diferencia no importa (por ejemplo, un redondeo del proveedor).'
   }
 }
-
-/** Para la entrada "diferencia" del historial del pedido: detalle = '<resolucion>|<insumo>'. */
-export function leerEventoDiferencia(detalle: string | null): { resolucion: Resolucion; insumo: string } | null {
-  if (!detalle) return null
-  const corte = detalle.indexOf('|')
-  if (corte < 0) return null
-  return { resolucion: aResolucion(detalle.slice(0, corte)), insumo: detalle.slice(corte + 1) }
-}
