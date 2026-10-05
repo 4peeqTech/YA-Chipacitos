@@ -7,6 +7,7 @@ import InputNumero from '@/components/ui/InputNumero'
 import { Field, controlClass } from '@/components/ui/Field'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { formatearFecha } from '@/lib/formato'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 import { codigoPedido, codigoRemito } from '@/lib/compras/codigos'
 import { conUnidad } from '../modelo'
 import { eliminarRemito, guardarRemito } from './acciones'
@@ -277,7 +278,9 @@ export default function RemitoForm({
           <Field label="Pedido" obligatorio>
             {remito ? (
               <p className="flex min-h-11 items-center text-sm text-text">
-                <span className="font-mono tabular-nums">{pedido ? codigoPedido(pedido.numero) : '—'}</span>
+                {pedido
+                  ? <LinkEntidad entidad={{ tipo: 'pedido', id: pedido.id }}>{codigoPedido(pedido.numero)}</LinkEntidad>
+                  : <span className="font-mono tabular-nums">—</span>}
                 <span className="text-muted">&nbsp;·&nbsp;{pedido?.proveedores?.nombre ?? '—'}</span>
               </p>
             ) : (

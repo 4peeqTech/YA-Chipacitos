@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { AlertTriangle, Check, Clock, EyeOff, Loader2, MessageSquareWarning, PackagePlus, RotateCcw, Scale } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 import { Field, controlClass } from '@/components/ui/Field'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { formatearFechaHora } from '@/lib/formato'
@@ -180,7 +181,7 @@ export default function DiferenciasPanel({
             {aResolver.map(d => (
               <li key={d.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2.5">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-text">{d.descripcion}</p>
+                  <p className="text-sm font-medium text-text"><LinkEntidad entidad={{ tipo: 'insumo', id: d.itemId }} variante="texto" title="Ver el stock de este insumo">{d.descripcion}</LinkEntidad></p>
                   <p className="text-xs text-muted"><Cantidades d={d} /></p>
                   <p className="text-xs font-medium text-warning">{textoDiferencia(d)}</p>
                 </div>
@@ -210,7 +211,7 @@ export default function DiferenciasPanel({
           <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
             {pendientesDeLlegar.map(d => (
               <li key={d.id} className="px-3 py-2.5">
-                <p className="text-sm text-text">{d.descripcion}</p>
+                <p className="text-sm text-text"><LinkEntidad entidad={{ tipo: 'insumo', id: d.itemId }} variante="texto" title="Ver el stock de este insumo">{d.descripcion}</LinkEntidad></p>
                 <p className="text-xs text-muted"><Cantidades d={d} /></p>
               </li>
             ))}
@@ -224,7 +225,7 @@ export default function DiferenciasPanel({
             <li key={d.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2.5">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-sm text-text">
-                  <Check size={14} className="shrink-0 text-success" /> {d.descripcion}
+                  <Check size={14} className="shrink-0 text-success" /> <LinkEntidad entidad={{ tipo: 'insumo', id: d.itemId }} variante="texto" title="Ver el stock de este insumo">{d.descripcion}</LinkEntidad>
                   <span className="text-muted">· {textoResuelta(d.resolucion, d.diferencia, d.unidad)}</span>
                 </p>
                 <p className="text-xs text-muted">

@@ -19,12 +19,15 @@ export default async function GastosPage({
 
   const { gasto } = await searchParams
 
-  const [{ data: gastos }, { data: proveedores }, catalogos] = await Promise.all([
+  const [{ data: gastos }, { data: proveedores }, catalogos, { data: facturas }] = await Promise.all([
     // La vista pide es_admin(): cualquier otro rol recibe una lista vacía.
     supabase.from('v_gastos').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false }),
     supabase.from('proveedores').select('id, nombre').eq('estado', 'activo').order('nombre'),
     consultarCatalogosPago(supabase),
+    // Para linkear el pedido de los gastos que salieron de una factura.
+    supabase.from('compras_facturas').select('id, pedido_id'),
   ])
+  const pedidoDeFactura = Object.fromEntries((facturas ?? []).map(f => [f.id, f.pedido_id]))
 
   return (
     <GastosClient
@@ -32,6 +35,7 @@ export default async function GastosPage({
       proveedores={proveedores ?? []}
       cajas={catalogos.cajas}
       formasPago={catalogos.formasPago}
+      pedidoDeFactura={pedidoDeFactura}
       gastoInicial={gasto}
     />
   )

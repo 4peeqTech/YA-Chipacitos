@@ -1,15 +1,17 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight, Ban, Clock, History, ListChecks, Loader2, Lock, MoreHorizontal, PackageOpen, PencilLine,
   ReceiptText, RotateCcw, Scale, Send, Trash2, Truck, type LucideIcon,
 } from 'lucide-react'
 import EstadoBadge from '@/components/ui/EstadoBadge'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 import { formatearFecha, formatearFechaHora, formatearMonedaExacta } from '@/lib/formato'
 import { proximaAccion, subtextoEstado } from '@/lib/compras/estadoPedido'
 import { codigoRemito } from '@/lib/compras/codigos'
+import { rutaCargarDePedido, rutaDe } from '@/lib/compras/rutas'
 import { leerEventoDiferencia, RESOLUCION_PASADO } from '@/lib/compras/diferencias'
 import DiferenciasPanel from './facturas/DiferenciasPanel'
 import { conUnidad, type PedidoVista } from './modelo'
@@ -37,10 +39,15 @@ const EVENTO: Record<string, { label: string; icono: LucideIcon }> = {
 // Desempate cuando dos eventos tienen la misma hora.
 const ORDEN_EVENTO = ['creado', 'enviado', 'remito', 'factura', 'diferencia', 'factura_anulada', 'cerrado', 'reabierto']
 
-function detalleEvento(e: EventoPedido, codigoDe: (remitoId: string | null) => string | null): string | null {
+function detalleEvento(e: EventoPedido, codigoDe: (remitoId: string | null) => string | null): ReactNode {
   if (e.tipo === 'remito' && e.detalle) {
     const codigo = codigoDe(e.remito_id)
-    return `${codigo ? `${codigo} · ` : ''}llegó el ${formatearFecha(e.detalle)}`
+    return (
+      <>
+        {codigo && e.remito_id && <><LinkEntidad entidad={{ tipo: 'remito', id: e.remito_id }}>{codigo}</LinkEntidad> · </>}
+        llegó el {formatearFecha(e.detalle)}
+      </>
+    )
   }
   if (e.tipo === 'cerrado' && e.detalle) return `Motivo: ${e.detalle}`
   if ((e.tipo === 'factura' || e.tipo === 'factura_anulada') && e.detalle) return `N° ${e.detalle}`
@@ -129,10 +136,10 @@ export default function PedidoDetalle({
   }
   const eventos = [...pedido.eventos].sort((a, b) =>
     (a.fecha ?? '').localeCompare(b.fecha ?? '') || ORDEN_EVENTO.indexOf(a.tipo ?? '') - ORDEN_EVENTO.indexOf(b.tipo ?? ''))
-  const hrefRemito = `/admin/compras/pedidos/remitos?pedido=${fila.id}`
+  const hrefRemito = rutaCargarDePedido('remito', fila.id)
   const hrefFactura = pedido.factura
-    ? `/admin/compras/pedidos/facturas?factura=${pedido.factura.id}`
-    : `/admin/compras/pedidos/facturas?pedido=${fila.id}`
+    ? rutaDe({ tipo: 'factura', id: pedido.factura.id })
+    : rutaCargarDePedido('factura', fila.id)
   // La sección aparece cuando ya hay algo que mostrar o algo que hacer: antes
   // de enviar el pedido, la factura todavía no existe como paso.
   const mostrarFactura = esAdmin && (pedido.factura != null || entrada.estado_recepcion !== 'sin_enviar')
@@ -150,7 +157,9 @@ export default function PedidoDetalle({
         <div className="min-w-0">
           <p className="text-lg font-bold text-text truncate">{pedido.proveedor}</p>
           <p className="text-xs text-muted mt-0.5">
-            {pedido.origen} · creado el {formatearFecha(pedido.creado)}
+            {fila.solicitud_id
+              ? <LinkEntidad entidad={{ tipo: 'solicitud', id: fila.solicitud_id }} variante="texto" title="Ver la solicitud que generó este pedido">{pedido.origen}</LinkEntidad>
+              : pedido.origen} · creado el {formatearFecha(pedido.creado)}
             {fila.enviado_en && <> · enviado el {formatearFecha(fila.enviado_en)}</>}
           </p>
         </div>
@@ -259,7 +268,11 @@ export default function PedidoDetalle({
                   const excedente = l.excedente ?? 0
                   return (
                     <tr key={l.pedido_item_id}>
-                      <td className="px-3 py-2.5 text-text">{l.descripcion}</td>
+                      <td className="px-3 py-2.5 text-text">
+                        {l.item_id
+                          ? <LinkEntidad entidad={{ tipo: 'insumo', id: l.item_id }} variante="texto" title="Ver el stock de este insumo">{l.descripcion}</LinkEntidad>
+                          : l.descripcion}
+                      </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-text whitespace-nowrap">{conUnidad(l.cantidad, l.unidad)}</td>
                       {entrada.estado_recepcion !== 'sin_enviar' && (
                         <>
@@ -295,7 +308,7 @@ export default function PedidoDetalle({
               {remitos.map(r => (
                 <li key={r.id}>
                   <Link
-                    href={`/admin/compras/pedidos/remitos?remito=${r.id}`}
+                    href={rutaDe({ tipo: 'remito', id: r.id })}
                     className="flex min-h-11 items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-surface2 transition-colors"
                   >
                     <span className="text-text">
