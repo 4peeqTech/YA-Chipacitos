@@ -4,10 +4,16 @@ import HistoricoInsumoClient from './HistoricoInsumoClient'
 
 export const metadata = { title: 'Histórico por insumo | YA! Chipacitos' }
 
-export default async function HistoricoInsumoPage() {
+export default async function HistoricoInsumoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ insumo?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const { insumo } = await searchParams
 
   const { data: items } = await supabase
     .from('compras_items')
@@ -15,5 +21,5 @@ export default async function HistoricoInsumoPage() {
     .eq('estado', 'activo')
     .order('nombre')
 
-  return <HistoricoInsumoClient itemsCatalogo={items ?? []} />
+  return <HistoricoInsumoClient itemsCatalogo={items ?? []} insumoInicial={insumo} />
 }

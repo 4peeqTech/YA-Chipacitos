@@ -12,6 +12,7 @@ import SearchInput from '@/components/ui/SearchInput'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { Chip } from '@/components/ui/Chip'
 import { useConfirmar } from '@/components/ui/ProveedorUI'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { formatearRelativo } from '@/lib/formato'
 import { conUnidad } from '../pedidos/modelo'
 import StockFicha from './StockFicha'
@@ -52,6 +53,8 @@ export default function StockClient({
   const [soloBajo, setSoloBajo] = useState(false)
   const [abiertoId, setAbiertoId] = useState<string | null>(insumoInicial ?? null)
   const [conCambios, setConCambios] = useState(false)
+  const quitarParam = useQuitarParams('insumo')
+  useAlCambiarParam(insumoInicial, id => abrir(id))
 
   // Todo sale de las props: las acciones llaman a refresh().
   const filas = useMemo<FilaStock[]>(() => {
@@ -88,6 +91,7 @@ export default function StockClient({
   }
 
   function cerrarYa() {
+    quitarParam()
     setAbiertoId(null)
     setConCambios(false)
   }

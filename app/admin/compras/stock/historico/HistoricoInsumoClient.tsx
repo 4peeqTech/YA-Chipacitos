@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { History } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import PageHeader from '@/components/ui/PageHeader'
 import SelectBuscador from '@/components/ui/SelectBuscador'
 import EmptyState from '@/components/ui/EmptyState'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { grupoMovimiento, type TipoMovimiento } from '@/lib/compras/movimientos'
 import { conUnidad } from '../../pedidos/modelo'
 
@@ -105,21 +106,47 @@ function Barras({ filas, unidad }: { filas: FilaConteo[]; unidad: string | null 
   )
 }
 
-export default function HistoricoInsumoClient({ itemsCatalogo }: { itemsCatalogo: CatalogoItem[] }) {
+export default function HistoricoInsumoClient({
+  itemsCatalogo,
+  insumoInicial,
+}: {
+  itemsCatalogo: CatalogoItem[]
+  /** ?insumo=<id>: entra con ese insumo elegido. */
+  insumoInicial?: string
+}) {
   const supabase = createClient()
+  const valido = (id: string | undefined) => (id && itemsCatalogo.some(i => i.id === id) ? id : '')
 
-  const [itemId, setItemId] = useState('')
-  const [cargando, setCargando] = useState(false)
+  const [itemId, setItemId] = useState(() => valido(insumoInicial))
+  const [cargando, setCargando] = useState(() => valido(insumoInicial) !== '')
   const [series, setSeries] = useState<Serie[]>([])
+  const quitarParam = useQuitarParams('insumo')
+  useAlCambiarParam(insumoInicial, id => elegir(valido(id)))
 
   const unidad = itemsCatalogo.find(i => i.id === itemId)?.unidad ?? null
 
-  async function elegirItem(id: string) {
+  function elegir(id: string) {
     setItemId(id)
     setSeries([])
-    if (!id) return
-    setCargando(true)
+    setCargando(id !== '')
+  }
 
+  // Elegido a mano, el ?insumo= de un link ya no corresponde: se saca.
+  function elegirItem(id: string) {
+    quitarParam()
+    elegir(id)
+  }
+
+  useEffect(() => {
+    if (!itemId) return
+    let vigente = true
+    cargar(itemId, () => vigente)
+    return () => { vigente = false }
+    // cargar solo lee el cliente de Supabase: alcanza con el id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId])
+
+  async function cargar(id: string, vigente: () => boolean) {
     const [{ data: conteoItems }, { data: movimientos }] = await Promise.all([
       supabase
         .from('fabrica_conteo_items')
@@ -154,6 +181,7 @@ export default function HistoricoInsumoClient({ itemsCatalogo }: { itemsCatalogo
       porLista.set(conteo.definicion_id, grupo)
     }
 
+    if (!vigente()) return
     const movs = (movimientos ?? []) as unknown as MovimientoEntrada[]
     setSeries([...porLista.values()].map(g => ({
       lista: g.lista,
