@@ -360,7 +360,7 @@ export default function DiferenciasConteo({
         </LinkEntidad>
         {(f.estado === 'pendiente' || f.estado === 'superada') && f.movidoMientras !== 0 && (
           <span className="mt-0.5 flex items-center gap-1 text-2xs text-warning">
-            <TriangleAlert size={11} /> Hubo movimientos mientras se contaba ({conSigno(f.movidoMientras)}): revisá antes de aplicar
+            <TriangleAlert size={11} className="shrink-0" /> Se movió {conSigno(f.movidoMientras)} mientras se contaba: revisá antes de aplicar
           </span>
         )}
         {f.estado === 'pendiente' && f.movidoDesdeCierre !== 0 && (
@@ -435,7 +435,7 @@ export default function DiferenciasConteo({
         <table className="w-full text-sm">
           <thead className="border-b border-border bg-surface2">
             <tr className="text-2xs font-semibold uppercase tracking-wider text-muted">
-              <th className="px-3 py-2.5 text-left">Insumo</th>
+              <th className="min-w-48 px-3 py-2.5 text-left">Insumo</th>
               <th className="px-3 py-2.5 text-right">Esperado (sistema)</th>
               <th className="px-3 py-2.5 text-right">Contado</th>
               <th className="px-3 py-2.5 text-right">Diferencia</th>

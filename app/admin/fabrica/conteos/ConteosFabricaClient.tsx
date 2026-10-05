@@ -251,7 +251,7 @@ export default function ConteosFabricaClient({
           : <EmptyState icono={ClipboardCheck} titulo="Ningún conteo coincide con los filtros" />}
       />
 
-      <Modal open={!!abierto} onClose={cerrar} title={abierto?.definicion_nombre ?? ''} size="xl" pantallaCompletaMobile>
+      <Modal open={!!abierto} onClose={cerrar} title={abierto?.definicion_nombre ?? ''} size="2xl" pantallaCompletaMobile>
         {abierto && (
           <div className="space-y-4">
             <div className="space-y-2">
