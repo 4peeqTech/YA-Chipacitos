@@ -33,12 +33,17 @@ const MAX_WIDTH: Record<NonNullable<Props['size']>, string> = {
 export default function Modal({ open, onClose, title, accent = 'gold', size = 'md', pantallaCompletaMobile = false, encabezado, children }: Props) {
   const id = useId()
   const ref = useRef<HTMLDivElement>(null)
+  // onClose suele ser una arrow inline: si fuera dependencia del efecto, cada
+  // render del padre (un toast alcanza) sacaría y volvería a meter este modal
+  // en la pila, dejándolo arriba de uno abierto después.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose })
 
   useEffect(() => {
     if (!open) return
     pila.push(id)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && pila[pila.length - 1] === id) onClose()
+      if (e.key === 'Escape' && pila[pila.length - 1] === id) onCloseRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => {
@@ -46,7 +51,7 @@ export default function Modal({ open, onClose, title, accent = 'gold', size = 'm
       const i = pila.lastIndexOf(id)
       if (i >= 0) pila.splice(i, 1)
     }
-  }, [open, onClose, id])
+  }, [open, id])
 
   // Al abrir, el foco entra al modal (al contenedor, para no abrir el teclado del
   // celular sobre un input); al cerrar vuelve a donde estaba.
