@@ -245,7 +245,7 @@ export function PanelRemitos({
     {
       key: 'pago',
       header: 'Pago',
-      render: f => f.estado === 'confirmada' ? <PagoFactura gastoId={f.gasto_id} gastoEstado={f.gasto_estado} /> : <span className="text-muted">—</span>,
+      render: f => f.estado === 'confirmada' ? <PagoFactura gastoId={f.gasto_id} gastoEstado={f.gasto_estado} aFavor={estadoPago(f) === 'a_favor'} /> : <span className="text-muted">—</span>,
     },
   ]
 
@@ -341,7 +341,7 @@ export function PanelCuenta({ facturas }: { facturas: FacturaDeProveedor[] }) {
       key: 'pago',
       header: 'Pago',
       ordenar: f => estadoPago(f),
-      render: f => <PagoFactura gastoId={f.gasto_id} gastoEstado={f.gasto_estado} />,
+      render: f => <PagoFactura gastoId={f.gasto_id} gastoEstado={f.gasto_estado} aFavor={estadoPago(f) === 'a_favor'} />,
     },
   ]
 
@@ -370,7 +370,7 @@ export function PanelCuenta({ facturas }: { facturas: FacturaDeProveedor[] }) {
         )}
       </div>
 
-      <div className={`grid grid-cols-2 gap-3 ${r.sinGasto !== 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+      <div className={`grid grid-cols-2 gap-3 ${[r.sinGasto, r.aFavor].filter(x => x !== 0).length === 2 ? 'lg:grid-cols-5' : r.sinGasto !== 0 || r.aFavor !== 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
         <KpiCard icon={<FileText size={18} />} label="Facturado" value={formatearMonedaExacta(r.facturado)} detalle={`${r.facturas} factura${r.facturas === 1 ? '' : 's'}`} />
         <KpiCard icon={<Wallet size={18} />} label="Pagado" value={formatearMonedaExacta(r.pagado)} tono="exito" />
         <KpiCard
@@ -381,6 +381,16 @@ export function PanelCuenta({ facturas }: { facturas: FacturaDeProveedor[] }) {
           tono={r.pendiente > 0 ? 'alerta' : 'neutro'}
         />
         {r.sinGasto !== 0 && <KpiCard icon={<Info size={18} />} label="Sin gasto" value={formatearMonedaExacta(r.sinGasto)} detalle="facturas sin gasto en Gastos" />}
+        {/* B4 (D5): Pagado + Pendiente + Sin gasto + A favor = Facturado. */}
+        {r.aFavor !== 0 && (
+          <KpiCard
+            icon={<Wallet size={18} />}
+            label="A favor"
+            value={formatearMonedaExacta(r.aFavor)}
+            detalle="Notas de crédito que llegaron con el gasto ya pagado: se descuentan del próximo pago (cuenta corriente en noviembre)"
+            tono="info"
+          />
+        )}
       </div>
 
       <p className={`text-sm ${pendienteTotal > 0 ? 'font-semibold text-warning' : 'text-muted'}`}>

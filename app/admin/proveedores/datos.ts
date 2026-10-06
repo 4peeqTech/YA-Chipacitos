@@ -58,7 +58,7 @@ export function consultarRemitosDe(supabase: Cliente, proveedorId: string) {
 export function consultarFacturasProveedor(supabase: Cliente, proveedorId: string) {
   return supabase
     .from('v_compras_facturas')
-    .select('id, numero, fecha, pedido_id, pedido_numero, proveedor_id, proveedor_nombre, estado, tipo_comprobante, anulada_motivo, subtotal, iva, total, gasto_id, gasto_estado')
+    .select('id, numero, fecha, pedido_id, pedido_numero, proveedor_id, proveedor_nombre, estado, tipo_comprobante, anulada_motivo, subtotal, iva, total, gasto_id, gasto_estado, nc_gasto')
     .eq('proveedor_id', proveedorId)
     .order('fecha', { ascending: false })
 }

@@ -9,7 +9,7 @@ import ReportesClient from './ReportesClient'
 export const metadata = { title: 'Reportes | YA! Chipacitos' }
 
 const COLUMNAS_PEDIDO = 'id, numero, proveedor_id, created_at, enviado_en, estado_recepcion, estado_facturacion, proveedores(nombre), compras_remitos(id, secuencia, fecha, compras_remito_items(descripcion, cantidad))'
-const COLUMNAS_FACTURA = 'id, pedido_id, proveedor_id, proveedor_nombre, pedido_numero, numero, fecha, tipo_comprobante, subtotal, iva, total, gasto_id, gasto_estado'
+const COLUMNAS_FACTURA = 'id, pedido_id, proveedor_id, proveedor_nombre, pedido_numero, numero, fecha, tipo_comprobante, subtotal, iva, total, gasto_id, gasto_estado, nc_gasto'
 // Los ids viajan en la URL de PostgREST: en tandas para no pasarse de largo.
 const TANDA = 100
 
