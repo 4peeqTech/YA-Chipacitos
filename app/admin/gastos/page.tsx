@@ -22,7 +22,8 @@ export default async function GastosPage({
   const [{ data: gastos }, { data: proveedores }, catalogos] = await Promise.all([
     // La vista pide es_admin(): cualquier otro rol recibe una lista vacía.
     supabase.from('v_gastos').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false }),
-    supabase.from('proveedores').select('id, nombre').eq('estado', 'activo').order('nombre'),
+    // Todos: un gasto de un proveedor archivado tiene que mostrarlo (B3, E19).
+    supabase.from('proveedores').select('id, nombre, estado').order('nombre'),
     consultarCatalogosPago(supabase),
   ])
 

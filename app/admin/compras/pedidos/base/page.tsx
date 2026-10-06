@@ -15,7 +15,8 @@ export default async function PedidoBasePage() {
 
   const [{ data: plantilla }, { data: proveedores }, { data: items }, { data: sugerencias }, { data: ultimaBase }, { data: archivados }] = await Promise.all([
     supabase.from('compras_plantilla_base').select('*').order('orden').order('descripcion'),
-    supabase.from('proveedores').select('id, nombre').eq('estado', 'activo').order('nombre'),
+    // Todos: una línea de un proveedor archivado tiene que mostrarlo (B3, E19).
+    supabase.from('proveedores').select('id, nombre, estado').order('nombre'),
     supabase
       .from('compras_items')
       .select('id, nombre, unidad, compras_item_proveedores(proveedor_id, es_principal)')

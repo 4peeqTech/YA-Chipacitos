@@ -1,6 +1,6 @@
 // Chequeo de las funciones puras del estado del pedido.
 // Correr con: npx tsx lib/compras/_check_estado.ts
-import { estadoVisible, subtextoEstado, estaDemorado, proximaAccion, filtroDelPedido, type EstadoPedidoEntrada } from './estadoPedido'
+import { estadoVisible, subtextoEstado, estaDemorado, proximaAccion, filtroDelPedido, pedidoAbierto, type EstadoPedidoEntrada, type EstadoRecepcion, type EstadoFacturacion } from './estadoPedido'
 
 const ahora = new Date('2026-09-24T12:00:00Z')
 const haceDias = (d: number) => new Date(ahora.getTime() - d * 86_400_000).toISOString()
@@ -40,6 +40,32 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'filtro: cerrado sin nada → solo Todos', real: filtroDelPedido({ estado_recepcion: 'cerrado_manual', estado_facturacion: 'sin_facturar', recibioAlgo: false }), esperado: null },
   { nombre: 'filtro: facturado falta recibir → facturados', real: filtroDelPedido({ estado_recepcion: 'enviado', estado_facturacion: 'facturado', recibioAlgo: false }), esperado: 'facturados' },
 ]
+
+// B3: pedidoAbierto en los 6 estados de recepción × 2 de facturación, y el
+// cerrado a mano con y sin mercadería. La misma tabla verifica la función SQL
+// _compras_pedidos_abiertos_de (escenario S6 de docs/bloque2/escenarios-B3.sql).
+const TABLA_ABIERTO: { r: EstadoRecepcion; f: EstadoFacturacion; recibioAlgo: boolean; abierto: boolean }[] = [
+  { r: 'sin_enviar', f: 'sin_facturar', recibioAlgo: false, abierto: true },
+  { r: 'sin_enviar', f: 'facturado', recibioAlgo: false, abierto: true },
+  { r: 'enviado', f: 'sin_facturar', recibioAlgo: false, abierto: true },
+  { r: 'enviado', f: 'facturado', recibioAlgo: false, abierto: true },
+  { r: 'parcial', f: 'sin_facturar', recibioAlgo: true, abierto: true },
+  { r: 'parcial', f: 'facturado', recibioAlgo: true, abierto: true },
+  { r: 'recibido', f: 'sin_facturar', recibioAlgo: true, abierto: true },
+  { r: 'recibido', f: 'facturado', recibioAlgo: true, abierto: false },
+  { r: 'cerrado_manual', f: 'sin_facturar', recibioAlgo: true, abierto: true },
+  { r: 'cerrado_manual', f: 'sin_facturar', recibioAlgo: false, abierto: false },
+  { r: 'cerrado_manual', f: 'facturado', recibioAlgo: true, abierto: false },
+  { r: 'devuelto', f: 'sin_facturar', recibioAlgo: true, abierto: false },
+  { r: 'devuelto', f: 'facturado', recibioAlgo: true, abierto: false },
+]
+for (const t of TABLA_ABIERTO) {
+  casos.push({
+    nombre: `abierto: ${t.r} + ${t.f}${t.r === 'cerrado_manual' ? (t.recibioAlgo ? ' con mercadería' : ' sin mercadería') : ''}`,
+    real: pedidoAbierto({ estado_recepcion: t.r, estado_facturacion: t.f, recibioAlgo: t.recibioAlgo }),
+    esperado: t.abierto,
+  })
+}
 
 let fallas = 0
 for (const c of casos) {

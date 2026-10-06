@@ -31,7 +31,10 @@ import {
 interface ProveedorOption {
   id: string
   nombre: string
+  estado: string
 }
+
+const etiquetaProveedor = (p: ProveedorOption) => (p.estado === 'activo' ? p.nombre : `${p.nombre} (archivado)`)
 
 interface CatalogoItem {
   id: string
@@ -198,7 +201,10 @@ export default function PedidoBaseClient({
   const [sugerenciasVigentes, setSugerenciasVigentes] = useState(sugerencias)
   const [baseAbierta, setBaseAbierta] = useState(ultimaBase?.estado === 'abierta')
 
-  const nombreProveedor = (id: string) => proveedores.find(p => p.id === id)?.nombre ?? '—'
+  const nombreProveedor = (id: string) => {
+    const p = proveedores.find(x => x.id === id)
+    return p ? etiquetaProveedor(p) : '—'
+  }
   const activas = lineas.filter(l => l.activo)
 
   function abrirCrear() {
@@ -233,10 +239,13 @@ export default function PedidoBaseClient({
 
   // Limita el select de proveedor a los asociados al ítem elegido — si no hay
   // ítem (línea libre) o el ítem no tiene proveedores cargados, se ve la lista completa.
+  // B3 (E19): solo activos, más el guardado en la línea si se archivó.
   function proveedoresParaForm(): ProveedorOption[] {
+    const actual = editando?.proveedor_id
+    const disponibles = proveedores.filter(p => p.estado === 'activo' || p.id === actual)
     const item = itemsCatalogo.find(i => i.id === form.item_id)
-    if (!item || !item.proveedoresAsociados.length) return proveedores
-    return proveedores.filter(p => item.proveedoresAsociados.includes(p.id))
+    if (!item || !item.proveedoresAsociados.length) return disponibles
+    return disponibles.filter(p => item.proveedoresAsociados.includes(p.id) || p.id === actual)
   }
 
   async function guardar() {
@@ -427,7 +436,7 @@ export default function PedidoBaseClient({
             <label className={labelClass}>Proveedor *</label>
             <select className={inputClass} value={form.proveedor_id ?? ''} onChange={e => setForm(f => ({ ...f, proveedor_id: e.target.value }))}>
               <option value="">Seleccionar...</option>
-              {proveedoresParaForm().map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              {proveedoresParaForm().map(p => <option key={p.id} value={p.id}>{etiquetaProveedor(p)}</option>)}
             </select>
           </div>
           <div>

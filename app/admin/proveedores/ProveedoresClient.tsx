@@ -1,562 +1,253 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
-import {
-  Truck, Plus, Pencil, Archive, ArchiveRestore, Trash2, MessageCircle,
-  User, Phone, Mail, MapPin, CreditCard, Package, ClipboardList, PackageSearch, Star,
-} from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { useMemo, useState } from 'react'
+import { Truck, Plus, MessageCircle } from 'lucide-react'
 import { normalizarTelefonoAR, formatearTelefono } from '@/lib/compras/telefono'
-import Modal from '@/components/ui/Modal'
+import type { PestanaProveedor } from '@/lib/compras/rutas'
+import PageHeader from '@/components/ui/PageHeader'
+import DataTable, { type Columna } from '@/components/ui/DataTable'
+import EmptyState from '@/components/ui/EmptyState'
+import EstadoBadge from '@/components/ui/EstadoBadge'
 import SearchInput from '@/components/ui/SearchInput'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
-import { mensajeError } from '@/lib/errores'
-import { useConfirmar } from '@/components/ui/ProveedorUI'
-import { codigoPedido } from '@/lib/compras/codigos'
-import LinkEntidad from '@/components/ui/LinkEntidad'
+import { Chip, SegmentedControl } from '@/components/ui/Chip'
 import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
+import type { ProveedorFila } from './datos'
+import ProveedorForm from './ProveedorForm'
+import ProveedorFicha from './ProveedorFicha'
 
-interface InsumoAsociado {
-  itemId: string
-  itemNombre: string
-  unidad: string
-  esPrincipal: boolean
-  precioRef: number | null
-}
-
-interface PedidoResumen {
-  id: string
-  numero: number
-  estado: 'borrador' | 'enviado' | 'cerrado'
-  createdAt: string
-}
-
-interface Proveedor {
-  id: string
-  nombre: string
-  categoria: string | null
-  cuit: string | null
-  contacto_nombre: string | null
-  contacto_telefono: string | null
-  contacto_email: string | null
-  direccion: string | null
-  tiempo_entrega: string | null
-  periodicidad_compra: string | null
-  financiacion: string | null
-  condiciones_pago: string | null
-  notas: string | null
-  estado: 'activo' | 'archivado'
-  maneja_stock: boolean
-  local_facturacion_id: string | null
-}
-
-interface LocalFacturacion {
+export interface LocalFacturacion {
   id: string
   nombre: string
 }
 
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
 
-const emptyForm = (): Partial<Proveedor> => ({
-  nombre: '',
-  categoria: '',
-  cuit: '',
-  contacto_nombre: '',
-  contacto_telefono: '',
-  contacto_email: '',
-  direccion: '',
-  tiempo_entrega: '',
-  periodicidad_compra: '',
-  financiacion: '',
-  condiciones_pago: '',
-  notas: '',
-  estado: 'activo',
-  maneja_stock: false,
-  local_facturacion_id: null,
-})
-
 export default function ProveedoresClient({
-  proveedoresIniciales,
-  proveedorIdsConInsumos,
+  proveedores,
+  insumosPorProveedor,
+  abiertosPorProveedor,
   localesFacturacion,
+  esAdmin,
   proveedorInicial,
+  pestanaInicial,
 }: {
-  proveedoresIniciales: Proveedor[]
-  proveedorIdsConInsumos: string[]
+  proveedores: ProveedorFila[]
+  /** Pares activos por proveedor. */
+  insumosPorProveedor: Record<string, number>
+  /** Pedidos abiertos por proveedor (pedidoAbierto). */
+  abiertosPorProveedor: Record<string, number>
   localesFacturacion: LocalFacturacion[]
+  /** La Cuenta, las facturas y el último precio son de admin (E17). */
+  esAdmin: boolean
   /** ?proveedor=<id>: abre su ficha. */
   proveedorInicial?: string
+  /** ?pestana=: con qué pestaña abre la ficha. */
+  pestanaInicial?: PestanaProveedor
 }) {
-  const supabase = createClient()
-  const confirmar = useConfirmar()
-  const [proveedores, setProveedores] = useState<Proveedor[]>(proveedoresIniciales)
   const [filtro, setFiltro] = useState<FiltroEstado>('activo')
   const [soloSinInsumos, setSoloSinInsumos] = useState(false)
   const [busqueda, setBusqueda] = useState('')
-  const [editando, setEditando] = useState<Proveedor | null>(null)
-  const [creando, setCreando] = useState(false)
-  const [form, setForm] = useState<Partial<Proveedor>>(emptyForm())
-  const [error, setError] = useState('')
-  const [isPending, startTransition] = useTransition()
+  // Se guarda el id, no la fila: después de cada acción refresh() trae los datos nuevos.
+  const [fichaId, setFichaId] = useState<string | null>(() =>
+    proveedores.some(p => p.id === proveedorInicial) ? proveedorInicial ?? null : null)
+  const [fichaPestana, setFichaPestana] = useState<PestanaProveedor | undefined>(pestanaInicial)
+  // form: null = cerrado; { id: null } = alta.
+  const [form, setForm] = useState<{ id: string | null } | null>(null)
+  // Cambia en cada apertura: la ficha y el form arrancan de cero aunque sea el mismo proveedor.
+  const [aperturas, setAperturas] = useState(0)
 
-  const [ficha, setFicha] = useState<Proveedor | null>(
-    () => proveedoresIniciales.find(p => p.id === proveedorInicial) ?? null,
-  )
-  const [fichaCargando, setFichaCargando] = useState(ficha != null)
-  const [fichaInsumos, setFichaInsumos] = useState<InsumoAsociado[]>([])
-  const [fichaPedidos, setFichaPedidos] = useState<PedidoResumen[]>([])
-
-  const idsConInsumos = new Set(proveedorIdsConInsumos)
-
-  const filtrados = proveedores.filter(p => {
-    const matchEstado = filtro === 'todos' || p.estado === filtro
-    const matchBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase())
-    const matchInsumos = !soloSinInsumos || !idsConInsumos.has(p.id)
-    return matchEstado && matchBusqueda && matchInsumos
+  const quitarParams = useQuitarParams('proveedor', 'pestana')
+  useAlCambiarParam(proveedorInicial, id => {
+    if (proveedores.some(p => p.id === id)) abrirFicha(id, pestanaInicial)
   })
+
+  const ficha = fichaId ? proveedores.find(p => p.id === fichaId) ?? null : null
+  const enForm = form?.id ? proveedores.find(p => p.id === form.id) ?? null : null
+
+  const activos = proveedores.filter(p => p.estado === 'activo').length
+  const archivados = proveedores.length - activos
+
+  const filtrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+    return proveedores.filter(p =>
+      (filtro === 'todos' || p.estado === filtro) &&
+      (!q || p.nombre.toLowerCase().includes(q)) &&
+      (!soloSinInsumos || !insumosPorProveedor[p.id]))
+  }, [proveedores, filtro, busqueda, soloSinInsumos, insumosPorProveedor])
 
   const hayFiltros = !!busqueda || filtro !== 'activo' || soloSinInsumos
   function limpiarFiltros() { setBusqueda(''); setFiltro('activo'); setSoloSinInsumos(false) }
 
-  const quitarParam = useQuitarParams('proveedor')
-  useAlCambiarParam(proveedorInicial, id => {
-    const p = proveedores.find(x => x.id === id)
-    if (p) abrirFicha(p)
-  })
-
-  function abrirFicha(p: Proveedor) {
-    setFicha(p)
-    setFichaCargando(true)
-  }
-
-  // Los insumos y pedidos de la ficha se traen cada vez que se abre una.
-  const fichaId = ficha?.id ?? null
-  useEffect(() => {
-    if (!fichaId) return
-    let vigente = true
-    cargarFicha(fichaId, () => vigente)
-    return () => { vigente = false }
-    // cargarFicha solo lee el cliente de Supabase: alcanza con el id.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fichaId])
-
-  async function cargarFicha(proveedorId: string, vigente: () => boolean) {
-    const [{ data: insumos }, { data: pedidos }] = await Promise.all([
-      supabase
-        .from('compras_item_proveedores')
-        .select('item_id, es_principal, precio_ref, compras_items(nombre, unidad)')
-        .eq('proveedor_id', proveedorId)
-        .eq('activo', true),
-      supabase
-        .from('compras_pedidos')
-        .select('id, numero, estado, created_at')
-        .eq('proveedor_id', proveedorId)
-        .order('created_at', { ascending: false })
-        .limit(10),
-    ])
-    if (!vigente()) return
-    type FilaInsumoAsociado = {
-      item_id: string
-      es_principal: boolean
-      precio_ref: number | null
-      compras_items: { nombre: string; unidad: string } | null
-    }
-    setFichaInsumos(
-      ((insumos ?? []) as unknown as FilaInsumoAsociado[]).map(i => ({
-        itemId: i.item_id,
-        itemNombre: i.compras_items?.nombre ?? '—',
-        unidad: i.compras_items?.unidad ?? '',
-        esPrincipal: i.es_principal,
-        precioRef: i.precio_ref,
-      }))
-    )
-    setFichaPedidos((pedidos ?? []).map(p => ({ id: p.id, numero: p.numero, estado: p.estado, createdAt: p.created_at })))
-    setFichaCargando(false)
+  function abrirFicha(id: string, pestana?: PestanaProveedor) {
+    setFichaId(id)
+    setFichaPestana(pestana)
+    setAperturas(n => n + 1)
   }
 
   function cerrarFicha() {
-    quitarParam()
-    setFicha(null)
-    setFichaInsumos([])
-    setFichaPedidos([])
+    quitarParams()
+    setFichaId(null)
   }
 
-  function abrirCrear() {
-    setForm(emptyForm())
-    setEditando(null)
-    setCreando(true)
-    setError('')
+  function abrirForm(id: string | null) {
+    setForm({ id })
+    setAperturas(n => n + 1)
   }
 
-  function abrirEditar(p: Proveedor) {
-    setForm({ ...p })
-    setEditando(p)
-    setCreando(false)
-    setError('')
-  }
-
-  function cerrarForm() {
-    setCreando(false)
-    setEditando(null)
-    setError('')
-  }
-
-  async function guardar() {
-    if (!form.nombre?.trim()) { setError('El nombre es requerido'); return }
-    if (form.contacto_telefono?.trim() && !normalizarTelefonoAR(form.contacto_telefono)) {
-      setError('El teléfono de contacto no parece un número argentino válido')
-      return
-    }
-    setError('')
-
-    const datos = {
-      ...form,
-      contacto_telefono: form.contacto_telefono?.trim() ? normalizarTelefonoAR(form.contacto_telefono) : null,
-      updated_at: new Date().toISOString(),
-    }
-
-    startTransition(async () => {
-      if (creando) {
-        const { data, error: err } = await supabase
-          .from('proveedores')
-          .insert([{ ...datos, estado: 'activo' }])
-          .select()
-          .single()
-        if (err) { setError(mensajeError(err, 'No se pudo crear el proveedor')); return }
-        setProveedores(prev => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)))
-      } else if (editando) {
-        const { data, error: err } = await supabase
-          .from('proveedores')
-          .update(datos)
-          .eq('id', editando.id)
-          .select()
-          .single()
-        if (err) { setError(mensajeError(err, 'No se pudieron guardar los cambios del proveedor')); return }
-        setProveedores(prev => prev.map(p => p.id === editando.id ? data : p))
-      }
-      cerrarForm()
-    })
-  }
-
-  async function archivar(p: Proveedor) {
-    const nuevoEstado = p.estado === 'activo' ? 'archivado' : 'activo'
-    const { data, error: err } = await supabase
-      .from('proveedores')
-      .update({ estado: nuevoEstado })
-      .eq('id', p.id)
-      .select()
-      .single()
-    if (err) { setError(mensajeError(err, 'No se pudo cambiar el estado del proveedor')); return }
-    setProveedores(prev => prev.map(x => x.id === p.id ? data : x))
-  }
-
-  function eliminar(p: Proveedor) {
-    confirmar({
-      titulo: 'Eliminar proveedor',
-      mensaje: `¿Eliminar "${p.nombre}"? Esta acción no se puede deshacer.`,
-      textoConfirmar: 'Eliminar',
-      peligroso: true,
-      onConfirmar: () => { eliminarConfirmado(p) },
-    })
-  }
-
-  async function eliminarConfirmado(p: Proveedor) {
-    const { error: err } = await supabase.from('proveedores').delete().eq('id', p.id)
-    if (err) { setError(mensajeError(err, 'No se pudo eliminar el proveedor')); return }
-    setProveedores(prev => prev.filter(x => x.id !== p.id))
-  }
-
-  const inputClass = "w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors"
-  const labelClass = "flex items-center gap-1.5 text-xs font-semibold text-[#888] uppercase tracking-wider mb-1"
-  const estadoPedidoBadge: Record<PedidoResumen['estado'], string> = {
-    borrador: 'bg-[#2a2a2a] text-[#ccc]',
-    enviado: 'bg-yellow-900/50 text-yellow-300',
-    cerrado: 'bg-green-900/50 text-green-300',
-  }
+  const columnas: Columna<ProveedorFila>[] = [
+    {
+      key: 'nombre',
+      header: 'Proveedor',
+      className: 'min-w-44',
+      ordenar: p => p.nombre.toLowerCase(),
+      render: p => (
+        <div className="min-w-0">
+          <span className="font-medium text-text">{p.nombre}</span>
+          {p.categoria && <span className="mt-0.5 block text-xs text-muted md:hidden">{p.categoria}</span>}
+        </div>
+      ),
+    },
+    {
+      key: 'categoria',
+      header: 'Categoría',
+      ocultarHasta: 'md',
+      ordenar: p => (p.categoria ?? '').toLowerCase(),
+      render: p => <span className="text-muted">{p.categoria || '—'}</span>,
+    },
+    {
+      key: 'insumos',
+      header: 'Insumos',
+      alinear: 'right',
+      ocultarHasta: 'lg',
+      ordenar: p => insumosPorProveedor[p.id] ?? 0,
+      render: p => <span className="tabular-nums text-muted">{insumosPorProveedor[p.id] || '—'}</span>,
+    },
+    {
+      key: 'abiertos',
+      header: <span className="whitespace-nowrap">Pedidos abiertos</span>,
+      alinear: 'right',
+      ordenar: p => abiertosPorProveedor[p.id] ?? 0,
+      render: p => {
+        const n = abiertosPorProveedor[p.id] ?? 0
+        return <span className={`tabular-nums ${n > 0 ? 'font-semibold text-warning' : 'text-muted'}`}>{n || '—'}</span>
+      },
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      ocultarHasta: 'sm',
+      ordenar: p => p.estado,
+      render: p => <EstadoBadge dominio="proveedores" estado={p.estado === 'archivado' ? 'archivado' : 'activo'} />,
+    },
+    {
+      key: 'whatsapp',
+      header: <span className="sr-only">WhatsApp</span>,
+      alinear: 'right',
+      render: p => {
+        const tel = normalizarTelefonoAR(p.contacto_telefono)
+        if (!tel) return null
+        return (
+          <a
+            href={`https://wa.me/${tel}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
+            title={`WhatsApp: ${formatearTelefono(p.contacto_telefono)}`}
+            aria-label={`WhatsApp a ${p.nombre}`}
+            className="-my-2 ml-auto flex size-11 items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface2 hover:text-success sm:size-9"
+          >
+            <MessageCircle size={16} />
+          </a>
+        )
+      },
+    },
+  ]
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-[#f0f0f0]"><Truck size={22} className="text-[#e8c547]" /> Proveedores</h1>
-          <p className="text-[#888] text-sm mt-0.5">{proveedores.filter(p => p.estado === 'activo').length} activos · {proveedores.filter(p => p.estado === 'archivado').length} archivados</p>
-        </div>
-        <button onClick={abrirCrear} className="flex items-center gap-1.5 bg-[#e8c547] hover:opacity-90 text-black font-semibold text-sm py-2 px-4 rounded-xl transition-all">
-          <Plus size={16} /> Nuevo proveedor
-        </button>
-      </div>
-
-      {/* Filtros */}
-      <div className="flex gap-3 flex-wrap items-center">
-        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar proveedor..." className="w-64" />
-        {(['activo', 'archivado', 'todos'] as FiltroEstado[]).map(f => (
+      <PageHeader
+        icono={Truck}
+        titulo="Proveedores"
+        descripcion={`${activos} activo${activos === 1 ? '' : 's'} · ${archivados} archivado${archivados === 1 ? '' : 's'}`}
+        acciones={
           <button
-            key={f}
-            onClick={() => setFiltro(f)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all capitalize ${filtro === f ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'}`}
+            onClick={() => abrirForm(null)}
+            className="flex min-h-11 items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90 sm:min-h-9"
           >
-            {f}
+            <Plus size={16} /> Nuevo proveedor
           </button>
-        ))}
-        <button
-          onClick={() => setSoloSinInsumos(v => !v)}
-          title="De la lista semilla de proveedores de gastos, separá los que además son proveedores reales de Compras"
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${soloSinInsumos ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'}`}
-        >
-          Sin insumos asociados
-        </button>
+        }
+      />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar proveedor..." className="w-full sm:w-64" />
+        <SegmentedControl<FiltroEstado>
+          opciones={[
+            { value: 'activo', label: 'Activos' },
+            { value: 'archivado', label: 'Archivados' },
+            { value: 'todos', label: 'Todos' },
+          ]}
+          value={filtro}
+          onChange={setFiltro}
+        />
+        <Chip active={soloSinInsumos} onClick={() => setSoloSinInsumos(v => !v)}>Sin insumos asociados</Chip>
         <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
       </div>
 
-      {/* Form modal */}
-      <Modal open={creando || !!editando} onClose={cerrarForm} title={creando ? 'Nuevo proveedor' : `Editar — ${editando?.nombre}`} size="xl">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <label className={labelClass}>Nombre *</label>
-              <input className={inputClass} value={form.nombre ?? ''} onChange={e => setForm(f => ({...f, nombre: e.target.value}))} />
-            </div>
-            <div>
-              <label className={labelClass}>Categoría</label>
-              <input className={inputClass} placeholder="Ej: Lácteos, Harinas..." value={form.categoria ?? ''} onChange={e => setForm(f => ({...f, categoria: e.target.value}))} />
-            </div>
-            <div>
-              <label className={labelClass}><CreditCard size={13} className="text-[#666]" /> CUIT</label>
-              <input className={inputClass} placeholder="20-12345678-9" value={form.cuit ?? ''} onChange={e => setForm(f => ({...f, cuit: e.target.value}))} />
-            </div>
+      <DataTable
+        filas={filtrados}
+        columnas={columnas}
+        filaKey={p => p.id}
+        onFilaClick={p => abrirFicha(p.id)}
+        filaClassName={p => (p.estado === 'archivado' ? 'opacity-60' : '')}
+        vacio={proveedores.length === 0
+          ? (
+            <EmptyState
+              icono={Truck}
+              titulo="Todavía no hay proveedores"
+              descripcion="Cargá el primero para poder hacerle pedidos y registrar sus facturas."
+              accion={
+                <button onClick={() => abrirForm(null)} className="flex min-h-11 items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-black hover:opacity-90 sm:min-h-9">
+                  <Plus size={16} /> Nuevo proveedor
+                </button>
+              }
+            />
+          )
+          : (
+            <EmptyState
+              icono={Truck}
+              titulo="Ningún proveedor coincide con los filtros"
+              accion={<ClearFiltersButton visible onClick={limpiarFiltros} />}
+            />
+          )}
+      />
 
-            <div>
-              <label className={labelClass}><User size={13} className="text-[#666]" /> Contacto</label>
-              <input className={inputClass} placeholder="Nombre" value={form.contacto_nombre ?? ''} onChange={e => setForm(f => ({...f, contacto_nombre: e.target.value}))} />
-            </div>
-            <div>
-              <label className={labelClass}><Phone size={13} className="text-[#666]" /> Teléfono</label>
-              <input className={inputClass} placeholder="+54 9..." value={form.contacto_telefono ?? ''} onChange={e => setForm(f => ({...f, contacto_telefono: e.target.value}))} />
-            </div>
-            <div>
-              <label className={labelClass}><Mail size={13} className="text-[#666]" /> Email</label>
-              <input className={inputClass} type="email" value={form.contacto_email ?? ''} onChange={e => setForm(f => ({...f, contacto_email: e.target.value}))} />
-            </div>
+      {ficha && (
+        <ProveedorFicha
+          key={`${ficha.id}-${aperturas}`}
+          proveedor={ficha}
+          pestanaInicial={fichaPestana}
+          insumosActivos={insumosPorProveedor[ficha.id] ?? 0}
+          pedidosAbiertos={abiertosPorProveedor[ficha.id] ?? 0}
+          localesFacturacion={localesFacturacion}
+          esAdmin={esAdmin}
+          onEditar={() => abrirForm(ficha.id)}
+          onEliminado={cerrarFicha}
+          onClose={cerrarFicha}
+        />
+      )}
 
-            <div className="md:col-span-2 lg:col-span-3">
-              <label className={labelClass}><MapPin size={13} className="text-[#666]" /> Dirección</label>
-              <input className={inputClass} value={form.direccion ?? ''} onChange={e => setForm(f => ({...f, direccion: e.target.value}))} />
-            </div>
-
-            <div>
-              <label className={labelClass}>Tiempo de entrega</label>
-              <input className={inputClass} placeholder="Ej: 24hs, 3-5 días" value={form.tiempo_entrega ?? ''} onChange={e => setForm(f => ({...f, tiempo_entrega: e.target.value}))} />
-            </div>
-            <div>
-              <label className={labelClass}>Periodicidad de compra</label>
-              <input className={inputClass} placeholder="Ej: Semanal, Mensual" value={form.periodicidad_compra ?? ''} onChange={e => setForm(f => ({...f, periodicidad_compra: e.target.value}))} />
-            </div>
-            <div>
-              <label className={labelClass}>Financiación</label>
-              <input className={inputClass} placeholder="Ej: 30 días, Contado" value={form.financiacion ?? ''} onChange={e => setForm(f => ({...f, financiacion: e.target.value}))} />
-            </div>
-            <div>
-              <label className={labelClass}>Condiciones de pago</label>
-              <input className={inputClass} placeholder="Ej: Factura A, efectivo" value={form.condiciones_pago ?? ''} onChange={e => setForm(f => ({...f, condiciones_pago: e.target.value}))} />
-            </div>
-
-            <div className="md:col-span-2 lg:col-span-3">
-              <label className={labelClass}>Notas</label>
-              <textarea className={`${inputClass} resize-none`} rows={2} value={form.notas ?? ''} onChange={e => setForm(f => ({...f, notas: e.target.value}))} />
-            </div>
-
-            <div className="md:col-span-2 lg:col-span-3 flex items-start gap-2">
-              <input
-                type="checkbox"
-                id="maneja_stock"
-                checked={form.maneja_stock ?? false}
-                onChange={e => setForm(f => ({...f, maneja_stock: e.target.checked}))}
-                className="w-4 h-4 mt-0.5 accent-[#e8c547]"
-              />
-              {/* A2a (C2): la columna sigue siendo maneja_stock; su único uso real es la autosugerencia de PedidoEditor. */}
-              <label htmlFor="maneja_stock" className="text-sm text-[#f0f0f0]">
-                Sugerir cantidades al pedir
-                <span className="block text-muted">Al crear un pedido a este proveedor, arranca con lo que falta para llegar al stock mínimo de cada insumo.</span>
-              </label>
-            </div>
-
-            <div>
-              <label className={labelClass}>Local de facturación por defecto</label>
-              <select className={inputClass} value={form.local_facturacion_id ?? ''} onChange={e => setForm(f => ({...f, local_facturacion_id: e.target.value || null}))}>
-                <option value="">Sin asignar</option>
-                {localesFacturacion.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-
-          <div className="flex gap-3 pt-2">
-            <button onClick={guardar} disabled={isPending} className="flex-1 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-semibold text-sm py-2.5 px-6 rounded-xl transition-all">
-              {isPending ? 'Guardando...' : 'Guardar'}
-            </button>
-            <button onClick={cerrarForm} className="flex-1 border border-[#2a2a2a] text-[#888] hover:text-[#f0f0f0] font-semibold text-sm py-2.5 px-6 rounded-xl transition-all">
-              Cancelar
-            </button>
-          </div>
-      </Modal>
-
-      {/* Lista */}
-      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-        {filtrados.length === 0 ? (
-          <p className="p-8 text-center text-[#888] flex flex-col items-center gap-2">
-            <PackageSearch size={20} className="text-[#444]" />
-            No hay proveedores
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Nombre</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden md:table-cell">Categoría</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Entrega</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Periodicidad</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider hidden lg:table-cell">Financiación</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Estado</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#2a2a2a]">
-                {filtrados.map(p => (
-                  <tr key={p.id} className="hover:bg-[#1a1a1a] transition-colors">
-                    <td className="px-4 py-3 text-[#f0f0f0] font-medium">
-                      <button onClick={() => abrirFicha(p)} className="hover:text-[#e8c547] hover:underline text-left">{p.nombre}</button>
-                    </td>
-                    <td className="px-4 py-3 text-[#888] hidden md:table-cell">{p.categoria || '—'}</td>
-                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{p.tiempo_entrega || '—'}</td>
-                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{p.periodicidad_compra || '—'}</td>
-                    <td className="px-4 py-3 text-[#888] hidden lg:table-cell">{p.financiacion || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.estado === 'activo' ? 'bg-green-900/50 text-green-300' : 'bg-[#2a2a2a] text-[#666]'}`}>
-                        {p.estado}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex gap-1 justify-end">
-                        {normalizarTelefonoAR(p.contacto_telefono) && (
-                          <a
-                            href={`https://wa.me/${normalizarTelefonoAR(p.contacto_telefono)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`WhatsApp — ${formatearTelefono(p.contacto_telefono)}`}
-                            aria-label={`WhatsApp a ${p.nombre}`}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-green-400 hover:bg-[#2a2a2a] transition-colors"
-                          >
-                            <MessageCircle size={15} />
-                          </a>
-                        )}
-                        <button
-                          onClick={() => abrirEditar(p)}
-                          title="Editar"
-                          aria-label={`Editar ${p.nombre}`}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#e8c547] hover:bg-[#2a2a2a] transition-colors"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                        <button
-                          onClick={() => archivar(p)}
-                          title={p.estado === 'activo' ? 'Archivar' : 'Reactivar'}
-                          aria-label={p.estado === 'activo' ? `Archivar ${p.nombre}` : `Reactivar ${p.nombre}`}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-[#f0f0f0] hover:bg-[#2a2a2a] transition-colors"
-                        >
-                          {p.estado === 'activo' ? <Archive size={15} /> : <ArchiveRestore size={15} />}
-                        </button>
-                        <button
-                          onClick={() => eliminar(p)}
-                          title="Eliminar"
-                          aria-label={`Eliminar ${p.nombre}`}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#888] hover:text-red-400 hover:bg-red-900/20 transition-colors"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <Modal open={!!ficha} onClose={cerrarFicha} title={ficha?.nombre ?? ''} size="lg">
-        {ficha && (
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <p className="flex items-center gap-1.5"><User size={13} className="text-[#666] shrink-0" /><span className="text-[#f0f0f0]">{ficha.contacto_nombre || '—'}</span></p>
-              <p className="flex items-center gap-1.5">
-                <Phone size={13} className="text-[#666] shrink-0" />
-                <span className="text-[#f0f0f0]">{ficha.contacto_telefono ? formatearTelefono(ficha.contacto_telefono) : '—'}</span>
-                {normalizarTelefonoAR(ficha.contacto_telefono) && (
-                  <a
-                    href={`https://wa.me/${normalizarTelefonoAR(ficha.contacto_telefono)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-green-400 hover:underline"
-                  >
-                    <MessageCircle size={12} /> WhatsApp
-                  </a>
-                )}
-              </p>
-              <p className="flex items-center gap-1.5"><Mail size={13} className="text-[#666] shrink-0" /><span className="text-[#f0f0f0]">{ficha.contacto_email || '—'}</span></p>
-              <p className="flex items-center gap-1.5"><CreditCard size={13} className="text-[#666] shrink-0" /><span className="text-[#f0f0f0]">{ficha.cuit || '—'}</span></p>
-              <p className="sm:col-span-2 flex items-center gap-1.5"><MapPin size={13} className="text-[#666] shrink-0" /><span className="text-[#f0f0f0]">{ficha.direccion || '—'}</span></p>
-            </div>
-
-            <div>
-              <h3 className="flex items-center gap-1.5 text-xs font-semibold text-[#888] uppercase tracking-wider mb-2"><Package size={13} /> Insumos asociados</h3>
-              {fichaCargando ? (
-                <p className="text-sm text-[#666]">Cargando...</p>
-              ) : fichaInsumos.length === 0 ? (
-                <p className="text-sm text-[#666]">Sin insumos asociados en Compras.</p>
-              ) : (
-                <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
-                  <div className="divide-y divide-[#1a1a1a]">
-                    {fichaInsumos.map(i => (
-                      <div key={i.itemId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-                        <span className="text-[#f0f0f0] flex items-center gap-1.5">
-                          <LinkEntidad entidad={{ tipo: 'insumo', id: i.itemId }} variante="texto" title="Ver el stock de este insumo">{i.itemNombre}</LinkEntidad> <span className="text-[#666]">({i.unidad})</span>
-                          {i.esPrincipal && <span className="flex items-center gap-1 text-xs text-[#e8c547]"><Star size={11} fill="currentColor" /> principal</span>}
-                        </span>
-                        <span className="text-[#888]">{i.precioRef != null ? `$${i.precioRef.toLocaleString('es-AR')}` : '—'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <h3 className="flex items-center gap-1.5 text-xs font-semibold text-[#888] uppercase tracking-wider mb-2"><ClipboardList size={13} /> Últimos pedidos</h3>
-              {fichaCargando ? (
-                <p className="text-sm text-[#666]">Cargando...</p>
-              ) : fichaPedidos.length === 0 ? (
-                <p className="text-sm text-[#666]">Todavía no tiene pedidos.</p>
-              ) : (
-                <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
-                  <div className="divide-y divide-[#1a1a1a]">
-                    {fichaPedidos.map(p => (
-                      <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-                        <span className="text-[#f0f0f0]">
-                          <LinkEntidad entidad={{ tipo: 'pedido', id: p.id }}>{codigoPedido(p.numero)}</LinkEntidad>
-                          <span className="text-[#888]"> · {new Date(p.createdAt).toLocaleDateString('es-AR')}</span>
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoPedidoBadge[p.estado]}`}>{p.estado}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
+      {form && (
+        <ProveedorForm
+          key={`${form.id ?? 'nuevo'}-${aperturas}`}
+          proveedor={enForm}
+          localesFacturacion={localesFacturacion}
+          onClose={() => setForm(null)}
+          onCreado={id => { setForm(null); abrirFicha(id) }}
+        />
+      )}
     </div>
   )
 }
