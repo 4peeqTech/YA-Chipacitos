@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Wallet, Clock, BarChart3, Landmark,
   RefreshCw, TrendingUp, Receipt,
   Package, Link2, Users, Shield, ClipboardList, CreditCard, Factory,
-  Truck, ShoppingBasket, ListTodo, Boxes, ReceiptText,
+  Truck, ShoppingBasket, ListTodo, Boxes, ReceiptText, BellRing,
 } from 'lucide-react'
 
 export interface Modulo {
@@ -56,6 +56,8 @@ export const MODULOS: Modulo[] = [
   { key: 'compras-stock',    label: 'Stock',    icon: <Package size={16} />, href: '/admin/compras/stock',    section: 'Compras' },
   { key: 'compras-pedidos',  label: 'Pedidos',  icon: <ClipboardList size={16} />, href: '/admin/compras/pedidos',  section: 'Compras' },
   { key: 'compras-reportes', label: 'Reportes', icon: <BarChart3 size={16} />, href: '/admin/compras/reportes', section: 'Compras' },
+  // B5: parámetros de los avisos de compras. No entra en MODULOS_COMPRAS (es de admin).
+  { key: 'compras-avisos',   label: 'Avisos',   icon: <BellRing size={16} />, href: '/admin/compras/avisos',   section: 'Compras', soloAdmin: true },
   // Pestaña dentro de Pedidos, no ítem del menú: está acá para que el guard de
   // proxy.ts la trate como propia y no herede el permiso de compras-pedidos.
   { key: 'compras-facturas', label: 'Facturas', icon: <ReceiptText size={16} />, href: '/admin/compras/pedidos/facturas', section: 'Compras', soloAdmin: true, oculto: true },
