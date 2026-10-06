@@ -77,12 +77,15 @@ export default function PanelCompras({
   itemId,
   unidades,
   esAdmin,
+  visible,
   onCerrar,
 }: {
   supabase: SupabaseClient<Database>
   itemId: string
   unidades: UnidadesInsumo
   esAdmin: boolean
+  /** Oculta (otra pestaña activa): el gráfico no se dibuja, los datos quedan. */
+  visible: boolean
   onCerrar: () => void
 }) {
   const puedeEntrar = usePuedeEntrar()
@@ -163,7 +166,8 @@ export default function PanelCompras({
       {traz?.error && traz.clave === claveTraz ? (
         <p role="alert" className="text-sm text-brand-red">{traz.error}</p>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+        // 2×2 siempre: el modal mide como mucho 768px y 4 columnas no entran.
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {cargandoTraz || !t ? (
             Array.from({ length: esAdmin ? 4 : 3 }, (_, i) => <Skeleton key={i} className="h-[92px] w-full rounded-2xl" />)
           ) : (
@@ -193,7 +197,7 @@ export default function PanelCompras({
                   <TarjetaPrecio t={t} unidades={unidades} modo={modoEfectivo} onNavegar={onCerrar} />
                 </>
               ) : (
-                <div className="col-span-2 flex items-center gap-3 rounded-2xl border border-border bg-surface2 p-3 text-sm text-muted sm:p-4 lg:col-span-1">
+                <div className="col-span-2 flex items-center gap-3 rounded-2xl border border-border bg-surface2 p-3 text-sm text-muted sm:p-4">
                   <Lock size={16} className="shrink-0" /> Lo facturado y los precios los ve un administrador
                 </div>
               )}
@@ -210,8 +214,8 @@ export default function PanelCompras({
       </Seccion>
 
       {/* Gráfico (admin) */}
-      {esAdmin && (
-        !fijos ? <Skeleton className="h-[280px] w-full rounded-xl" />
+      {esAdmin && visible && (
+        !fijos ?<Skeleton className="h-[280px] w-full rounded-xl" />
           : fijos.grafico.error ? <p role="alert" className="text-sm text-brand-red">{fijos.grafico.error}</p>
             : (
               <GraficoPrecio

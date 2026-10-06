@@ -67,7 +67,7 @@ export default function GraficoPrecio({
   const conversion = tieneConversion(unidades)
   const sufijo = etiquetaCobraPor(modo, unidades)
 
-  const { series, filas } = useMemo(() => {
+  const { series, filas, ticks } = useMemo(() => {
     const puntos = puntosPrecio(lineas, unidades, modo)
     const series = seriesPrecio(puntos, principalId)
     const filas: Fila[] = series.flatMap(s => s.puntos.map(p => ({
@@ -75,7 +75,12 @@ export default function GraficoPrecio({
       [s.proveedorId]: p.precio,
     })))
     filas.sort((a, b) => a.t - b.t)
-    return { series, filas }
+    // Un tick por fecha distinta (dos facturas el mismo día repetían la etiqueta),
+    // y como mucho 6 para que no se encimen.
+    const dias = [...new Set(filas.map(f => f.t))]
+    const paso = Math.ceil(dias.length / 6)
+    const ticks = dias.filter((_, i) => i % paso === 0 || i === dias.length - 1)
+    return { series, filas, ticks }
   }, [lineas, unidades, modo, principalId])
 
   const ref = precioRef != null && precioRef > 0 && cobraPorPrincipal
@@ -118,13 +123,15 @@ export default function GraficoPrecio({
         )}
         <div className="h-[220px] sm:h-[260px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={filas} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+            <LineChart data={filas} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
               <XAxis
                 dataKey="t"
                 type="number"
                 scale="time"
                 domain={['dataMin', 'dataMax']}
+                ticks={ticks}
+                interval={0}
                 tickFormatter={(t: number) => fechaCorta(new Date(t).toISOString().slice(0, 10))}
                 tick={{ fill: 'var(--color-muted)', fontSize: 11 }}
                 axisLine={{ stroke: 'var(--color-border)' }}

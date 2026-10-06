@@ -115,7 +115,7 @@ export default function StockFicha({
         )}
         {vistas.has('compras') && (
           <div {...panelDe(ID_BASE, 'compras')} hidden={tab !== 'compras'}>
-            <PanelCompras supabase={supabase} itemId={fila.item.id} unidades={unidades} esAdmin={esAdmin} onCerrar={onCerrar} />
+            <PanelCompras supabase={supabase} itemId={fila.item.id} unidades={unidades} esAdmin={esAdmin} visible={tab === 'compras'} onCerrar={onCerrar} />
           </div>
         )}
         {vistas.has('movimientos') && (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ClipboardCheck, Package } from 'lucide-react'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import LinkEntidad from '@/components/ui/LinkEntidad'
@@ -113,6 +113,11 @@ export default function StockClient({
   function limpiarFiltros() { setBusqueda(''); setSoloBajo(false) }
 
   const abierta = abiertoId ? filas.find(f => f.item.id === abiertoId) ?? null : null
+
+  // Un ?insumo= que no existe no abre nada: se saca de la URL para que F5 no lo arrastre.
+  useEffect(() => {
+    if (insumoInicial && !items.some(i => i.id === insumoInicial)) quitarParam()
+  }, [insumoInicial, items, quitarParam])
 
   function abrir(id: string, p: PestanaInsumo = 'stock') {
     setAbiertoId(id)
