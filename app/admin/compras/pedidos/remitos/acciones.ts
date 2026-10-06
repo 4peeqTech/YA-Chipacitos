@@ -67,10 +67,17 @@ export async function guardarRemito(
     if (!res.success) return fallo(null, 'El remito se guardó, pero no pudimos leer la respuesta. Recargá la página.')
     const cambios = res.data.cambios ?? true
     // B5 (E5): si el pedido quedó listo para facturar, avisa a admin (no al autor).
-    // Corre después de responder y nunca cambia el resultado del remito.
+    // Corre después de responder (también el getUser, que lee las cookies de la
+    // acción) y nunca cambia el resultado del remito.
     if (cambios) {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) after(() => avisarRemitoListo(pedidoId, user.id))
+      after(async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) await avisarRemitoListo(pedidoId, user.id)
+        } catch (e) {
+          console.error('[avisos-compras] remito listo: no se pudo leer el usuario', e)
+        }
+      })
     }
     return ok({ ...res.data, cambios })
   } catch (e) {
