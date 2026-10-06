@@ -42,7 +42,7 @@ export const MODULOS: Modulo[] = [
   { key: 'integraciones_ventas', label: 'Ventas',     icon: <Receipt size={16} />, href: '/admin/integraciones/ventas', section: 'Integraciones' },
   { key: 'integraciones_cajas',  label: 'Cajas Fudo', icon: <Landmark size={16} />, href: '/admin/integraciones/cajas',  section: 'Integraciones' },
 
-  { key: 'catalogo',     label: 'Catálogo',        icon: <Package size={16} />, href: '/admin/catalogo',     section: 'Parámetros' },
+  { key: 'catalogo',     label: 'Catálogo de productos', icon: <Package size={16} />, href: '/admin/catalogo',     section: 'Parámetros' },
   { key: 'mapeos',       label: 'Mapeo productos', icon: <Link2 size={16} />, href: '/admin/mapeos',       section: 'Parámetros' },
   { key: 'usuarios',     label: 'Usuarios',        icon: <Users size={16} />, href: '/admin/usuarios',     section: 'Parámetros' },
   { key: 'roles',        label: 'Roles',           icon: <Shield size={16} />, href: '/admin/roles',        section: 'Parámetros' },
