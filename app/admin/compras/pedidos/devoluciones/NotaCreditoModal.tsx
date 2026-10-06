@@ -166,7 +166,7 @@ function Formulario({
       )}
       <div className="sticky bottom-0 z-10 -mx-4 -mb-4 border-t border-border bg-surface px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:-mx-6 sm:-mb-6 sm:px-6">
         {!sinKg && <p aria-live="polite" className="mb-3 text-xs text-muted sm:text-sm">{gasto.texto}</p>}
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <div className="grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
           <button type="button" onClick={onCancelar} disabled={isPending} className="presionable min-h-11 inline-flex items-center justify-center rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50">Cancelar</button>
           <button type="button" onClick={guardar} disabled={!puede} className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50">
             {isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />} Cargar nota de crédito

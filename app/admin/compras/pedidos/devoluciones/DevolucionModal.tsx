@@ -290,7 +290,8 @@ function Formulario({
   }
   if (efecto && efecto !== 'mercaderia' && elegidos.length > 0) frasesImpacto.push({ texto: 'El stock no se mueve.', tono: 'normal' })
   if (estadoTexto) frasesImpacto.push({ texto: `El pedido: ${estadoTexto.charAt(0).toLowerCase()}${estadoTexto.slice(1)}`, tono: 'normal' })
-  if (gasto) frasesImpacto.push({ texto: gasto.texto, tono: 'normal' })
+  // Con la NC a medio cargar (faltan kg o precios) el número del gasto no dice nada todavía.
+  if (gasto && nc && !nc.incompleta) frasesImpacto.push({ texto: gasto.texto, tono: 'normal' })
   if (esperaNc && elegidos.length > 0) frasesImpacto.push({ texto: 'Queda esperando la nota de crédito: la cargás desde la devolución cuando llegue.', tono: 'normal' })
 
   function registrar() {
@@ -561,7 +562,7 @@ function Formulario({
             ))}
           </ul>
         )}
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <div className="grid grid-cols-[auto_1fr] gap-2 sm:flex sm:items-center sm:justify-end">
           <button type="button" onClick={onCancelar} disabled={isPending} className={botonSecundario}>Cancelar</button>
           <button type="button" onClick={registrar} disabled={!puedeRegistrar} className={botonPrimario}>
             {isPending ? <Loader2 size={16} className="animate-spin" /> : <Undo2 size={16} />}
