@@ -142,10 +142,37 @@ Playwright + Chromium 1223 contra `next dev` :3006, con dev. Las capturas están
 
 **Pendiente de diseño (harden):** `TablaMaestra` todavía usa clases con hex propias. Es compartida y no se tocó en B4.
 
+## Revisión, vuelta 1 (`review-b4-devoluciones`)
+
+1. **MEDIO — `precio_correcto` legible por Compras.**
+   - Arreglo: migración `20261006160000_compras_devoluciones_permisos.sql`, aplicada en dev. Usa grants por columna: `anon` y `authenticated` leen todo `compras_devolucion_items` menos `precio_correcto`.
+   - Por qué esta opción: la RLS de lectura y las RPC siguen igual, así que Compras registra y anula devoluciones con mercadería (D6). El precio solo se ve por `v_compras_devoluciones`, que lo muestra a admin.
+   - Nadie de la app lee la tabla directo: todo pasa por la vista o las RPC.
+   - Prueba: lote revertido `docs/bloque2/escenarios-B4-permisos.sql`, `OK`.
+     - qa-squad: `precio_correcto` y `select *` de la tabla dan *permission denied*. Lee las otras columnas, en la vista el precio sale en `null`, y registra y anula una devolución con mercadería.
+     - admin: ve el precio por la vista (2400) y tampoco puede leer la columna de la tabla.
+     - anon: sin `select`.
+   - Navegador, contra el build de producción en :3016:
+     - qa-squad abre P-0080: la tarjeta de D-0080-03 dice "Queso Barra 33,4 kg · Tiene nota de crédito", sin el precio correcto;
+     - admin ve "precio correcto $ 1.200,00".
+2. **BAJO — NC "sin gasto" con gasto heredado.** `estadoPago` trata una NC con `nc_gasto = 'sin_gasto'` como `sin_gasto`, igual que `a_favor`, aunque la vista le herede el gasto de la factura.
+   - Caso nuevo en `_check_reportes` (44 casos): factura 1000 con NC 200 sin gasto, y después se vincula un gasto de 1000.
+   - Resultado: Pendiente 1000 (igual que Gastos), Sin gasto −200, Facturado 800.
+3. **BAJO — vista previa de `AnularModal`.**
+   - Ahora usa `recepcionDespues` con los mismos datos que `compras_recalcular_estado_pedido`: todos los remitos con insumo (también las líneas libres) y todas las otras devoluciones activas con mercadería.
+   - Los datos salen de `useContextoDevolucion`, como en `DevolucionModal`.
+   - Mientras carga, dice "Calculando cómo queda el pedido…".
+   - 2 casos nuevos en `_check_devoluciones` (60 casos).
+4. **BAJO — `consultarFacturaItems`.** Ahora pagina en tandas de 1000, con orden total `orden, id`. Facturas y NC se abren con todas sus líneas. Era un cambio chico, así que no quedó para F9.
+
+**Observación del QA:** dos veces apareció en `next dev` "Switched to client rendering… useToast() necesitan <ProveedorUI>", siempre justo después de editar código.
+- Con el build de producción (`next start` :3016), como qa-squad y como admin, no aparece en ninguna página.
+- Es del HMR de dev, no de B4.
+
 ## Para el coordinador
 
 - **Dueños:** los de §14, más `_compras_marcar_esperando_nc` (por pedido) y la regla de `espera_nota_credito`, ambas de `153000`.
-- **Release:** hay que aplicar `150000` **y** `153000`, en ese orden. Antes, en prod, contar las NC (0 esperado) y los tipos de `compras_pedido_eventos`.
+- **Release:** hay que aplicar `150000`, `153000` y `160000`, en ese orden. Antes, en prod, contar las NC (0 esperado) y los tipos de `compras_pedido_eventos`.
 - **Para A4:**
   - `devolucion_id` en `v_compras_stock_movimientos` y el chip en `PanelMovimientos`.
   - La alternativa de D2, si se elige.
