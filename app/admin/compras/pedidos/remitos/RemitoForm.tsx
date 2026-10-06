@@ -353,7 +353,7 @@ export default function RemitoForm({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-[1fr_11rem_11rem]">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-[1fr_11rem_11rem] [&>*]:min-w-0">
         <div className="sm:col-span-2 md:col-span-1">
           <Field label="Pedido" obligatorio>
             {remito ? (
