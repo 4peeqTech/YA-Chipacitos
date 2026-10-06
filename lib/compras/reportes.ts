@@ -53,6 +53,9 @@ export function estadoPago(f: {
   nc_gasto?: string | null
 }): EstadoPago {
   if (f.tipo_comprobante === 'nota_credito' && f.nc_gasto === 'a_favor') return 'a_favor'
+  // Una NC que no tocó ningún gasto sigue "sin gasto" aunque después se le vincule
+  // uno a su factura (la vista se lo hereda): ese gasto no tiene su descuento.
+  if (f.tipo_comprobante === 'nota_credito' && f.nc_gasto === 'sin_gasto') return 'sin_gasto'
   if (!f.gasto_id) return 'sin_gasto'
   if (f.gasto_estado === 'Pagado') return 'pagado'
   if (f.gasto_estado === 'Parcial') return 'parcial'

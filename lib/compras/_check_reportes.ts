@@ -149,6 +149,14 @@ const cancelo = resumirPagos([
   nc({ total: 100, gasto_id: 'gC', gasto_estado: 'Pagado', nc_gasto: 'cancelo_gasto' }),
 ])
 caso('B4 resumen: NC canceló el gasto', `${cancelo.pagado}|${cancelo.facturado}`, '0|0')
+// Revisión B4: factura 1000 con NC 200 sin gasto; después se vincula un gasto de 1000 a la factura.
+// La NC hereda ese gasto en la vista, pero no lo descontó: queda "sin gasto" y el pendiente es 1000, como en Gastos.
+caso('B4 pago: NC sin gasto con gasto heredado', estadoPago({ gasto_id: 'gD', gasto_estado: 'Pendiente de pago', tipo_comprobante: 'nota_credito', nc_gasto: 'sin_gasto' }), 'sin_gasto')
+const sinGastoNc = resumirPagos([
+  factura({ proveedor_id: 'D', total: 1000, gasto_id: 'gD', gasto_estado: 'Pendiente de pago' }),
+  nc({ proveedor_id: 'D', total: 200, gasto_id: 'gD', gasto_estado: 'Pendiente de pago', nc_gasto: 'sin_gasto' }),
+])
+caso('B4 resumen: NC sin gasto no baja el pendiente del gasto', `${sinGastoNc.pendiente}|${sinGastoNc.sinGasto}|${sinGastoNc.facturado}`, '1000|-200|800')
 const gastoC = calcularGastoPorProveedor([
   factura({ proveedor_id: 'C', proveedor_nombre: 'Prov C', total: 100, gasto_id: 'gC', gasto_estado: 'Pagado' }),
   nc({ proveedor_nombre: 'Prov C', total: 20, gasto_id: 'gC', gasto_estado: 'Pagado', nc_gasto: 'a_favor' }),
