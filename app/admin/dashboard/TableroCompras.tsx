@@ -31,6 +31,8 @@ interface Tarjeta {
   sub: string
   href: string
   alerta?: boolean
+  /** Solo el subtexto en ámbar ("N demorados" en Por recibir). */
+  subAlerta?: boolean
 }
 
 function plural(n: number, uno: string, varios: string) {
@@ -42,11 +44,11 @@ function armarTarjetas(r: ResumenTablero, esAdmin: boolean): Tarjeta[] {
     {
       clave: 'por_recibir', icono: Truck, titulo: 'Por recibir', valor: String(r.por_recibir),
       sub: r.demorados > 0 ? plural(r.demorados, 'demorado', 'demorados') : 'Pedidos esperando mercadería',
-      alerta: false, href: rutaPedidosAlerta('por_recibir'),
+      subAlerta: r.demorados > 0, href: rutaPedidosAlerta('por_recibir'),
     },
     {
       clave: 'demorados', icono: Clock, titulo: 'Demorados', valor: String(r.demorados),
-      sub: `Más de ${plural(r.dias_demora, 'día', 'días')} sin llegar`,
+      sub: `Enviados hace ${plural(r.dias_demora, 'día', 'días')} o más`,
       alerta: r.demorados > 0, href: rutaPedidosAlerta('demorados'),
     },
     esAdmin && r.por_facturar_estimado != null
@@ -101,7 +103,7 @@ function Contenido({ t }: { t: Tarjeta }) {
         <span className="truncate">{t.titulo}</span>
       </div>
       <p className={`mt-2 text-2xl font-bold tabular-nums leading-tight ${t.alerta ? 'text-warning' : 'text-text'}`}>{t.valor}</p>
-      <p className="mt-1 text-xs text-muted">{t.sub}</p>
+      <p className={`mt-1 text-xs ${t.subAlerta ? 'text-warning' : 'text-muted'}`}>{t.sub}</p>
     </>
   )
 }

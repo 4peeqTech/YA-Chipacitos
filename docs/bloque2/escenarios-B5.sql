@@ -233,6 +233,8 @@ begin
   order by i.nombre limit 1;
   update compras_items set stock_minimo = coalesce((select cantidad from compras_stock_actual where item_id = compras_items.id), 0) + 100
   where id in (v_it, v_it2);
+  -- Sin rastro de un aviso anterior (la QA de dev puede haber dejado uno hasta la próxima toma).
+  delete from compras_avisos_enviados where tipo = 'stock_bajo' and entidad_id in (v_it, v_it2);
   r := compras_guardar_pedido(null, '6214db3f-40f3-46fb-ac8e-3a5a67170bf7', null,
          jsonb_build_array(jsonb_build_object('item_id', v_it2, 'descripcion', 'QA B5', 'unidad', 'u', 'cantidad', 1)));
   v_ped_it2 := (r->>'id')::uuid;

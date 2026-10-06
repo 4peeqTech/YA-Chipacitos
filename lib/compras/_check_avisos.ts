@@ -86,6 +86,7 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'excluir al autor del remito', real: destinatariosDe('remito_listo', perfiles, 'admin1').join(','), esperado: 'admin2' },
   { nombre: 'resumen vacío', real: resumenCorrida({}), esperado: 'No había nada nuevo para avisar' },
   { nombre: 'resumen con dos tipos', real: resumenCorrida({ pedido_demorado: { candidatos: 2, avisados: 2, destinatarios: 3 }, stock_bajo: { candidatos: 1, avisados: 1, destinatarios: 2 } }), esperado: 'Se avisaron 2 pedidos demorados y 1 insumo bajo el mínimo' },
+  { nombre: 'resumen de uno solo: singular', real: resumenCorrida({ stock_bajo: { candidatos: 1, avisados: 1, destinatarios: 2 } }), esperado: 'Se avisó 1 insumo bajo el mínimo' },
   { nombre: 'resumen ignora tipos en 0', real: resumenCorrida({ diferencias: { candidatos: 0, avisados: 0, destinatarios: 0 } }), esperado: 'No había nada nuevo para avisar' },
   { nombre: 'config vacía → defaults', real: JSON.stringify(cfgVacia), esperado: JSON.stringify(CONFIG_AVISOS_DEFAULT) },
   { nombre: 'config inválida → default demora', real: cfgRara.diasDemora, esperado: 3 },

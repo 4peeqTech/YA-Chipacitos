@@ -213,12 +213,12 @@ export interface ResumenCorrida {
 
 /** El toast de "Revisar ahora" y la línea de log del cron. */
 export function resumenCorrida(resultado: ResultadoCorrida): string {
-  const partes = TIPOS_AVISO
+  const tipos = TIPOS_AVISO
     .map(t => ({ t, n: resultado[t]?.candidatos ?? 0 }))
     .filter(x => x.n > 0)
-    .map(x => plural(x.n, NOMBRE[x.t]))
-  if (partes.length === 0) return 'No había nada nuevo para avisar'
-  return `Se avisaron ${enumerar(partes)}`
+  if (tipos.length === 0) return 'No había nada nuevo para avisar'
+  const total = tipos.reduce((s, x) => s + x.n, 0)
+  return `${total === 1 ? 'Se avisó' : 'Se avisaron'} ${enumerar(tipos.map(x => plural(x.n, NOMBRE[x.t])))}`
 }
 
 export function totalAvisados(resultado: ResultadoCorrida): number {
