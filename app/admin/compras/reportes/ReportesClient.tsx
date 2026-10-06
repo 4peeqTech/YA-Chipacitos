@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { BarChart3, Wallet, ClipboardList, Inbox, TriangleAlert, Package, Scale, Loader2 } from 'lucide-react'
+import { BarChart3, Wallet, ClipboardList, Inbox, TriangleAlert, Package, Scale, Loader2, ShoppingBasket } from 'lucide-react'
 import { calcularRangoPreset, type PresetRango, type RangoFechas } from '@/lib/compras/rangoFechas'
 import { contarPorEstado, recibidoSinFacturar, type FacturaReporte, type RemitoReporte, type PedidoReporte, type MovimientoReporte, type SolicitudItemReporte, type PedidoItemRecibidoReporte } from '@/lib/compras/reportes'
 import KpiCard from '@/components/ui/KpiCard'
@@ -12,9 +12,10 @@ import GastoPorProveedor from './GastoPorProveedor'
 import HistorialPedidos from './HistorialPedidos'
 import MovimientoStock from './MovimientoStock'
 import SugeridoVsRecibido from './SugeridoVsRecibido'
+import PorInsumo from './PorInsumo'
 import DateRangePicker from '@/components/ui/DateRangePicker'
 
-type Tab = 'gasto' | 'historial' | 'stock' | 'sugerido'
+type Tab = 'gasto' | 'insumo' | 'historial' | 'stock' | 'sugerido'
 type PresetUI = PresetRango | 'personalizado'
 
 interface StockActualRow {
@@ -105,6 +106,7 @@ export default function ReportesClient({
 
   const tabs = [
     { id: 'gasto', label: 'Gasto por proveedor', icon: <Wallet size={14} /> },
+    { id: 'insumo', label: 'Por insumo', icon: <ShoppingBasket size={14} /> },
     { id: 'historial', label: 'Historial de pedidos y remitos', icon: <ClipboardList size={14} /> },
     { id: 'stock', label: 'Movimiento de stock', icon: <Package size={14} /> },
     { id: 'sugerido', label: 'Sugerido vs. recibido', icon: <Scale size={14} /> },
@@ -121,7 +123,7 @@ export default function ReportesClient({
     <div className="space-y-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-['Syne'] font-bold text-text"><BarChart3 size={22} className="text-accent" /> Reportes</h1>
-        <p className="text-muted text-sm mt-0.5">Gasto, historial de pedidos/remitos y movimiento de stock del período elegido.</p>
+        <p className="text-muted text-sm mt-0.5">Gasto por proveedor y por insumo, historial de pedidos/remitos y movimiento de stock del período elegido.</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -177,6 +179,7 @@ export default function ReportesClient({
 
       <div className={cargando ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
       {tab === 'gasto' && <GastoPorProveedor facturas={facturasFiltradas} pedidos={pedidosPorFacturar} esAdmin={esAdmin} />}
+      {tab === 'insumo' && <PorInsumo rango={rango} esAdmin={esAdmin} />}
       {tab === 'historial' && <HistorialPedidos pedidos={pedidosFiltrados} facturas={facturasDePedidos} esAdmin={esAdmin} />}
       {tab === 'stock' && <MovimientoStock movimientos={movimientosFiltrados} stockActualPorItem={stockActualPorItem} proveedorPorItem={proveedorPorItem} />}
       {tab === 'sugerido' && <SugeridoVsRecibido solicitudItems={solicitudItemsIniciales} pedidoItems={pedidoItemsIniciales} />}

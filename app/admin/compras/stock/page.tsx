@@ -1,5 +1,6 @@
 import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { PESTANAS_INSUMO } from '@/lib/compras/rutas'
 import StockClient, { type ConteoConDiferencias } from './StockClient'
 
 export const metadata = { title: 'Stock | YA! Chipacitos' }
@@ -7,15 +8,16 @@ export const metadata = { title: 'Stock | YA! Chipacitos' }
 export default async function StockPage({
   searchParams,
 }: {
-  searchParams: Promise<{ insumo?: string }>
+  searchParams: Promise<{ insumo?: string; pestana?: string }>
 }) {
   const supabase = await createClientTipado()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { insumo } = await searchParams
+  const { insumo, pestana } = await searchParams
 
-  const [{ data: items }, { data: stock }, { data: difs }] = await Promise.all([
+  const [{ data: perfil }, { data: items }, { data: stock }, { data: difs }] = await Promise.all([
+    supabase.from('profiles').select('rol').eq('id', user.id).single(),
     // A2a: también los archivados (se listan si tienen stock ≠ 0, y su ?insumo= abre la ficha).
     supabase.from('compras_items').select('id, nombre, unidad, stock_minimo, estado, unidad_base, cantidad_por_unidad').order('nombre'),
     supabase.from('v_compras_stock_actual').select('item_id, cantidad, actualizado_en, actualizado_por_nombre'),
@@ -45,7 +47,16 @@ export default async function StockPage({
     .sort((a, b) => b.cerradoEn.localeCompare(a.cerradoEn))
     .map(({ conteoId, etiqueta, pendientes }) => ({ conteoId, etiqueta, pendientes }))
 
-  return <StockClient items={items ?? []} stock={stock ?? []} insumoInicial={insumo} conteosConDiferencias={conteosConDiferencias} />
+  return (
+    <StockClient
+      items={items ?? []}
+      stock={stock ?? []}
+      insumoInicial={insumo}
+      pestanaInicial={PESTANAS_INSUMO.find(p => p === pestana) ?? 'stock'}
+      esAdmin={perfil?.rol === 'admin'}
+      conteosConDiferencias={conteosConDiferencias}
+    />
+  )
 }
 
 function formatearDiaMes(fecha: string | null): string {

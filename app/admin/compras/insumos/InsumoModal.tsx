@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react'
-import { Archive, ArchiveRestore, History, Loader2, Plus, RotateCcw, Ruler, Star, Trash2, User } from 'lucide-react'
+import { Archive, ArchiveRestore, BarChart3, History, Loader2, Plus, RotateCcw, Ruler, Star, Trash2, User } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { usePuedeEntrar } from '@/components/ui/AccesoModulos'
+import { rutaDe } from '@/lib/compras/rutas'
 import { createClient } from '@/lib/supabase/client'
 import type { Redondeo } from '@/lib/fabrica/calculoSugerido'
 import { REDONDEO_LABEL } from '@/lib/estados'
@@ -139,6 +143,8 @@ export default function InsumoModal({
 }) {
   const toast = useToast()
   const confirmar = useConfirmar()
+  const router = useRouter()
+  const puedeEntrar = usePuedeEntrar()
   const [isPending, startTransition] = useTransition()
   const [accion, setAccion] = useState<'guardar' | 'archivar' | 'eliminar' | null>(null)
 
@@ -457,6 +463,21 @@ export default function InsumoModal({
 
   const archivado = item?.estado === 'archivado'
   const bloqueado = isPending
+  const hayCambios = !!item && (Object.keys(datosCambiados).length > 0 || proveedoresCambiados)
+  const rutaFicha = item ? rutaDe({ tipo: 'insumo', id: item.id }) : null
+
+  // A2c: "Ver ficha" con cambios sin guardar pide confirmar antes de salir.
+  function verFichaConCambios() {
+    if (!rutaFicha) return
+    confirmar({
+      titulo: 'Descartar cambios',
+      mensaje: 'Tenés cambios sin guardar en este insumo. ¿Descartarlos e ir a la ficha?',
+      textoConfirmar: 'Descartar',
+      textoCancelar: 'Seguir editando',
+      peligroso: true,
+      onConfirmar: () => router.push(rutaFicha),
+    })
+  }
 
   return (
     <Modal
@@ -467,6 +488,24 @@ export default function InsumoModal({
       pantallaCompletaMobile
     >
       <div className="space-y-5">
+        {item && rutaFicha && (
+          <div className="-mt-2 flex justify-end">
+            {hayCambios && puedeEntrar(rutaFicha) ? (
+              <button
+                type="button"
+                onClick={verFichaConCambios}
+                className="inline-flex min-h-11 sm:min-h-9 items-center gap-1.5 text-sm font-medium text-text underline decoration-accent decoration-2 underline-offset-4 hover:opacity-80"
+              >
+                <BarChart3 size={14} /> Ver ficha
+              </button>
+            ) : (
+              <LinkEntidad entidad={{ tipo: 'insumo', id: item.id }} variante="texto" title="Stock, compras y movimientos del insumo"
+                className="inline-flex min-h-11 sm:min-h-9 items-center gap-1.5 text-sm font-medium text-text">
+                <BarChart3 size={14} /> Ver ficha
+              </LinkEntidad>
+            )}
+          </div>
+        )}
         {archivado && (
           <p className="flex items-center gap-2 rounded-xl border border-border bg-surface2 px-4 py-2.5 text-sm text-text">
             <Archive size={16} className="shrink-0 text-muted" />

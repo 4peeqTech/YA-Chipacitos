@@ -4172,6 +4172,29 @@ export type Database = {
           },
         ]
       }
+      v_compras_insumo_documentos: {
+        Row: {
+          cantidad: number | null
+          cantidad_base: number | null
+          cargado_en: string | null
+          codigo: string | null
+          documento_id: string | null
+          fecha: string | null
+          item_id: string | null
+          linea_id: string | null
+          origen: string | null
+          pedido_id: string | null
+          pedido_numero: number | null
+          precio_por: string | null
+          precio_unitario: number | null
+          proveedor_id: string | null
+          proveedor_nombre: string | null
+          subtotal: number | null
+          tipo: string | null
+          tipo_comprobante: string | null
+        }
+        Relationships: []
+      }
       v_compras_insumos_resumen: {
         Row: {
           cobra_por_principal: string | null
@@ -4415,6 +4438,8 @@ export type Database = {
           creado_por_nombre: string | null
           created_at: string | null
           delta: number | null
+          discrepancia_id: string | null
+          factura_id: string | null
           id: string | null
           item_id: string | null
           item_nombre: string | null
@@ -4459,6 +4484,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_fabrica_conteo_diferencias"
             referencedColumns: ["superado_por_conteo_id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_discrepancia_id_fkey"
+            columns: ["discrepancia_id"]
+            isOneToOne: false
+            referencedRelation: "compras_factura_discrepancias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_discrepancia_id_fkey"
+            columns: ["discrepancia_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_factura_diferencias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
           },
           {
             foreignKeyName: "compras_stock_movimientos_item_id_fkey"
@@ -4881,6 +4941,48 @@ export type Database = {
           nombre: string
           origen: string
           unidad: string
+        }[]
+      }
+      compras_trazabilidad_insumo: {
+        Args: { p_desde: string; p_hasta: string; p_item_id?: string }
+        Returns: {
+          categoria_nombre: string
+          consumido_produccion: number
+          contenido: number
+          facturado_base: number
+          facturado_cantidad: number
+          facturado_neto: number
+          facturado_total: number
+          facturas: number
+          item_estado: string
+          item_id: string
+          item_nombre: string
+          mov_conteo: number
+          mov_devolucion: number
+          mov_factura: number
+          mov_manual: number
+          mov_otros: number
+          mov_remitos: number
+          pedido_cantidad: number
+          pedidos: number
+          pendiente_recibir: number
+          precio_prom_base: number
+          precio_prom_unidad: number
+          proveedores_facturados: number
+          recibido_base_real: number
+          recibido_cantidad: number
+          recibido_sin_pesar: number
+          remitos: number
+          stock_actual: number
+          stock_fin: number
+          stock_inicio: number
+          ultimo_precio: number
+          ultimo_precio_factura_id: string
+          ultimo_precio_fecha: string
+          ultimo_precio_por: string
+          ultimo_precio_proveedor: string
+          unidad: string
+          unidad_base: string
         }[]
       }
       convertir_solicitud_a_pedidos: {

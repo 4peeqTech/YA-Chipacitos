@@ -28,14 +28,25 @@ const BASE: Record<TipoEntidad, string> = {
 /** Pestañas de la ficha del proveedor (B3). */
 export type PestanaProveedor = 'pedidos' | 'remitos' | 'cuenta' | 'insumos'
 
+/** Pestañas de la ficha del insumo (A2c). */
+export type PestanaInsumo = 'stock' | 'compras' | 'movimientos'
+export const PESTANAS_INSUMO: PestanaInsumo[] = ['stock', 'compras', 'movimientos']
+
 export type Entidad =
-  | { tipo: Exclude<TipoEntidad, 'proveedor'>; id: string }
+  | { tipo: Exclude<TipoEntidad, 'proveedor' | 'insumo'>; id: string }
   | { tipo: 'proveedor'; id: string; pestana?: PestanaProveedor }
+  | { tipo: 'insumo'; id: string; pestana?: PestanaInsumo }
 
 export function rutaDe(entidad: Entidad): string {
   const { tipo, id } = entidad
   const base = `${BASE[tipo]}?${tipo}=${encodeURIComponent(id)}`
-  return entidad.tipo === 'proveedor' && entidad.pestana ? `${base}&pestana=${entidad.pestana}` : base
+  return (entidad.tipo === 'proveedor' || entidad.tipo === 'insumo') && entidad.pestana
+    ? `${base}&pestana=${entidad.pestana}` : base
+}
+
+/** El form del insumo en Insumos (A2c): "Editar insumo" desde la ficha. */
+export function rutaEditarInsumo(id: string): string {
+  return `/admin/compras/insumos?insumo=${encodeURIComponent(id)}`
 }
 
 /** Pedidos ya filtrado en una pestaña (B3: el aviso de "sin factura" de Reportes). */

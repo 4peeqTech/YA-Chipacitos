@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ClipboardCheck, Package } from 'lucide-react'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import LinkEntidad from '@/components/ui/LinkEntidad'
@@ -18,6 +18,7 @@ import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeep
 import { formatearRelativo } from '@/lib/formato'
 import { conUnidad } from '../pedidos/modelo'
 import { textoBaseItem } from '@/lib/compras/unidades'
+import type { PestanaInsumo } from '@/lib/compras/rutas'
 import StockFicha from './StockFicha'
 
 export interface InsumoStock {
@@ -59,11 +60,16 @@ export default function StockClient({
   items,
   stock,
   insumoInicial,
+  pestanaInicial = 'stock',
+  esAdmin,
   conteosConDiferencias,
 }: {
   items: InsumoStock[]
   stock: StockActual[]
   insumoInicial?: string
+  /** A2c: ?pestana= de la ficha (validado en page.tsx). */
+  pestanaInicial?: PestanaInsumo
+  esAdmin: boolean
   conteosConDiferencias: ConteoConDiferencias[]
 }) {
   const totalDiferencias = conteosConDiferencias.reduce((s, c) => s + c.pendientes, 0)
@@ -71,9 +77,12 @@ export default function StockClient({
   const [busqueda, setBusqueda] = useState('')
   const [soloBajo, setSoloBajo] = useState(false)
   const [abiertoId, setAbiertoId] = useState<string | null>(insumoInicial ?? null)
+  const [pestana, setPestana] = useState<PestanaInsumo>(pestanaInicial)
   const [conCambios, setConCambios] = useState(false)
-  const quitarParam = useQuitarParams('insumo')
-  useAlCambiarParam(insumoInicial, id => abrir(id))
+  const quitarParam = useQuitarParams('insumo', 'pestana')
+  useAlCambiarParam(insumoInicial, id => abrir(id, pestanaInicial))
+  // Un ?pestana= nuevo con el mismo insumo (p. ej. del reporte a la ficha ya abierta).
+  useAlCambiarParam(pestanaInicial, p => { if (insumoInicial) abrir(insumoInicial, p as PestanaInsumo) })
 
   // Todo sale de las props: las acciones llaman a refresh().
   const filas = useMemo<FilaStock[]>(() => {
@@ -105,8 +114,14 @@ export default function StockClient({
 
   const abierta = abiertoId ? filas.find(f => f.item.id === abiertoId) ?? null : null
 
-  function abrir(id: string) {
+  // Un ?insumo= que no existe no abre nada: se saca de la URL para que F5 no lo arrastre.
+  useEffect(() => {
+    if (insumoInicial && !items.some(i => i.id === insumoInicial)) quitarParam()
+  }, [insumoInicial, items, quitarParam])
+
+  function abrir(id: string, p: PestanaInsumo = 'stock') {
     setAbiertoId(id)
+    setPestana(p)
     setConCambios(false)
   }
 
@@ -247,11 +262,13 @@ export default function StockClient({
         <DataTable filas={filtradas} columnas={columnas} filaKey={f => f.item.id} onFilaClick={f => abrir(f.item.id)} />
       )}
 
-      <Modal open={abierta != null} onClose={cerrar} title={abierta?.item.nombre ?? 'Insumo'} size="lg" pantallaCompletaMobile>
+      <Modal open={abierta != null} onClose={cerrar} title={abierta?.item.nombre ?? 'Insumo'} size="xl" pantallaCompletaMobile>
         {abierta && (
           <StockFicha
             key={abierta.item.id}
             fila={abierta}
+            pestanaInicial={pestana}
+            esAdmin={esAdmin}
             onCambios={setConCambios}
             onCerrar={cerrarYa}
           />
