@@ -6,10 +6,15 @@ import { esCobraPor } from '@/lib/compras/unidades'
 
 export const metadata = { title: 'Insumos | YA! Chipacitos' }
 
-export default async function InsumosPage() {
+export default async function InsumosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ insumo?: string }>
+}) {
   const supabase = await createClientTipado()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const { insumo } = await searchParams
 
   const [
     { data: perfil },
@@ -79,6 +84,7 @@ export default async function InsumosPage() {
       resumenPorItem={resumenPorItem}
       enPedidoBase={[...new Set((plantillaBase ?? []).map(p => p.item_id).filter((id): id is string => !!id))]}
       esAdmin={perfil?.rol === 'admin'}
+      insumoInicial={insumo}
     />
   )
 }

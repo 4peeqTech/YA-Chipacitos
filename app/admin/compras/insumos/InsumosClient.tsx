@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Package, Plus, TriangleAlert } from 'lucide-react'
 import { esPorMasaSinReceta, type ModoCalculo, type Redondeo } from '@/lib/fabrica/calculoSugerido'
@@ -16,6 +16,8 @@ import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { Chip, SegmentedControl } from '@/components/ui/Chip'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import LinkEntidad from '@/components/ui/LinkEntidad'
+import { useToast } from '@/components/ui/ProveedorUI'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import InsumoModal from './InsumoModal'
 
 export interface ProveedorOption {
@@ -113,6 +115,7 @@ export default function InsumosClient({
   resumenPorItem,
   enPedidoBase,
   esAdmin,
+  insumoInicial,
 }: {
   items: CompraItem[]
   proveedores: ProveedorOption[]
@@ -122,13 +125,28 @@ export default function InsumosClient({
   resumenPorItem: Record<string, ResumenInsumo>
   enPedidoBase: string[]
   esAdmin: boolean
+  /** A2c: ?insumo= abre el form de ese insumo ("Editar insumo" desde la ficha). */
+  insumoInicial?: string
 }) {
+  const toast = useToast()
   const [filtro, setFiltro] = useState<FiltroEstado>('activo')
   const [soloADemanda, setSoloADemanda] = useState(false)
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | 'todas'>('todas')
   const [busqueda, setBusqueda] = useState('')
   // Se guarda el id, no la fila: después de cada acción refresh() trae los datos nuevos.
-  const [abiertoId, setAbiertoId] = useState<string | null>(null)
+  const [abiertoId, setAbiertoId] = useState<string | null>(
+    insumoInicial && items.some(i => i.id === insumoInicial) ? insumoInicial : null)
+  const quitarParam = useQuitarParams('insumo')
+
+  // Un ?insumo= que no existe (borrado, o un link viejo): se avisa y se limpia.
+  useEffect(() => {
+    if (insumoInicial && !items.some(i => i.id === insumoInicial)) {
+      toast.error('No encontramos ese insumo.')
+      quitarParam()
+    }
+    // Solo al entrar con el param.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [creando, setCreando] = useState(false)
   // Cambia en cada apertura: el form arranca de cero aunque sea el mismo insumo.
   const [aperturas, setAperturas] = useState(0)
@@ -178,7 +196,15 @@ export default function InsumosClient({
     setAperturas(n => n + 1)
   }
 
+  function abrirPorId(id: string) {
+    // Corre durante el render (useAlCambiarParam): solo estado, nada de toasts.
+    const i = items.find(x => x.id === id)
+    if (i) abrirEditar(i)
+  }
+  useAlCambiarParam(insumoInicial, id => abrirPorId(id))
+
   function cerrarForm() {
+    quitarParam()
     setCreando(false)
     setAbiertoId(null)
   }

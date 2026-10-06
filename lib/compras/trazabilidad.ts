@@ -217,8 +217,12 @@ export function puntosPrecio(lineas: LineaDocumento[], u: UnidadesInsumo, modo: 
   return puntos.map(p => p.punto)
 }
 
-/** Colores de las series en orden: el principal primero y el resto por nombre (§6.4). */
-export const COLORES_SERIES = ['var(--color-accent)', 'var(--color-info)', 'var(--color-green)', 'var(--color-orange)'] as const
+/**
+ * Colores de las series en orden: el principal primero y el resto por nombre (§6.4).
+ * accent-fg y no accent: en oscuro son el mismo, en claro accent no llega a 3:1
+ * sobre blanco (validate_palette de dataviz; ver notas-A2c.md).
+ */
+export const COLORES_SERIES = ['var(--color-accent-fg)','var(--color-info)', 'var(--color-green)', 'var(--color-orange)'] as const
 export const COLOR_OTROS = 'var(--color-muted)'
 export const MAX_SERIES = COLORES_SERIES.length
 export const ID_OTROS = 'otros'
