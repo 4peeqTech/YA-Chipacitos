@@ -62,10 +62,13 @@ export function PanelPedidos({
   pedidos,
   facturas,
   esAdmin,
+  diasDemora,
 }: {
   pedidos: PedidoDeProveedor[]
   facturas: FacturaDePedidoProveedor[]
   esAdmin: boolean
+  /** B5: compras_config 'pedidos.dias_demora' (default DIAS_DEMORA). */
+  diasDemora?: number
 }) {
   const filas: FilaPedido[] = useMemo(() => pedidos.map(p => ({
     p,
@@ -94,7 +97,7 @@ export function PanelPedidos({
       render: f => {
         const er = aEstadoRecepcion(f.p.estado_recepcion)
         const dias = diasDesdeEnvio(f.p.enviado_en)
-        const demorado = estaDemorado({ estado_recepcion: er, enviado_en: f.p.enviado_en })
+        const demorado = estaDemorado({ estado_recepcion: er, enviado_en: f.p.enviado_en }, undefined, diasDemora)
         return (
           <div className="flex flex-col items-start gap-0.5">
             <EstadoBadge dominio="compras_pedido" estado={estadoVisible({ estado_recepcion: er, estado_facturacion: aEstadoFacturacion(f.p.estado_facturacion) })} />

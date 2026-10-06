@@ -1,6 +1,6 @@
 import { codigoPedido } from '@/lib/compras/codigos'
 import {
-  estadoVisible, estaDemorado, filtroDelPedido,
+  DIAS_DEMORA, estadoVisible, estaDemorado, filtroDelPedido,
   type EstadoFacturacion, type EstadoPedidoEntrada, type EstadoRecepcion, type EstadoVisible, type FiltroPedidos,
 } from '@/lib/compras/estadoPedido'
 import { armarDiferencias, recepcionCompleta, type DiferenciaFila, type DiferenciaVista } from '@/lib/compras/diferencias'
@@ -59,6 +59,7 @@ export function armarVistas(
   ahora: Date = new Date(),
   diferencias: DiferenciaFila[] = [],
   devoluciones: DevolucionVista[] = [],
+  diasDemora: number = DIAS_DEMORA,
 ): PedidoVista[] {
   const devolucionesPorPedido = new Map<string, DevolucionVista[]>()
   for (const d of devoluciones) devolucionesPorPedido.set(d.pedidoId, [...(devolucionesPorPedido.get(d.pedidoId) ?? []), d])
@@ -111,7 +112,7 @@ export function armarVistas(
       porcentajeRecibido: porcentajeRecibido(propias),
       recibioAlgo,
       origen: origenDe(fila),
-      demorado: estaDemorado(entrada, ahora),
+      demorado: estaDemorado(entrada, ahora, diasDemora),
       editable: entrada.estado_facturacion !== 'facturado'
         && entrada.estado_recepcion !== 'cerrado_manual'
         && entrada.estado_recepcion !== 'devuelto',

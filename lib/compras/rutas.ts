@@ -62,6 +62,19 @@ export function rutaPedidos(filtro: FiltroPedidos): string {
   return `${BASE.pedido}?estado=${filtro}`
 }
 
+/** B5: Pedidos filtrado por una alerta (los KPIs del dashboard y los avisos agrupados). */
+export type AlertaPedidos = 'por_recibir' | 'demorados' | 'diferencias' | 'nc'
+export const ALERTAS_PEDIDOS: AlertaPedidos[] = ['por_recibir', 'demorados', 'diferencias', 'nc']
+
+export function rutaPedidosAlerta(alerta: AlertaPedidos): string {
+  return `${BASE.pedido}?alerta=${alerta}`
+}
+
+/** B5: Stock con "Solo bajo el mínimo" prendido. */
+export function rutaStockBajo(): string {
+  return `${BASE.insumo}?bajo=1`
+}
+
 /** Abre la carga de un remito o una factura nueva con el pedido ya elegido. */
 export function rutaCargarDePedido(tipo: 'remito' | 'factura', pedidoId: string): string {
   return `${BASE[tipo]}?pedido=${encodeURIComponent(pedidoId)}`

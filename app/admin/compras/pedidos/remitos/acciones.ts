@@ -1,9 +1,11 @@
 'use server'
 
 import { refresh } from 'next/cache'
+import { after } from 'next/server'
 import { z } from 'zod'
 import { createClientTipado } from '@/lib/supabase/server'
 import { ok, fallo, type Resultado } from '@/lib/acciones'
+import { avisarRemitoListo } from '@/lib/compras/avisosServidor'
 
 // La autorización y el stock los resuelven las RPC (tiene_acceso_compras(),
 // compras_mover_stock con bloqueo por insumo). Si la RPC rechaza también se
@@ -63,7 +65,14 @@ export async function guardarRemito(
     const res = z.object({ id: z.uuid(), codigo: z.string(), impacto: Impacto, cambios: z.boolean().optional() }).safeParse(data)
     refresh()
     if (!res.success) return fallo(null, 'El remito se guardó, pero no pudimos leer la respuesta. Recargá la página.')
-    return ok({ ...res.data, cambios: res.data.cambios ?? true })
+    const cambios = res.data.cambios ?? true
+    // B5 (E5): si el pedido quedó listo para facturar, avisa a admin (no al autor).
+    // Corre después de responder y nunca cambia el resultado del remito.
+    if (cambios) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) after(() => avisarRemitoListo(pedidoId, user.id))
+    }
+    return ok({ ...res.data, cambios })
   } catch (e) {
     return fallo(e, 'No se pudo guardar el remito.')
   }

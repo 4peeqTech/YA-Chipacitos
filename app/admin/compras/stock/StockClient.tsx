@@ -63,6 +63,7 @@ export default function StockClient({
   pestanaInicial = 'stock',
   esAdmin,
   conteosConDiferencias,
+  soloBajoInicial = false,
 }: {
   items: InsumoStock[]
   stock: StockActual[]
@@ -71,11 +72,14 @@ export default function StockClient({
   pestanaInicial?: PestanaInsumo
   esAdmin: boolean
   conteosConDiferencias: ConteoConDiferencias[]
+  /** B5: ?bajo=1 (el KPI "Bajo el mínimo" del dashboard y el aviso de stock bajo). */
+  soloBajoInicial?: boolean
 }) {
   const totalDiferencias = conteosConDiferencias.reduce((s, c) => s + c.pendientes, 0)
   const confirmar = useConfirmar()
   const [busqueda, setBusqueda] = useState('')
-  const [soloBajo, setSoloBajo] = useState(false)
+  const [soloBajo, setSoloBajo] = useState(soloBajoInicial)
+  const quitarBajo = useQuitarParams('bajo')
   const [abiertoId, setAbiertoId] = useState<string | null>(insumoInicial ?? null)
   const [pestana, setPestana] = useState<PestanaInsumo>(pestanaInicial)
   const [conCambios, setConCambios] = useState(false)
@@ -110,7 +114,7 @@ export default function StockClient({
       .filter(f => !soloBajo || f.bajo)
   }, [filas, busqueda, soloBajo])
 
-  function limpiarFiltros() { setBusqueda(''); setSoloBajo(false) }
+  function limpiarFiltros() { setBusqueda(''); setSoloBajo(false); quitarBajo() }
 
   const abierta = abiertoId ? filas.find(f => f.item.id === abiertoId) ?? null : null
 
@@ -244,7 +248,7 @@ export default function StockClient({
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar insumo" className="w-full sm:w-72" />
-        <Chip active={soloBajo} onClick={() => setSoloBajo(v => !v)}>
+        <Chip active={soloBajo} onClick={() => { if (soloBajo) quitarBajo(); setSoloBajo(v => !v) }}>
           Bajo el mínimo ({cantidadBajo})
         </Chip>
         <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />

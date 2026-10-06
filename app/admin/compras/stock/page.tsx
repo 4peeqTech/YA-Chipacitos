@@ -8,13 +8,13 @@ export const metadata = { title: 'Stock | YA! Chipacitos' }
 export default async function StockPage({
   searchParams,
 }: {
-  searchParams: Promise<{ insumo?: string; pestana?: string }>
+  searchParams: Promise<{ insumo?: string; pestana?: string; bajo?: string }>
 }) {
   const supabase = await createClientTipado()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { insumo, pestana } = await searchParams
+  const { insumo, pestana, bajo } = await searchParams
 
   const [{ data: perfil }, { data: items }, { data: stock }, { data: difs }] = await Promise.all([
     supabase.from('profiles').select('rol').eq('id', user.id).single(),
@@ -55,6 +55,7 @@ export default async function StockPage({
       pestanaInicial={PESTANAS_INSUMO.find(p => p === pestana) ?? 'stock'}
       esAdmin={perfil?.rol === 'admin'}
       conteosConDiferencias={conteosConDiferencias}
+      soloBajoInicial={bajo === '1'}
     />
   )
 }

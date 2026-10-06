@@ -35,6 +35,74 @@ export type Database = {
         }
         Relationships: []
       }
+      compras_avisos_corridas: {
+        Row: {
+          corrida_en: string
+          error: string | null
+          id: string
+          origen: string
+          por: string | null
+          resultado: Json
+        }
+        Insert: {
+          corrida_en?: string
+          error?: string | null
+          id?: string
+          origen: string
+          por?: string | null
+          resultado?: Json
+        }
+        Update: {
+          corrida_en?: string
+          error?: string | null
+          id?: string
+          origen?: string
+          por?: string | null
+          resultado?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_avisos_corridas_por_fkey"
+            columns: ["por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compras_avisos_enviados: {
+        Row: {
+          entidad_id: string
+          enviado_en: string
+          envios: number
+          huella: string
+          id: string
+          pedido_id: string | null
+          primer_aviso_en: string
+          tipo: string
+        }
+        Insert: {
+          entidad_id: string
+          enviado_en?: string
+          envios?: number
+          huella?: string
+          id?: string
+          pedido_id?: string | null
+          primer_aviso_en?: string
+          tipo: string
+        }
+        Update: {
+          entidad_id?: string
+          enviado_en?: string
+          envios?: number
+          huella?: string
+          id?: string
+          pedido_id?: string | null
+          primer_aviso_en?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
       compras_categorias: {
         Row: {
           id: string
@@ -5172,6 +5240,24 @@ export type Database = {
         }
         Returns: Json
       }
+      _compras_avisos_candidatos: {
+        Args: { p_pedido_id: string; p_tipos: string[] }
+        Returns: {
+          cantidad: number
+          codigo: string
+          dias: number
+          entidad_id: string
+          huella: string
+          insumo_nombre: string
+          minimo: number
+          numero: number
+          pedido_id: string
+          pendientes: number
+          proveedor_nombre: string
+          tipo: string
+          unidad: string
+        }[]
+      }
       _compras_cant_txt: { Args: { p: number }; Returns: string }
       _compras_cobra_por: {
         Args: { p_item: string; p_prov: string }
@@ -5180,6 +5266,14 @@ export type Database = {
       _compras_codigo_devolucion: {
         Args: { p_numero: number; p_secuencia: number }
         Returns: string
+      }
+      _compras_config_bool: {
+        Args: { p_clave: string; p_default: boolean }
+        Returns: boolean
+      }
+      _compras_config_num: {
+        Args: { p_clave: string; p_default: number }
+        Returns: number
       }
       _compras_crear_nota_credito: {
         Args: {
@@ -5227,6 +5321,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _compras_devoluciones_esperan_nc: {
+        Args: never
+        Returns: {
+          codigo: string
+          desde: string
+          devolucion_id: string
+          numero: number
+          pedido_id: string
+          proveedor_nombre: string
+          secuencia: number
+        }[]
+      }
       _compras_devuelto: {
         Args: { p_pedido_id: string }
         Returns: {
@@ -5245,6 +5351,17 @@ export type Database = {
       _compras_exigir_sin_ajuste_factura: {
         Args: { p_accion: string; p_item_ids: string[]; p_pedido_id: string }
         Returns: undefined
+      }
+      _compras_insumos_bajo_minimo: {
+        Args: never
+        Returns: {
+          cantidad: number
+          en_pedido: boolean
+          item_id: string
+          minimo: number
+          nombre: string
+          unidad: string
+        }[]
       }
       _compras_item_hist: {
         Args: {
@@ -5273,6 +5390,46 @@ export type Database = {
         Returns: {
           id: string
           numero: number
+        }[]
+      }
+      _compras_pedidos_con_diferencias: {
+        Args: never
+        Returns: {
+          desde: string
+          factura_id: string
+          numero: number
+          pedido_id: string
+          pendientes: number
+          proveedor_nombre: string
+        }[]
+      }
+      _compras_pedidos_demorados: {
+        Args: { p_dias: number }
+        Returns: {
+          dias: number
+          enviado_en: string
+          numero: number
+          pedido_id: string
+          proveedor_nombre: string
+        }[]
+      }
+      _compras_pedidos_por_facturar: {
+        Args: never
+        Returns: {
+          desde: string
+          numero: number
+          pedido_id: string
+          proveedor_id: string
+          proveedor_nombre: string
+        }[]
+      }
+      _compras_pedidos_por_recibir: {
+        Args: never
+        Returns: {
+          enviado_en: string
+          numero: number
+          pedido_id: string
+          proveedor_nombre: string
         }[]
       }
       _compras_pesos_txt: { Args: { p: number }; Returns: string }
@@ -5308,6 +5465,24 @@ export type Database = {
       compras_archivar_insumo: {
         Args: { p_archivar?: boolean; p_item_id?: string }
         Returns: Json
+      }
+      compras_avisos_tomar: {
+        Args: { p_pedido_id?: string; p_tipos?: string[] }
+        Returns: {
+          cantidad: number
+          codigo: string
+          dias: number
+          entidad_id: string
+          insumo_nombre: string
+          minimo: number
+          numero: number
+          pedido_id: string
+          pendientes: number
+          proveedor_nombre: string
+          repetido: boolean
+          tipo: string
+          unidad: string
+        }[]
       }
       compras_buscar_gasto_candidato: {
         Args: { p_fecha?: string; p_monto?: number; p_proveedor_id?: string }
@@ -5529,6 +5704,7 @@ export type Database = {
           unidad: string
         }[]
       }
+      compras_tablero_resumen: { Args: never; Returns: Json }
       compras_trazabilidad_insumo: {
         Args: { p_desde: string; p_hasta: string; p_item_id?: string }
         Returns: {

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import PedidosClient from './PedidosClient'
 import { consultarCatalogo, consultarFacturasDePedidos, consultarPedidos, consultarProveedores } from './datos'
 import { consultarDevoluciones } from './devoluciones/datos'
+import { CLAVE, leerConfigAvisos } from '@/lib/compras/avisos'
 
 export const metadata = { title: 'Pedidos | YA! Chipacitos' }
 
@@ -33,6 +34,7 @@ export default async function PedidosPage({
     { data: eliminados },
     { data: facturas },
     { data: diferencias },
+    { data: config },
   ] = await Promise.all([
     consultarPedidos(supabase),
     supabase.from('v_compras_pedido_pendiente').select('*').order('orden'),
@@ -50,6 +52,8 @@ export default async function PedidosPage({
     consultarFacturasDePedidos(supabase),
     // F5: vacía para quien no es admin (la vista pide es_admin()).
     supabase.from('v_compras_factura_diferencias').select('*'),
+    // B5: "demorado" con los días de Compras › Avisos.
+    supabase.from('compras_config').select('clave, valor').eq('clave', CLAVE.diasDemora),
   ])
 
   // B4: las devoluciones de los pedidos cargados (en tandas; los montos solo para admin).
@@ -71,6 +75,7 @@ export default async function PedidosPage({
       esAdmin={esAdmin}
       pedidoInicial={pedido}
       devolucionInicial={devolucion}
+      diasDemora={leerConfigAvisos(config ?? []).diasDemora}
     />
   )
 }

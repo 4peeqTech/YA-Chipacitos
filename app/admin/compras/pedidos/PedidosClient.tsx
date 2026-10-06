@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState, useTransition } from 'react'
-import { ClipboardList, Clock, Plus } from 'lucide-react'
+import { ClipboardList, Clock, Plus, X } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import PageHeader from '@/components/ui/PageHeader'
 import AyudaLink from '@/components/ui/AyudaLink'
@@ -17,7 +17,8 @@ import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeep
 import { useSearchParams } from 'next/navigation'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { codigoPedido } from '@/lib/compras/codigos'
-import { DIAS_DEMORA, subtextoEstado, type FiltroPedidos } from '@/lib/compras/estadoPedido'
+import { DIAS_DEMORA, coincideAlerta, subtextoEstado, type FiltroPedidos } from '@/lib/compras/estadoPedido'
+import { ALERTAS_PEDIDOS, type AlertaPedidos } from '@/lib/compras/rutas'
 import { armarVistas, coincideBusqueda, type PedidoVista } from './modelo'
 import PedidoDetalle from './PedidoDetalle'
 import PedidoEditor from './PedidoEditor'
@@ -45,6 +46,20 @@ function filtroDeParam(valor: string | undefined): FiltroPedidos | null {
   return FILTROS.find(f => f.value === valor)?.value ?? null
 }
 
+// B5: ?alerta= (los KPIs del dashboard y los avisos agrupados). Se suma a la pestaña.
+const ALERTAS: Record<AlertaPedidos, { label: string; vacio: string; soloAdmin: boolean }> = {
+  por_recibir: { label: 'Por recibir', vacio: 'No hay pedidos esperando mercadería', soloAdmin: false },
+  demorados: { label: 'Demorados', vacio: 'No hay pedidos demorados', soloAdmin: false },
+  diferencias: { label: 'Con diferencias', vacio: 'No hay pedidos con diferencias por resolver', soloAdmin: true },
+  nc: { label: 'Esperando nota de crédito', vacio: 'No hay pedidos esperando nota de crédito', soloAdmin: true },
+}
+
+function alertaDeParam(valor: string | null, esAdmin: boolean): AlertaPedidos | null {
+  const a = ALERTAS_PEDIDOS.find(x => x === valor) ?? null
+  // Diferencias y NC son datos de admin: para el resto la vista no los trae.
+  return a && (!ALERTAS[a].soloAdmin || esAdmin) ? a : null
+}
+
 // Activos: primero los que falta enviar, después los enviados hace más tiempo.
 function ordenActivos(a: PedidoVista, b: PedidoVista): number {
   const ea = a.fila.enviado_en
@@ -70,6 +85,7 @@ export default function PedidosClient({
   esAdmin,
   pedidoInicial,
   devolucionInicial,
+  diasDemora = DIAS_DEMORA,
 }: {
   pedidos: PedidoFila[]
   lineas: LineaPendiente[]
@@ -87,14 +103,20 @@ export default function PedidosClient({
   pedidoInicial?: string
   /** B4: ?devolucion= (con ?pedido=) abre el pedido y resalta esa devolución. */
   devolucionInicial?: string
+  /** B5: compras_config 'pedidos.dias_demora'. */
+  diasDemora?: number
 }) {
   const confirmar = useConfirmar()
   const toast = useToast()
   const [isPending, startTransition] = useTransition()
   // B3: ?estado=por_facturar (el aviso de Reportes) arranca en esa pestaña; un
   // valor que no es una pestaña se ignora. Elegir otra a mano lo saca de la URL.
-  const estadoParam = useSearchParams().get('estado') ?? undefined
-  const [filtro, setFiltro] = useState<FiltroPedidos>(() => filtroDeParam(estadoParam) ?? 'activos')
+  const searchParams = useSearchParams()
+  const estadoParam = searchParams.get('estado') ?? undefined
+  const alerta = alertaDeParam(searchParams.get('alerta'), esAdmin)
+  const quitarAlerta = useQuitarParams('alerta')
+  const [filtro, setFiltro] = useState<FiltroPedidos>(() => alerta ? 'todos' : filtroDeParam(estadoParam) ?? 'activos')
+  useAlCambiarParam(alerta ?? undefined, () => setFiltro('todos'))
   const quitarEstado = useQuitarParams('estado')
   useAlCambiarParam(estadoParam, e => { const f = filtroDeParam(e); if (f) setFiltro(f) })
   function elegirFiltro(f: FiltroPedidos) { setFiltro(f); quitarEstado() }
@@ -115,8 +137,8 @@ export default function PedidosClient({
   // la pantalla se vuelve a armar con lo que quedó en la base.
   const devolucionesVista = useMemo(() => armarDevoluciones(devoluciones), [devoluciones])
   const vistas = useMemo(
-    () => armarVistas(pedidos, lineas, facturas, esAdmin, undefined, diferencias, devolucionesVista),
-    [pedidos, lineas, facturas, esAdmin, diferencias, devolucionesVista],
+    () => armarVistas(pedidos, lineas, facturas, esAdmin, undefined, diferencias, devolucionesVista, diasDemora),
+    [pedidos, lineas, facturas, esAdmin, diferencias, devolucionesVista, diasDemora],
   )
   const stockPorItem = useMemo(() => Object.fromEntries(stock.map(s => [s.item_id, s.cantidad])), [stock])
   const abierto = abiertoId ? vistas.find(v => v.fila.id === abiertoId) ?? null : null
@@ -137,11 +159,12 @@ export default function PedidosClient({
   const filtrados = useMemo(() => {
     const lista = vistas
       .filter(v => filtro === 'todos' || (filtro === 'cerrados' ? v.visible === 'cerrado' : v.filtro === filtro))
+      .filter(v => !alerta || coincideAlerta({ ...v.entrada, demorado: v.demorado }, alerta))
       .filter(v => coincideBusqueda(v, busqueda))
       .filter(v => !desde || v.creado.slice(0, 10) >= desde)
       .filter(v => !hasta || v.creado.slice(0, 10) <= hasta)
     return filtro === 'activos' ? [...lista].sort(ordenActivos) : lista
-  }, [vistas, filtro, busqueda, desde, hasta])
+  }, [vistas, filtro, alerta, busqueda, desde, hasta])
 
   function limpiarFiltros() { setBusqueda(''); setDesde(''); setHasta('') }
 
@@ -235,7 +258,7 @@ export default function PedidosClient({
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-mono tabular-nums">
           {p.codigo}
           {p.demorado && (
-            <span title={`Enviado hace ${DIAS_DEMORA} días o más y todavía sin recibir todo`} className="text-warning">
+            <span title={`Enviado hace ${diasDemora} días o más y todavía sin recibir todo`} className="text-warning">
               <Clock size={13} aria-label="Demorado" />
             </span>
           )}
@@ -397,6 +420,25 @@ export default function PedidosClient({
         <ClearFiltersButton visible={hayFiltros} onClick={limpiarFiltros} />
       </div>
 
+      {alerta && filtro !== 'eliminados' && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 py-1 pl-3 pr-1 text-text">
+            <span className="font-medium">{ALERTAS[alerta].label}</span>
+            <span className="tabular-nums font-semibold">{filtrados.length}</span>
+            <button
+              type="button"
+              onClick={quitarAlerta}
+              title="Quitar este filtro"
+              aria-label={`Quitar el filtro ${ALERTAS[alerta].label}`}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface2 hover:text-text"
+            >
+              <X size={14} />
+            </button>
+          </span>
+          {alerta === 'demorados' && <span className="text-xs text-muted">Enviados hace {diasDemora} días o más</span>}
+        </div>
+      )}
+
       {filtro === 'eliminados' ? (
         <PedidosEliminados
           eliminados={eliminados}
@@ -420,6 +462,12 @@ export default function PedidosClient({
               titulo="Ningún pedido coincide con la búsqueda"
               descripcion="Probá con otro número o proveedor, o limpiá los filtros."
               accion={<ClearFiltersButton visible onClick={limpiarFiltros} />}
+            />
+          ) : alerta ? (
+            <EmptyState
+              icono={ClipboardList}
+              titulo={ALERTAS[alerta].vacio}
+              accion={<button type="button" onClick={quitarAlerta} className="text-sm text-accent hover:underline">Ver todos los pedidos</button>}
             />
           ) : (
             <EmptyState icono={ClipboardList} titulo={filtroActual.vacio.titulo} descripcion={filtroActual.vacio.descripcion} />
@@ -464,6 +512,7 @@ export default function PedidosClient({
             esAdmin={esAdmin}
             stockPorItem={stockPorItem}
             devolucionResaltada={devolucionResaltada}
+            diasDemora={diasDemora}
             acciones={{
               onEnviar: () => { setAvisoReenvio(false); setVista('enviar') },
               onEditar: () => setVista('editar'),
