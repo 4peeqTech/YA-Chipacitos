@@ -26,7 +26,7 @@ import {
   type ProveedorDeInsumo,
 } from './datos'
 import GraficoPrecio from './GraficoPrecio'
-import PuenteStock from './PuenteStock'
+import PuenteStock, { fechaPeriodo } from './PuenteStock'
 
 type Periodo = '30d' | '3m' | '12m'
 const PERIODOS: { value: Periodo; label: string }[] = [
@@ -157,7 +157,7 @@ export default function PanelCompras({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <ChipGroup opciones={PERIODOS} value={periodo} onChange={setPeriodo} />
         <p className="text-xs text-muted tabular-nums">
-          Del {fechaCorta(rango.desde)} al {fechaCorta(rango.hasta)}
+          Del {fechaPeriodo(rango.desde, rango.hasta)} al {fechaPeriodo(rango.hasta, rango.desde)}
           <HelpTooltip text="Lo recibido cuenta por la fecha del remito, lo facturado por la fecha de la factura y el stock por cuándo se cargó cada movimiento." />
         </p>
       </div>
@@ -207,7 +207,7 @@ export default function PanelCompras({
       )}
 
       {/* Puente de stock */}
-      <Seccion titulo={`Cómo se movió el stock (del ${fechaCorta(rango.desde)} al ${fechaCorta(rango.hasta)})`} icono={<Scale size={13} />}>
+      <Seccion titulo={`Cómo se movió el stock (del ${fechaPeriodo(rango.desde, rango.hasta)} al ${fechaPeriodo(rango.hasta, rango.desde)})`} icono={<Scale size={13} />}>
         {cargandoTraz || !t
           ? <Skeleton className="h-[332px] w-full rounded-xl" />
           : <PuenteStock puente={t.puente} desde={rango.desde} hasta={rango.hasta} unidades={unidades} />}

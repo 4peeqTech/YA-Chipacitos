@@ -3,9 +3,10 @@ import { conUnidad } from '../../pedidos/modelo'
 import { textoBase, type UnidadesInsumo } from '@/lib/compras/unidades'
 import type { PuenteStock as Puente } from '@/lib/compras/trazabilidad'
 
-function fechaCorta(iso: string): string {
-  const [, mm, dd] = iso.split('-')
-  return `${dd}/${mm}`
+/** dd/mm, o dd/mm/aa si el período cruza de año (12 meses: 06/10/25 → 06/10/26). */
+export function fechaPeriodo(iso: string, otra: string): string {
+  const [aa, mm, dd] = iso.split('-')
+  return aa === otra.slice(0, 4) ? `${dd}/${mm}` : `${dd}/${mm}/${aa.slice(2)}`
 }
 
 function signo(n: number): string {
@@ -31,7 +32,7 @@ export default function PuenteStock({
     <div className="space-y-2">
       <dl className="divide-y divide-border rounded-xl border border-border text-sm tabular-nums">
         <div className="flex items-baseline justify-between gap-3 px-3 py-2">
-          <dt className="text-muted">Stock el {fechaCorta(desde)}</dt>
+          <dt className="text-muted">Stock el {fechaPeriodo(desde, hasta)}</dt>
           <dd className="font-semibold text-text">{conUnidad(puente.inicio, unidad)}</dd>
         </div>
         {puente.pasos.map(p => {
@@ -47,7 +48,7 @@ export default function PuenteStock({
           )
         })}
         <div className="flex items-baseline justify-between gap-3 bg-surface2 px-3 py-2">
-          <dt className="font-semibold text-text">Stock el {fechaCorta(hasta)}</dt>
+          <dt className="font-semibold text-text">Stock el {fechaPeriodo(hasta, desde)}</dt>
           <dd className="text-right">
             <span className="font-bold text-text">{conUnidad(puente.fin, unidad)}</span>
             {base && <span className="block text-xs text-muted">{base}</span>}
