@@ -124,7 +124,8 @@ export default function GastoForm({
 }: {
   /** null = gasto nuevo. */
   gasto: GastoVista | null
-  proveedores: { id: string; nombre: string }[]
+  /** Todos, con su estado: el form ofrece los activos y muestra el archivado actual. */
+  proveedores: { id: string; nombre: string; estado: string }[]
   cajas: string[]
   formasPago: string[]
   onCambios: (hay: boolean) => void
@@ -159,9 +160,12 @@ export default function GastoForm({
     onCambios(hayCambios(nuevo, inicial))
   }
 
+  // B3 (E19): solo activos, más el del gasto si se archivó (si no, se vería "Sin proveedor").
   const opcionesProveedor: OpcionSelect[] = [
     { value: '', label: 'Sin proveedor' },
-    ...proveedores.map(p => ({ value: p.id, label: p.nombre })),
+    ...proveedores
+      .filter(p => p.estado === 'activo' || p.id === inicial.proveedorId)
+      .map(p => ({ value: p.id, label: p.estado === 'activo' ? p.nombre : `${p.nombre} (archivado)` })),
   ]
 
   function guardar() {

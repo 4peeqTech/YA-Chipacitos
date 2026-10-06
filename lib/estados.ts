@@ -43,6 +43,11 @@ export const ESTADOS = {
     confirmada: { label: 'Confirmada', tono: 'exito',   icono: 'ReceiptText' },
     anulada:    { label: 'Anulada',    tono: 'peligro', icono: 'Ban' },
   },
+  // Proveedor (B3: se archiva en vez de borrarse).
+  proveedores: {
+    activo:    { label: 'Activo',    tono: 'exito' },
+    archivado: { label: 'Archivado', tono: 'neutro' },
+  },
   // Stock de un insumo contra su stock mínimo (Compras › Stock).
   compras_stock: {
     bajo: { label: 'Bajo el mínimo', tono: 'peligro' },

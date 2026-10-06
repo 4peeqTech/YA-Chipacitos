@@ -42,7 +42,7 @@ export default function GastosClient({
   gastoInicial,
 }: {
   gastos: GastoFila[]
-  proveedores: { id: string; nombre: string }[]
+  proveedores: { id: string; nombre: string; estado: string }[]
   cajas: string[]
   formasPago: string[]
   pedidoDeFactura: Record<string, string>

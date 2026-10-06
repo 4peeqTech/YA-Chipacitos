@@ -59,7 +59,10 @@ export interface Solicitud {
 interface ProveedorOption {
   id: string
   nombre: string
+  estado: string
 }
+
+const etiquetaProveedor = (p: ProveedorOption) => (p.estado === 'activo' ? p.nombre : `${p.nombre} (archivado)`)
 
 const ESTADO_BADGE: Record<Solicitud['estado'], string> = {
   abierta: 'bg-yellow-900/50 text-yellow-300',
@@ -139,14 +142,19 @@ export default function SolicitudesClient({
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const abierta = solicitudes.find(s => s.id === abiertaId) ?? null
-  const nombreProveedor = (id: string) => proveedores.find(p => p.id === id)?.nombre ?? '—'
+  const nombreProveedor = (id: string) => {
+    const p = proveedores.find(x => x.id === id)
+    return p ? etiquetaProveedor(p) : '—'
+  }
 
   // Limita el select a los proveedores asociados al ítem; sin ítem (línea libre)
-  // o sin asociaciones cargadas, se ve la lista completa.
-  function proveedoresParaItem(itemId: string | null): ProveedorOption[] {
+  // o sin asociaciones cargadas, se ve la lista completa. B3 (E19): solo
+  // activos, más el actual de la línea si se archivó (si no, el select lo esconde).
+  function proveedoresParaItem(itemId: string | null, actual: string): ProveedorOption[] {
+    const disponibles = proveedores.filter(p => p.estado === 'activo' || p.id === actual)
     const asociados = itemId ? proveedoresPorItem[itemId] : undefined
-    if (!asociados?.length) return proveedores
-    return proveedores.filter(p => asociados.includes(p.id))
+    if (!asociados?.length) return disponibles
+    return disponibles.filter(p => asociados.includes(p.id) || p.id === actual)
   }
 
   const pendientes = solicitudes.filter(s => s.estado === 'abierta').length
@@ -489,7 +497,7 @@ export default function SolicitudesClient({
                             onChange={e => cambiarProveedor(i.id, e.target.value)}
                             className={selectClass}
                           >
-                            {proveedoresParaItem(i.item_id).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                            {proveedoresParaItem(i.item_id, i.proveedor_id).map(p => <option key={p.id} value={p.id}>{etiquetaProveedor(p)}</option>)}
                           </select>
                         </td>
                         <td className="px-4 py-2.5 text-center">
