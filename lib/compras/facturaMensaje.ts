@@ -22,7 +22,9 @@ function formatearCantidad(cantidad: number): string {
 
 function lineaDetalle(l: LineaComprobante): string {
   const unidad = l.unidad ? ` ${l.unidad}` : ''
-  return `   — ${formatearCantidad(l.cantidad)}${unidad} ${l.descripcion}`.toUpperCase() + `: ${formatearMonedaExacta(l.subtotal)}`
+  // A2b: en una línea por kg, los kg entre paréntesis: "2 CAJA (33,4 KG)".
+  const kg = l.precioPor === 'base' && l.cantidadBase != null ? ` (${formatearCantidad(l.cantidadBase)} ${l.unidadBase ?? 'kg'})` : ''
+  return `   — ${formatearCantidad(l.cantidad)}${unidad}${kg} ${l.descripcion}`.toUpperCase() + `: ${formatearMonedaExacta(l.subtotal)}`
 }
 
 export function renderPlantillaFactura(cuerpo: string, d: DatosComprobante): string {
@@ -72,9 +74,9 @@ export const EJEMPLO_FACTURA: DatosComprobante = {
   remitos: ['R-0042-01'],
   facturadoA: { razonSocial: 'Chipacitos SRL', cuit: '30-70000000-1', sucursal: 'Paraguay' },
   lineas: [
-    { descripcion: 'Queso barra', cantidad: 2, unidad: 'caja', precioUnitario: 60000, alicuota: 21, subtotal: 120000 },
-    { descripcion: 'Harina 000', cantidad: 10, unidad: 'bolsa', precioUnitario: 8000, alicuota: 21, subtotal: 80000 },
-    { descripcion: 'Flete', cantidad: 1, unidad: null, precioUnitario: 5000, alicuota: 0, subtotal: 5000 },
+    { descripcion: 'Queso barra', cantidad: 2, unidad: 'caja', precioUnitario: 60000, alicuota: 21, subtotal: 120000, cantidadBase: null, precioPor: 'unidad', unidadBase: null },
+    { descripcion: 'Harina 000', cantidad: 10, unidad: 'bolsa', precioUnitario: 8000, alicuota: 21, subtotal: 80000, cantidadBase: null, precioPor: 'unidad', unidadBase: null },
+    { descripcion: 'Flete', cantidad: 1, unidad: null, precioUnitario: 5000, alicuota: 0, subtotal: 5000, cantidadBase: null, precioPor: 'unidad', unidadBase: null },
   ],
   subtotal: 205000,
   iva: 42000,

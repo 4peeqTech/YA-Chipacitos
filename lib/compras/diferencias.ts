@@ -4,6 +4,7 @@
 // Chequeo: `npx tsx lib/compras/_check_diferencias.ts`.
 
 import type { Database } from '@/lib/database.types'
+import { cortoBase, esUnidadBase, numeroCorto, tieneConversion, type UnidadBase } from './unidades'
 
 export type DiferenciaFila = Database['public']['Views']['v_compras_factura_diferencias']['Row']
 
@@ -32,6 +33,24 @@ export interface DiferenciaVista {
   nota: string | null
   resueltoEn: string | null
   resueltoPor: string | null
+  // A2b: los kg como información (la comparación sigue en unidad de compra).
+  unidadBase: UnidadBase | null
+  contenido: number | null
+  facturadaBase: number | null
+  facturadaBaseReal: boolean
+  recibidaBase: number | null
+  recibidaBaseReal: boolean
+}
+
+/** '33,4 kg' (real) o '≈ 33 kg' (nominal: al menos una línea sin kg reales). */
+export function textoKg(base: number | null, real: boolean, unidadBase: UnidadBase | null): string | null {
+  if (base == null || !unidadBase) return null
+  return `${real ? '' : '≈ '}${numeroCorto(base, 2)} ${cortoBase(unidadBase)}`
+}
+
+/** Los kg van solo si el insumo tiene conversión (Caja ≠ kg). */
+export function muestraKg(d: DiferenciaVista): boolean {
+  return !!d.unidadBase && d.contenido != null && tieneConversion({ unidad: d.unidad, unidadBase: d.unidadBase, contenido: d.contenido })
 }
 
 export function armarDiferencias(filas: DiferenciaFila[]): DiferenciaVista[] {
@@ -54,6 +73,12 @@ export function armarDiferencias(filas: DiferenciaFila[]): DiferenciaVista[] {
       nota: f.nota,
       resueltoEn: f.resuelto_en,
       resueltoPor: f.resuelto_por_nombre,
+      unidadBase: esUnidadBase(f.unidad_base) ? f.unidad_base : null,
+      contenido: f.contenido,
+      facturadaBase: f.facturada_base,
+      facturadaBaseReal: f.facturada_base_real ?? false,
+      recibidaBase: f.recibida_base,
+      recibidaBaseReal: f.recibida_base_real ?? false,
     })
   }
   return res.sort((a, b) => a.descripcion.localeCompare(b.descripcion))

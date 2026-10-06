@@ -3,10 +3,13 @@
 // tienen que dar lo mismo, así que el redondeo imita el de la base
 // (compras_factura_items.subtotal/iva son columnas generadas):
 //
-//   subtotal de la línea = round(cantidad × precio, 2)
+//   subtotal de la línea = round(cantidad cobrada × precio, 2)
+//     (cantidad cobrada = cantidad_base si precio_por = 'base', si no cantidad: A2b)
 //   iva de la línea      = round(subtotal × alícuota / 100, 2)
 //
 // y recién después se suman. Chequeo: `npx tsx lib/compras/_check_totales.ts`.
+
+import { cantidadCobrada, type CobraPor } from './unidades'
 
 /** Las que admite el CHECK de compras_items.alicuota_iva y de las líneas. */
 export const ALICUOTAS = [0, 2.5, 5, 10.5, 21, 27] as const
@@ -26,6 +29,9 @@ export interface LineaTotalizable {
   cantidad: number | null
   precioUnitario: number | null
   alicuotaIva: number
+  /** A2b: kg (o la unidad base) de la línea. Solo cuenta si precioPor = 'base'. */
+  cantidadBase?: number | null
+  precioPor?: CobraPor
 }
 
 export interface TotalAlicuota {
@@ -53,7 +59,7 @@ export function redondear2(n: number): number {
 }
 
 export function subtotalLinea(l: LineaTotalizable): number {
-  return redondear2((l.cantidad ?? 0) * (l.precioUnitario ?? 0))
+  return redondear2(cantidadCobrada(l) * (l.precioUnitario ?? 0))
 }
 
 export function ivaLinea(l: LineaTotalizable): number {

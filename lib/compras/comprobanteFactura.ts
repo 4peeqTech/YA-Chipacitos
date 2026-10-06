@@ -6,6 +6,7 @@
 
 import { codigoPedido, codigoRemito } from './codigos'
 import { calcularTotales } from './totalesFactura'
+import { cortoBase, esCobraPor, esUnidadBase, type CobraPor } from './unidades'
 
 export interface LineaComprobante {
   descripcion: string
@@ -15,6 +16,11 @@ export interface LineaComprobante {
   alicuota: number
   /** Sin IVA, el de la base. */
   subtotal: number
+  /** A2b: kg facturados y en qué unidad es el precio (subtotal = kg × precio si es 'base'). */
+  cantidadBase: number | null
+  precioPor: CobraPor
+  /** 'kg', 'u.' o 'l' (corto), para mostrar los kg y el "/kg" del precio. */
+  unidadBase: string | null
 }
 
 export interface DatosComprobante {
@@ -69,6 +75,10 @@ export interface FilasComprobante {
     precio_unitario: number
     alicuota_iva: number
     subtotal: number | null
+    // A2b (opcionales: las filas viejas no los traen).
+    cantidad_base?: number | null
+    precio_por?: string | null
+    compras_items?: { unidad_base: string | null } | null
   }[]
   remitos: { secuencia: number }[]
   local: { razon_social: string; cuit: string; sucursal: string } | null
@@ -86,9 +96,16 @@ export function armarComprobante(f: FilasComprobante): DatosComprobante {
     precioUnitario: Number(i.precio_unitario),
     alicuota: Number(i.alicuota_iva),
     subtotal: Number(i.subtotal ?? 0),
+    cantidadBase: i.cantidad_base != null ? Number(i.cantidad_base) : null,
+    precioPor: esCobraPor(i.precio_por) ? i.precio_por : 'unidad',
+    unidadBase: esUnidadBase(i.compras_items?.unidad_base) ? cortoBase(i.compras_items.unidad_base) : null,
   }))
+  // El desglose por alícuota sale de kg × precio en las líneas por kg (A2b).
   const { porAlicuota } = calcularTotales(
-    lineas.map(l => ({ cantidad: l.cantidad, precioUnitario: l.precioUnitario, alicuotaIva: l.alicuota })),
+    lineas.map(l => ({
+      cantidad: l.cantidad, precioUnitario: l.precioUnitario, alicuotaIva: l.alicuota,
+      cantidadBase: l.cantidadBase, precioPor: l.precioPor,
+    })),
   )
   return {
     facturaId: f.factura.id,

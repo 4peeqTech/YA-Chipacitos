@@ -1,10 +1,10 @@
 // Chequeo de las funciones puras de la pantalla de Facturas.
 // Correr con: npx tsx app/admin/compras/pedidos/facturas/_check_modelo.ts
 import {
-  agregarDelPedido, armarEnvio, coincideBusqueda, entraEnFiltro, estadoInicial, estaVencida, facturaDuplicada,
-  faltantesDelPedido, lineaLibre, lineasIniciales, normalizarNumero, pedidosFacturables,
+  agregarDelPedido, armarEnvio, cambiarPrecioPor, cambiosDePrecio, coincideBusqueda, entraEnFiltro, estadoInicial, estaVencida,
+  facturaDuplicada, faltantesDelPedido, lineaLibre, lineasIniciales, normalizarNumero, pedidosFacturables, precioRefEnLinea,
   resumenRecepcion, tieneRemitos, totales, validar,
-  type ContextoPedido, type EstadoFactura, type FacturaVista, type LineaFactura,
+  type ContextoPedido, type EstadoFactura, type FacturaVista, type LineaFactura, type PrecioRefPar,
 } from './modelo'
 import type { InsumoFactura, PedidoFactura } from './datos'
 import type { LineaPendiente } from '../datos'
@@ -12,10 +12,12 @@ import type { LineaPendiente } from '../datos'
 const FECULA = '11111111-1111-1111-1111-111111111111'
 const SAL = '22222222-2222-2222-2222-222222222222'
 const PROV = '33333333-3333-3333-3333-333333333333'
+const QUESO = '44444444-4444-4444-4444-444444444444'
 
 const insumos = new Map<string, InsumoFactura>([
-  [FECULA, { id: FECULA, nombre: 'Fécula', unidad: 'Bolsa 25 kg', alicuota_iva: 21 }],
-  [SAL, { id: SAL, nombre: 'Sal', unidad: 'Bolsa', alicuota_iva: 10.5 }],
+  [FECULA, { id: FECULA, nombre: 'Fécula', unidad: 'Bolsa 25 kg', alicuota_iva: 21, unidad_base: 'unidades', cantidad_por_unidad: 1, cobra_por_default: 'unidad' }],
+  [SAL, { id: SAL, nombre: 'Sal', unidad: 'Bolsa', alicuota_iva: 10.5, unidad_base: 'unidades', cantidad_por_unidad: 1, cobra_por_default: 'unidad' }],
+  [QUESO, { id: QUESO, nombre: 'Queso Barra', unidad: 'Caja', alicuota_iva: 21, unidad_base: 'kg', cantidad_por_unidad: 16.5, cobra_por_default: 'unidad' }],
 ])
 
 const linea = (p: Partial<LineaPendiente> & { pedido_item_id: string }): LineaPendiente => ({
@@ -29,6 +31,11 @@ const linea = (p: Partial<LineaPendiente> & { pedido_item_id: string }): LineaPe
   pendiente: 0,
   excedente: 0,
   remitos: 0,
+  unidad_base: null,
+  contenido: null,
+  cobra_por: null,
+  recibido_base: null,
+  recibido_base_completo: false,
   ...p,
 })
 
@@ -54,13 +61,28 @@ const conRemito = pedido([{
   fecha: '2026-09-22',
   origen: 'manual',
   compras_remito_items: [
-    { pedido_item_id: 'pi-1', item_id: FECULA, descripcion: 'Fécula', cantidad: 8 },
-    { pedido_item_id: null, item_id: SAL, descripcion: 'Sal gruesa', cantidad: 2 },
+    { pedido_item_id: 'pi-1', item_id: FECULA, descripcion: 'Fécula', cantidad: 8, cantidad_base: null },
+    { pedido_item_id: null, item_id: SAL, descripcion: 'Sal gruesa', cantidad: 2, cantidad_base: null },
   ],
 }])
 const sinRemito = pedido([])
 
-const precios = new Map<string, number>([[FECULA, 1000]])
+const precios = new Map<string, PrecioRefPar>([[FECULA, { precio: 1000, cobraPor: 'unidad' }], [SAL, { precio: null, cobraPor: 'unidad' }]])
+
+// A2b: Queso Barra, el proveedor lo cobra por kg ($ 1.250 /kg).
+const lineaQueso = (completo: boolean, recibido = 2) => linea({
+  pedido_item_id: 'pi-q', item_id: QUESO, descripcion: 'Queso Barra', unidad: 'Caja', cantidad: 2, recibido, remitos: 1,
+  unidad_base: 'kg', contenido: 16.5, cobra_por: 'base', recibido_base: completo ? 32.9 : 16.2, recibido_base_completo: completo,
+})
+const remitoQueso = pedido([{ id: 'rem-q', secuencia: 1, fecha: '2026-10-05', origen: 'manual',
+  compras_remito_items: [{ pedido_item_id: 'pi-q', item_id: QUESO, descripcion: 'Queso Barra', cantidad: 2, cantidad_base: 32.9 }] }])
+const preciosQueso = new Map<string, PrecioRefPar>([[QUESO, { precio: 1250, cobraPor: 'base' }]])
+const ctxQueso = (completo: boolean) => ({ pedido: remitoQueso, lineas: [lineaQueso(completo)], precios: preciosQueso, insumos })
+const quesoCompleto = lineasIniciales(ctxQueso(true))[0]
+const quesoIncompleto = lineasIniciales(ctxQueso(false))[0]
+const quesoSinRemito = lineasIniciales({ ...ctxQueso(true), pedido: pedido([]) })[0]
+const quesoSinKg: LineaFactura = { ...quesoCompleto, cantidadBase: null }
+const quesoUnidad = cambiarPrecioPor(quesoCompleto, 'unidad')
 const ctxConRemito: ContextoPedido = { pedido: conRemito, lineas: lineasPedido, precios, insumos }
 const ctxSinRemito: ContextoPedido = { pedido: sinRemito, lineas: lineasPedido, precios, insumos }
 
@@ -176,6 +198,24 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'estadoInicial de una nueva usa la fecha de hoy', real: estadoInicial(null, [], ctxSinRemito, '2026-09-28').fecha, esperado: '2026-09-28' },
   { nombre: 'estadoInicial de una nueva prellena líneas', real: estadoInicial(null, [], ctxSinRemito, '2026-09-28').lineas.length, esperado: 2 },
   { nombre: 'estadoInicial sin pedido no tiene líneas', real: estadoInicial(null, [], null, '2026-09-28').lineas.length, esperado: 0 },
+  // A2b: cajas + kg + $/kg
+  { nombre: 'kg: por kg con remitos completos prellena los kg del remito', real: quesoCompleto.cantidadBase, esperado: 32.9 },
+  { nombre: 'kg: arranca cobrando como el par', real: quesoCompleto.precioPor, esperado: 'base' },
+  { nombre: 'kg: precio prellenado en $/kg', real: quesoCompleto.precioUnitario, esperado: 1250 },
+  { nombre: 'kg: remito incompleto no prellena kg', real: quesoIncompleto.cantidadBase, esperado: null },
+  { nombre: 'kg: sin remitos nunca prellena el nominal', real: quesoSinRemito.cantidadBase, esperado: null },
+  { nombre: 'kg: subtotal = kg × $/kg', real: totales(estado({ lineas: [{ ...quesoCompleto, cantidadBase: 33.4, precioUnitario: 1250 }] })).subtotal, esperado: 41750 },
+  { nombre: 'kg: falta_kg', real: validar(estado({ lineas: [quesoSinKg] }))?.tipo, esperado: 'falta_kg' },
+  { nombre: 'kg: base sin cajas', real: validar(estado({ lineas: [{ ...quesoCompleto, cantidad: 0 }] }))?.tipo, esperado: 'base_sin_cantidad' },
+  { nombre: 'kg: envío con precio_por y kg', real: JSON.stringify(armarEnvio(estado({ lineas: [quesoCompleto] })).map(l => [l.precioPor, l.cantidadBase])), esperado: '[["base",32.9]]' },
+  { nombre: 'kg: envío por unidad no manda kg', real: JSON.stringify(armarEnvio(estado({ lineas: [quesoUnidad] })).map(l => [l.precioPor, l.cantidadBase])), esperado: '[["unidad",null]]' },
+  { nombre: 'kg: línea libre nunca va por kg', real: armarEnvio(estado({ lineas: [{ ...lineaLibre(), descripcion: 'Flete', precioPor: 'base', cantidadBase: 3 }] }))[0].precioPor, esperado: 'unidad' },
+  { nombre: 'kg: pasar a Caja convierte el precio', real: quesoUnidad.precioUnitario, esperado: 20625 },
+  { nombre: 'kg: precio ref en la unidad de la línea', real: precioRefEnLinea(quesoUnidad), esperado: 20625 },
+  { nombre: 'kg: actualizar precios cuenta el cambio de cobra por', real: JSON.stringify(cambiosDePrecio(estado({ lineas: [quesoUnidad] }))), esperado: '{"precios":1,"cobraPor":[{"descripcion":"Queso Barra","a":"Caja"}]}' },
+  { nombre: 'kg: mismo precio y unidad no cuenta', real: cambiosDePrecio(estado({ lineas: [quesoCompleto] })).precios, esperado: 0 },
+  { nombre: 'kg: sin par con el proveedor no cuenta', real: cambiosDePrecio(estado()).precios, esperado: 0 },
+  { nombre: 'kg: sin conversión la línea va por unidad', real: iniSinRemito.find(l => l.itemId === FECULA)?.precioPor, esperado: 'unidad' },
   { nombre: 'estadoInicial de una existente respeta su número', real: estadoInicial(vista(), [], ctxSinRemito, '2026-09-28').numero, esperado: '0003-00012345' },
 ]
 

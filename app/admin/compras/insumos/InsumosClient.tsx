@@ -7,6 +7,7 @@ import { esPorMasaSinReceta, type ModoCalculo, type Redondeo } from '@/lib/fabri
 import { REDONDEO_LABEL } from '@/lib/estados'
 import { formatearFecha, formatearMoneda, formatearNumero } from '@/lib/formato'
 import { codigoPedido } from '@/lib/compras/codigos'
+import { etiquetaCobraPor, textoBase, type CobraPor, type UnidadBase, type UnidadesInsumo } from '@/lib/compras/unidades'
 import PageHeader from '@/components/ui/PageHeader'
 import DataTable, { type Columna } from '@/components/ui/DataTable'
 import EmptyState from '@/components/ui/EmptyState'
@@ -37,6 +38,8 @@ export interface ItemProveedor {
   precio_ref: number | null
   codigo_proveedor: string | null
   created_at: string | null
+  /** A2b: 'unidad' = precio_ref por unidad de compra; 'base' = por kg (o la unidad base). */
+  cobra_por: CobraPor
 }
 
 export interface CompraItem {
@@ -55,7 +58,15 @@ export interface CompraItem {
   /** IVA con el que suele venir en la factura del proveedor. Se copia a la línea y ahí se puede cambiar (F3). */
   alicuota_iva: number
   estado: 'activo' | 'archivado'
+  /** A2b: kg | unidades | litros. cantidad_por_unidad es cuánta unidad base trae 1 unidad de compra. */
+  unidad_base: UnidadBase
+  /** A2b: con qué arranca un proveedor nuevo del insumo. */
+  cobra_por_default: CobraPor
   compras_item_proveedores: ItemProveedor[]
+}
+
+export function unidadesDe(i: Pick<CompraItem, 'unidad' | 'unidad_base' | 'cantidad_por_unidad'>): UnidadesInsumo {
+  return { unidad: i.unidad, unidadBase: i.unidad_base, contenido: i.cantidad_por_unidad }
 }
 
 export interface PedidoAbierto {
@@ -76,6 +87,10 @@ export interface ResumenInsumo {
   ultimoPrecioProveedorId: string | null
   pedidosAbiertos: PedidoAbierto[]
   puedeEliminar: boolean
+  /** A2b: cómo cobra el proveedor principal (unidad del precio de referencia). */
+  cobraPorPrincipal: CobraPor | null
+  /** A2b: la unidad del último precio facturado (solo admin). */
+  ultimoPrecioPor: CobraPor | null
 }
 
 type FiltroEstado = 'activo' | 'archivado' | 'todos'
@@ -83,6 +98,7 @@ type FiltroEstado = 'activo' | 'archivado' | 'todos'
 const RESUMEN_VACIO: ResumenInsumo = {
   stock: 0, precioRefPrincipal: null, ultimoPrecio: null, ultimoPrecioUnidad: null, ultimoPrecioFecha: null,
   ultimoPrecioFacturaId: null, ultimoPrecioProveedorId: null, pedidosAbiertos: [], puedeEliminar: false,
+  cobraPorPrincipal: null, ultimoPrecioPor: null,
 }
 
 const mismaUnidad = (a: string | null, b: string | null) =>
@@ -241,6 +257,9 @@ export default function InsumosClient({
             <LinkEntidad entidad={{ tipo: 'insumo', id: i.id }} variante="texto" title="Ver la ficha de stock de este insumo" className="whitespace-nowrap text-text">
               {formatearNumero(stock)} {i.unidad ?? ''}
             </LinkEntidad>
+            {textoBase(stock, unidadesDe(i)) && (
+              <span className="whitespace-nowrap text-2xs text-muted">{textoBase(stock, unidadesDe(i))}</span>
+            )}
             {bajo && (
               <span className="inline-flex items-center gap-1 whitespace-nowrap text-2xs font-semibold text-warning" title={`Stock mínimo: ${formatearNumero(i.stock_minimo)} ${i.unidad ?? ''}`}>
                 <TriangleAlert size={12} /> bajo mín.
@@ -289,8 +308,15 @@ export default function InsumosClient({
       ocultarHasta: 'md',
       ordenar: i => resumen(i.id).precioRefPrincipal ?? -1,
       render: i => {
-        const precio = resumen(i.id).precioRefPrincipal
-        return <span className="whitespace-nowrap tabular-nums text-muted">{precio != null ? formatearMoneda(precio) : '—'}</span>
+        const r = resumen(i.id)
+        const precio = r.precioRefPrincipal
+        if (precio == null) return <span className="text-muted">—</span>
+        return (
+          <span className="whitespace-nowrap tabular-nums text-muted">
+            {formatearMoneda(precio)}
+            <span className="text-faint"> /{etiquetaCobraPor(r.cobraPorPrincipal ?? 'unidad', unidadesDe(i))}</span>
+          </span>
+        )
       },
     },
     ...(esAdmin ? [{
@@ -302,17 +328,21 @@ export default function InsumosClient({
       render: (i: CompraItem) => {
         const r = resumen(i.id)
         if (r.ultimoPrecio == null) return <span className="text-muted">—</span>
-        const otraUnidad = !!r.ultimoPrecioUnidad && !mismaUnidad(r.ultimoPrecioUnidad, i.unidad)
+        // Una línea por kg dice en qué se cobró. El aviso queda para las facturas
+        // viejas, cargadas en otra unidad sin decirlo (antes de A2b).
+        const porBase = r.ultimoPrecioPor === 'base'
+        const sufijo = porBase ? etiquetaCobraPor('base', unidadesDe(i)) : r.ultimoPrecioUnidad
+        const otraUnidad = !porBase && !!r.ultimoPrecioUnidad && !mismaUnidad(r.ultimoPrecioUnidad, i.unidad)
         return (
           <div className="flex flex-col items-end gap-0.5">
             <span className="whitespace-nowrap tabular-nums text-text">
               {formatearMoneda(r.ultimoPrecio)}
-              {r.ultimoPrecioUnidad && (
+              {sufijo && (
                 <span
                   className={otraUnidad ? 'font-semibold text-warning' : 'text-muted'}
                   title={otraUnidad ? `Facturado en ${r.ultimoPrecioUnidad}: el insumo se cuenta en ${i.unidad ?? 'otra unidad'}` : undefined}
                 >
-                  {' '}/ {r.ultimoPrecioUnidad}
+                  {' '}/ {sufijo}
                 </span>
               )}
             </span>
@@ -398,7 +428,7 @@ export default function InsumosClient({
           <TriangleAlert size={16} className="mt-0.5 shrink-0 text-warning" />
           <span>
             <span className="font-semibold">{sinUnidadCompra.length} insumo{sinUnidadCompra.length === 1 ? '' : 's'} sin unidad de compra: no se puede avisar sobrestock.</span>{' '}
-            <span className="text-muted">Completá la unidad y la cantidad por unidad de {sinUnidadCompra.map(i => i.nombre).join(', ')}.</span>
+            <span className="text-muted">Completá en qué se compra y cuánto trae cada una en {sinUnidadCompra.map(i => i.nombre).join(', ')}.</span>
           </span>
         </p>
       )}

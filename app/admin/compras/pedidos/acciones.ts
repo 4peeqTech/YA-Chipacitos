@@ -33,6 +33,15 @@ export async function guardarPedido(
   const { pedidoId, proveedorId, localFacturacionId, lineas } = parsed.data
   try {
     const supabase = await createClientTipado()
+    // A2b (E12): la unidad de una línea con insumo sale del insumo, no de lo que
+    // mande la pantalla. Si el insumo no tiene unidad, queda la de la línea.
+    const itemIds = [...new Set(lineas.map(l => l.item_id).filter((id): id is string => !!id))]
+    const unidadDe = new Map<string, string | null>()
+    if (itemIds.length) {
+      const { data: items, error: errItems } = await supabase.from('compras_items').select('id, unidad').in('id', itemIds)
+      if (errItems) return fallo(errItems, 'No se pudo guardar el pedido.')
+      for (const i of items ?? []) unidadDe.set(i.id, i.unidad?.trim() || null)
+    }
     const { data, error } = await supabase.rpc('compras_guardar_pedido', {
       p_pedido_id: pedidoId ?? undefined,
       p_proveedor_id: proveedorId ?? undefined,
@@ -41,7 +50,7 @@ export async function guardarPedido(
         id: l.id ?? null,
         item_id: l.item_id ?? null,
         descripcion: l.descripcion,
-        unidad: l.unidad || null,
+        unidad: (l.item_id ? unidadDe.get(l.item_id) : null) || l.unidad || null,
         cantidad: l.cantidad,
       })),
     })

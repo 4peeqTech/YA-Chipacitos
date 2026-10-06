@@ -14,7 +14,7 @@ import { proximaAccion, subtextoEstado } from '@/lib/compras/estadoPedido'
 import { codigoRemito } from '@/lib/compras/codigos'
 import { rutaCargarDePedido, rutaDe } from '@/lib/compras/rutas'
 import {
-  agruparEventos, etiquetaEvento, leerDiferencia, partesDiff, textoCantidadItems, textoSolicitud,
+  agruparEventos, etiquetaEvento, leerDiferencia, partesDiff, partesLineas, textoCantidadItems, textoSolicitud, textosCabeceraRemito,
   type EntradaHistorial, type EventoLeido, type ParteDiff,
 } from '@/lib/compras/historialPedido'
 import { ESTADOS } from '@/lib/estados'
@@ -194,28 +194,39 @@ function detalleEvento(e: EventoLeido, numeroPedido: number): ReactNode {
     case 'remito_creado':
       if (!e.d) return null
       return (
-        <p className="text-xs text-muted">
-          <LinkEntidad entidad={{ tipo: 'remito', id: e.d.remito_id }}>{codigoRemito(numeroPedido, e.d.secuencia)}</LinkEntidad>
-          {e.d.fecha && <> · llegó el {formatearFecha(e.d.fecha)}</>}
-        </p>
+        <>
+          <p className="text-xs text-muted">
+            <LinkEntidad entidad={{ tipo: 'remito', id: e.d.remito_id }}>{codigoRemito(numeroPedido, e.d.secuencia)}</LinkEntidad>
+            {e.d.fecha && <> · llegó el {formatearFecha(e.d.fecha)}</>}
+            {e.d.origen === 'factura' && <> · generado al confirmar la factura {e.d.factura_numero ?? ''}</>}
+          </p>
+          {!!e.d.lineas?.length && <PartesDiff partes={partesLineas(e.d.lineas)} />}
+        </>
       )
-    case 'remito_editado':
+    case 'remito_editado': {
       if (!e.d) return null
+      const cabecera = textosCabeceraRemito(e.d)
       return (
         <>
           <p className="text-xs text-muted">
             <LinkEntidad entidad={{ tipo: 'remito', id: e.d.remito_id }}>{codigoRemito(numeroPedido, e.d.secuencia)}</LinkEntidad>
+            {cabecera.map(t => <span key={t}> · {t}</span>)}
           </p>
           <PartesDiff partes={partesDiff(e.d)} />
         </>
       )
+    }
     case 'remito_eliminado':
       if (!e.d) return null
       return (
-        <p className="text-xs text-muted">
-          <span className="font-mono tabular-nums">{codigoRemito(numeroPedido, e.d.secuencia)}</span>
-          {e.d.motivo && <> · Motivo: {e.d.motivo}</>}
-        </p>
+        <>
+          <p className="text-xs text-muted">
+            <span className="font-mono tabular-nums">{codigoRemito(numeroPedido, e.d.secuencia)}</span>
+            {e.d.motivo && <> · Motivo: {e.d.motivo}</>}
+            {!!e.d.lineas?.length && <> · Se descontó:</>}
+          </p>
+          {!!e.d.lineas?.length && <PartesDiff partes={partesLineas(e.d.lineas)} />}
+        </>
       )
     case 'factura':
     case 'factura_anulada':

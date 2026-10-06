@@ -17,7 +17,7 @@ export default async function StockPage({
 
   const [{ data: items }, { data: stock }, { data: difs }] = await Promise.all([
     // A2a: también los archivados (se listan si tienen stock ≠ 0, y su ?insumo= abre la ficha).
-    supabase.from('compras_items').select('id, nombre, unidad, stock_minimo, estado').order('nombre'),
+    supabase.from('compras_items').select('id, nombre, unidad, stock_minimo, estado, unidad_base, cantidad_por_unidad').order('nombre'),
     supabase.from('v_compras_stock_actual').select('item_id, cantidad, actualizado_en, actualizado_por_nombre'),
     // A1: diferencias de conteo que Compras todavía no aplicó ni ignoró
     // (sin las superadas por un conteo más nuevo: esas no se pueden aplicar).

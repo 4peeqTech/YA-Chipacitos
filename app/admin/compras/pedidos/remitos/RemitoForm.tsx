@@ -10,6 +10,10 @@ import { formatearFecha } from '@/lib/formato'
 import LinkEntidad from '@/components/ui/LinkEntidad'
 import { codigoPedido, codigoRemito } from '@/lib/compras/codigos'
 import { conUnidad } from '../modelo'
+import {
+  avisoNominal, cortoBase, equivalenteBase, esCobraPor, esUnidadBase, numeroCorto, tieneConversion,
+  type CobraPor, type UnidadesInsumo,
+} from '@/lib/compras/unidades'
 import { eliminarRemito, guardarRemito } from './acciones'
 import {
   armarEnvio, calcularImpacto, cargadoPorLinea, conDescripcion, estadoInicial, impactoEliminar,
@@ -21,6 +25,60 @@ import DatePicker from '@/components/ui/DatePicker'
 
 const botonPrimario = 'presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50'
 const botonSecundario = 'presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50'
+
+/** A2b: cómo se mide y cómo cobra el proveedor una línea. null = no pide kg. */
+interface UnidadesLinea {
+  u: UnidadesInsumo
+  cobraPor: CobraPor
+}
+
+/**
+ * "Kg reales" solo donde se cobra por peso: debajo, el nominal y el aviso si se
+ * aleja más del 10 % (no bloquea). Es opcional: vacío no se manda.
+ */
+function KgReales({ unidades, cantidad, valor, descripcion, onChange }: {
+  unidades: UnidadesLinea
+  cantidad: number | null
+  valor: number | null
+  descripcion: string
+  onChange: (v: number | null) => void
+}) {
+  const base = cortoBase(unidades.u.unidadBase)
+  const nominal = cantidad && cantidad > 0 ? equivalenteBase(cantidad, unidades.u) : null
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-24">
+        <InputNumero
+          value={valor}
+          onChange={onChange}
+          placeholder={nominal != null ? numeroCorto(nominal) : base}
+          min={0}
+          className={`${controlClass} min-h-11 text-right tabular-nums`}
+          ariaLabel={`${base === 'kg' ? 'Kg' : base} reales de ${descripcion}`}
+        />
+      </div>
+      <span className="w-16 text-xs text-muted">{base} reales</span>
+    </div>
+  )
+}
+
+function AyudaKg({ unidades, cantidad, valor }: { unidades: UnidadesLinea; cantidad: number | null; valor: number | null }) {
+  const base = cortoBase(unidades.u.unidadBase)
+  const nominal = cantidad && cantidad > 0 ? equivalenteBase(cantidad, unidades.u) : null
+  const aviso = avisoNominal(valor, cantidad, unidades.u)
+  return (
+    <div className="basis-full space-y-0.5 text-xs">
+      <p className="text-muted tabular-nums">
+        {nominal != null ? `Nominal ${numeroCorto(nominal)} ${base} · ` : ''}cobra por {base}: con los {base} reales, la factura sale prellenada.
+      </p>
+      {aviso && (
+        <p className="flex items-center gap-1.5 font-medium text-warning">
+          <AlertTriangle size={13} className="shrink-0" /> {aviso} Revisá el número.
+        </p>
+      )}
+    </div>
+  )
+}
 
 export interface NombresInsumo {
   nombre: string
@@ -125,6 +183,28 @@ export default function RemitoForm({
   const pedido = pedidos.find(p => p.id === pedidoId) ?? null
   const cargadoAntes = useMemo(() => cargadoPorLinea(remito), [remito])
 
+  // A2b: solo las líneas que el proveedor cobra por peso (y con conversión) piden kg.
+  function unidadesDeLinea(l: LineaPedido | undefined): UnidadesLinea | null {
+    if (!l?.item_id || !esUnidadBase(l.unidad_base) || !esCobraPor(l.cobra_por) || l.contenido == null) return null
+    const u: UnidadesInsumo = { unidad: l.unidad, unidadBase: l.unidad_base, contenido: l.contenido }
+    return l.cobra_por === 'base' && tieneConversion(u) ? { u, cobraPor: l.cobra_por } : null
+  }
+
+  function unidadesDeInsumo(itemId: string | null): UnidadesLinea | null {
+    const i = itemId ? insumos.find(x => x.id === itemId) : undefined
+    if (!i || !esUnidadBase(i.unidad_base)) return null
+    const par = i.compras_item_proveedores.find(cp => cp.proveedor_id === pedido?.proveedor_id)
+    const cobraPor = par && esCobraPor(par.cobra_por) ? par.cobra_por : i.cobra_por_default
+    const u: UnidadesInsumo = { unidad: i.unidad, unidadBase: i.unidad_base, contenido: i.cantidad_por_unidad }
+    return cobraPor === 'base' && tieneConversion(u) ? { u, cobraPor } : null
+  }
+
+  function unidadesDeLibre(l: LineaLibre): UnidadesLinea | null {
+    if (l.corresponde === '') return null
+    if (l.corresponde === 'nada') return unidadesDeInsumo(l.itemId)
+    return unidadesDeLinea(lineasDelPedido.find(p => p.pedido_item_id === l.corresponde))
+  }
+
   const nombres = useMemo(() => {
     const res: Record<string, NombresInsumo> = {}
     for (const i of insumos) res[i.id] = { nombre: i.nombre, unidad: i.unidad }
@@ -218,7 +298,7 @@ export default function RemitoForm({
     const ejecutar = () => startTransition(async () => {
       const r = await guardarRemito({ remitoId: remito?.id ?? null, pedidoId: pedido.id, fecha: estado.fecha, numero: estado.numero, lineas: envio })
       if (!r.ok) { toast.error(r.error); return }
-      toast.success(remito ? `Remito ${r.data.codigo} actualizado` : `Remito ${r.data.codigo} guardado`)
+      toast.success(!r.data.cambios ? 'Sin cambios' : remito ? `Remito ${r.data.codigo} actualizado` : `Remito ${r.data.codigo} guardado`)
       onListo()
     })
 
@@ -273,7 +353,7 @@ export default function RemitoForm({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-[1fr_11rem_11rem]">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-[1fr_11rem_11rem] [&>*]:min-w-0">
         <div className="sm:col-span-2 md:col-span-1">
           <Field label="Pedido" obligatorio>
             {remito ? (
@@ -341,6 +421,9 @@ export default function RemitoForm({
                   const pedidoCant = l.cantidad ?? 0
                   const falta = Math.max(pedidoCant - r.yaLlego - r.este, 0)
                   const deMas = Math.max(r.yaLlego + r.este - pedidoCant, 0)
+                  const kg = unidadesDeLinea(l)
+                  const cant = estado.porLinea[id]?.cantidad ?? null
+                  const kgValor = estado.porLinea[id]?.cantidadBase ?? null
                   return (
                     <li key={id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3">
                       <div className="min-w-0 flex-1 basis-52">
@@ -370,6 +453,16 @@ export default function RemitoForm({
                         </div>
                         <span className="w-16 truncate text-xs text-muted">{l.unidad ?? ''}</span>
                       </div>
+                      {kg && (
+                        <KgReales
+                          unidades={kg}
+                          cantidad={cant}
+                          valor={kgValor}
+                          descripcion={l.descripcion ?? 'la línea'}
+                          onChange={v => cambiar(e => ({ ...e, porLinea: { ...e.porLinea, [id]: { ...e.porLinea[id], cantidadBase: v } } }))}
+                        />
+                      )}
+                      {kg && <AyudaKg unidades={kg} cantidad={cant} valor={kgValor} />}
                     </li>
                   )
                 })}
@@ -382,6 +475,7 @@ export default function RemitoForm({
             {estado.libres.map(l => {
               const incompleta = intentoGuardar && problema?.tipo === 'libre_incompleta' && problema.clave === l.clave
               const sinDestino = l.corresponde === '' && (l.descripcion.trim() !== '' || l.cantidad != null)
+              const kg = unidadesDeLibre(l)
               return (
                 <div key={l.clave} className={`space-y-2 rounded-xl border p-3 ${sinDestino ? 'border-warning bg-warning-bg' : 'border-border'}`}>
                   <div className="flex items-start gap-2">
@@ -438,6 +532,18 @@ export default function RemitoForm({
                       />
                     )}
                   </div>
+                  {kg && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <KgReales
+                        unidades={kg}
+                        cantidad={l.cantidad}
+                        valor={l.cantidadBase}
+                        descripcion={l.descripcion || 'la línea'}
+                        onChange={v => actualizarLibre(l.clave, x => ({ ...x, cantidadBase: v }))}
+                      />
+                      <AyudaKg unidades={kg} cantidad={l.cantidad} valor={l.cantidadBase} />
+                    </div>
+                  )}
                   {sinDestino && (
                     <p className="flex items-center gap-1.5 text-xs font-medium text-warning">
                       <AlertTriangle size={13} /> Elegí a qué corresponde: si es algo del pedido, suma a esa línea.

@@ -155,8 +155,19 @@ export default function ComprobanteImagen({ d, logo }: { d: DatosComprobante; lo
               <div style={{ display: 'flex', flex: 1, paddingLeft: 12, paddingRight: 16 }}>
                 <div style={{ display: 'block', lineClamp: 2, fontSize: 22, lineHeight: 1.35 }}>{l.descripcion}</div>
               </div>
-              <div style={{ display: 'flex', width: COL.cantidad, justifyContent: 'flex-end' }}>{cantidadTexto(l.cantidad, l.unidad)}</div>
-              <div style={{ display: 'flex', width: COL.precio, justifyContent: 'flex-end' }}>{formatearMonedaExacta(l.precioUnitario)}</div>
+              {/* A2b: en una línea por kg, los kg debajo de la cantidad y el "/kg" debajo del precio. */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: COL.cantidad }}>
+                <div style={{ display: 'flex' }}>{cantidadTexto(l.cantidad, l.unidad)}</div>
+                {l.precioPor === 'base' && l.cantidadBase != null && (
+                  <div style={{ display: 'flex', fontSize: 16, color: C.suave }}>{cantidadTexto(l.cantidadBase, l.unidadBase ?? 'kg')}</div>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: COL.precio }}>
+                <div style={{ display: 'flex' }}>{formatearMonedaExacta(l.precioUnitario)}</div>
+                {l.precioPor === 'base' && (
+                  <div style={{ display: 'flex', fontSize: 16, color: C.suave }}>/{l.unidadBase ?? 'kg'}</div>
+                )}
+              </div>
               <div style={{ display: 'flex', width: COL.iva, justifyContent: 'flex-end', color: C.suave }}>{etiquetaAlicuota(l.alicuota)}</div>
               <div style={{ display: 'flex', width: COL.subtotal, justifyContent: 'flex-end', paddingRight: 12 }}>{formatearMonedaExacta(l.subtotal)}</div>
             </div>

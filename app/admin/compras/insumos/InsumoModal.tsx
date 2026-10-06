@@ -1,13 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react'
-import { Archive, ArchiveRestore, History, Loader2, Plus, RotateCcw, Star, Trash2, User } from 'lucide-react'
+import { Archive, ArchiveRestore, History, Loader2, Plus, RotateCcw, Ruler, Star, Trash2, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Redondeo } from '@/lib/fabrica/calculoSugerido'
 import { REDONDEO_LABEL } from '@/lib/estados'
 import { ALICUOTA_DEFAULT, ALICUOTAS, etiquetaAlicuota } from '@/lib/compras/totalesFactura'
-import { formatearMoneda, formatearNumero } from '@/lib/formato'
+import { formatearMoneda, formatearMonedaExacta, formatearNumero } from '@/lib/formato'
 import { codigoPedido } from '@/lib/compras/codigos'
+import {
+  UNIDADES_BASE, convertirPrecio, ejemploUnidades, esCobraPor, esUnidadBase, etiquetaCobraPor, labelBase, numeroCorto,
+  tieneConversion, type CobraPor, type UnidadBase, type UnidadesInsumo,
+} from '@/lib/compras/unidades'
+import { SegmentedControl } from '@/components/ui/Chip'
 import Modal from '@/components/ui/Modal'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import InputNumero from '@/components/ui/InputNumero'
@@ -29,6 +34,12 @@ interface Linea {
   precioRefAnterior: number | null
   /** Ya existe en la base (su proveedor no se cambia: se quita y se agrega otro). */
   existente: boolean
+  /** A2b: 'unidad' = precio por unidad de compra; 'base' = por kg (o la unidad base). */
+  cobraPor: CobraPor
+  /** Con qué se abrió el form: si una factura lo cambió mientras tanto, la RPC rechaza. */
+  cobraPorAnterior: CobraPor | null
+  /** E8: el precio se convirtió al cambiar "Cobra por" (texto para revisar). */
+  notaConversion: string | null
 }
 
 interface Cambio {
@@ -47,13 +58,15 @@ const CAMPO_LABEL: Record<string, string> = {
   nombre: 'Nombre',
   unidad: 'Unidad de compra',
   categoria: 'Categoría',
-  cantidad_por_unidad: 'Cantidad por unidad',
+  cantidad_por_unidad: 'Lo que trae cada unidad',
   cantidad_por_masa: 'Cantidad por masa',
   stock_minimo: 'Stock mínimo',
   stock_maximo: 'Stock máximo',
   redondeo: 'Redondeo',
   a_demanda: 'A demanda',
   alicuota_iva: 'IVA',
+  unidad_base: 'Unidad base',
+  cobra_por_default: 'Se cobra por (por defecto)',
 }
 
 const labelClass = 'mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted'
@@ -73,16 +86,20 @@ function lineasIniciales(pares: ItemProveedor[]): Linea[] {
       precioRef: p.precio_ref,
       precioRefAnterior: p.precio_ref,
       existente: true,
+      cobraPor: p.cobra_por,
+      cobraPorAnterior: p.cobra_por,
+      notaConversion: null,
     }))
 }
 
-const lineaVacia = (esPrincipal: boolean): Linea => ({
+const lineaVacia = (esPrincipal: boolean, cobraPor: CobraPor): Linea => ({
   key: nuevaKey(), proveedorId: '', esPrincipal, activo: true, codigo: '', precioRef: null, precioRefAnterior: null, existente: false,
+  cobraPor, cobraPorAnterior: null, notaConversion: null,
 })
 
 /** Lo que importa comparar para saber si el usuario tocó los proveedores. */
 const firmaLineas = (ls: Linea[]) =>
-  JSON.stringify(ls.map(l => [l.proveedorId, l.esPrincipal, l.activo, l.codigo.trim(), l.precioRef]).sort())
+  JSON.stringify(ls.map(l => [l.proveedorId, l.esPrincipal, l.activo, l.codigo.trim(), l.precioRef, l.cobraPor]).sort())
 
 function numeroHist(v: string | null): string {
   if (v == null) return '—'
@@ -93,7 +110,7 @@ function numeroHist(v: string | null): string {
 function precioHist(v: string | null): string {
   if (v == null) return 'sin precio'
   const n = Number(v)
-  return Number.isFinite(n) ? formatearMoneda(n) : v
+  return Number.isFinite(n) ? formatearMonedaExacta(n) : v
 }
 
 function fechaHoraCorta(iso: string): string {
@@ -135,8 +152,15 @@ export default function InsumoModal({
   const [stockMaximo, setStockMaximo] = useState<number | null>(item?.stock_maximo ?? null)
   const [aDemanda, setADemanda] = useState(item?.a_demanda ?? false)
   const [alicuotaIva, setAlicuotaIva] = useState<number>(item?.alicuota_iva ?? ALICUOTA_DEFAULT)
+  const [unidadBase, setUnidadBase] = useState<UnidadBase>(item?.unidad_base ?? 'unidades')
+  const [cobraPorDefault, setCobraPorDefault] = useState<CobraPor>(item?.cobra_por_default ?? 'unidad')
 
-  const [inicial] = useState(() => (item ? lineasIniciales(proveedoresItem) : [lineaVacia(true)]))
+  // Lo que se está tipeando: alimenta el ejemplo vivo y la columna "Cobra por".
+  const unidades: UnidadesInsumo = { unidad: unidad.trim() || null, unidadBase, contenido: cantidadPorUnidad ?? 1 }
+  const conConversion = tieneConversion(unidades)
+  const etiquetaUnidad = unidad.trim() || 'unidad'
+
+  const [inicial] = useState(() => (item ? lineasIniciales(proveedoresItem) : [lineaVacia(true, 'unidad')]))
   const [lineas, setLineas] = useState<Linea[]>(inicial)
 
   const [cambios, setCambios] = useState<Cambio[] | null>(null)
@@ -196,7 +220,31 @@ export default function InsumoModal({
   }
 
   function agregar() {
-    setLineas(prev => [...prev, lineaVacia(!prev.some(l => l.activo))])
+    setLineas(prev => [...prev, lineaVacia(!prev.some(l => l.activo), cobraPorDefault)])
+  }
+
+  // E8: al cambiar cómo cobra un proveedor con precio, el precio se convierte a la
+  // vista y queda editable, con una nota para revisarlo.
+  function cambiarCobraPor(l: Linea, a: CobraPor) {
+    if (a === l.cobraPor) return
+    const contenido = cantidadPorUnidad ?? 1
+    if (l.precioRef == null || !(contenido > 0)) {
+      actualizar(l.key, { cobraPor: a, notaConversion: null })
+      return
+    }
+    const nuevo = convertirPrecio(l.precioRef, l.cobraPor, a, contenido)
+    const operacion = a === 'base' ? '÷' : '×'
+    actualizar(l.key, {
+      cobraPor: a,
+      precioRef: nuevo,
+      notaConversion: `Convertido de ${formatearMonedaExacta(l.precioRef)} /${etiquetaCobraPor(l.cobraPor, unidades)} (${operacion} ${numeroCorto(contenido, 3)}). Revisalo antes de guardar.`,
+    })
+  }
+
+  // Un proveedor nuevo arranca con el default; los que ya están no cambian solos (E2).
+  function cambiarCobraPorDefault(v: CobraPor) {
+    setCobraPorDefault(v)
+    setLineas(prev => prev.map(l => (!l.existente && l.precioRef == null ? { ...l, cobraPor: v } : l)))
   }
 
   // ---- Guardar ------------------------------------------------------------
@@ -215,8 +263,10 @@ export default function InsumoModal({
     if (!item ? stockMaximo != null : stockMaximo !== item.stock_maximo) d.stockMaximo = stockMaximo
     if (!item || aDemanda !== item.a_demanda) d.aDemanda = aDemanda
     if (!item || alicuotaIva !== item.alicuota_iva) d.alicuotaIva = alicuotaIva
+    if (!item || unidadBase !== item.unidad_base) d.unidadBase = unidadBase
+    if (!item || cobraPorDefault !== item.cobra_por_default) d.cobraPorDefault = cobraPorDefault
     return d
-  }, [item, nombre, unidad, categoriaId, cantidadPorUnidad, cantidadPorMasa, stockMinimo, redondeo, stockMaximo, aDemanda, alicuotaIva])
+  }, [item, nombre, unidad, categoriaId, cantidadPorUnidad, cantidadPorMasa, stockMinimo, redondeo, stockMaximo, aDemanda, alicuotaIva, unidadBase, cobraPorDefault])
 
   const proveedoresCambiados = !item || firmaLineas(lineas) !== firmaLineas(inicial)
 
@@ -224,7 +274,7 @@ export default function InsumoModal({
     if (isPending) return
     if (!nombre.trim()) { toast.error('El nombre es obligatorio.'); return }
     if (!unidad.trim()) { toast.error('La unidad de compra es obligatoria.'); return }
-    if (!(cantidadPorUnidad != null && cantidadPorUnidad > 0)) { toast.error('La cantidad por unidad tiene que ser mayor a 0.'); return }
+    if (!(cantidadPorUnidad != null && cantidadPorUnidad > 0)) { toast.error(`Lo que trae cada ${etiquetaUnidad} tiene que ser mayor a 0.`); return }
     if (lineas.some(l => !l.proveedorId)) { toast.error('Elegí el proveedor de cada línea, o quitala.'); return }
     if (!activas.length) { toast.error('El insumo necesita al menos un proveedor activo.'); return }
 
@@ -252,6 +302,10 @@ export default function InsumoModal({
               precioRefAnterior: l.existente
                 ? l.precioRefAnterior
                 : inicial.find(i => i.proveedorId === l.proveedorId)?.precioRefAnterior ?? null,
+              cobraPor: l.cobraPor,
+              cobraPorAnterior: l.existente
+                ? l.cobraPorAnterior
+                : inicial.find(i => i.proveedorId === l.proveedorId)?.cobraPorAnterior ?? null,
             }))
           : null,
       })
@@ -341,6 +395,10 @@ export default function InsumoModal({
 
   // ---- Historial ------------------------------------------------------------
 
+  // Los valores se guardan crudos: se muestran con la unidad de compra y la base actuales.
+  const cobraHist = (v: string | null) => (esCobraPor(v) ? etiquetaCobraPor(v, unidades) : v ?? '—')
+  const baseHist = (v: string | null) => (esUnidadBase(v) ? labelBase(v) : v ?? '—')
+
   function lineaCambio(c: Cambio): string | null {
     const prov = c.proveedor_id ? nombreProveedor(c.proveedor_id) : null
     switch (c.campo) {
@@ -352,6 +410,16 @@ export default function InsumoModal({
         return c.valor_nuevo === 'no' ? `Pasó a ${prov} a proveedores anteriores` : `Volvió a usar a ${prov}`
       case 'proveedor.principal':
         return c.valor_nuevo === 'sí' ? `Marcó a ${prov} como principal` : null
+      case 'proveedor.cobra_por': {
+        const a = cobraHist(c.valor_nuevo)
+        return c.valor_anterior == null
+          ? `${prov} cobra por ${a}`
+          : `Cobra por (${prov}): ${cobraHist(c.valor_anterior)} → ${a}${c.origen === 'factura' ? ' (por factura)' : ''}`
+      }
+      case 'cobra_por_default':
+        return `${CAMPO_LABEL[c.campo]}: ${cobraHist(c.valor_anterior)} → ${cobraHist(c.valor_nuevo)}`
+      case 'unidad_base':
+        return `${CAMPO_LABEL[c.campo]}: ${baseHist(c.valor_anterior)} → ${baseHist(c.valor_nuevo)}`
       case 'proveedor.precio_ref':
         return `Precio ref. de ${prov}: ${precioHist(c.valor_anterior)} → ${precioHist(c.valor_nuevo)}${c.origen === 'factura' ? ' (por factura)' : ''}`
       case 'proveedor.codigo':
@@ -411,14 +479,83 @@ export default function InsumoModal({
           <input id="insumo-nombre" className={controlClass} maxLength={120} value={nombre} onChange={e => setNombre(e.target.value)} />
         </div>
 
+        <section className="space-y-3 rounded-xl border border-border p-3" aria-labelledby="insumo-unidades">
+          <p id="insumo-unidades" className="flex items-center gap-1.5 text-sm font-semibold text-text">
+            <Ruler size={16} className="text-muted" /> Unidades
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="insumo-unidad" className={labelClass}>
+                Se compra y se cuenta en *
+                <HelpTooltip text="El stock, el pedido y el remito se cuentan en esta unidad. Ej: Caja, Bolsa, Cajón, kg." />
+              </label>
+              <input id="insumo-unidad" className={controlClass} maxLength={40} placeholder="Ej: Caja, Bolsa, Cajón, kg" value={unidad} onChange={e => setUnidad(e.target.value)} />
+            </div>
+            <div>
+              <p className={labelClass}>
+                Cada {etiquetaUnidad} trae (nominal)
+                <HelpTooltip text="Lo que trae en teoría. Cada entrega puede pesar distinto: los kg reales se cargan en el remito." />
+              </p>
+              <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-2">
+                <InputNumero
+                  ariaLabel={`Cuánto trae cada ${etiquetaUnidad}`}
+                  placeholder="1"
+                  className={`${controlClass} tabular-nums`}
+                  value={cantidadPorUnidad}
+                  onChange={setCantidadPorUnidad}
+                />
+                <select
+                  aria-label="Unidad base"
+                  className={controlClass}
+                  value={unidadBase}
+                  onChange={e => setUnidadBase(e.target.value as UnidadBase)}
+                >
+                  {UNIDADES_BASE.map(b => <option key={b.valor} value={b.valor}>{b.valor}</option>)}
+                </select>
+              </div>
+            </div>
+            {conConversion && (
+              <div className="sm:col-span-2">
+                <p className={labelClass}>
+                  Por defecto se cobra por
+                  <HelpTooltip text="Con esto arranca cada proveedor nuevo. Cada proveedor puede cobrar distinto: se elige en su fila." />
+                </p>
+                <SegmentedControl<CobraPor>
+                  opciones={[
+                    { value: 'unidad', label: etiquetaCobraPor('unidad', unidades) },
+                    { value: 'base', label: etiquetaCobraPor('base', unidades) },
+                  ]}
+                  value={cobraPorDefault}
+                  onChange={cambiarCobraPorDefault}
+                />
+              </div>
+            )}
+          </div>
+          <div className="rounded-lg bg-surface2 px-3 py-2 text-sm leading-relaxed text-muted tabular-nums" aria-live="polite">
+            {ejemploUnidades(unidades, cobraPorDefault, item ? resumen.stock : null).map((t, i) => (
+              <p key={i} className={i === 0 ? 'text-text' : undefined}>{t}</p>
+            ))}
+          </div>
+        </section>
+
         <section className="space-y-2" aria-labelledby="insumo-proveedores">
           <p id="insumo-proveedores" className={labelClass}>
             Proveedores *
             <HelpTooltip text="Un insumo puede cotizarse con varios proveedores. Marcá el principal con la estrella: es el que se usa por default al armar pedidos y plantillas. Si quitás uno que ya tuvo pedidos o facturas, pasa a «Proveedores anteriores» con su precio." />
           </p>
+          {conConversion && (
+            <div aria-hidden className="hidden px-1 text-2xs font-semibold uppercase tracking-wider text-faint sm:grid sm:grid-cols-[2.25rem_minmax(0,1fr)_7rem_6.5rem_9rem_2.25rem] sm:gap-2">
+              <span /><span>Proveedor</span><span>Código</span><span>Cobra por</span><span>Precio ref.</span><span />
+            </div>
+          )}
           <div className="space-y-3 sm:space-y-2">
             {activas.map(l => (
-              <div key={l.key} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[auto_minmax(0,1fr)_7rem_8rem_auto]">
+              <div
+                key={l.key}
+                className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 ${conConversion
+                  ? 'sm:grid-cols-[2.25rem_minmax(0,1fr)_7rem_6.5rem_9rem_2.25rem]'
+                  : 'sm:grid-cols-[auto_minmax(0,1fr)_7rem_9rem_auto]'}`}
+              >
                 <button
                   type="button"
                   onClick={() => marcarPrincipal(l.key)}
@@ -449,28 +586,48 @@ export default function InsumoModal({
                   onClick={() => quitar(l.key)}
                   aria-label={`Quitar ${l.proveedorId ? nombreProveedor(l.proveedorId) : 'esta línea'}`}
                   title={l.existente ? 'Quitar. Si tiene pedidos o facturas con este proveedor, se desactiva y queda en «Proveedores anteriores».' : 'Quitar esta línea'}
-                  className="order-3 flex h-11 w-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-brand-red sm:order-6 sm:h-9 sm:w-9"
+                  className="order-3 flex h-11 w-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-brand-red sm:order-7 sm:h-9 sm:w-9"
                 >
                   <Trash2 size={16} />
                 </button>
                 <div className="order-4 col-span-3 grid grid-cols-2 gap-2 pl-[52px] sm:contents">
                   <input
-                    className={`${controlClass} sm:order-4`}
+                    className={`${controlClass} sm:order-4 ${conConversion ? 'col-span-2 sm:col-span-1' : ''}`}
                     placeholder="Código"
                     aria-label="Código del proveedor"
                     maxLength={60}
                     value={l.codigo}
                     onChange={e => actualizar(l.key, { codigo: e.target.value })}
                   />
-                  <InputNumero
-                    className={`${controlClass} tabular-nums sm:order-5`}
-                    placeholder="Precio ref."
-                    ariaLabel="Precio de referencia"
-                    min={0}
-                    value={l.precioRef}
-                    onChange={v => actualizar(l.key, { precioRef: v })}
-                  />
+                  {conConversion && (
+                    <select
+                      className={`${controlClass} sm:order-5`}
+                      aria-label={`Cómo cobra ${l.proveedorId ? nombreProveedor(l.proveedorId) : 'este proveedor'}`}
+                      title="Cómo cobra este proveedor: por unidad de compra o por peso"
+                      value={l.cobraPor}
+                      onChange={e => cambiarCobraPor(l, e.target.value as CobraPor)}
+                    >
+                      <option value="unidad">Por {etiquetaCobraPor('unidad', unidades)}</option>
+                      <option value="base">Por {etiquetaCobraPor('base', unidades)}</option>
+                    </select>
+                  )}
+                  <div className="relative sm:order-6">
+                    <InputNumero
+                      className={`${controlClass} pr-14 tabular-nums`}
+                      placeholder="Precio ref."
+                      ariaLabel={`Precio de referencia por ${etiquetaCobraPor(l.cobraPor, unidades)}`}
+                      min={0}
+                      value={l.precioRef}
+                      onChange={v => actualizar(l.key, { precioRef: v, notaConversion: null })}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 max-w-12 -translate-y-1/2 truncate text-xs text-muted">
+                      /{etiquetaCobraPor(conConversion ? l.cobraPor : 'unidad', unidades)}
+                    </span>
+                  </div>
                 </div>
+                {l.notaConversion && (
+                  <p className="order-5 col-span-3 pl-[52px] text-xs text-warning sm:order-8 sm:col-span-6 sm:pl-11">{l.notaConversion}</p>
+                )}
               </div>
             ))}
           </div>
@@ -493,7 +650,7 @@ export default function InsumoModal({
                     <span className="min-w-0 text-text">
                       {nombreProveedor(l.proveedorId)}
                       {!proveedorActivo(l.proveedorId) && <span className="text-muted"> (archivado)</span>}
-                      <span className="ml-2 text-xs tabular-nums text-muted">{l.precioRef != null ? formatearMoneda(l.precioRef) : 'sin precio'}</span>
+                      <span className="ml-2 text-xs tabular-nums text-muted">{l.precioRef != null ? `${formatearMoneda(l.precioRef)} /${etiquetaCobraPor(l.cobraPor, unidades)}` : 'sin precio'}</span>
                     </span>
                     {proveedorActivo(l.proveedorId) && (
                       <button
@@ -518,17 +675,6 @@ export default function InsumoModal({
               <option value="">Sin categoría</option>
               {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
-          </div>
-          <div>
-            <label htmlFor="insumo-unidad" className={labelClass}>Unidad de compra *</label>
-            <input id="insumo-unidad" className={controlClass} maxLength={40} placeholder="Ej: kg, Bolsa, Caja, Cajón" value={unidad} onChange={e => setUnidad(e.target.value)} />
-          </div>
-          <div>
-            <p className={labelClass}>
-              Cantidad por unidad
-              <HelpTooltip text="Cuánto trae cada unidad de compra. Por ejemplo, una bolsa de fécula trae 25kg, o un cajón de huevos trae 360 unidades." />
-            </p>
-            <InputNumero ariaLabel="Cantidad por unidad" placeholder="1" className={`${controlClass} tabular-nums`} value={cantidadPorUnidad} onChange={setCantidadPorUnidad} />
           </div>
           <div>
             <p className={labelClass}>

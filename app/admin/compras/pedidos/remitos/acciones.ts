@@ -25,6 +25,8 @@ const Linea = z.object({
   itemId: z.uuid().nullable(),
   descripcion: z.string().trim().min(1),
   cantidad: z.number().positive(),
+  // A2b: kg reales (opcionales). No mueven stock.
+  cantidadBase: z.number().positive().nullable().optional(),
 })
 
 const GuardarRemito = z.object({
@@ -37,7 +39,7 @@ const GuardarRemito = z.object({
 
 export async function guardarRemito(
   entrada: z.input<typeof GuardarRemito>,
-): Promise<Resultado<{ id: string; codigo: string; impacto: ImpactoStock }>> {
+): Promise<Resultado<{ id: string; codigo: string; impacto: ImpactoStock; cambios: boolean }>> {
   const parsed = GuardarRemito.safeParse(entrada)
   if (!parsed.success) return fallo(null, 'Revisá el remito: hace falta la fecha y al menos una línea con cantidad mayor a 0.')
   const { remitoId, pedidoId, fecha, numero, lineas } = parsed.data
@@ -54,13 +56,14 @@ export async function guardarRemito(
         item_id: l.pedidoItemId ? null : l.itemId,
         descripcion: l.descripcion,
         cantidad: l.cantidad,
+        cantidad_base: l.cantidadBase ?? null,
       })),
     })
     if (error) { refresh(); return fallo(error, 'No se pudo guardar el remito.') }
-    const res = z.object({ id: z.uuid(), codigo: z.string(), impacto: Impacto }).safeParse(data)
+    const res = z.object({ id: z.uuid(), codigo: z.string(), impacto: Impacto, cambios: z.boolean().optional() }).safeParse(data)
     refresh()
     if (!res.success) return fallo(null, 'El remito se guardó, pero no pudimos leer la respuesta. Recargá la página.')
-    return ok(res.data)
+    return ok({ ...res.data, cambios: res.data.cambios ?? true })
   } catch (e) {
     return fallo(e, 'No se pudo guardar el remito.')
   }

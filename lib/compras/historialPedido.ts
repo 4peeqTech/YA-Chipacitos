@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { aResolucion, RESOLUCION_PASADO, type Resolucion } from './diferencias'
+import { cortoBase, esUnidadBase } from './unidades'
 
 // Historial del pedido (B1): lectura del `detalle` jsonb de v_compras_pedido_eventos,
 // textos legibles, orden y agrupado. Sin React ni Supabase, como diferencias.ts.
@@ -20,20 +21,27 @@ export interface EventoCrudo {
 // 5.1 Lectura del detalle
 // ---------------------------------------------------------------------------
 
+// A2b: las líneas de remito traen los kg reales (cantidad_base) y su unidad base.
+const KgOpcional = z.coerce.number().nullable().optional().transform(v => v ?? null)
+const TextoOpcional = z.string().nullable().optional().transform(v => v ?? null)
+
 const Linea = z.object({
   id: z.string(),
-  item_id: z.string().nullable().optional().transform(v => v ?? null),
+  item_id: TextoOpcional,
   descripcion: z.string(),
-  unidad: z.string().nullable().optional().transform(v => v ?? null),
+  unidad: TextoOpcional,
   cantidad: z.coerce.number(),
+  cantidad_base: KgOpcional,
+  unidad_base: TextoOpcional,
 })
 export type Linea = z.infer<typeof Linea>
 
 const Antes = z.object({
   cantidad: z.coerce.number(),
-  unidad: z.string().nullable().optional().transform(v => v ?? null),
+  unidad: TextoOpcional,
   descripcion: z.string(),
-  item_id: z.string().nullable().optional().transform(v => v ?? null),
+  item_id: TextoOpcional,
+  cantidad_base: KgOpcional,
 })
 const LineaCambiada = Linea.extend({ antes: Antes })
 export type LineaCambiada = z.infer<typeof LineaCambiada>
@@ -46,6 +54,7 @@ const Diff = z.object({
 export type DiffLineas = z.infer<typeof Diff>
 
 const Ref = z.object({ id: z.string().nullable().optional(), nombre: z.string().nullable().optional() })
+const CambioTexto = z.object({ de: z.string().nullable().optional(), a: z.string().nullable().optional() })
 
 const DETALLE = {
   creado: z.object({
@@ -64,9 +73,36 @@ const DETALLE = {
   reenviado: z.object({ mensaje: z.string().nullable().optional() }),
   cerrado: z.object({ motivo: z.string().nullable().optional() }),
   reabierto: z.object({ estado_recepcion: z.string().nullable().optional() }),
-  remito_creado: z.object({ remito_id: z.string(), secuencia: z.coerce.number(), fecha: z.string().nullable().optional() }),
-  remito_editado: Diff.extend({ remito_id: z.string(), secuencia: z.coerce.number() }),
-  remito_eliminado: z.object({ remito_id: z.string(), secuencia: z.coerce.number(), motivo: z.string().nullable().optional() }),
+  remito_creado: z.object({
+    remito_id: z.string(),
+    secuencia: z.coerce.number(),
+    fecha: z.string().nullable().optional(),
+    // A2b
+    origen: z.string().nullable().optional(),
+    numero: z.string().nullable().optional(),
+    factura_id: z.string().nullable().optional(),
+    factura_numero: z.string().nullable().optional(),
+    backfill: z.boolean().optional(),
+    lineas: z.array(Linea).optional(),
+  }),
+  remito_editado: Diff.extend({
+    remito_id: z.string(),
+    secuencia: z.coerce.number(),
+    // A2b
+    fecha: CambioTexto.optional(),
+    numero: CambioTexto.optional(),
+  }),
+  remito_eliminado: z.object({
+    remito_id: z.string(),
+    secuencia: z.coerce.number(),
+    motivo: z.string().nullable().optional(),
+    // A2b
+    fecha: z.string().nullable().optional(),
+    numero: z.string().nullable().optional(),
+    origen: z.string().nullable().optional(),
+    factura_id: z.string().nullable().optional(),
+    lineas: z.array(Linea).optional(),
+  }),
   factura: z.object({ factura_id: z.string(), numero: z.string().nullable().optional() }),
   factura_anulada: z.object({ factura_id: z.string(), numero: z.string().nullable().optional() }),
   diferencia: z.object({
@@ -133,11 +169,31 @@ export interface ParteDiff {
   texto: string
 }
 
-/** '40 → 45 kg', '40 kg → 40 Caja', '' si ni cantidad ni unidad cambiaron. */
+function baseDe(l: { unidad_base: string | null }): string {
+  return esUnidadBase(l.unidad_base) ? cortoBase(l.unidad_base) : 'kg'
+}
+
+/** ' (33,4 kg)' si la línea trae kg reales; '' si no. */
+function kgEntreParentesis(l: Linea): string {
+  return l.cantidad_base != null ? ` (${numero(l.cantidad_base)} ${baseDe(l)})` : ''
+}
+
+/**
+ * '40 → 45 kg', '40 kg → 40 Caja', '' si nada cambió. A2b, con kg reales:
+ * '2 Caja · 32,9 → 33,4 kg' (solo kg) o '2 → 3 Caja (33,4 → 49,9 kg)'.
+ */
 function parteCantidad(l: LineaCambiada): string {
-  if (l.antes.unidad !== l.unidad) return `${conUnidad(l.antes.cantidad, l.antes.unidad)} → ${conUnidad(l.cantidad, l.unidad)}`
-  if (l.antes.cantidad !== l.cantidad) return `${numero(l.antes.cantidad)} → ${conUnidad(l.cantidad, l.unidad)}`
-  return ''
+  const base = baseDe(l)
+  const kgAntes = l.antes.cantidad_base
+  const kgAhora = l.cantidad_base
+  const cambioKg = kgAntes !== kgAhora
+  const kg = (n: number | null) => (n != null ? numero(n) : 'sin kg')
+  let cajas = ''
+  if (l.antes.unidad !== l.unidad) cajas = `${conUnidad(l.antes.cantidad, l.antes.unidad)} → ${conUnidad(l.cantidad, l.unidad)}`
+  else if (l.antes.cantidad !== l.cantidad) cajas = `${numero(l.antes.cantidad)} → ${conUnidad(l.cantidad, l.unidad)}`
+  if (!cajas) return cambioKg ? `${conUnidad(l.cantidad, l.unidad)} · ${kg(kgAntes)} → ${kg(kgAhora)} ${base}` : ''
+  if (cambioKg) return `${cajas} (${kg(kgAntes)} → ${kg(kgAhora)} ${base})`
+  return kgAhora != null ? `${cajas} (${numero(kgAhora)} ${base})` : cajas
 }
 
 function parte(tipo: ParteDiff['tipo'], l: Linea, previo: string, resto: string): ParteDiff {
@@ -156,9 +212,28 @@ export function partesDiff(diff: DiffLineas): ParteDiff[] {
       partes.push(parte('cambiado', l, '', cant ? ` ${cant}` : ''))
     }
   }
-  for (const l of diff.agregados ?? []) partes.push(parte('agregado', l, 'agregó ', ` ${conUnidad(l.cantidad, l.unidad)}`))
-  for (const l of diff.quitados ?? []) partes.push(parte('quitado', l, 'quitó ', ` ${conUnidad(l.cantidad, l.unidad)}`))
+  for (const l of diff.agregados ?? []) partes.push(parte('agregado', l, 'agregó ', ` ${conUnidad(l.cantidad, l.unidad)}${kgEntreParentesis(l)}`))
+  for (const l of diff.quitados ?? []) partes.push(parte('quitado', l, 'quitó ', ` ${conUnidad(l.cantidad, l.unidad)}${kgEntreParentesis(l)}`))
   return partes
+}
+
+/** Las líneas de un remito, para listarlas ("Queso Barra 2 Caja (33,4 kg)"). */
+export function partesLineas(lineas: Linea[]): ParteDiff[] {
+  return lineas.map(l => parte('agregado', l, '', ` ${conUnidad(l.cantidad, l.unidad)}${kgEntreParentesis(l)}`))
+}
+
+/** dd/mm de una fecha AAAA-MM-DD (sin pasar por zona horaria). */
+function diaMes(f: string | null | undefined): string {
+  const m = f?.match(/^\d{4}-(\d{2})-(\d{2})/)
+  return m ? `${m[2]}/${m[1]}` : f ?? '—'
+}
+
+/** A2b: lo que cambió de la cabecera del remito ("Fecha: 03/10 → 04/10"). */
+export function textosCabeceraRemito(d: { fecha?: { de?: string | null; a?: string | null }; numero?: { de?: string | null; a?: string | null } }): string[] {
+  const res: string[] = []
+  if (d.fecha) res.push(`Fecha: ${diaMes(d.fecha.de)} → ${diaMes(d.fecha.a)}`)
+  if (d.numero) res.push(`N° del proveedor: ${d.numero.de || '—'} → ${d.numero.a || '—'}`)
+  return res
 }
 
 export function textoDiff(diff: DiffLineas): string {
@@ -253,6 +328,7 @@ type EstadoLinea =
 function igualAntes(l: LineaCambiada): boolean {
   return l.antes.cantidad === l.cantidad && l.antes.unidad === l.unidad
     && l.antes.descripcion === l.descripcion && l.antes.item_id === l.item_id
+    && l.antes.cantidad_base === l.cantidad_base
 }
 
 /** Combina varios diffs seguidos por id de línea (el resultado es lo que cambió entre el primero y el último). */
@@ -265,7 +341,10 @@ export function combinarDiffs(diffs: DiffLineas[]): DiffLineas {
       if (prev?.estado === 'agregado') {
         lineas.set(l.id, {
           estado: 'agregado',
-          linea: { id: l.id, item_id: l.item_id, descripcion: l.descripcion, unidad: l.unidad, cantidad: l.cantidad },
+          linea: {
+            id: l.id, item_id: l.item_id, descripcion: l.descripcion, unidad: l.unidad, cantidad: l.cantidad,
+            cantidad_base: l.cantidad_base, unidad_base: l.unidad_base,
+          },
         })
       } else if (prev?.estado === 'cambiado') {
         lineas.set(l.id, { estado: 'cambiado', linea: { ...l, antes: prev.linea.antes } })
@@ -276,7 +355,7 @@ export function combinarDiffs(diffs: DiffLineas[]): DiffLineas {
     for (const l of diff.quitados ?? []) {
       const prev = lineas.get(l.id)
       if (prev?.estado === 'agregado') lineas.delete(l.id)
-      else if (prev?.estado === 'cambiado') lineas.set(l.id, { estado: 'quitado', linea: { id: l.id, ...prev.linea.antes } })
+      else if (prev?.estado === 'cambiado') lineas.set(l.id, { estado: 'quitado', linea: { id: l.id, unidad_base: prev.linea.unidad_base, ...prev.linea.antes } })
       else lineas.set(l.id, { estado: 'quitado', linea: l })
     }
   }

@@ -24,7 +24,7 @@ export function consultarPedidos(supabase: Cliente) {
 export function consultarCatalogo(supabase: Cliente) {
   return supabase
     .from('compras_items')
-    .select('id, nombre, unidad, stock_minimo, compras_item_proveedores(proveedor_id, precio_ref, activo)')
+    .select('id, nombre, unidad, stock_minimo, unidad_base, cantidad_por_unidad, cobra_por_default, compras_item_proveedores(proveedor_id, precio_ref, activo, cobra_por)')
     .eq('estado', 'activo')
     .order('nombre')
 }

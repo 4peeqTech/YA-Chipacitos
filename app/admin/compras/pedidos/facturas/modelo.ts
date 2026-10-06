@@ -2,6 +2,10 @@ import { codigoPedido } from '@/lib/compras/codigos'
 import { hoyISO } from '@/lib/fechas'
 import { ALICUOTA_DEFAULT, calcularTotales, esAlicuota, type TotalesFactura } from '@/lib/compras/totalesFactura'
 import { cantidadAResolver } from '@/lib/compras/diferencias'
+import {
+  convertirPrecio, cortoBase, esCobraPor, esUnidadBase, etiquetaCobraPor, tieneConversion,
+  type CobraPor, type UnidadesInsumo,
+} from '@/lib/compras/unidades'
 import type { LineaPendiente } from '../datos'
 import type { FacturaFila, FacturaItemFila, InsumoFactura, PedidoFactura } from './datos'
 
@@ -30,6 +34,18 @@ export interface LineaFactura {
   pedido: number | null
   recibido: number | null
   precioRef: number | null
+  // A2b ---------------------------------------------------------------------
+  /** Kg (o la unidad base) facturados. Obligatorios si precioPor = 'base'. */
+  cantidadBase: number | null
+  /** 'unidad' = precio por unidad de compra; 'base' = por kg (subtotal = kg × precio). */
+  precioPor: CobraPor
+  /** En qué unidad está precioRef (cómo cobra el par). null = el proveedor no tiene el insumo. */
+  cobraPorRef: CobraPor | null
+  /** Unidades del insumo. null = línea libre o insumo sin datos. */
+  unidades: UnidadesInsumo | null
+  /** Kg que llegaron por remito, y si todas las líneas del remito los tenían. */
+  recibidoBase: number | null
+  recibidoBaseCompleto: boolean
 }
 
 export interface EstadoFactura {
@@ -54,12 +70,65 @@ function alicuotaDe(itemId: string | null, insumos: Map<string, InsumoFactura>):
   return esAlicuota(a) ? a : ALICUOTA_DEFAULT
 }
 
+/** A2b: unidades de un insumo, desde la lista de insumos. */
+export function unidadesDeInsumo(itemId: string | null, insumos: Map<string, InsumoFactura>): UnidadesInsumo | null {
+  const i = itemId ? insumos.get(itemId) : undefined
+  if (!i || !esUnidadBase(i.unidad_base)) return null
+  return { unidad: i.unidad, unidadBase: i.unidad_base, contenido: i.cantidad_por_unidad }
+}
+
+function unidadesDeLineaPedido(l: LineaPendiente | undefined, ctx: ContextoPedido | null): UnidadesInsumo | null {
+  if (!l?.item_id) return null
+  if (esUnidadBase(l.unidad_base) && l.contenido != null) {
+    return { unidad: l.unidad, unidadBase: l.unidad_base, contenido: l.contenido }
+  }
+  return ctx ? unidadesDeInsumo(l.item_id, ctx.insumos) : null
+}
+
+/** Cómo cobra este proveedor el insumo: el par, o el default del insumo. Sin conversión, siempre por unidad. */
+function cobraPorDe(itemId: string | null, u: UnidadesInsumo | null, ctx: ContextoPedido | null): CobraPor {
+  if (!itemId || !u || !tieneConversion(u)) return 'unidad'
+  const par = ctx?.precios.get(itemId)
+  if (par) return par.cobraPor
+  const def = ctx?.insumos.get(itemId)?.cobra_por_default
+  return esCobraPor(def) ? def : 'unidad'
+}
+
 export function lineaLibre(): LineaFactura {
   return {
     clave: nuevaClave(), id: null, pedidoItemId: null, itemId: null,
     descripcion: '', unidad: null, cantidad: 1, precioUnitario: null, alicuotaIva: ALICUOTA_DEFAULT,
     pedido: null, recibido: null, precioRef: null,
+    cantidadBase: null, precioPor: 'unidad', cobraPorRef: null, unidades: null, recibidoBase: null, recibidoBaseCompleto: false,
   }
+}
+
+/** La línea muestra "Cobra por": tiene insumo y una conversión (Caja ≠ kg). */
+export function muestraCobraPor(l: LineaFactura): boolean {
+  return !!l.itemId && !!l.unidades && tieneConversion(l.unidades)
+}
+
+/** El precio de referencia en la misma unidad que el de la línea (para comparar). */
+export function precioRefEnLinea(l: LineaFactura): number | null {
+  if (l.precioRef == null) return null
+  if (!l.cobraPorRef || l.cobraPorRef === l.precioPor || !l.unidades) return l.precioRef
+  return convertirPrecio(l.precioRef, l.cobraPorRef, l.precioPor, l.unidades.contenido)
+}
+
+/**
+ * Cambiar "Cobra por" en una línea: el precio se convierte (÷ o × el contenido)
+ * y, al pasar a kg, se prellenan los kg del remito si están completos.
+ */
+export function cambiarPrecioPor(l: LineaFactura, a: CobraPor): LineaFactura {
+  if (a === l.precioPor || !l.unidades) return l
+  const precio = l.precioUnitario != null ? convertirPrecio(l.precioUnitario, l.precioPor, a, l.unidades.contenido) : null
+  const kg = a === 'base' && l.cantidadBase == null && l.recibidoBaseCompleto && l.cantidad === l.recibido ? l.recibidoBase : l.cantidadBase
+  return { ...l, precioPor: a, precioUnitario: precio, cantidadBase: kg }
+}
+
+/** 'Caja' o 'kg' para el precio de la línea. */
+export function etiquetaPrecioPor(l: LineaFactura): string {
+  return l.unidades ? etiquetaCobraPor(l.precioPor, l.unidades) : (l.unidad || 'unidad')
 }
 
 /** Cuánto llegó en total de cada línea del pedido, y si el pedido tiene remitos. */
@@ -72,25 +141,59 @@ export function tieneRemitos(pedido: PedidoFactura | null): boolean {
  * insumo (P7: "llegó algo que no estaba en el pedido"). Se suman por insumo y
  * descripción para prellenar una línea de la factura.
  */
-function sueltasDeRemitos(pedido: PedidoFactura): { itemId: string | null; descripcion: string; cantidad: number }[] {
-  const m = new Map<string, { itemId: string | null; descripcion: string; cantidad: number }>()
+type Suelta = { itemId: string | null; descripcion: string; cantidad: number; base: number | null; baseCompleta: boolean }
+
+function sueltasDeRemitos(pedido: PedidoFactura): Suelta[] {
+  const m = new Map<string, Suelta>()
   for (const r of pedido.compras_remitos) {
     for (const ri of r.compras_remito_items) {
       if (ri.pedido_item_id) continue
       const clave = `${ri.item_id ?? ''}|${ri.descripcion}`
       const previo = m.get(clave)
-      if (previo) previo.cantidad += ri.cantidad
-      else m.set(clave, { itemId: ri.item_id, descripcion: ri.descripcion, cantidad: ri.cantidad })
+      if (previo) {
+        previo.cantidad += ri.cantidad
+        previo.base = previo.base != null && ri.cantidad_base != null ? previo.base + ri.cantidad_base : null
+        previo.baseCompleta = previo.baseCompleta && ri.cantidad_base != null
+      } else {
+        m.set(clave, {
+          itemId: ri.item_id, descripcion: ri.descripcion, cantidad: ri.cantidad,
+          base: ri.cantidad_base, baseCompleta: ri.cantidad_base != null,
+        })
+      }
     }
   }
   return [...m.values()]
 }
 
+/** Precio de referencia del par y en qué unidad está (A2b). precio null = el par no tiene precio. */
+export interface PrecioRefPar {
+  precio: number | null
+  cobraPor: CobraPor
+}
+
 export interface ContextoPedido {
   pedido: PedidoFactura
   lineas: LineaPendiente[]
-  precios: Map<string, number>
+  /** Pares activos del proveedor del pedido, por insumo. */
+  precios: Map<string, PrecioRefPar>
   insumos: Map<string, InsumoFactura>
+}
+
+/** Los pares de un proveedor, para el contexto. */
+export function preciosDelProveedor(
+  precios: { item_id: string; proveedor_id: string; precio_ref: number | null; cobra_por: string }[],
+  proveedorId: string,
+): Map<string, PrecioRefPar> {
+  return new Map(precios
+    .filter(p => p.proveedor_id === proveedorId)
+    .map(p => [p.item_id, { precio: p.precio_ref, cobraPor: esCobraPor(p.cobra_por) ? p.cobra_por : 'unidad' }]))
+}
+
+/** El precio de referencia expresado en la unidad `a`. */
+function refEn(itemId: string | null, a: CobraPor, u: UnidadesInsumo | null, ctx: ContextoPedido | null): number | null {
+  const par = itemId ? ctx?.precios.get(itemId) : undefined
+  if (!par || par.precio == null) return null
+  return u && par.cobraPor !== a ? convertirPrecio(par.precio, par.cobraPor, a, u.contenido) : par.precio
 }
 
 /**
@@ -105,22 +208,39 @@ export function lineasIniciales(ctx: ContextoPedido): LineaFactura[] {
     .map(l => lineaDePedido(l, ctx, conRemitos ? (l.recibido ?? 0) : (l.cantidad ?? 0)))
     .filter(l => (l.cantidad ?? 0) > 0)
 
-  const sueltas = conRemitos ? sueltasDeRemitos(ctx.pedido).map(s => ({
-    ...lineaLibre(),
-    itemId: s.itemId,
-    descripcion: s.descripcion,
-    unidad: s.itemId ? ctx.insumos.get(s.itemId)?.unidad ?? null : null,
-    cantidad: s.cantidad,
-    precioUnitario: s.itemId ? ctx.precios.get(s.itemId) ?? null : null,
-    alicuotaIva: alicuotaDe(s.itemId, ctx.insumos),
-    precioRef: s.itemId ? ctx.precios.get(s.itemId) ?? null : null,
-  })) : []
+  const sueltas = conRemitos ? sueltasDeRemitos(ctx.pedido).map(s => {
+    const unidades = unidadesDeInsumo(s.itemId, ctx.insumos)
+    const precioPor = cobraPorDe(s.itemId, unidades, ctx)
+    const par = s.itemId ? ctx.precios.get(s.itemId) : undefined
+    const linea: LineaFactura = {
+      ...lineaLibre(),
+      itemId: s.itemId,
+      descripcion: s.descripcion,
+      unidad: s.itemId ? ctx.insumos.get(s.itemId)?.unidad ?? null : null,
+      cantidad: s.cantidad,
+      precioUnitario: refEn(s.itemId, precioPor, unidades, ctx),
+      alicuotaIva: alicuotaDe(s.itemId, ctx.insumos),
+      precioRef: par?.precio ?? null,
+      cobraPorRef: par?.cobraPor ?? null,
+      unidades,
+      precioPor,
+      recibido: s.cantidad,
+      recibidoBase: s.base,
+      recibidoBaseCompleto: s.baseCompleta,
+      // Por kg: los kg del remito si están todos. Nunca el nominal.
+      cantidadBase: precioPor === 'base' && s.baseCompleta ? s.base : null,
+    }
+    return linea
+  }) : []
 
   return [...delPedido, ...sueltas]
 }
 
 function lineaDePedido(l: LineaPendiente, ctx: ContextoPedido, cantidad: number): LineaFactura {
-  const ref = l.item_id ? ctx.precios.get(l.item_id) ?? null : null
+  const par = l.item_id ? ctx.precios.get(l.item_id) : undefined
+  const unidades = unidadesDeLineaPedido(l, ctx)
+  const precioPor = cobraPorDe(l.item_id, unidades, ctx)
+  const completo = !!l.recibido_base_completo && (l.remitos ?? 0) > 0
   return {
     clave: nuevaClave(),
     id: null,
@@ -129,11 +249,17 @@ function lineaDePedido(l: LineaPendiente, ctx: ContextoPedido, cantidad: number)
     descripcion: l.descripcion ?? '',
     unidad: l.unidad,
     cantidad,
-    precioUnitario: ref,
+    precioUnitario: refEn(l.item_id, precioPor, unidades, ctx),
     alicuotaIva: alicuotaDe(l.item_id, ctx.insumos),
     pedido: l.cantidad,
     recibido: l.recibido,
-    precioRef: ref,
+    precioRef: par?.precio ?? null,
+    cantidadBase: precioPor === 'base' && tieneRemitos(ctx.pedido) && completo && cantidad === l.recibido ? l.recibido_base : null,
+    precioPor,
+    cobraPorRef: par?.cobraPor ?? null,
+    unidades,
+    recibidoBase: l.recibido_base,
+    recibidoBaseCompleto: completo,
   }
 }
 
@@ -184,20 +310,31 @@ function armarEstadoInicial(
       actualizarPrecios: false,
       lineas: [...items]
         .sort((a, b) => a.orden - b.orden)
-        .map(i => ({
-          clave: nuevaClave(),
-          id: i.id,
-          pedidoItemId: i.pedido_item_id,
-          itemId: i.item_id,
-          descripcion: i.descripcion,
-          unidad: i.unidad,
-          cantidad: i.cantidad,
-          precioUnitario: i.precio_unitario,
-          alicuotaIva: esAlicuota(i.alicuota_iva) ? i.alicuota_iva : ALICUOTA_DEFAULT,
-          pedido: ctx?.lineas.find(l => l.pedido_item_id === i.pedido_item_id)?.cantidad ?? null,
-          recibido: ctx?.lineas.find(l => l.pedido_item_id === i.pedido_item_id)?.recibido ?? null,
-          precioRef: i.item_id ? ctx?.precios.get(i.item_id) ?? null : null,
-        })),
+        .map(i => {
+          const lp = ctx?.lineas.find(l => l.pedido_item_id === i.pedido_item_id)
+          const par = i.item_id ? ctx?.precios.get(i.item_id) : undefined
+          const unidades = lp ? unidadesDeLineaPedido(lp, ctx) : ctx ? unidadesDeInsumo(i.item_id, ctx.insumos) : null
+          return {
+            clave: nuevaClave(),
+            id: i.id,
+            pedidoItemId: i.pedido_item_id,
+            itemId: i.item_id,
+            descripcion: i.descripcion,
+            unidad: i.unidad,
+            cantidad: i.cantidad,
+            precioUnitario: i.precio_unitario,
+            alicuotaIva: esAlicuota(i.alicuota_iva) ? i.alicuota_iva : ALICUOTA_DEFAULT,
+            pedido: lp?.cantidad ?? null,
+            recibido: lp?.recibido ?? null,
+            precioRef: par?.precio ?? null,
+            cantidadBase: i.cantidad_base,
+            precioPor: esCobraPor(i.precio_por) ? i.precio_por : 'unidad',
+            cobraPorRef: par?.cobraPor ?? null,
+            unidades,
+            recibidoBase: lp?.recibido_base ?? null,
+            recibidoBaseCompleto: !!lp?.recibido_base_completo && (lp.remitos ?? 0) > 0,
+          }
+        }),
     }
   }
   return {
@@ -220,6 +357,8 @@ export type Problema =
   | { tipo: 'sin_fecha' }
   | { tipo: 'vencimiento_antes' }
   | { tipo: 'linea_incompleta'; clave: string }
+  | { tipo: 'falta_kg'; clave: string; descripcion: string; base: string }
+  | { tipo: 'base_sin_cantidad'; clave: string; descripcion: string; base: string }
   | { tipo: 'sin_lineas' }
   | { tipo: 'total_cero' }
 
@@ -230,6 +369,13 @@ export function validar(estado: EstadoFactura, confirmar = false): Problema | nu
   if (estado.vencimiento && estado.vencimiento < estado.fecha) return { tipo: 'vencimiento_antes' }
   const incompleta = estado.lineas.find(l => !l.descripcion.trim())
   if (incompleta) return { tipo: 'linea_incompleta', clave: incompleta.clave }
+  // A2b: por kg hacen falta los kg y las cajas (sin cajas, el stock no suma).
+  for (const l of estado.lineas) {
+    if (l.precioPor !== 'base' || !l.itemId) continue
+    const base = l.unidades ? cortoBase(l.unidades.unidadBase) : 'kg'
+    if (!(l.cantidadBase != null && l.cantidadBase > 0)) return { tipo: 'falta_kg', clave: l.clave, descripcion: l.descripcion.trim(), base }
+    if (!(l.cantidad != null && l.cantidad > 0)) return { tipo: 'base_sin_cantidad', clave: l.clave, descripcion: l.descripcion.trim(), base }
+  }
   if (estado.lineas.length === 0) return { tipo: 'sin_lineas' }
   if (confirmar && totales(estado).total <= 0) return { tipo: 'total_cero' }
   return null
@@ -241,6 +387,8 @@ export function mensajeProblema(p: Problema | null): string {
     case 'sin_fecha': return 'Elegí la fecha de la factura.'
     case 'vencimiento_antes': return 'El vencimiento no puede ser anterior a la fecha de la factura.'
     case 'linea_incompleta': return 'Hay una línea sin descripción. Escribila o quitá la línea.'
+    case 'falta_kg': return `Cargá los ${p.base} de ${p.descripcion}: se cobra por ${p.base}.`
+    case 'base_sin_cantidad': return `Cargá cuántas unidades llegaron de ${p.descripcion} (además de los ${p.base}).`
     case 'sin_lineas': return 'La factura no tiene líneas. Agregá al menos una.'
     case 'total_cero': return 'La factura da $ 0. Cargá las cantidades y los precios antes de confirmarla.'
     default: return ''
@@ -256,19 +404,48 @@ export interface LineaEnvio {
   cantidad: number
   precioUnitario: number
   alicuotaIva: number
+  cantidadBase: number | null
+  precioPor: CobraPor
 }
 
 export function armarEnvio(estado: EstadoFactura): LineaEnvio[] {
-  return estado.lineas.map(l => ({
-    id: l.id,
-    pedidoItemId: l.pedidoItemId,
-    itemId: l.itemId,
-    descripcion: l.descripcion.trim(),
-    unidad: l.unidad,
-    cantidad: l.cantidad ?? 0,
-    precioUnitario: l.precioUnitario ?? 0,
-    alicuotaIva: l.alicuotaIva,
-  }))
+  return estado.lineas.map(l => {
+    // Los kg viajan solo en las líneas con insumo que se cobran por kg.
+    const porBase = !!l.itemId && l.precioPor === 'base'
+    return {
+      id: l.id,
+      pedidoItemId: l.pedidoItemId,
+      itemId: l.itemId,
+      descripcion: l.descripcion.trim(),
+      unidad: l.unidad,
+      cantidad: l.cantidad ?? 0,
+      precioUnitario: l.precioUnitario ?? 0,
+      alicuotaIva: l.alicuotaIva,
+      cantidadBase: porBase && l.cantidadBase != null && l.cantidadBase > 0 ? l.cantidadBase : null,
+      precioPor: porBase ? 'base' : 'unidad',
+    }
+  })
+}
+
+/**
+ * "Actualizar precios" (E7): las líneas que cambiarían el precio de referencia o
+ * cómo cobra el proveedor. Por insumo vale la última línea, como en la RPC.
+ */
+export function cambiosDePrecio(estado: EstadoFactura): { precios: number; cobraPor: { descripcion: string; a: string }[] } {
+  const ultima = new Map<string, LineaFactura>()
+  for (const l of estado.lineas) {
+    if (l.itemId && (l.precioUnitario ?? 0) > 0) ultima.set(l.itemId, l)
+  }
+  let precios = 0
+  const cobraPor: { descripcion: string; a: string }[] = []
+  for (const l of ultima.values()) {
+    // Sin par activo con este proveedor la RPC no actualiza nada.
+    if (l.cobraPorRef == null) continue
+    const cambiaCobro = l.cobraPorRef != null && l.cobraPorRef !== l.precioPor
+    if (l.precioUnitario !== l.precioRef || cambiaCobro) precios++
+    if (cambiaCobro) cobraPor.push({ descripcion: l.descripcion.trim(), a: etiquetaPrecioPor(l) })
+  }
+  return { precios, cobraPor }
 }
 
 /** Solo los dígitos, igual que numero_normalizado en la base (N3). */
