@@ -3578,7 +3578,6 @@ export type Database = {
           estado: string
           financiacion: string | null
           id: string
-          local: string | null
           local_facturacion_id: string | null
           maneja_stock: boolean
           nombre: string
@@ -3599,7 +3598,6 @@ export type Database = {
           estado?: string
           financiacion?: string | null
           id?: string
-          local?: string | null
           local_facturacion_id?: string | null
           maneja_stock?: boolean
           nombre: string
@@ -3620,7 +3618,6 @@ export type Database = {
           estado?: string
           financiacion?: string | null
           id?: string
-          local?: string | null
           local_facturacion_id?: string | null
           maneja_stock?: boolean
           nombre?: string
@@ -4320,6 +4317,56 @@ export type Database = {
         }
         Relationships: []
       }
+      v_compras_proveedor_insumos: {
+        Row: {
+          activo: boolean | null
+          cobra_por: string | null
+          codigo_proveedor: string | null
+          contenido: number | null
+          es_principal: boolean | null
+          item_estado: string | null
+          item_id: string | null
+          item_nombre: string | null
+          precio_ref: number | null
+          proveedor_id: string | null
+          ultima_factura_fecha: string | null
+          ultima_factura_id: string | null
+          ultimo_precio: number | null
+          ultimo_precio_por: string | null
+          unidad: string | null
+          unidad_base: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_item_proveedores_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_item_proveedores_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "compras_item_proveedores_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_item_proveedores_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_compras_stock_actual: {
         Row: {
           actualizado_en: string | null
@@ -4593,6 +4640,10 @@ export type Database = {
         Args: { p_item: string; p_prov: string }
         Returns: string
       }
+      _compras_exigir_proveedor_activo: {
+        Args: { p_para: string; p_proveedor_id: string }
+        Returns: undefined
+      }
       _compras_item_hist: {
         Args: {
           p_ant: string
@@ -4608,6 +4659,17 @@ export type Database = {
       _compras_par_tiene_historia: {
         Args: { p_item: string; p_prov: string }
         Returns: boolean
+      }
+      _compras_pedidos_abiertos_de: {
+        Args: { p_proveedor_id: string }
+        Returns: {
+          id: string
+          numero: number
+        }[]
+      }
+      _proveedores_referencias: {
+        Args: { p_proveedor_id: string }
+        Returns: Json
       }
       ajustar_stock_terminado_manual: {
         Args: { p_delta_kg: number; p_producto_id: string }
@@ -4951,6 +5013,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      proveedores_archivar: {
+        Args: { p_archivar: boolean; p_id: string }
+        Returns: Json
+      }
+      proveedores_eliminar: { Args: { p_id: string }; Returns: undefined }
+      proveedores_guardar: {
+        Args: { p_datos?: Json; p_id?: string }
+        Returns: Json
+      }
+      proveedores_impacto: { Args: { p_id: string }; Returns: Json }
       recalcular_conciliacion: {
         Args: { p_fecha: string; p_local_id: string }
         Returns: undefined
