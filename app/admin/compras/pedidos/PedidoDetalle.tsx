@@ -656,13 +656,9 @@ export default function PedidoDetalle({
           devolucion={anulando.dev}
           onCerrar={() => setAnulando(null)}
           contexto={{
+            pedidoId: fila.id,
+            esAdmin,
             estado: { estado_recepcion: aEstadoRecepcion(fila.estado_recepcion), estado_facturacion: aEstadoFacturacion(fila.estado_facturacion) },
-            lineas: pedido.lineas.flatMap(l => l.pedido_item_id ? [{
-              pedidoItemId: l.pedido_item_id, cantidad: l.cantidad ?? 0, recibido: l.recibido ?? 0,
-              devuelto: l.devuelto ?? 0, devueltoSinRepone: l.devuelto_sin_repone ?? 0,
-            }] : []),
-            hayRemitos: fila.compras_remitos.length > 0,
-            devoluciones: pedido.devoluciones,
             stockPorItem,
             gasto: pedido.factura?.gasto_id ? { id: pedido.factura.gasto_id, estado: pedido.factura.gastos?.estado ?? null, monto: pedido.factura.gastos?.monto ?? null } : null,
             facturaNumero: pedido.factura?.numero ?? null,

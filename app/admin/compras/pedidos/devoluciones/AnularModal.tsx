@@ -9,11 +9,12 @@ import { controlClass } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/ProveedorUI'
 import { formatearMonedaExacta } from '@/lib/formato'
 import {
-  bloqueoAnularNc, estadoRecepcionConDevolucion, textoImpactoEstado,
+  bloqueoAnularNc, recepcionDespues, textoImpactoEstado,
 } from '@/lib/compras/devoluciones'
 import type { EstadoFacturacion, EstadoRecepcion } from '@/lib/compras/estadoPedido'
 import { anularDevolucion, anularNotaCredito } from './acciones'
 import type { DevolucionVista } from './datos'
+import { useContextoDevolucion } from './useContextoDevolucion'
 
 type MotivoRapido = 'error' | 'no_acepto' | 'otro'
 const MOTIVOS: { value: MotivoRapido; label: string }[] = [
@@ -23,11 +24,9 @@ const MOTIVOS: { value: MotivoRapido; label: string }[] = [
 ]
 
 export interface ContextoAnular {
+  pedidoId: string
+  esAdmin: boolean
   estado: { estado_recepcion: EstadoRecepcion; estado_facturacion: EstadoFacturacion }
-  /** Líneas del pedido con lo que ya pasó (v_compras_pedido_pendiente). */
-  lineas: { pedidoItemId: string; cantidad: number; recibido: number; devuelto: number; devueltoSinRepone: number }[]
-  hayRemitos: boolean
-  devoluciones: DevolucionVista[]
   stockPorItem: Record<string, number>
   gasto: { id: string; estado: string | null; monto: number | null } | null
   facturaNumero: string | null
@@ -50,6 +49,8 @@ export default function AnularModal({
   const [rapido, setRapido] = useState<MotivoRapido>('error')
   const [texto, setTexto] = useState('')
   const d = devolucion
+  // Remitos (también las líneas libres) y devoluciones del pedido, como los lee el recálculo SQL.
+  const { ctx } = useContextoDevolucion(contexto.pedidoId, contexto.esAdmin)
 
   if (!d) return <Modal open={false} onClose={onCerrar} title="Anular">{null}</Modal>
 
@@ -70,23 +71,29 @@ export default function AnularModal({
       const despues = (contexto.stockPorItem[itemId] ?? 0) + p.cantidad
       frases.push(`Vuelve a sumar ${p.cantidad.toLocaleString('es-AR')}${p.unidad ? ` ${p.unidad}` : ''} de ${p.nombre} (queda en ${despues.toLocaleString('es-AR')}).`)
     }
-    // El estado sin esta devolución.
-    const lineas = contexto.lineas.map(l => {
-      const propias = d.lineas.filter(x => x.pedidoItemId === l.pedidoItemId).reduce((t, x) => t + x.cantidad, 0)
-      return {
-        cantidad: l.cantidad, recibido: l.recibido,
-        devuelto: l.devuelto - propias, devueltoSinRepone: l.devueltoSinRepone - (d.repone ? 0 : propias),
-      }
-    })
-    const otras = contexto.devoluciones.filter(x => x.id !== d.id && x.estado === 'activa' && x.devuelveMercaderia)
-    const despues = estadoRecepcionConDevolucion({
-      actual: contexto.estado.estado_recepcion === 'devuelto' ? 'recibido' : contexto.estado.estado_recepcion,
-      lineas,
-      netoTotal: lineas.reduce((t, l) => t + l.recibido - l.devuelto, 0),
-      hayRemitos: contexto.hayRemitos,
-      haySinRepone: otras.some(x => !x.repone),
-    })
-    frases.push(`El pedido: ${textoImpactoEstado(contexto.estado, despues, false).replace(/^./, c => c.toLowerCase())}`)
+    // El estado sin esta devolución, con la misma regla que compras_recalcular_estado_pedido (E8):
+    // sus líneas salen de lo devuelto de cada línea del pedido, y el neto usa todos los remitos
+    // con insumo y todas las otras devoluciones activas con mercadería.
+    if (ctx) {
+      const lineas = ctx.lineas.map(l => {
+        const propias = d.lineas.filter(x => x.pedidoItemId === l.pedidoItemId).reduce((t, x) => t + x.cantidad, 0)
+        return { ...l, devuelto: l.devuelto - propias, devueltoSinRepone: l.devueltoSinRepone - (d.repone ? 0 : propias) }
+      })
+      const otras = ctx.devoluciones.filter(x => x.id !== d.id && x.estado === 'activa' && x.devuelveMercaderia)
+      const despues = recepcionDespues({
+        actual: ctx.pedido.estadoRecepcion,
+        lineas,
+        recibidoTotal: ctx.recibidos.reduce((t, r) => t + r.cantidad, 0),
+        devueltoTotal: otras.reduce((t, x) => t + x.lineas.reduce((s, l) => s + (l.itemId ? l.cantidad : 0), 0), 0),
+        hayRemitos: ctx.pedido.hayRemitos,
+        haySinRepone: otras.some(x => !x.repone),
+        nuevas: [],
+        repone: false,
+      })
+      frases.push(`El pedido: ${textoImpactoEstado(contexto.estado, despues, false).replace(/^./, c => c.toLowerCase())}`)
+    } else {
+      frases.push('Calculando cómo queda el pedido…')
+    }
   } else if (modo === 'devolucion') {
     frases.push('El stock no se mueve.')
   }

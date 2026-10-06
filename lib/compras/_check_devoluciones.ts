@@ -121,6 +121,18 @@ const despuesTodo = recepcionDespues({
   nuevas: [{ itemId: QB, cantidad: 2 }, { itemId: FEC, cantidad: 3 }], repone: false,
 })
 caso('impacto: devolver todo → Queda Devuelto', textoImpactoEstado({ estado_recepcion: 'recibido', estado_facturacion: 'facturado' }, despuesTodo, false), 'Queda Devuelto.')
+// Revisión B4 (AnularModal): al anular la única devolución sin reposición, con una línea libre del
+// remito que nunca se devolvió, el neto usa todos los remitos: queda Recibido, no Devuelto.
+caso('anular: con línea libre en el remito → recibido', recepcionDespues({
+  actual: 'devuelto',
+  lineas: [{ ...pedido[0], recibido: 2, devuelto: 0, devueltoSinRepone: 0 }],
+  recibidoTotal: 3, devueltoTotal: 0, hayRemitos: true, haySinRepone: false, nuevas: [], repone: false,
+}), 'recibido')
+caso('anular: otra devolución sin reposición que vacía todo → sigue devuelto', recepcionDespues({
+  actual: 'devuelto',
+  lineas: [{ ...pedido[0], recibido: 2, devuelto: 2, devueltoSinRepone: 2 }],
+  recibidoTotal: 2, devueltoTotal: 2, hayRemitos: true, haySinRepone: true, nuevas: [], repone: false,
+}), 'devuelto')
 caso('impacto: facturado sigue facturado', textoImpactoEstado({ estado_recepcion: 'recibido', estado_facturacion: 'facturado' }, 'recibido', false), 'Sigue Facturado.')
 
 // --- Textos y avisos
