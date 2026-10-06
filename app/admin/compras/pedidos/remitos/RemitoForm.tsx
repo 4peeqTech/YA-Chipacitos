@@ -512,7 +512,7 @@ export default function RemitoForm({
                       aria-label="A qué corresponde"
                       className={`${controlClass} min-h-11 ${sinDestino ? 'border-warning' : ''}`}
                       value={l.corresponde}
-                      onChange={e => { const c = e.target.value; actualizarLibre(l.clave, x => ({ ...x, corresponde: c, manual: true, itemId: c === 'nada' ? x.itemId : null })) }}
+                      onChange={e => { const c = e.target.value; actualizarLibre(l.clave, x => ({ ...x, corresponde: c, manual: true, itemId: c === 'nada' ? x.itemId : null, cantidadBase: null })) }}
                     >
                       <option value="">Elegí a qué corresponde…</option>
                       {lineasDelPedido.map(p => (
@@ -526,7 +526,7 @@ export default function RemitoForm({
                     {l.corresponde === 'nada' && (
                       <SelectBuscador
                         value={l.itemId ?? ''}
-                        onChange={v => actualizarLibre(l.clave, x => ({ ...x, itemId: v || null }))}
+                        onChange={v => actualizarLibre(l.clave, x => ({ ...x, itemId: v || null, cantidadBase: null }))}
                         opciones={opcionesInsumo}
                         placeholderVacio="Insumo (opcional)…"
                       />
