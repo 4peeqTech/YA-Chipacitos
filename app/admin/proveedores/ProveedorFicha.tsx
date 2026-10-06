@@ -85,7 +85,11 @@ export default function ProveedorFicha({
   const [errores, setErrores] = useState<Partial<Record<Clave, string>>>({})
   const pedidas = useRef(new Set<Clave>())
   const montada = useRef(true)
-  useEffect(() => () => { montada.current = false }, [])
+  // En dev, StrictMode desmonta y vuelve a montar: el flag se rearma en cada montaje.
+  useEffect(() => {
+    montada.current = true
+    return () => { montada.current = false }
+  }, [])
 
   const id = proveedor.id
   useEffect(() => {
