@@ -19,8 +19,10 @@ export interface EstadoPedidoEntrada {
    * todavía tiene que llegar.
    */
   hayDiferencias?: boolean
-  /** Desde F6; hasta entonces siempre false. */
+  /** Tiene al menos una devolución activa (B4). */
   hayDevolucion?: boolean
+  /** B4: la primera devolución activa que espera su nota de crédito (sin reposición, sin NC, con factura). */
+  devolucionEsperaNc?: { id: string; codigo: string } | null
   /** Llegó algo: define si un pedido cerrado a mano todavía espera su factura. */
   recibioAlgo?: boolean
   /** Quien mira puede cargar facturas (solo admin). Si no, no se le ofrece. */
@@ -63,6 +65,8 @@ export function subtextoEstado(p: EstadoPedidoEntrada): string | null {
   if (p.estado_facturacion === 'facturado' && esperaMercaderia) partes.push('falta recibir')
   if (p.hayDiferencias) partes.push('diferencias por resolver')
   if (p.hayDevolucion && p.estado_recepcion !== 'devuelto') partes.push('con devolución')
+  // La NC es plata: solo se le avisa a quien puede cargarla (admin).
+  if (p.devolucionEsperaNc && p.puedeFacturar) partes.push('esperando nota de crédito')
   return partes.length ? partes.join(' · ') : null
 }
 
@@ -78,7 +82,7 @@ export function estaDemorado(p: Pick<EstadoPedidoEntrada, 'estado_recepcion' | '
   return dias != null && dias >= DIAS_DEMORA
 }
 
-export type TipoAccion = 'enviar' | 'cargar_remito' | 'cargar_factura' | 'resolver_diferencias' | 'ninguna'
+export type TipoAccion = 'enviar' | 'cargar_remito' | 'cargar_factura' | 'resolver_diferencias' | 'cargar_nota_credito' | 'ninguna'
 
 export interface ProximaAccion {
   tipo: TipoAccion
@@ -155,10 +159,24 @@ export function proximaAccion(p: EstadoPedidoEntrada, ahora: Date = new Date()):
             descripcion: 'La factura no coincide con lo que llegó en los remitos. Revisá cada línea y decidí si ajustás el stock, le reclamás al proveedor o la dejás como está.',
             boton: 'Resolver diferencias',
           }
-          : { tipo: 'ninguna', titulo: 'Facturado', descripcion: 'El pedido tiene su factura cargada.', boton: null }
+          : p.devolucionEsperaNc && p.puedeFacturar
+            ? {
+              tipo: 'cargar_nota_credito',
+              titulo: 'Falta la nota de crédito',
+              descripcion: `Se devolvió mercadería de este pedido (${p.devolucionEsperaNc.codigo}) y el proveedor todavía no mandó la nota de crédito.`,
+              boton: 'Cargar nota de crédito',
+            }
+            : { tipo: 'ninguna', titulo: 'Facturado', descripcion: 'El pedido tiene su factura cargada.', boton: null }
     }
-    case 'devuelto':
-      return { tipo: 'ninguna', titulo: 'Devuelto', descripcion: 'La mercadería se devolvió al proveedor.', boton: null }
+    case 'devuelto': {
+      const faltaNc = !!p.devolucionEsperaNc && !!p.puedeFacturar
+      return {
+        tipo: faltaNc ? 'cargar_nota_credito' : 'ninguna',
+        titulo: 'Devuelto',
+        descripcion: `Se devolvió todo lo que llegó y el proveedor no repone.${faltaNc ? ' Falta cargar la nota de crédito.' : ''}`,
+        boton: faltaNc ? 'Cargar nota de crédito' : null,
+      }
+    }
   }
 }
 

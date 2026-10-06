@@ -9,3 +9,8 @@ export function codigoPedido(numero: number): string {
 export function codigoRemito(numeroPedido: number, secuencia: number): string {
   return `R-${String(numeroPedido).padStart(4, '0')}-${String(secuencia).padStart(2, '0')}`
 }
+
+/** B4: D-0012-01 = número del pedido + secuencia por pedido (como el remito). */
+export function codigoDevolucion(numeroPedido: number, secuencia: number): string {
+  return `D-${String(numeroPedido).padStart(4, '0')}-${String(secuencia).padStart(2, '0')}`
+}

@@ -16,6 +16,7 @@ const linea = (pi: string, item: string | null, cantidad: number, recibido = 0):
   pedido_item_id: pi, pedido_id: 'P', item_id: item, descripcion: `Línea ${pi}`, unidad: 'Bolsa', orden: 0,
   cantidad, recibido, pendiente: Math.max(cantidad - recibido, 0), excedente: Math.max(recibido - cantidad, 0), remitos: 0,
   unidad_base: 'kg', contenido: 25, cobra_por: item ? 'unidad' : null, recibido_base: null, recibido_base_completo: false,
+  devuelto: 0, devuelto_sin_repone: 0, devuelto_base: null,
 })
 const lineas = [linea('a', 'FEC', 4), linea('b', 'LEC', 2), linea('c', null, 1)]
 const stock = { FEC: 70, LEC: 2, SAL: 6 }

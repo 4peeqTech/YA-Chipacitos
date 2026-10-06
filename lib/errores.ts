@@ -36,7 +36,23 @@ const CONSTRAINTS: Record<string, string> = {
     'Ese gasto de Fudo ya tiene el pago registrado. Recargá la página para verlo al día.',
   compras_factura_discrepancias_clave_unica:
     'Otra persona actualizó las diferencias de esta factura al mismo tiempo. Recargá la página.',
+  // B4
+  compras_devolucion_motivos_nombre_unico:
+    'Ya hay un motivo con ese nombre.',
+  compras_devolucion_motivos_flags_validos:
+    'Un motivo que devuelve mercadería no puede ser a la vez una corrección de precio.',
+  compras_devoluciones_motivo_id_fkey:
+    'Ese motivo ya se usó en devoluciones: desactivalo en vez de borrarlo.',
+  compras_devoluciones_pedido_secuencia_key:
+    'Otra persona registró una devolución de este pedido al mismo tiempo. Probá de nuevo.',
+  compras_devoluciones_nc_unica:
+    'Esa nota de crédito ya está asociada a otra devolución. Recargá la página.',
+  compras_devolucion_items_factura_item_id_fkey:
+    'Esa línea de la factura tiene una corrección de precio registrada: anulá esa devolución primero.',
 }
+
+/** B4: el mismo unique de número, cuando lo que se guardaba era una nota de crédito. */
+export const MENSAJE_NC_REPETIDA = 'Ya cargaste una nota de crédito con ese número para este proveedor.'
 
 function extraerMensaje(error: unknown): string {
   if (error instanceof Error) return error.message

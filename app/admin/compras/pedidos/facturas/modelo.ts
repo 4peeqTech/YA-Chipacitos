@@ -46,6 +46,8 @@ export interface LineaFactura {
   /** Kg que llegaron por remito, y si todas las líneas del remito los tenían. */
   recibidoBase: number | null
   recibidoBaseCompleto: boolean
+  /** B4: lo devuelto al proveedor antes de facturar (ya descontado de la cantidad prellenada). */
+  devuelto: number
 }
 
 export interface EstadoFactura {
@@ -100,7 +102,13 @@ export function lineaLibre(): LineaFactura {
     descripcion: '', unidad: null, cantidad: 1, precioUnitario: null, alicuotaIva: ALICUOTA_DEFAULT,
     pedido: null, recibido: null, precioRef: null,
     cantidadBase: null, precioPor: 'unidad', cobraPorRef: null, unidades: null, recibidoBase: null, recibidoBaseCompleto: false,
+    devuelto: 0,
   }
+}
+
+/** B4: lo que quedó de una línea del pedido (llegó − devuelto). Lo devuelto antes de facturar no se prellena (D1). */
+export function recibidoNeto(l: Pick<LineaPendiente, 'recibido' | 'devuelto'>): number {
+  return Math.max((l.recibido ?? 0) - (l.devuelto ?? 0), 0)
 }
 
 /** La línea muestra "Cobra por": tiene insumo y una conversión (Caja ≠ kg). */
@@ -205,7 +213,7 @@ export function lineasIniciales(ctx: ContextoPedido): LineaFactura[] {
   const conRemitos = tieneRemitos(ctx.pedido)
   const delPedido = [...ctx.lineas]
     .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
-    .map(l => lineaDePedido(l, ctx, conRemitos ? (l.recibido ?? 0) : (l.cantidad ?? 0)))
+    .map(l => lineaDePedido(l, ctx, conRemitos ? recibidoNeto(l) : (l.cantidad ?? 0)))
     .filter(l => (l.cantidad ?? 0) > 0)
 
   const sueltas = conRemitos ? sueltasDeRemitos(ctx.pedido).map(s => {
@@ -260,6 +268,7 @@ function lineaDePedido(l: LineaPendiente, ctx: ContextoPedido, cantidad: number)
     unidades,
     recibidoBase: l.recibido_base,
     recibidoBaseCompleto: completo,
+    devuelto: l.devuelto ?? 0,
   }
 }
 
@@ -274,7 +283,7 @@ export function faltantesDelPedido(estado: EstadoFactura, ctx: ContextoPedido | 
 
 export function agregarDelPedido(l: LineaPendiente, ctx: ContextoPedido): LineaFactura {
   const conRemitos = tieneRemitos(ctx.pedido)
-  const cantidad = conRemitos ? (l.recibido ?? 0) : (l.cantidad ?? 0)
+  const cantidad = conRemitos ? recibidoNeto(l) : (l.cantidad ?? 0)
   return lineaDePedido(l, ctx, cantidad > 0 ? cantidad : (l.cantidad ?? 0))
 }
 
@@ -333,6 +342,7 @@ function armarEstadoInicial(
             unidades,
             recibidoBase: lp?.recibido_base ?? null,
             recibidoBaseCompleto: !!lp?.recibido_base_completo && (lp.remitos ?? 0) > 0,
+            devuelto: lp?.devuelto ?? 0,
           }
         }),
     }

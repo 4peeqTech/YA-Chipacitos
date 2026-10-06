@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { aResolucion, RESOLUCION_PASADO, type Resolucion } from './diferencias'
 import { cortoBase, esUnidadBase } from './unidades'
+import { codigoDevolucion } from './codigos'
 
 // Historial del pedido (B1): lectura del `detalle` jsonb de v_compras_pedido_eventos,
 // textos legibles, orden y agrupado. Sin React ni Supabase, como diferencias.ts.
@@ -110,6 +111,43 @@ const DETALLE = {
     insumo: z.string().nullable().optional(),
     item_id: z.string().nullable().optional(),
     factura_id: z.string().nullable().optional(),
+  }),
+  // B4: sin montos (los lee cualquiera con Compras).
+  devolucion_registrada: z.object({
+    devolucion_id: z.string(),
+    secuencia: z.coerce.number(),
+    motivo: z.string().nullable().optional(),
+    devuelve_mercaderia: z.boolean(),
+    corrige_precio: z.boolean().optional(),
+    repone: z.boolean(),
+    nota: z.string().nullable().optional(),
+    lineas: z.array(Linea).optional(),
+  }),
+  devolucion_anulada: z.object({
+    devolucion_id: z.string(),
+    secuencia: z.coerce.number(),
+    motivo: z.string().nullable().optional(),
+    motivo_anulacion: z.string().nullable().optional(),
+    lineas: z.array(Linea).optional(),
+    tenia_nota_credito: z.boolean().optional(),
+  }),
+  // B4: salen de compras_facturas, solo admin (E16).
+  nota_credito: z.object({
+    factura_id: z.string(),
+    numero: z.string().nullable().optional(),
+    total: z.coerce.number().nullable().optional(),
+    factura_origen_id: z.string().nullable().optional(),
+    devolucion_id: z.string().nullable().optional(),
+    secuencia: z.coerce.number().nullable().optional(),
+    gasto: z.string().nullable().optional(),
+  }),
+  nota_credito_anulada: z.object({
+    factura_id: z.string(),
+    numero: z.string().nullable().optional(),
+    total: z.coerce.number().nullable().optional(),
+    motivo: z.string().nullable().optional(),
+    devolucion_id: z.string().nullable().optional(),
+    secuencia: z.coerce.number().nullable().optional(),
   }),
 } as const
 
@@ -264,9 +302,16 @@ const ETIQUETA: Record<string, string> = {
   factura: 'Factura confirmada',
   factura_anulada: 'Factura anulada',
   diferencia: 'Diferencia con la factura resuelta',
+  devolucion_registrada: 'Devolvió mercadería al proveedor',
+  devolucion_anulada: 'Anuló una devolución',
+  nota_credito: 'Nota de crédito',
+  nota_credito_anulada: 'Anuló la nota de crédito',
 }
 
 export function etiquetaEvento(e: EventoLeido): string {
+  if (e.tipo === 'devolucion_registrada' && e.d && !e.d.devuelve_mercaderia) {
+    return e.d.corrige_precio ? 'Registró una corrección de precio' : 'Registró un reclamo a la factura'
+  }
   if (e.tipo === 'creado' && e.d?.origen === 'solicitud') return 'Creado desde una solicitud'
   if (e.tipo === 'local_cambiado' && e.d && !e.d.de) return 'Asignó el local de facturación'
   if (e.tipo === 'mensaje' && e.d?.accion === 'regenerado') return 'Regeneró el mensaje'
@@ -294,14 +339,82 @@ export function leerDiferencia(d: Detalles['diferencia']): { resolucion: Resoluc
   return { resolucion, insumo, texto: RESOLUCION_PASADO[resolucion] }
 }
 
+/** B4: cómo quedó la NC con el gasto, en el historial. */
+export const TEXTO_NC_GASTO: Record<string, string> = {
+  descontado: 'descontada del gasto',
+  cancelo_gasto: 'canceló el gasto',
+  a_favor: 'a favor (el gasto ya estaba pagado)',
+  sin_gasto: 'la factura no tenía gasto',
+}
+
+function pesos(n: number): string {
+  return `$ ${n.toLocaleString('es-AR', { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`
+}
+
+/**
+ * B4: lo que va al lado de la etiqueta de una devolución o una NC. `codigo` es
+ * el D-… (null si el evento no lo trae) y `partes` el resto, ya en texto:
+ *   'D-0037-01' · 'Mercadería en mal estado' · 'El proveedor repone'
+ *   'D-0037-01' · 'Motivo: se cargó por error'
+ *   'N° 0001-00000123' · '$ 50.517,50' · 'descontada del gasto'
+ */
+export function textosDevolucion(e: EventoLeido, numeroPedido: number): { codigo: string | null; partes: string[] } {
+  switch (e.tipo) {
+    case 'devolucion_registrada': {
+      if (!e.d) return { codigo: null, partes: [] }
+      const partes = [e.d.motivo ?? '']
+      if (e.d.devuelve_mercaderia) partes.push(e.d.repone ? 'El proveedor repone' : 'No repone')
+      return { codigo: codigoDevolucion(numeroPedido, e.d.secuencia), partes: partes.filter(Boolean) }
+    }
+    case 'devolucion_anulada':
+      if (!e.d) return { codigo: null, partes: [] }
+      return {
+        codigo: codigoDevolucion(numeroPedido, e.d.secuencia),
+        partes: [
+          e.d.motivo_anulacion ? `Motivo: ${e.d.motivo_anulacion}` : '',
+          e.d.tenia_nota_credito ? 'también se anuló su nota de crédito' : '',
+        ].filter(Boolean),
+      }
+    case 'nota_credito':
+    case 'nota_credito_anulada': {
+      if (!e.d) return { codigo: null, partes: [] }
+      const partes = [`N° ${e.d.numero ?? '—'}`]
+      if (e.d.total != null) partes.push(pesos(e.d.total))
+      if (e.tipo === 'nota_credito' && e.d.gasto && TEXTO_NC_GASTO[e.d.gasto]) partes.push(TEXTO_NC_GASTO[e.d.gasto])
+      if (e.tipo === 'nota_credito_anulada' && e.d.motivo) partes.push(`Motivo: ${e.d.motivo}`)
+      return { codigo: e.d.secuencia != null ? codigoDevolucion(numeroPedido, e.d.secuencia) : null, partes }
+    }
+    default:
+      return { codigo: null, partes: [] }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 5.4 Orden
 // ---------------------------------------------------------------------------
 
 export const ORDEN_EVENTO = [
   'creado', 'items_editados', 'proveedor_cambiado', 'local_cambiado', 'mensaje', 'enviado', 'reenviado',
-  'remito_creado', 'remito_editado', 'remito_eliminado', 'factura', 'diferencia', 'factura_anulada', 'cerrado', 'reabierto',
+  'remito_creado', 'remito_editado', 'remito_eliminado', 'factura',
+  'devolucion_registrada', 'nota_credito', 'diferencia', 'nota_credito_anulada', 'devolucion_anulada',
+  'factura_anulada', 'cerrado', 'reabierto',
 ]
+
+/**
+ * B4: la NC que se confirma en la misma transacción que su devolución lleva
+ * now() (el inicio), y el evento de la devolución, clock_timestamp(): la NC
+ * quedaría antes. Si están a menos de 5 s, se ordena con la devolución.
+ */
+const VENTANA_NC_MS = 5_000
+
+function fechaDeOrden(e: EventoLeido, registradas: Map<string, string | null>): string | null {
+  if (e.tipo === 'nota_credito' && e.d?.devolucion_id && e.fecha) {
+    const dev = registradas.get(e.d.devolucion_id)
+    const delta = dev ? Date.parse(dev) - Date.parse(e.fecha) : NaN
+    if (dev && delta > 0 && delta <= VENTANA_NC_MS) return dev
+  }
+  return e.fecha
+}
 
 export function ordenarEventos<T extends { fecha: string | null; tipo: string }>(eventos: T[]): T[] {
   return [...eventos].sort((a, b) => {
@@ -438,7 +551,11 @@ function marcarRegenerados(eventos: EventoLeido[]): EventoLeido[] {
  * Cualquier otro evento en el medio corta el grupo.
  */
 export function agruparEventos(crudos: EventoCrudo[]): EntradaHistorial[] {
-  const eventos = marcarRegenerados(ordenarEventos(crudos.map(leerEvento)))
+  const leidos = crudos.map(leerEvento)
+  const registradas = new Map<string, string | null>()
+  for (const e of leidos) if (e.tipo === 'devolucion_registrada' && e.d) registradas.set(e.d.devolucion_id, e.fecha)
+  const ordenados = ordenarEventos(leidos.map(e => ({ e, fecha: fechaDeOrden(e, registradas), tipo: e.tipo }))).map(x => x.e)
+  const eventos = marcarRegenerados(ordenados)
   const entradas: EntradaHistorial[] = []
   let grupo: EventoLeido[] = []
 

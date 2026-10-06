@@ -36,6 +36,9 @@ const linea = (p: Partial<LineaPendiente> & { pedido_item_id: string }): LineaPe
   cobra_por: null,
   recibido_base: null,
   recibido_base_completo: false,
+  devuelto: 0,
+  devuelto_sin_repone: 0,
+  devuelto_base: null,
   ...p,
 })
 
@@ -216,6 +219,10 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'kg: mismo precio y unidad no cuenta', real: cambiosDePrecio(estado({ lineas: [quesoCompleto] })).precios, esperado: 0 },
   { nombre: 'kg: sin par con el proveedor no cuenta', real: cambiosDePrecio(estado()).precios, esperado: 0 },
   { nombre: 'kg: sin conversión la línea va por unidad', real: iniSinRemito.find(l => l.itemId === FECULA)?.precioPor, esperado: 'unidad' },
+  // B4: lo devuelto antes de facturar no se prellena (D1).
+  { nombre: 'B4 prellena llegó − devuelto', real: lineasIniciales({ ...ctxConRemito, lineas: [{ ...lineasPedido[0], devuelto: 2, devuelto_sin_repone: 2 }] })[0].cantidad, esperado: 6 },
+  { nombre: 'B4 la línea sabe cuánto se devolvió', real: lineasIniciales({ ...ctxConRemito, lineas: [{ ...lineasPedido[0], devuelto: 2 }] })[0].devuelto, esperado: 2 },
+  { nombre: 'B4 todo devuelto: la línea no entra', real: lineasIniciales({ ...ctxConRemito, lineas: [{ ...lineasPedido[0], devuelto: 8 }] }).filter(l => l.pedidoItemId === 'pi-1').length, esperado: 0 },
   { nombre: 'estadoInicial de una existente respeta su número', real: estadoInicial(vista(), [], ctxSinRemito, '2026-09-28').numero, esperado: '0003-00012345' },
 ]
 

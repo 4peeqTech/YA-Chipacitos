@@ -24,6 +24,8 @@ export interface FacturaReporte {
   /** Gasto que generó (o al que se vinculó). Null si no tiene: se borró, o nunca se generó. */
   gasto_id: string | null
   gasto_estado: string | null
+  /** B4: cómo afectó una NC al gasto de su factura ('a_favor' = el gasto ya estaba pagado). */
+  nc_gasto?: string | null
 }
 
 export interface RemitoReporte {
@@ -37,10 +39,20 @@ export interface RemitoReporte {
 // "Gasto por proveedor", así nunca dan números distintos.
 // ---------------------------------------------------------------------------
 
-/** Cómo está pagada una factura, según su gasto. "Parcial" no tiene monto: cuenta como pendiente. */
-export type EstadoPago = 'pagado' | 'pendiente' | 'parcial' | 'sin_gasto'
+/**
+ * Cómo está pagada una factura, según su gasto. "Parcial" no tiene monto: cuenta como pendiente.
+ * B4: una NC hereda el gasto de su factura origen (E11); si llegó con el gasto ya
+ * pagado no lo tocó y queda "a favor" (D5).
+ */
+export type EstadoPago = 'pagado' | 'pendiente' | 'parcial' | 'sin_gasto' | 'a_favor'
 
-export function estadoPago(f: { gasto_id: string | null; gasto_estado: string | null }): EstadoPago {
+export function estadoPago(f: {
+  gasto_id: string | null
+  gasto_estado: string | null
+  tipo_comprobante?: string | null
+  nc_gasto?: string | null
+}): EstadoPago {
+  if (f.tipo_comprobante === 'nota_credito' && f.nc_gasto === 'a_favor') return 'a_favor'
   if (!f.gasto_id) return 'sin_gasto'
   if (f.gasto_estado === 'Pagado') return 'pagado'
   if (f.gasto_estado === 'Parcial') return 'parcial'
@@ -56,12 +68,14 @@ export interface ResumenPagos {
   parcial: number
   /** Facturas confirmadas sin gasto: no se pueden dar por pagadas ni por debidas. */
   sinGasto: number
+  /** B4: NC que llegaron con el gasto ya pagado (negativo): se descuentan del próximo pago. */
+  aFavor: number
   facturas: number
 }
 
-/** Con signo (las NC restan). Invariante: facturado = pagado + pendiente + sinGasto. */
+/** Con signo (las NC restan). Invariante: facturado = pagado + pendiente + sinGasto + aFavor. */
 export function resumirPagos(facturas: FacturaReporte[]): ResumenPagos {
-  const r: ResumenPagos = { facturado: 0, pagado: 0, pendiente: 0, parcial: 0, sinGasto: 0, facturas: 0 }
+  const r: ResumenPagos = { facturado: 0, pagado: 0, pendiente: 0, parcial: 0, sinGasto: 0, aFavor: 0, facturas: 0 }
   for (const f of facturas) {
     const total = signo(f) * (f.total ?? 0)
     r.facturado += total
@@ -69,6 +83,7 @@ export function resumirPagos(facturas: FacturaReporte[]): ResumenPagos {
     const pago = estadoPago(f)
     if (pago === 'pagado') r.pagado += total
     else if (pago === 'sin_gasto') r.sinGasto += total
+    else if (pago === 'a_favor') r.aFavor += total
     else {
       r.pendiente += total
       if (pago === 'parcial') r.parcial += total
@@ -103,6 +118,7 @@ export interface GastoProveedor {
   pendiente: number
   parcial: number
   sinGasto: number
+  aFavor: number
   /** Pedidos que ya recibieron mercadería y todavía no tienen factura: su gasto falta acá. */
   recibidosSinFacturar: number
   detalle: DetalleFacturaGasto[]
@@ -149,7 +165,7 @@ export function calcularGastoPorProveedor(facturas: FacturaReporte[], pedidos: P
     if (!g) {
       g = {
         proveedorId: id, proveedorNombre: nombre, facturasCount: 0, subtotal: 0, iva: 0, total: 0,
-        pagado: 0, pendiente: 0, parcial: 0, sinGasto: 0, recibidosSinFacturar: 0, detalle: [],
+        pagado: 0, pendiente: 0, parcial: 0, sinGasto: 0, aFavor: 0, recibidosSinFacturar: 0, detalle: [],
       }
       porProveedor.set(id, g)
     }
@@ -192,6 +208,7 @@ export function calcularGastoPorProveedor(facturas: FacturaReporte[], pedidos: P
     g.pendiente = r.pendiente
     g.parcial = r.parcial
     g.sinGasto = r.sinGasto
+    g.aFavor = r.aFavor
   }
 
   for (const p of pedidos) {
