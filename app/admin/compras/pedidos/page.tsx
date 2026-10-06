@@ -2,19 +2,20 @@ import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import PedidosClient from './PedidosClient'
 import { consultarCatalogo, consultarFacturasDePedidos, consultarPedidos, consultarProveedores } from './datos'
+import { consultarDevoluciones } from './devoluciones/datos'
 
 export const metadata = { title: 'Pedidos | YA! Chipacitos' }
 
 export default async function PedidosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ pedido?: string }>
+  searchParams: Promise<{ pedido?: string; devolucion?: string }>
 }) {
   const supabase = await createClientTipado()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { pedido } = await searchParams
+  const { pedido, devolucion } = await searchParams
 
   // Solo admin ve y carga facturas (P1). La RLS ya lo garantiza; el rol define
   // además qué le ofrecemos en pantalla.
@@ -51,6 +52,9 @@ export default async function PedidosPage({
     supabase.from('v_compras_factura_diferencias').select('*'),
   ])
 
+  // B4: las devoluciones de los pedidos cargados (en tandas; los montos solo para admin).
+  const devoluciones = await consultarDevoluciones(supabase, (pedidos ?? []).map(p => p.id))
+
   return (
     <PedidosClient
       pedidos={pedidos ?? []}
@@ -63,8 +67,10 @@ export default async function PedidosPage({
       eliminados={eliminados ?? []}
       facturas={facturas ?? []}
       diferencias={diferencias ?? []}
+      devoluciones={devoluciones}
       esAdmin={esAdmin}
       pedidoInicial={pedido}
+      devolucionInicial={devolucion}
     />
   )
 }

@@ -45,7 +45,8 @@ export function consultarProveedores(supabase: Cliente) {
 export function consultarFacturasDePedidos(supabase: Cliente) {
   return supabase
     .from('compras_facturas')
-    .select('id, pedido_id, numero, fecha, total, estado')
+    // B4: el gasto, para mostrar de antemano si anular una NC se va a frenar.
+    .select('id, pedido_id, numero, fecha, total, estado, gasto_id, gastos(estado, monto)')
     .eq('tipo_comprobante', 'factura')
     .neq('estado', 'anulada')
 }

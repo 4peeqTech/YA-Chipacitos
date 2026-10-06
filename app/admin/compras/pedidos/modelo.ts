@@ -5,6 +5,7 @@ import {
 } from '@/lib/compras/estadoPedido'
 import { armarDiferencias, recepcionCompleta, type DiferenciaFila, type DiferenciaVista } from '@/lib/compras/diferencias'
 import type { FacturaDePedido, LineaPendiente, PedidoFila } from './datos'
+import type { DevolucionVista } from './devoluciones/datos'
 
 export type Origen = 'Pedido base' | 'Complementario' | 'Manual'
 
@@ -31,6 +32,8 @@ export interface PedidoVista {
   factura: FacturaDePedido | null
   /** Diferencias de su factura con lo recibido (F5, solo admin). */
   diferencias: DiferenciaVista[]
+  /** B4: sus devoluciones (activas y anuladas), en orden. */
+  devoluciones: DevolucionVista[]
 }
 
 const RECEPCION: EstadoRecepcion[] = ['sin_enviar', 'enviado', 'parcial', 'recibido', 'cerrado_manual', 'devuelto']
@@ -55,7 +58,10 @@ export function armarVistas(
   puedeFacturar = false,
   ahora: Date = new Date(),
   diferencias: DiferenciaFila[] = [],
+  devoluciones: DevolucionVista[] = [],
 ): PedidoVista[] {
+  const devolucionesPorPedido = new Map<string, DevolucionVista[]>()
+  for (const d of devoluciones) devolucionesPorPedido.set(d.pedidoId, [...(devolucionesPorPedido.get(d.pedidoId) ?? []), d])
   const facturaPorPedido = new Map(facturas.map(f => [f.pedido_id, f]))
   const diferenciasPorFactura = new Map<string, DiferenciaVista[]>()
   for (const d of armarDiferencias(diferencias)) {
@@ -76,6 +82,8 @@ export function armarVistas(
     const factura = facturaPorPedido.get(fila.id) ?? null
     // Solo las de la factura activa: las de una anulada ya no existen.
     const propiasDif = factura?.estado === 'confirmada' ? diferenciasPorFactura.get(factura.id) ?? [] : []
+    const propiasDev = devolucionesPorPedido.get(fila.id) ?? []
+    const esperaNc = propiasDev.find(d => d.estado === 'activa' && d.esperaNotaCredito) ?? null
     const entrada: EstadoPedidoEntrada = {
       estado_recepcion: aRecepcion(fila.estado_recepcion),
       estado_facturacion: aFacturacion(fila.estado_facturacion),
@@ -86,6 +94,8 @@ export function armarVistas(
       puedeFacturar,
       facturaEnBorrador: factura?.estado === 'borrador',
       hayDiferencias: recepcionCompleta(fila.estado_recepcion) && propiasDif.some(d => d.resolucion === 'pendiente'),
+      hayDevolucion: propiasDev.some(d => d.estado === 'activa'),
+      devolucionEsperaNc: esperaNc ? { id: esperaNc.id, codigo: esperaNc.codigo } : null,
     }
     const visible = estadoVisible(entrada)
     return {
@@ -107,6 +117,7 @@ export function armarVistas(
         && entrada.estado_recepcion !== 'devuelto',
       factura,
       diferencias: propiasDif,
+      devoluciones: propiasDev,
     }
   })
 }
