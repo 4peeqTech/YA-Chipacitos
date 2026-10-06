@@ -40,6 +40,12 @@ export interface DiferenciaVista {
   facturadaBaseReal: boolean
   recibidaBase: number | null
   recibidaBaseReal: boolean
+  // B4: `recibida` ya es neta de lo devuelto y `facturada`, de lo acreditado por NC.
+  devuelta: number
+  acreditada: number
+  /** La devolución que espera su NC (E13). */
+  devolucionId: string | null
+  devolucionCodigo: string | null
 }
 
 /** '33,4 kg' (real) o '≈ 33 kg' (nominal: al menos una línea sin kg reales). */
@@ -79,6 +85,10 @@ export function armarDiferencias(filas: DiferenciaFila[]): DiferenciaVista[] {
       facturadaBaseReal: f.facturada_base_real ?? false,
       recibidaBase: f.recibida_base,
       recibidaBaseReal: f.recibida_base_real ?? false,
+      devuelta: f.devuelta ?? 0,
+      acreditada: f.acreditada ?? 0,
+      devolucionId: f.devolucion_id,
+      devolucionCodigo: f.devolucion_codigo,
     })
   }
   return res.sort((a, b) => a.descripcion.localeCompare(b.descripcion))
@@ -128,6 +138,43 @@ export function textoDiferencia(d: Pick<DiferenciaVista, 'diferencia' | 'factura
   if (d.diferencia > 0) return `La factura dice ${conUnidad(d.diferencia, d.unidad)} más de lo que llegó`
   if (d.facturada === 0) return `Llegó ${conUnidad(-d.diferencia, d.unidad)} que no está en la factura`
   return `Llegó ${conUnidad(-d.diferencia, d.unidad)} más de lo que dice la factura`
+}
+
+/**
+ * B4: las cantidades cuando hubo devoluciones o NC, en una línea:
+ * "Llegaron 10 Caja, se devolvieron 2: quedaron 8 · la factura dice 10 (8 con la nota de crédito)".
+ * null si no hubo ninguna de las dos (la pantalla muestra lo de siempre).
+ */
+export function textoCantidadesConDevolucion(
+  d: Pick<DiferenciaVista, 'recibida' | 'facturada' | 'devuelta' | 'acreditada' | 'unidad'>,
+): string | null {
+  if (d.devuelta <= 0 && d.acreditada <= 0) return null
+  const llego = d.recibida + d.devuelta
+  const recibido = d.devuelta > 0
+    ? `Llegaron ${conUnidad(llego, d.unidad)}, se devolvieron ${numero(d.devuelta)}: quedaron ${numero(d.recibida)}`
+    : `Llegaron ${conUnidad(llego, d.unidad)}`
+  const facturaBruta = d.facturada + d.acreditada
+  const factura = d.acreditada > 0
+    ? `la factura dice ${numero(facturaBruta)} (${numero(d.facturada)} con la nota de crédito)`
+    : `la factura dice ${numero(facturaBruta)}`
+  return `${recibido} · ${factura}`
+}
+
+/** B4 (E13): "Esperando la nota de crédito de D-0037-01" en el reclamo que espera su NC. */
+export function textoEsperandoNc(d: Pick<DiferenciaVista, 'resolucion' | 'devolucionId' | 'devolucionCodigo'>): string | null {
+  if (d.resolucion !== 'reclamo_proveedor' || !d.devolucionId) return null
+  return `Esperando la nota de crédito de ${d.devolucionCodigo ?? 'la devolución'}`
+}
+
+/**
+ * B4: a una diferencia resuelta como reclamo (sin devolución todavía), con la
+ * recepción completa, se le ofrece "Registrar devolución".
+ */
+export function accionDevolucion(
+  d: Pick<DiferenciaVista, 'resolucion' | 'devolucionId'>,
+  estadoRecepcion: string | null,
+): boolean {
+  return d.resolucion === 'reclamo_proveedor' && !d.devolucionId && recepcionCompleta(estadoRecepcion)
 }
 
 /** "+2" / "−2": el cambio de stock que haría "Ajustar stock". */

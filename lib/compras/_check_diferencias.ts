@@ -1,15 +1,17 @@
 // Chequeo de las funciones puras de diferencias factura/recepción.
 // Correr con: npx tsx lib/compras/_check_diferencias.ts
 import {
-  agruparDiferencias, armarDiferencias, cantidadAResolver, explicacionResolucion,
-  muestraKg, recepcionCompleta, textoDelta, textoDiferencia, textoKg, textoResuelta, type DiferenciaFila,
+  accionDevolucion, agruparDiferencias, armarDiferencias, cantidadAResolver, explicacionResolucion,
+  muestraKg, recepcionCompleta, textoCantidadesConDevolucion, textoDelta, textoDiferencia, textoEsperandoNc, textoKg, textoResuelta,
+  type DiferenciaFila,
 } from './diferencias'
 
 const fila = (p: Partial<DiferenciaFila>): DiferenciaFila => ({
   id: 'd1', factura_id: 'f1', pedido_id: 'p1', clave: 'x', pedido_item_id: 'pi1', item_id: 'i1',
   descripcion: 'Fécula', unidad: 'Bolsa', cantidad_recibida: 19, cantidad_facturada: 21, diferencia: 2,
   resolucion: 'pendiente', movimiento_id: null, nota: null, resuelto_en: null, resuelto_por_nombre: null,
-  unidad_base: 'unidades', contenido: 1, facturada_base: 21, facturada_base_real: false, recibida_base: 19, recibida_base_real: false, ...p,
+  unidad_base: 'unidades', contenido: 1, facturada_base: 21, facturada_base_real: false, recibida_base: 19, recibida_base_real: false,
+  devuelta: 0, acreditada: 0, devolucion_id: null, devolucion_codigo: null, ...p,
 })
 
 // A2b: Queso Barra, factura con kg reales y remito sin kg (cae a nominal).
@@ -57,6 +59,16 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
     real: explicacionResolucion('ajusta_stock', { diferencia: -3, unidad: null, descripcion: 'Polvo' }, 12).startsWith('Resta 3 de Polvo al stock (queda en 9).'),
     esperado: true,
   },
+  // B4
+  { nombre: 'B4 devolución y NC en el texto', real: textoCantidadesConDevolucion({ recibida: 8, facturada: 8, devuelta: 2, acreditada: 2, unidad: 'Caja' }), esperado: 'Llegaron 10 Caja, se devolvieron 2: quedaron 8 · la factura dice 10 (8 con la nota de crédito)' },
+  { nombre: 'B4 solo devolución', real: textoCantidadesConDevolucion({ recibida: 8, facturada: 10, devuelta: 2, acreditada: 0, unidad: 'Caja' }), esperado: 'Llegaron 10 Caja, se devolvieron 2: quedaron 8 · la factura dice 10' },
+  { nombre: 'B4 sin devolución ni NC → null', real: textoCantidadesConDevolucion({ recibida: 8, facturada: 10, devuelta: 0, acreditada: 0, unidad: 'Caja' }), esperado: null },
+  { nombre: 'B4 esperando NC', real: textoEsperandoNc(armarDiferencias([fila({ resolucion: 'reclamo_proveedor', devolucion_id: 'dv', devolucion_codigo: 'D-0037-01' })])[0]), esperado: 'Esperando la nota de crédito de D-0037-01' },
+  { nombre: 'B4 reclamo sin devolución: no espera', real: textoEsperandoNc({ resolucion: 'reclamo_proveedor', devolucionId: null, devolucionCodigo: null }), esperado: null },
+  { nombre: 'B4 ofrece registrar devolución', real: accionDevolucion({ resolucion: 'reclamo_proveedor', devolucionId: null }, 'recibido'), esperado: true },
+  { nombre: 'B4 no la ofrece si ya tiene devolución', real: accionDevolucion({ resolucion: 'reclamo_proveedor', devolucionId: 'dv' }, 'recibido'), esperado: false },
+  { nombre: 'B4 no la ofrece con la recepción incompleta', real: accionDevolucion({ resolucion: 'reclamo_proveedor', devolucionId: null }, 'parcial'), esperado: false },
+  { nombre: 'B4 no la ofrece en una pendiente', real: accionDevolucion({ resolucion: 'pendiente', devolucionId: null }, 'recibido'), esperado: false },
 ]
 
 let fallas = 0

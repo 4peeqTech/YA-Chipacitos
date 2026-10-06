@@ -74,6 +74,273 @@ export type Database = {
         }
         Relationships: []
       }
+      compras_devolucion_items: {
+        Row: {
+          cantidad: number
+          cantidad_base: number | null
+          descripcion: string
+          devolucion_id: string
+          factura_item_id: string | null
+          id: string
+          item_id: string | null
+          orden: number
+          pedido_item_id: string | null
+          precio_correcto: number | null
+          unidad: string | null
+        }
+        Insert: {
+          cantidad: number
+          cantidad_base?: number | null
+          descripcion: string
+          devolucion_id: string
+          factura_item_id?: string | null
+          id?: string
+          item_id?: string | null
+          orden?: number
+          pedido_item_id?: string | null
+          precio_correcto?: number | null
+          unidad?: string | null
+        }
+        Update: {
+          cantidad?: number
+          cantidad_base?: number | null
+          descripcion?: string
+          devolucion_id?: string
+          factura_item_id?: string | null
+          id?: string
+          item_id?: string | null
+          orden?: number
+          pedido_item_id?: string | null
+          precio_correcto?: number | null
+          unidad?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_devolucion_items_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "compras_devoluciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devolucion_items_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_devoluciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devolucion_items_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["devolucion_id"]
+          },
+          {
+            foreignKeyName: "compras_devolucion_items_factura_item_id_fkey"
+            columns: ["factura_item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_factura_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devolucion_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devolucion_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_insumos_resumen"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "compras_devolucion_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devolucion_items_pedido_item_id_fkey"
+            columns: ["pedido_item_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedido_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devolucion_items_pedido_item_id_fkey"
+            columns: ["pedido_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_pedido_pendiente"
+            referencedColumns: ["pedido_item_id"]
+          },
+        ]
+      }
+      compras_devolucion_motivos: {
+        Row: {
+          activo: boolean
+          corrige_precio: boolean
+          created_at: string
+          devuelve_mercaderia: boolean
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          activo?: boolean
+          corrige_precio?: boolean
+          created_at?: string
+          devuelve_mercaderia?: boolean
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          activo?: boolean
+          corrige_precio?: boolean
+          created_at?: string
+          devuelve_mercaderia?: boolean
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
+      }
+      compras_devoluciones: {
+        Row: {
+          anulada_en: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          corrige_precio: boolean
+          creado_por: string | null
+          created_at: string
+          devuelve_mercaderia: boolean
+          estado: string
+          factura_id: string | null
+          id: string
+          motivo_id: string
+          motivo_nombre: string
+          nota: string | null
+          nota_credito_id: string | null
+          pedido_id: string
+          repone: boolean
+          secuencia: number
+        }
+        Insert: {
+          anulada_en?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          corrige_precio: boolean
+          creado_por?: string | null
+          created_at?: string
+          devuelve_mercaderia: boolean
+          estado?: string
+          factura_id?: string | null
+          id?: string
+          motivo_id: string
+          motivo_nombre: string
+          nota?: string | null
+          nota_credito_id?: string | null
+          pedido_id: string
+          repone: boolean
+          secuencia: number
+        }
+        Update: {
+          anulada_en?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          corrige_precio?: boolean
+          creado_por?: string | null
+          created_at?: string
+          devuelve_mercaderia?: boolean
+          estado?: string
+          factura_id?: string | null
+          id?: string
+          motivo_id?: string
+          motivo_nombre?: string
+          nota?: string | null
+          nota_credito_id?: string | null
+          pedido_id?: string
+          repone?: boolean
+          secuencia?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_devoluciones_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_motivo_id_fkey"
+            columns: ["motivo_id"]
+            isOneToOne: false
+            referencedRelation: "compras_devolucion_motivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_nota_credito_id_fkey"
+            columns: ["nota_credito_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_nota_credito_id_fkey"
+            columns: ["nota_credito_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_nota_credito_id_fkey"
+            columns: ["nota_credito_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compras_factura_discrepancias: {
         Row: {
           cantidad_facturada: number
@@ -81,6 +348,7 @@ export type Database = {
           clave: string
           created_at: string
           descripcion: string
+          devolucion_id: string | null
           diferencia: number | null
           factura_id: string
           id: string
@@ -100,6 +368,7 @@ export type Database = {
           clave: string
           created_at?: string
           descripcion: string
+          devolucion_id?: string | null
           diferencia?: number | null
           factura_id: string
           id?: string
@@ -119,6 +388,7 @@ export type Database = {
           clave?: string
           created_at?: string
           descripcion?: string
+          devolucion_id?: string | null
           diferencia?: number | null
           factura_id?: string
           id?: string
@@ -133,6 +403,27 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "compras_factura_discrepancias_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "compras_devoluciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_devoluciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["devolucion_id"]
+          },
           {
             foreignKeyName: "compras_factura_discrepancias_factura_id_fkey"
             columns: ["factura_id"]
@@ -333,11 +624,14 @@ export type Database = {
           factura_origen_id: string | null
           fecha: string
           fecha_vencimiento: string | null
+          gasto_descontado: number | null
+          gasto_forma_pago_anterior: string | null
           gasto_generado: boolean
           gasto_id: string | null
           id: string
           iva: number
           mercaderia_llego: boolean | null
+          nc_gasto: string | null
           numero: string
           numero_normalizado: string | null
           observaciones: string | null
@@ -360,11 +654,14 @@ export type Database = {
           factura_origen_id?: string | null
           fecha: string
           fecha_vencimiento?: string | null
+          gasto_descontado?: number | null
+          gasto_forma_pago_anterior?: string | null
           gasto_generado?: boolean
           gasto_id?: string | null
           id?: string
           iva?: number
           mercaderia_llego?: boolean | null
+          nc_gasto?: string | null
           numero: string
           numero_normalizado?: string | null
           observaciones?: string | null
@@ -387,11 +684,14 @@ export type Database = {
           factura_origen_id?: string | null
           fecha?: string
           fecha_vencimiento?: string | null
+          gasto_descontado?: number | null
+          gasto_forma_pago_anterior?: string | null
           gasto_generado?: boolean
           gasto_id?: string | null
           id?: string
           iva?: number
           mercaderia_llego?: boolean | null
+          nc_gasto?: string | null
           numero?: string
           numero_normalizado?: string | null
           observaciones?: string | null
@@ -814,6 +1114,7 @@ export type Database = {
           reabierto_en: string | null
           reabierto_por: string | null
           solicitud_id: string | null
+          ultima_secuencia_devolucion: number
           ultima_secuencia_remito: number
         }
         Insert: {
@@ -838,6 +1139,7 @@ export type Database = {
           reabierto_en?: string | null
           reabierto_por?: string | null
           solicitud_id?: string | null
+          ultima_secuencia_devolucion?: number
           ultima_secuencia_remito?: number
         }
         Update: {
@@ -862,6 +1164,7 @@ export type Database = {
           reabierto_en?: string | null
           reabierto_por?: string | null
           solicitud_id?: string | null
+          ultima_secuencia_devolucion?: number
           ultima_secuencia_remito?: number
         }
         Relationships: [
@@ -1438,6 +1741,7 @@ export type Database = {
           creado_por: string | null
           created_at: string
           delta: number
+          devolucion_id: string | null
           discrepancia_id: string | null
           factura_id: string | null
           id: string
@@ -1454,6 +1758,7 @@ export type Database = {
           creado_por?: string | null
           created_at?: string
           delta: number
+          devolucion_id?: string | null
           discrepancia_id?: string | null
           factura_id?: string | null
           id?: string
@@ -1470,6 +1775,7 @@ export type Database = {
           creado_por?: string | null
           created_at?: string
           delta?: number
+          devolucion_id?: string | null
           discrepancia_id?: string | null
           factura_id?: string | null
           id?: string
@@ -1520,6 +1826,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "compras_devoluciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_devoluciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_stock_movimientos_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["devolucion_id"]
           },
           {
             foreignKeyName: "compras_stock_movimientos_discrepancia_id_fkey"
@@ -4003,13 +4330,116 @@ export type Database = {
         }
         Relationships: []
       }
+      v_compras_devoluciones: {
+        Row: {
+          anulada_en: string | null
+          anulada_motivo: string | null
+          anulada_por_nombre: string | null
+          codigo: string | null
+          corrige_precio: boolean | null
+          creado_por_nombre: string | null
+          created_at: string | null
+          devuelve_mercaderia: boolean | null
+          espera_nota_credito: boolean | null
+          estado: string | null
+          factura_id: string | null
+          factura_numero: string | null
+          id: string | null
+          lineas: Json | null
+          motivo_id: string | null
+          motivo_nombre: string | null
+          nc_estado: string | null
+          nc_fecha: string | null
+          nc_gasto: string | null
+          nc_gasto_descontado: number | null
+          nc_numero: string | null
+          nc_total: number | null
+          nota: string | null
+          nota_credito_id: string | null
+          pedido_id: string | null
+          pedido_numero: number | null
+          proveedor_id: string | null
+          proveedor_nombre: string | null
+          repone: boolean | null
+          secuencia: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_devoluciones_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_motivo_id_fkey"
+            columns: ["motivo_id"]
+            isOneToOne: false
+            referencedRelation: "compras_devolucion_motivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_nota_credito_id_fkey"
+            columns: ["nota_credito_id"]
+            isOneToOne: false
+            referencedRelation: "compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_nota_credito_id_fkey"
+            columns: ["nota_credito_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_nota_credito_id_fkey"
+            columns: ["nota_credito_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["factura_id"]
+          },
+          {
+            foreignKeyName: "compras_devoluciones_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "compras_pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_pedidos_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_compras_factura_diferencias: {
         Row: {
+          acreditada: number | null
           cantidad_facturada: number | null
           cantidad_recibida: number | null
           clave: string | null
           contenido: number | null
           descripcion: string | null
+          devolucion_codigo: string | null
+          devolucion_id: string | null
+          devuelta: number | null
           diferencia: number | null
           factura_id: string | null
           facturada_base: number | null
@@ -4029,6 +4459,27 @@ export type Database = {
           unidad_base: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "compras_factura_discrepancias_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "compras_devoluciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_devoluciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_factura_discrepancias_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["devolucion_id"]
+          },
           {
             foreignKeyName: "compras_factura_discrepancias_factura_id_fkey"
             columns: ["factura_id"]
@@ -4117,17 +4568,25 @@ export type Database = {
           confirmada_por_nombre: string | null
           creado_por_nombre: string | null
           created_at: string | null
+          devolucion_codigo: string | null
+          devolucion_id: string | null
           diferencias_pendientes: number | null
           estado: string | null
+          factura_origen_id: string | null
+          factura_origen_numero: string | null
           fecha: string | null
           fecha_vencimiento: string | null
+          gasto_descontado: number | null
           gasto_estado: string | null
           gasto_generado: boolean | null
           gasto_id: string | null
           gasto_local: string | null
+          gasto_monto: number | null
           id: string | null
           iva: number | null
           mercaderia_llego: boolean | null
+          nc_gasto: string | null
+          notas_credito_total: number | null
           numero: string | null
           numero_normalizado: string | null
           observaciones: string | null
@@ -4143,18 +4602,25 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "compras_facturas_gasto_id_fkey"
-            columns: ["gasto_id"]
+            foreignKeyName: "compras_facturas_factura_origen_id_fkey"
+            columns: ["factura_origen_id"]
             isOneToOne: false
-            referencedRelation: "gastos"
+            referencedRelation: "compras_facturas"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "compras_facturas_gasto_id_fkey"
-            columns: ["gasto_id"]
+            foreignKeyName: "compras_facturas_factura_origen_id_fkey"
+            columns: ["factura_origen_id"]
+            isOneToOne: false
+            referencedRelation: "v_compras_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_facturas_factura_origen_id_fkey"
+            columns: ["factura_origen_id"]
             isOneToOne: false
             referencedRelation: "v_gastos"
-            referencedColumns: ["id"]
+            referencedColumns: ["factura_id"]
           },
           {
             foreignKeyName: "compras_facturas_pedido_id_fkey"
@@ -4280,6 +4746,9 @@ export type Database = {
           cobra_por: string | null
           contenido: number | null
           descripcion: string | null
+          devuelto: number | null
+          devuelto_base: number | null
+          devuelto_sin_repone: number | null
           excedente: number | null
           item_id: string | null
           orden: number | null
@@ -4696,12 +5165,85 @@ export type Database = {
       }
     }
     Functions: {
+      _compras_anular_nc_de_devolucion: {
+        Args: {
+          p_dev: Database["public"]["Tables"]["compras_devoluciones"]["Row"]
+          p_motivo: string
+        }
+        Returns: Json
+      }
+      _compras_cant_txt: { Args: { p: number }; Returns: string }
       _compras_cobra_por: {
         Args: { p_item: string; p_prov: string }
         Returns: string
       }
+      _compras_codigo_devolucion: {
+        Args: { p_numero: number; p_secuencia: number }
+        Returns: string
+      }
+      _compras_crear_nota_credito: {
+        Args: {
+          p_devolucion: Database["public"]["Tables"]["compras_devoluciones"]["Row"]
+          p_factura: Database["public"]["Tables"]["compras_facturas"]["Row"]
+          p_fecha: string
+          p_lineas: Json
+          p_numero: string
+          p_total_papel: number
+        }
+        Returns: {
+          anulada_en: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          confirmada_en: string | null
+          confirmada_por: string | null
+          creado_por: string | null
+          created_at: string
+          estado: string
+          factura_origen_id: string | null
+          fecha: string
+          fecha_vencimiento: string | null
+          gasto_descontado: number | null
+          gasto_forma_pago_anterior: string | null
+          gasto_generado: boolean
+          gasto_id: string | null
+          id: string
+          iva: number
+          mercaderia_llego: boolean | null
+          nc_gasto: string | null
+          numero: string
+          numero_normalizado: string | null
+          observaciones: string | null
+          pedido_id: string
+          proveedor_id: string
+          subtotal: number
+          tipo_comprobante: string
+          total: number
+          total_papel: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "compras_facturas"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _compras_devuelto: {
+        Args: { p_pedido_id: string }
+        Returns: {
+          devuelto: number
+          devuelto_base: number
+          devuelto_base_real: boolean
+          devuelto_sin_repone: number
+          item_id: string
+          pedido_item_id: string
+        }[]
+      }
       _compras_exigir_proveedor_activo: {
         Args: { p_para: string; p_proveedor_id: string }
+        Returns: undefined
+      }
+      _compras_exigir_sin_ajuste_factura: {
+        Args: { p_accion: string; p_item_ids: string[]; p_pedido_id: string }
         Returns: undefined
       }
       _compras_item_hist: {
@@ -4715,6 +5257,12 @@ export type Database = {
         }
         Returns: undefined
       }
+      _compras_marcar_esperando_nc: {
+        Args: { p_devolucion_id: string }
+        Returns: undefined
+      }
+      _compras_nc_aplicar_gasto: { Args: { p_nc_id: string }; Returns: Json }
+      _compras_nc_revertir_gasto: { Args: { p_nc_id: string }; Returns: Json }
       _compras_num_txt: { Args: { p: number }; Returns: string }
       _compras_par_tiene_historia: {
         Args: { p_item: string; p_prov: string }
@@ -4727,6 +5275,7 @@ export type Database = {
           numero: number
         }[]
       }
+      _compras_pesos_txt: { Args: { p: number }; Returns: string }
       _proveedores_referencias: {
         Args: { p_proveedor_id: string }
         Returns: Json
@@ -4744,8 +5293,16 @@ export type Database = {
         }
         Returns: Json
       }
+      compras_anular_devolucion: {
+        Args: { p_devolucion_id?: string; p_motivo?: string }
+        Returns: Json
+      }
       compras_anular_factura: {
         Args: { p_factura_id?: string; p_motivo?: string }
+        Returns: Json
+      }
+      compras_anular_nota_credito: {
+        Args: { p_devolucion_id?: string; p_motivo?: string }
         Returns: Json
       }
       compras_archivar_insumo: {
@@ -4763,6 +5320,16 @@ export type Database = {
           monto: number
           observaciones: string
         }[]
+      }
+      compras_cargar_nota_credito: {
+        Args: {
+          p_devolucion_id?: string
+          p_fecha?: string
+          p_lineas?: Json
+          p_numero?: string
+          p_total_papel?: number
+        }
+        Returns: Json
       }
       compras_cerrar_pedido_manual: {
         Args: { p_motivo: string; p_pedido_id: string }
@@ -4785,9 +5352,11 @@ export type Database = {
       compras_diferencias_calculadas: {
         Args: { p_factura_id: string }
         Returns: {
+          acreditada: number
           clave: string
           contenido: number
           descripcion: string
+          devuelta: number
           facturada: number
           facturada_base: number
           facturada_base_real: boolean
@@ -4859,6 +5428,10 @@ export type Database = {
         }
         Returns: Json
       }
+      compras_lineas_devolucion_snapshot: {
+        Args: { p_devolucion_id: string }
+        Returns: Json
+      }
       compras_lineas_pedido_snapshot: {
         Args: { p_pedido_id: string }
         Returns: Json
@@ -4880,6 +5453,7 @@ export type Database = {
           p_anula_movimiento_id?: string
           p_conteo_id?: string
           p_delta: number
+          p_devolucion_id?: string
           p_discrepancia_id?: string
           p_factura_id?: string
           p_item_id: string
@@ -4900,6 +5474,18 @@ export type Database = {
       compras_recalcular_estado_pedido: {
         Args: { p_pedido_id: string }
         Returns: undefined
+      }
+      compras_registrar_devolucion: {
+        Args: {
+          p_diferencia_id?: string
+          p_items?: Json
+          p_motivo_id?: string
+          p_nota?: string
+          p_nota_credito?: Json
+          p_pedido_id?: string
+          p_repone?: boolean
+        }
+        Returns: Json
       }
       compras_registrar_evento_pedido: {
         Args: { p_detalle?: Json; p_pedido_id: string; p_tipo: string }

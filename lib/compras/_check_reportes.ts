@@ -113,9 +113,56 @@ const otras = [factura({ proveedor_id: 'B', proveedor_nombre: 'Prov B', total: 7
 const gasto = calcularGastoPorProveedor([...facturas, ...otras])
 for (const g of gasto) {
   const propio = resumirPagos([...facturas, ...otras].filter(f => f.proveedor_id === g.proveedorId))
-  caso(`gasto ${g.proveedorNombre} = cuenta`, `${g.total}|${g.pagado}|${g.pendiente}|${g.parcial}|${g.sinGasto}`,
-    `${propio.facturado}|${propio.pagado}|${propio.pendiente}|${propio.parcial}|${propio.sinGasto}`)
+  caso(`gasto ${g.proveedorNombre} = cuenta`, `${g.total}|${g.pagado}|${g.pendiente}|${g.parcial}|${g.sinGasto}|${g.aFavor}`,
+    `${propio.facturado}|${propio.pagado}|${propio.pendiente}|${propio.parcial}|${propio.sinGasto}|${propio.aFavor}`)
 }
+
+// 8. B4 (E10/E11): la NC hereda el gasto de su factura origen; "a favor" si llegó con el gasto pagado.
+const nc = (p: Partial<FacturaReporte>) => factura({ tipo_comprobante: 'nota_credito', proveedor_id: 'C', ...p })
+caso('B4 pago: NC a favor', estadoPago({ gasto_id: 'g', gasto_estado: 'Pagado', tipo_comprobante: 'nota_credito', nc_gasto: 'a_favor' }), 'a_favor')
+caso('B4 pago: NC descontada de un pendiente', estadoPago({ gasto_id: 'g', gasto_estado: 'Pendiente de pago', tipo_comprobante: 'nota_credito', nc_gasto: 'descontado' }), 'pendiente')
+caso('B4 pago: NC que canceló el gasto', estadoPago({ gasto_id: 'g', gasto_estado: 'Pagado', tipo_comprobante: 'nota_credito', nc_gasto: 'cancelo_gasto' }), 'pagado')
+caso('B4 pago: NC de factura sin gasto', estadoPago({ gasto_id: null, gasto_estado: null, tipo_comprobante: 'nota_credito', nc_gasto: 'sin_gasto' }), 'sin_gasto')
+caso('B4 pago: a_favor solo aplica a NC', estadoPago({ gasto_id: 'g', gasto_estado: 'Pagado', tipo_comprobante: 'factura', nc_gasto: 'a_favor' }), 'pagado')
+// Factura 100 pendiente + NC 20 descontada → Pendiente 80 (= el monto del gasto).
+const pendNc = resumirPagos([
+  factura({ proveedor_id: 'C', total: 100, gasto_id: 'gC', gasto_estado: 'Pendiente de pago' }),
+  nc({ total: 20, gasto_id: 'gC', gasto_estado: 'Pendiente de pago', nc_gasto: 'descontado' }),
+])
+caso('B4 resumen: pendiente con NC descontada = 80', pendNc.pendiente, 80)
+// … y después se paga: Pagado 80.
+const pagadaNc = resumirPagos([
+  factura({ proveedor_id: 'C', total: 100, gasto_id: 'gC', gasto_estado: 'Pagado' }),
+  nc({ total: 20, gasto_id: 'gC', gasto_estado: 'Pagado', nc_gasto: 'descontado' }),
+])
+caso('B4 resumen: se paga después → pagado 80', `${pagadaNc.pagado}|${pagadaNc.pendiente}|${pagadaNc.aFavor}`, '80|0|0')
+// Se pagó antes (D5): Pagado 100 y A favor −20.
+const aFavor = resumirPagos([
+  factura({ proveedor_id: 'C', total: 100, gasto_id: 'gC', gasto_estado: 'Pagado' }),
+  nc({ total: 20, gasto_id: 'gC', gasto_estado: 'Pagado', nc_gasto: 'a_favor' }),
+])
+caso('B4 resumen: a favor', `${aFavor.pagado}|${aFavor.aFavor}|${aFavor.facturado}`, '100|-20|80')
+caso('B4 resumen: invariante con a favor', aFavor.facturado === aFavor.pagado + aFavor.pendiente + aFavor.sinGasto + aFavor.aFavor, true)
+// D4: la NC canceló el gasto (queda Pagado en $ 0): factura 100 pagada − NC 100 = 0.
+const cancelo = resumirPagos([
+  factura({ proveedor_id: 'C', total: 100, gasto_id: 'gC', gasto_estado: 'Pagado' }),
+  nc({ total: 100, gasto_id: 'gC', gasto_estado: 'Pagado', nc_gasto: 'cancelo_gasto' }),
+])
+caso('B4 resumen: NC canceló el gasto', `${cancelo.pagado}|${cancelo.facturado}`, '0|0')
+// Revisión B4: factura 1000 con NC 200 sin gasto; después se vincula un gasto de 1000 a la factura.
+// La NC hereda ese gasto en la vista, pero no lo descontó: queda "sin gasto" y el pendiente es 1000, como en Gastos.
+caso('B4 pago: NC sin gasto con gasto heredado', estadoPago({ gasto_id: 'gD', gasto_estado: 'Pendiente de pago', tipo_comprobante: 'nota_credito', nc_gasto: 'sin_gasto' }), 'sin_gasto')
+const sinGastoNc = resumirPagos([
+  factura({ proveedor_id: 'D', total: 1000, gasto_id: 'gD', gasto_estado: 'Pendiente de pago' }),
+  nc({ proveedor_id: 'D', total: 200, gasto_id: 'gD', gasto_estado: 'Pendiente de pago', nc_gasto: 'sin_gasto' }),
+])
+caso('B4 resumen: NC sin gasto no baja el pendiente del gasto', `${sinGastoNc.pendiente}|${sinGastoNc.sinGasto}|${sinGastoNc.facturado}`, '1000|-200|800')
+const gastoC = calcularGastoPorProveedor([
+  factura({ proveedor_id: 'C', proveedor_nombre: 'Prov C', total: 100, gasto_id: 'gC', gasto_estado: 'Pagado' }),
+  nc({ proveedor_nombre: 'Prov C', total: 20, gasto_id: 'gC', gasto_estado: 'Pagado', nc_gasto: 'a_favor' }),
+])[0]
+caso('B4 gasto por proveedor: a favor', `${gastoC.total}|${gastoC.pagado}|${gastoC.aFavor}`, '80|100|-20')
+caso('B4 gasto por proveedor: detalle de la NC a favor', gastoC.detalle.find(d => d.esNotaCredito)?.pago, 'a_favor')
 
 let fallas = 0
 for (const c of casos) {

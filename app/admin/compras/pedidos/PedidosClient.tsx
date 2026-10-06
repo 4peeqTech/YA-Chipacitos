@@ -26,6 +26,7 @@ import CerrarPedidoModal from './CerrarPedidoModal'
 import PedidosEliminados from './PedidosEliminados'
 import { reabrirPedido } from './acciones'
 import type { DiferenciaFila } from '@/lib/compras/diferencias'
+import { armarDevoluciones, type DevolucionFila } from './devoluciones/datos'
 import type { FacturaDePedido, ItemCatalogo, LineaPendiente, LocalFacturacion, PedidoEliminado, PedidoFila, Plantilla, ProveedorPedido } from './datos'
 
 type Vista = 'detalle' | 'editar' | 'enviar' | 'cerrar' | 'eliminar'
@@ -65,8 +66,10 @@ export default function PedidosClient({
   eliminados,
   facturas,
   diferencias,
+  devoluciones,
   esAdmin,
   pedidoInicial,
+  devolucionInicial,
 }: {
   pedidos: PedidoFila[]
   lineas: LineaPendiente[]
@@ -78,9 +81,12 @@ export default function PedidosClient({
   eliminados: PedidoEliminado[]
   facturas: FacturaDePedido[]
   diferencias: DiferenciaFila[]
+  devoluciones: DevolucionFila[]
   /** Solo admin ve la factura del pedido y puede cargarla (P1). */
   esAdmin: boolean
   pedidoInicial?: string
+  /** B4: ?devolucion= (con ?pedido=) abre el pedido y resalta esa devolución. */
+  devolucionInicial?: string
 }) {
   const confirmar = useConfirmar()
   const toast = useToast()
@@ -100,14 +106,17 @@ export default function PedidosClient({
   const [vista, setVista] = useState<Vista>('detalle')
   const [avisoReenvio, setAvisoReenvio] = useState(false)
   const [editorConCambios, setEditorConCambios] = useState(false)
-  const quitarParam = useQuitarParams('pedido')
+  const quitarParam = useQuitarParams('pedido', 'devolucion')
+  const [devolucionResaltada, setDevolucionResaltada] = useState<string | null>(devolucionInicial ?? null)
   useAlCambiarParam(pedidoInicial, id => abrir(id))
+  useAlCambiarParam(devolucionInicial, id => setDevolucionResaltada(id))
 
   // Los datos vienen siempre del servidor: las acciones llaman a refresh() y
   // la pantalla se vuelve a armar con lo que quedó en la base.
+  const devolucionesVista = useMemo(() => armarDevoluciones(devoluciones), [devoluciones])
   const vistas = useMemo(
-    () => armarVistas(pedidos, lineas, facturas, esAdmin, undefined, diferencias),
-    [pedidos, lineas, facturas, esAdmin, diferencias],
+    () => armarVistas(pedidos, lineas, facturas, esAdmin, undefined, diferencias, devolucionesVista),
+    [pedidos, lineas, facturas, esAdmin, diferencias, devolucionesVista],
   )
   const stockPorItem = useMemo(() => Object.fromEntries(stock.map(s => [s.item_id, s.cantidad])), [stock])
   const abierto = abiertoId ? vistas.find(v => v.fila.id === abiertoId) ?? null : null
@@ -146,6 +155,7 @@ export default function PedidosClient({
 
   function cerrarModalYa() {
     quitarParam()
+    setDevolucionResaltada(null)
     setCreando(false)
     setAbiertoId(null)
     setVista('detalle')
@@ -453,6 +463,7 @@ export default function PedidosClient({
             pendiente={isPending}
             esAdmin={esAdmin}
             stockPorItem={stockPorItem}
+            devolucionResaltada={devolucionResaltada}
             acciones={{
               onEnviar: () => { setAvisoReenvio(false); setVista('enviar') },
               onEditar: () => setVista('editar'),

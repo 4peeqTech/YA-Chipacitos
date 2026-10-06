@@ -1,7 +1,7 @@
 // Chequeo de las funciones puras del historial del pedido (B1).
 // Correr con: npx tsx lib/compras/_check_historial.ts
 import {
-  agruparEventos, combinarDiffs, etiquetaEvento, leerEvento, partesDiff, partesLineas, textoDiff, textosCabeceraRemito,
+  agruparEventos, combinarDiffs, etiquetaEvento, leerEvento, partesDiff, partesLineas, textoDiff, textosCabeceraRemito, textosDevolucion,
   type DiffLineas, type EventoCrudo,
 } from './historialPedido'
 
@@ -36,6 +36,22 @@ const ev = (tipo: string, minuto: number, detalle: unknown, persona = 'ana'): Ev
   fecha: new Date(Date.UTC(2026, 9, 5, 17, 0) + minuto * 60_000).toISOString(),
   persona_id: persona, persona: persona === 'ana' ? 'Ana' : 'Beto',
 })
+// B4
+const textosB4 = (e: ReturnType<typeof leerEvento>) => {
+  const t = textosDevolucion(e, 37)
+  return [t.codigo, ...t.partes].filter(Boolean).join(' · ')
+}
+const devMerc = leerEvento(ev0('devolucion_registrada', {
+  devolucion_id: 'd1', secuencia: 1, motivo: 'Mercadería en mal estado', devuelve_mercaderia: true, corrige_precio: false, repone: true,
+  lineas: [{ ...linea('x1', 'Queso Barra', 1, 'Caja', 'QB'), cantidad_base: 16.4, unidad_base: 'kg', pedido_item_id: 'pi' }],
+}))
+const devReclamo = leerEvento(ev0('devolucion_registrada', { devolucion_id: 'd2', secuencia: 2, motivo: 'Facturado y no entregado', devuelve_mercaderia: false, corrige_precio: false, repone: false }))
+const nc = leerEvento(ev0('nota_credito', { factura_id: 'nc1', numero: '0001-00000123', total: 50517.5, devolucion_id: 'd1', secuencia: 1, gasto: 'descontado' }))
+const ordenB4 = agruparEventos([
+  { id: 'nc1', pedido_id: 'p1', tipo: 'nota_credito', detalle: { factura_id: 'nc1', numero: '1', devolucion_id: 'd1', secuencia: 1 }, fecha: '2026-10-05T17:00:00.100Z', persona_id: 'ana', persona: 'Ana' },
+  { id: 'e-d1', pedido_id: 'p1', tipo: 'devolucion_registrada', detalle: { devolucion_id: 'd1', secuencia: 1, devuelve_mercaderia: true, repone: false }, fecha: '2026-10-05T17:00:00.400Z', persona_id: 'ana', persona: 'Ana' },
+]).flatMap(en => en.eventos)
+
 const textoEntrada = (d: unknown) => {
   const diff = d as DiffLineas
   return textoDiff(diff)
@@ -121,6 +137,16 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'A2b remito_creado de backfill parsea', real: remitoBackfill.d != null, esperado: true },
   { nombre: 'A2b cabecera del remito', real: textosCabeceraRemito({ fecha: { de: '2026-10-03', a: '2026-10-04' }, numero: { de: null, a: '0001-123' } }).join(' | '), esperado: 'Fecha: 03/10 → 04/10 | N° del proveedor: — → 0001-123' },
   { nombre: 'creado desde solicitud', real: etiquetaEvento(leerEvento(ev('creado', 0, { origen: 'solicitud', solicitud_id: 's1' }))), esperado: 'Creado desde una solicitud' },
+  // B4: devoluciones y notas de crédito
+  { nombre: 'B4 devolución con mercadería', real: `${etiquetaEvento(devMerc)} · ${textosB4(devMerc)}`, esperado: 'Devolvió mercadería al proveedor · D-0037-01 · Mercadería en mal estado · El proveedor repone' },
+  { nombre: 'B4 reclamo a la factura', real: `${etiquetaEvento(devReclamo)} · ${textosB4(devReclamo)}`, esperado: 'Registró un reclamo a la factura · D-0037-02 · Facturado y no entregado' },
+  { nombre: 'B4 corrección de precio', real: etiquetaEvento(leerEvento(ev0('devolucion_registrada', { devolucion_id: 'd3', secuencia: 3, motivo: 'Precio mal facturado', devuelve_mercaderia: false, corrige_precio: true, repone: false }))), esperado: 'Registró una corrección de precio' },
+  { nombre: 'B4 devolución anulada', real: textosB4(leerEvento(ev0('devolucion_anulada', { devolucion_id: 'd1', secuencia: 1, motivo_anulacion: 'se cargó por error', tenia_nota_credito: true }))), esperado: 'D-0037-01 · Motivo: se cargó por error · también se anuló su nota de crédito' },
+  { nombre: 'B4 nota de crédito', real: `${etiquetaEvento(nc)} · ${textosB4(nc)}`, esperado: 'Nota de crédito · D-0037-01 · N° 0001-00000123 · $ 50.517,50 · descontada del gasto' },
+  { nombre: 'B4 NC anulada', real: etiquetaEvento(leerEvento(ev0('nota_credito_anulada', { factura_id: 'nc1', numero: '0001-00000123', motivo: 'x' }))), esperado: 'Anuló la nota de crédito' },
+  { nombre: 'B4 la lineas de la devolución se leen', real: devMerc.tipo === 'devolucion_registrada' && devMerc.d ? partesLineas(devMerc.d.lineas ?? [])[0]?.texto : null, esperado: 'Queso Barra 1 Caja (16,4 kg)' },
+  { nombre: 'B4 la NC de la misma transacción va después de su devolución', real: ordenB4.map(e => e.tipo).join(','), esperado: 'devolucion_registrada,nota_credito' },
+  { nombre: 'B4 detalle mal formado: solo la etiqueta', real: leerEvento(ev0('devolucion_registrada', { secuencia: 1 })).d, esperado: null },
 ]
 
 let fallas = 0

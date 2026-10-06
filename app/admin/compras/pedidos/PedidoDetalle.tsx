@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
 import {
-  ArrowRight, Ban, Clock, FilePen, History, ListChecks, Loader2, Lock, MapPin, MessageCircle, MoreHorizontal,
-  PackageOpen, PencilLine, ReceiptText, Repeat, RotateCcw, Scale, Send, Store, Trash2, Truck, type LucideIcon,
+  ArrowRight, Ban, Clock, FilePen, FileX2, History, ListChecks, Loader2, Lock, MapPin, MessageCircle,
+  PackageOpen, PencilLine, ReceiptText, Repeat, RotateCcw, Scale, Send, Store, Trash2, Truck, Undo2, type LucideIcon,
 } from 'lucide-react'
 import EstadoBadge from '@/components/ui/EstadoBadge'
 import LinkEntidad from '@/components/ui/LinkEntidad'
@@ -14,11 +14,19 @@ import { proximaAccion, subtextoEstado } from '@/lib/compras/estadoPedido'
 import { codigoRemito } from '@/lib/compras/codigos'
 import { rutaCargarDePedido, rutaDe } from '@/lib/compras/rutas'
 import {
-  agruparEventos, etiquetaEvento, leerDiferencia, partesDiff, partesLineas, textoCantidadItems, textoSolicitud, textosCabeceraRemito,
+  agruparEventos, etiquetaEvento, leerDiferencia, partesDiff, partesLineas, textoCantidadItems, textoSolicitud, textosCabeceraRemito, textosDevolucion,
   type EntradaHistorial, type EventoLeido, type ParteDiff,
 } from '@/lib/compras/historialPedido'
 import { ESTADOS } from '@/lib/estados'
 import DiferenciasPanel from './facturas/DiferenciasPanel'
+import MenuSecundario, { type ItemMenu } from './MenuSecundario'
+import { useToast } from '@/components/ui/ProveedorUI'
+import DevolucionModal, { type DiferenciaOrigen } from './devoluciones/DevolucionModal'
+import NotaCreditoModal from './devoluciones/NotaCreditoModal'
+import AnularModal from './devoluciones/AnularModal'
+import DevolucionesSeccion from './devoluciones/DevolucionesSeccion'
+import type { DevolucionVista } from './devoluciones/datos'
+import { aEstadoFacturacion, aEstadoRecepcion } from '@/lib/compras/estadoPedido'
 import { mensajeError } from '@/lib/errores'
 import type { Database } from '@/lib/database.types'
 import { conUnidad, type PedidoVista } from './modelo'
@@ -87,6 +95,10 @@ const ICONO_EVENTO: Record<string, LucideIcon> = {
   factura: ReceiptText,
   factura_anulada: Ban,
   diferencia: Scale,
+  devolucion_registrada: Undo2,
+  devolucion_anulada: Ban,
+  nota_credito: ReceiptText,
+  nota_credito_anulada: FileX2,
   grupo: PencilLine,
 }
 
@@ -142,7 +154,7 @@ function VerMensaje({ mensaje }: { mensaje: string }) {
 }
 
 /** Lo que va debajo de la etiqueta de un evento. null si no hay nada que agregar. */
-function detalleEvento(e: EventoLeido, numeroPedido: number): ReactNode {
+function detalleEvento(e: EventoLeido, numeroPedido: number, pedidoId: string): ReactNode {
   switch (e.tipo) {
     case 'creado': {
       if (!e.d) return null
@@ -248,6 +260,34 @@ function detalleEvento(e: EventoLeido, numeroPedido: number): ReactNode {
         </p>
       )
     }
+    case 'devolucion_registrada':
+    case 'devolucion_anulada':
+    case 'nota_credito':
+    case 'nota_credito_anulada': {
+      if (!e.d) return null
+      const { codigo, partes } = textosDevolucion(e, numeroPedido)
+      const devolucionId = e.d.devolucion_id ?? null
+      const lineas = (e.tipo === 'devolucion_registrada' || e.tipo === 'devolucion_anulada') ? e.d.lineas ?? [] : []
+      const ncId = e.tipo === 'nota_credito' || e.tipo === 'nota_credito_anulada' ? e.d.factura_id : null
+      return (
+        <>
+          <p className="text-xs text-muted">
+            {codigo && (devolucionId
+              ? <LinkEntidad entidad={{ tipo: 'devolucion', id: devolucionId, pedidoId }}>{codigo}</LinkEntidad>
+              : <span className="font-mono tabular-nums">{codigo}</span>)}
+            {partes.map((t, i) => (
+              <span key={t}>
+                {(codigo || i > 0) && ' · '}
+                {ncId && i === 0
+                  ? <LinkEntidad entidad={{ tipo: 'factura', id: ncId }} variante="texto">{t}</LinkEntidad>
+                  : t}
+              </span>
+            ))}
+          </p>
+          {lineas.length > 0 && <PartesDiff partes={partesLineas(lineas)} />}
+        </>
+      )
+    }
     default:
       return null
   }
@@ -261,7 +301,7 @@ function rangoFecha(desde: string | null, hasta: string | null): string {
   return `${inicio}–${new Date(hasta).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
 }
 
-function EntradaDelHistorial({ entrada, numeroPedido }: { entrada: EntradaHistorial; numeroPedido: number }) {
+function EntradaDelHistorial({ entrada, numeroPedido, pedidoId }: { entrada: EntradaHistorial; numeroPedido: number; pedidoId: string }) {
   const Icono = ICONO_EVENTO[entrada.tipo] ?? History
   const mixto = entrada.tipo === 'grupo'
   return (
@@ -275,7 +315,7 @@ function EntradaDelHistorial({ entrada, numeroPedido }: { entrada: EntradaHistor
         {entrada.persona && <> · {entrada.persona}</>}
       </p>
       {entrada.eventos.map(e => {
-        const detalle = detalleEvento(e, numeroPedido)
+        const detalle = detalleEvento(e, numeroPedido, pedidoId)
         if (!mixto) return detalle ? <div key={`${e.tipo}-${e.id}`} className="mt-0.5">{detalle}</div> : null
         // En un grupo con varios tipos, cada sub-evento va con su propia etiqueta.
         return (
@@ -289,64 +329,13 @@ function EntradaDelHistorial({ entrada, numeroPedido }: { entrada: EntradaHistor
   )
 }
 
-function MenuSecundario({ items }: { items: { label: string; icono: LucideIcon; onClick: () => void; peligro?: boolean }[] }) {
-  const [abierto, setAbierto] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!abierto) return
-    function fuera(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setAbierto(false)
-    }
-    function escape(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.stopPropagation(); setAbierto(false) }
-    }
-    document.addEventListener('mousedown', fuera)
-    document.addEventListener('keydown', escape, true)
-    return () => {
-      document.removeEventListener('mousedown', fuera)
-      document.removeEventListener('keydown', escape, true)
-    }
-  }, [abierto])
-
-  if (items.length === 0) return null
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setAbierto(a => !a)}
-        aria-haspopup="menu"
-        aria-expanded={abierto}
-        className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium text-muted hover:text-text hover:bg-surface2"
-      >
-        <MoreHorizontal size={16} /> Más acciones
-      </button>
-      {abierto && (
-        <div role="menu" className="popover-entrada absolute left-0 z-10 mt-1 w-56 overflow-hidden rounded-xl border border-border bg-surface shadow-modal">
-          {items.map(it => (
-            <button
-              key={it.label}
-              type="button"
-              role="menuitem"
-              onClick={() => { setAbierto(false); it.onClick() }}
-              className={`flex w-full min-h-11 items-center gap-2.5 px-3.5 text-left text-sm transition-colors hover:bg-surface2 ${it.peligro ? 'text-brand-red' : 'text-text'}`}
-            >
-              <it.icono size={15} className={it.peligro ? '' : 'text-muted'} /> {it.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function PedidoDetalle({
   pedido,
   acciones,
   pendiente,
   esAdmin,
   stockPorItem,
+  devolucionResaltada = null,
 }: {
   pedido: PedidoVista
   acciones: AccionesDetalle
@@ -355,7 +344,21 @@ export default function PedidoDetalle({
   esAdmin: boolean
   /** Para mostrar cómo queda el stock al resolver una diferencia. */
   stockPorItem: Record<string, number>
+  /** B4: la devolución a la que llevó un deep link (?devolucion=). */
+  devolucionResaltada?: string | null
 }) {
+  const toast = useToast()
+  // B4: modales de devolución. El de registrar se abre desde "Más acciones", la
+  // sección y una diferencia; el de la NC, desde "Qué sigue" y la tarjeta.
+  const [registrando, setRegistrando] = useState<{ diferencia: DiferenciaOrigen | null } | null>(null)
+  const [cargandoNc, setCargandoNc] = useState<string | null>(null)
+  const [anulando, setAnulando] = useState<{ modo: 'devolucion' | 'nota_credito'; dev: DevolucionVista } | null>(null)
+  const avisado = useRef<string | null>(null)
+  useEffect(() => {
+    if (!devolucionResaltada || avisado.current === devolucionResaltada) return
+    avisado.current = devolucionResaltada
+    if (!pedido.devoluciones.some(d => d.id === devolucionResaltada)) toast.error(`No encontramos esa devolución en ${pedido.codigo}.`)
+  }, [devolucionResaltada, pedido.devoluciones, pedido.codigo, toast])
   const { fila, entrada, visible } = pedido
   const accion = proximaAccion(entrada)
   const subtexto = subtextoEstado(entrada)
@@ -370,7 +373,14 @@ export default function PedidoDetalle({
   // de enviar el pedido, la factura todavía no existe como paso.
   const mostrarFactura = esAdmin && (pedido.factura != null || entrada.estado_recepcion !== 'sin_enviar')
 
-  const secundarias: { label: string; icono: LucideIcon; onClick: () => void; peligro?: boolean }[] = []
+  const facturaConfirmada = pedido.factura?.estado === 'confirmada'
+  // Llegó algo, o (admin) hay factura confirmada para corregir.
+  const puedeDevolver = entrada.estado_recepcion !== 'sin_enviar' && (pedido.recibioAlgo || (esAdmin && facturaConfirmada))
+  const devolucionesPorLinea = new Map<string, number>()
+  for (const l of pedido.lineas) if (l.pedido_item_id && (l.devuelto ?? 0) > 0) devolucionesPorLinea.set(l.pedido_item_id, l.devuelto ?? 0)
+
+  const secundarias: ItemMenu[] = []
+  if (puedeDevolver) secundarias.push({ label: 'Registrar devolución', icono: Undo2, onClick: () => setRegistrando({ diferencia: null }) })
   if (pedido.editable) secundarias.push({ label: 'Editar ítems', icono: PencilLine, onClick: acciones.onEditar })
   if (esperaMercaderia && entrada.estado_facturacion !== 'facturado') secundarias.push({ label: 'Reenviar mensaje', icono: Send, onClick: acciones.onEnviar })
   if (esperaMercaderia) secundarias.push({ label: 'Cerrar a mano', icono: Lock, onClick: acciones.onCerrar })
@@ -442,6 +452,15 @@ export default function PedidoDetalle({
               <ReceiptText size={16} /> {accion.boton}
             </Link>
           )}
+          {accion.tipo === 'cargar_nota_credito' && entrada.devolucionEsperaNc && (
+            <button
+              type="button"
+              onClick={() => setCargandoNc(entrada.devolucionEsperaNc!.id)}
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-black hover:opacity-90"
+            >
+              <ReceiptText size={16} /> {accion.boton}
+            </button>
+          )}
           {accion.tipo === 'ninguna' && pedido.lineas.length === 0 && pedido.editable && (
             <button
               type="button"
@@ -504,6 +523,9 @@ export default function PedidoDetalle({
                         <>
                           <td className="px-3 py-2.5 text-right tabular-nums text-muted whitespace-nowrap">
                             {conUnidad(l.recibido, null)}
+                            {(devolucionesPorLinea.get(l.pedido_item_id ?? '') ?? 0) > 0 && (
+                              <span className="ml-1.5 text-text">· devuelto {conUnidad(devolucionesPorLinea.get(l.pedido_item_id ?? '') ?? 0, null)}</span>
+                            )}
                             {excedente > 0 && <span className="ml-1.5 text-warning">+{conUnidad(excedente, null)} de más</span>}
                           </td>
                           <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${falta > 0 ? 'text-text font-semibold' : 'text-success'}`}>
@@ -587,6 +609,8 @@ export default function PedidoDetalle({
               diferencias={pedido.diferencias}
               estadoRecepcion={entrada.estado_recepcion}
               stockPorItem={stockPorItem}
+              onRegistrarDevolucion={d => setRegistrando({ diferencia: { id: d.id, itemId: d.itemId, descripcion: d.descripcion, diferencia: d.diferencia } })}
+              onCargarNotaCredito={id => setCargandoNc(id)}
             />
           )}
           {!pedido.factura && (
@@ -595,6 +619,51 @@ export default function PedidoDetalle({
             </Link>
           )}
         </section>
+      )}
+
+      {/* Devoluciones (B4) */}
+      {entrada.estado_recepcion !== 'sin_enviar' && (pedido.devoluciones.length > 0 || puedeDevolver) && (
+        <DevolucionesSeccion
+          devoluciones={pedido.devoluciones}
+          esAdmin={esAdmin}
+          puedeRegistrar={puedeDevolver}
+          resaltadaId={devolucionResaltada}
+          onRegistrar={() => setRegistrando({ diferencia: null })}
+          onCargarNc={d => setCargandoNc(d.id)}
+          onAnularNc={d => setAnulando({ modo: 'nota_credito', dev: d })}
+          onAnular={d => setAnulando({ modo: 'devolucion', dev: d })}
+        />
+      )}
+
+      <DevolucionModal
+        key={registrando ? `reg-${registrando.diferencia?.id ?? 'pedido'}` : 'reg-cerrado'}
+        pedidoId={fila.id}
+        esAdmin={esAdmin}
+        abierto={registrando != null}
+        diferencia={registrando?.diferencia ?? null}
+        onCerrar={() => setRegistrando(null)}
+      />
+      <NotaCreditoModal
+        key={cargandoNc ?? 'nc-cerrado'}
+        pedidoId={fila.id}
+        devolucionId={cargandoNc}
+        abierto={cargandoNc != null}
+        onCerrar={() => setCargandoNc(null)}
+      />
+      {anulando && (
+        <AnularModal
+          modo={anulando.modo}
+          devolucion={anulando.dev}
+          onCerrar={() => setAnulando(null)}
+          contexto={{
+            pedidoId: fila.id,
+            esAdmin,
+            estado: { estado_recepcion: aEstadoRecepcion(fila.estado_recepcion), estado_facturacion: aEstadoFacturacion(fila.estado_facturacion) },
+            stockPorItem,
+            gasto: pedido.factura?.gasto_id ? { id: pedido.factura.gasto_id, estado: pedido.factura.gastos?.estado ?? null, monto: pedido.factura.gastos?.monto ?? null } : null,
+            facturaNumero: pedido.factura?.numero ?? null,
+          }}
+        />
       )}
 
       {/* Historial */}
@@ -608,7 +677,7 @@ export default function PedidoDetalle({
         {historial && (
           <ol className="relative space-y-3 border-l border-border pl-5 ml-2">
             {historial.map(entrada => (
-              <EntradaDelHistorial key={entrada.key} entrada={entrada} numeroPedido={fila.numero} />
+              <EntradaDelHistorial key={entrada.key} entrada={entrada} numeroPedido={fila.numero} pedidoId={fila.id} />
             ))}
           </ol>
         )}

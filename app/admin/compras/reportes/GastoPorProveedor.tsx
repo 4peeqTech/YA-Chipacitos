@@ -68,11 +68,13 @@ export default function GastoPorProveedor({
 
   const filas = calcularGastoPorProveedor(facturas, pedidos)
   const conFacturas = filas.filter(f => f.facturasCount > 0)
-  const suma = (k: 'subtotal' | 'iva' | 'total' | 'pagado' | 'pendiente' | 'parcial' | 'sinGasto' | 'recibidosSinFacturar') =>
+  const suma = (k: 'subtotal' | 'iva' | 'total' | 'pagado' | 'pendiente' | 'parcial' | 'sinGasto' | 'aFavor' | 'recibidosSinFacturar') =>
     filas.reduce((t, f) => t + f[k], 0)
   const sinFacturar = suma('recibidosSinFacturar')
   const haySinGasto = filas.some(f => f.sinGasto !== 0)
-  const columnas = haySinGasto ? 9 : 8
+  // B4: la columna "A favor" solo aparece si algún proveedor tiene una NC a favor.
+  const hayAFavor = filas.some(f => f.aFavor !== 0)
+  const columnas = 8 + (haySinGasto ? 1 : 0) + (hayAFavor ? 1 : 0)
 
   const avisoSinFacturar = sinFacturar > 0 && (
     <Link
@@ -138,6 +140,7 @@ export default function GastoPorProveedor({
                 <th className={thNum}>Pagado</th>
                 <th className={thNum}>Pendiente</th>
                 {haySinGasto && <th className={thNum}>Sin gasto</th>}
+                {hayAFavor && <th className={thNum} title="Notas de crédito que llegaron con el gasto ya pagado">A favor</th>}
                 <th className={thNum}>Recibidos sin facturar</th>
               </tr>
             </thead>
@@ -169,6 +172,7 @@ export default function GastoPorProveedor({
                         {formatearMonedaExacta(f.pendiente)}
                       </td>
                       {haySinGasto && <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-muted">{formatearMonedaExacta(f.sinGasto)}</td>}
+                      {hayAFavor && <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-info">{formatearMonedaExacta(f.aFavor)}</td>}
                       <td className={`px-4 py-3 text-right tabular-nums ${f.recibidosSinFacturar > 0 ? 'font-semibold text-warning' : 'text-muted'}`}>{f.recibidosSinFacturar}</td>
                     </tr>
                     {abierto && (
@@ -203,7 +207,7 @@ export default function GastoPorProveedor({
                                     <td className="whitespace-nowrap py-1 pr-3 text-right tabular-nums">{formatearMonedaExacta(d.subtotal)}</td>
                                     <td className="whitespace-nowrap py-1 pr-3 text-right tabular-nums">{formatearMonedaExacta(d.iva)}</td>
                                     <td className="whitespace-nowrap py-1 pr-3 text-right tabular-nums">{formatearMonedaExacta(d.total)}</td>
-                                    <td className="py-1"><PagoFactura gastoId={d.gastoId} gastoEstado={d.gastoEstado} /></td>
+                                    <td className="py-1"><PagoFactura gastoId={d.gastoId} gastoEstado={d.gastoEstado} aFavor={d.pago === 'a_favor'} /></td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -225,6 +229,7 @@ export default function GastoPorProveedor({
                 <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatearMonedaExacta(suma('pagado'))}</td>
                 <td className={`whitespace-nowrap px-4 py-3 text-right tabular-nums ${suma('pendiente') > 0 ? 'text-warning' : ''}`}>{formatearMonedaExacta(suma('pendiente'))}</td>
                 {haySinGasto && <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatearMonedaExacta(suma('sinGasto'))}</td>}
+                {hayAFavor && <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatearMonedaExacta(suma('aFavor'))}</td>}
                 <td className="px-4 py-3 text-right tabular-nums">{sinFacturar}</td>
               </tr>
             </tfoot>

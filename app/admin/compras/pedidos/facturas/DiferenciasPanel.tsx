@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { AlertTriangle, Check, Clock, EyeOff, Loader2, MessageSquareWarning, PackagePlus, RotateCcw, Scale } from 'lucide-react'
+import { AlertTriangle, Check, Clock, EyeOff, Loader2, MessageSquareWarning, PackagePlus, ReceiptText, RotateCcw, Scale, Undo2 } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import LinkEntidad from '@/components/ui/LinkEntidad'
 import { Field, controlClass } from '@/components/ui/Field'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { formatearFechaHora } from '@/lib/formato'
 import {
-  agruparDiferencias, explicacionResolucion, muestraKg, RESOLUCION_LABEL, textoDelta, textoDiferencia, textoKg, textoResuelta,
+  accionDevolucion, agruparDiferencias, explicacionResolucion, muestraKg, RESOLUCION_LABEL, textoCantidadesConDevolucion, textoDelta,
+  textoDiferencia, textoEsperandoNc, textoKg, textoResuelta,
   type DiferenciaVista, type ResolucionElegible,
 } from '@/lib/compras/diferencias'
 import { conUnidad } from '../modelo'
@@ -24,6 +25,9 @@ const OPCIONES: { valor: ResolucionElegible; icono: typeof Scale }[] = [
 
 /** Facturado · llegó, con la unidad, en una línea chica. A2b: los kg entre paréntesis, como información. */
 function Cantidades({ d }: { d: DiferenciaVista }) {
+  // B4: con devoluciones o NC, la cuenta completa (lo que llegó, lo devuelto, lo acreditado).
+  const conDevolucion = textoCantidadesConDevolucion(d)
+  if (conDevolucion) return <span className="tabular-nums">{conDevolucion}</span>
   const kg = muestraKg(d)
   const kgFact = kg ? textoKg(d.facturadaBase, d.facturadaBaseReal, d.unidadBase) : null
   const kgRec = kg ? textoKg(d.recibidaBase, d.recibidaBaseReal, d.unidadBase) : null
@@ -126,10 +130,16 @@ export default function DiferenciasPanel({
   diferencias,
   estadoRecepcion,
   stockPorItem,
+  onRegistrarDevolucion,
+  onCargarNotaCredito,
 }: {
   diferencias: DiferenciaVista[]
   estadoRecepcion: string | null
   stockPorItem: Record<string, number>
+  /** B4: "Registrar devolución" en un reclamo al proveedor, prellenado con la diferencia. */
+  onRegistrarDevolucion?: (d: DiferenciaVista) => void
+  /** B4: "Cargar nota de crédito" en una diferencia que espera la NC de una devolución. */
+  onCargarNotaCredito?: (devolucionId: string) => void
 }) {
   const confirmar = useConfirmar()
   const toast = useToast()
@@ -148,7 +158,9 @@ export default function DiferenciasPanel({
       setResolviendo(null)
       toast.success(resolucion === 'ajusta_stock' && r.data.delta != null
         ? `Stock de ${d.descripcion} ajustado (${textoDelta(r.data.delta)})`
-        : `Diferencia de ${d.descripcion} resuelta`)
+        : resolucion === 'reclamo_proveedor' && onRegistrarDevolucion
+          ? `Diferencia de ${d.descripcion} resuelta · si el proveedor manda nota de crédito, usá "Registrar devolución" en la diferencia`
+          : `Diferencia de ${d.descripcion} resuelta`)
     })
   }
 
@@ -236,8 +248,34 @@ export default function DiferenciasPanel({
                   {d.resueltoEn && <> · {formatearFechaHora(d.resueltoEn)}</>}
                   {d.resueltoPor && <> · {d.resueltoPor}</>}
                 </p>
-                {d.nota && <p className="text-xs text-muted">Nota: {d.nota}</p>}
+                {textoEsperandoNc(d) ? (
+                  <p className="text-xs text-muted">
+                    Esperando la nota de crédito de{' '}
+                    <LinkEntidad entidad={{ tipo: 'devolucion', id: d.devolucionId!, pedidoId: d.pedidoId }}>{d.devolucionCodigo ?? 'la devolución'}</LinkEntidad>
+                  </p>
+                ) : d.nota && <p className="text-xs text-muted">Nota: {d.nota}</p>}
               </div>
+              <div className="flex flex-wrap gap-2">
+              {textoEsperandoNc(d) && onCargarNotaCredito && (
+                <button
+                  type="button"
+                  onClick={() => onCargarNotaCredito(d.devolucionId!)}
+                  disabled={isPending}
+                  className="presionable min-h-11 inline-flex items-center gap-1 rounded-xl bg-accent px-3 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
+                >
+                  <ReceiptText size={13} /> Cargar nota de crédito
+                </button>
+              )}
+              {accionDevolucion(d, estadoRecepcion) && onRegistrarDevolucion && (
+                <button
+                  type="button"
+                  onClick={() => onRegistrarDevolucion(d)}
+                  disabled={isPending}
+                  className="presionable min-h-11 inline-flex items-center gap-1 rounded-xl bg-accent px-3 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
+                >
+                  <Undo2 size={13} /> Registrar devolución
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => revertir(d)}
@@ -246,6 +284,7 @@ export default function DiferenciasPanel({
               >
                 <RotateCcw size={13} /> Revertir
               </button>
+              </div>
             </li>
           ))}
         </ul>

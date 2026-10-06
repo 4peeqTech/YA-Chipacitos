@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
-  AlertTriangle, ArrowRight, Ban, Check, Info, Loader2, PackageCheck, PackageX, Plus, ReceiptText, Share2, Trash2, Wallet, X,
+  AlertTriangle, ArrowRight, Ban, Check, Info, Loader2, PackageCheck, PackageX, Plus, ReceiptText, Share2, Trash2, Undo2, Wallet, X,
 } from 'lucide-react'
 import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
 import InputNumero from '@/components/ui/InputNumero'
@@ -33,6 +33,8 @@ import CabeceraFactura from './CabeceraFactura'
 import CompartirFacturaModal from './CompartirFacturaModal'
 import ConfirmarFacturaModal, { type EleccionGasto } from './ConfirmarFacturaModal'
 import DiferenciasPanel from './DiferenciasPanel'
+import DevolucionModal, { type DiferenciaOrigen } from '../devoluciones/DevolucionModal'
+import NotaCreditoModal from '../devoluciones/NotaCreditoModal'
 import {
   agregarDelPedido, armarEnvio, cambiarPrecioPor, cambiosDePrecio, estadoInicial, etiquetaPrecioPor, facturaDuplicada,
   faltantesDelPedido, lineaLibre, mensajeProblema, muestraCobraPor, pedidosFacturables, precioRefEnLinea,
@@ -243,6 +245,9 @@ export default function FacturaForm({
   const [preguntaAbierta, setPreguntaAbierta] = useState(false)
   const [anularAbierto, setAnularAbierto] = useState(false)
   const [compartirAbierto, setCompartirAbierto] = useState(false)
+  // B4: devolución desde la factura (o desde una diferencia) y NC que llega después.
+  const [registrando, setRegistrando] = useState<{ diferencia: DiferenciaOrigen | null } | null>(null)
+  const [cargandoNc, setCargandoNc] = useState<string | null>(null)
   // Paso final de confirmación: llego = respuesta de FA1/FA2 (null si no hubo que preguntar).
   const [confirmacion, setConfirmacion] = useState<{ llego: boolean | null } | null>(null)
   const [candidatos, setCandidatos] = useState<GastoCandidato[] | null>(null)
@@ -457,7 +462,11 @@ export default function FacturaForm({
 
   // Lo mismo que frena compras_anular_factura, dicho antes de pedir el motivo.
   const ajustadas = diferencias.filter(d => d.resolucion === 'ajusta_stock').length
-  const bloqueoAnular = factura?.gastoEstado === 'Pagado' || factura?.gastoEstado === 'Parcial'
+  // B4 (E18): sus notas de crédito confirmadas.
+  const notasCredito = factura ? facturas.filter(f => f.tipoComprobante === 'nota_credito' && f.facturaOrigenId === factura.id && f.estado === 'confirmada') : []
+  const bloqueoAnular = notasCredito.length > 0
+    ? `Esta factura tiene notas de crédito (${notasCredito.map(n => `N° ${n.numero}${n.devolucionCodigo ? ` (${n.devolucionCodigo})` : ''}`).join(', ')}). Anulalas desde sus devoluciones antes de anular la factura.`
+    : factura?.gastoEstado === 'Pagado' || factura?.gastoEstado === 'Parcial'
     ? `El gasto de esta factura ya está ${factura.gastoEstado === 'Pagado' ? 'pagado' : 'pagado en parte'}: no se puede anular. Para corregirla, vas a tener que registrar una nota de crédito.`
     : ajustadas > 0
       ? 'Esta factura tiene diferencias que ya ajustaron el stock. Revertí esos ajustes (en "Diferencias con lo recibido") antes de anularla.'
@@ -877,7 +886,30 @@ export default function FacturaForm({
               diferencias={diferencias}
               estadoRecepcion={pedido?.estado_recepcion ?? factura.pedidoEstadoRecepcion}
               stockPorItem={stockPorItem}
+              onRegistrarDevolucion={d => setRegistrando({ diferencia: { id: d.id, itemId: d.itemId, descripcion: d.descripcion, diferencia: d.diferencia } })}
+              onCargarNotaCredito={id => setCargandoNc(id)}
             />
+          )}
+          {factura && estadoFactura === 'confirmada' && notasCredito.length > 0 && (
+            <section className="space-y-2" aria-labelledby="titulo-nc">
+              <h4 id="titulo-nc" className="flex items-center gap-2 text-sm font-bold text-text">
+                <ReceiptText size={16} className="text-accent" /> Notas de crédito
+              </h4>
+              <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+                {notasCredito.map(n => (
+                  <li key={n.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
+                    <span className="text-text">
+                      <LinkEntidad entidad={{ tipo: 'factura', id: n.id }}>{n.numero}</LinkEntidad>
+                      {n.devolucionId && <span className="text-muted"> · <LinkEntidad entidad={{ tipo: 'devolucion', id: n.devolucionId, pedidoId: n.pedidoId }} variante="texto">{n.devolucionCodigo ?? 'devolución'}</LinkEntidad></span>}
+                    </span>
+                    <span className="tabular-nums font-semibold text-text">−{formatearMonedaExacta(n.total)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-right text-sm tabular-nums text-muted">
+                Neto de la factura: <span className="font-semibold text-text">{formatearMonedaExacta(factura.total - factura.notasCreditoTotal)}</span>
+              </p>
+            </section>
           )}
           {factura && estadoFactura === 'anulada' && (
             <p className="flex items-start gap-2 rounded-xl border border-border bg-danger-bg px-3 py-2.5 text-sm text-brand-red">
@@ -909,6 +941,11 @@ export default function FacturaForm({
             {soloLectura ? 'Cerrar' : 'Cancelar'}
           </button>
           {factura && estadoFactura === 'confirmada' && factura.tipoComprobante === 'factura' && (
+            <button type="button" onClick={() => setRegistrando({ diferencia: null })} disabled={isPending} className={botonSecundario}>
+              <Undo2 size={16} /> Registrar devolución
+            </button>
+          )}
+          {factura && estadoFactura === 'confirmada' && factura.tipoComprobante === 'factura' && (
             <button type="button" onClick={() => setCompartirAbierto(true)} disabled={isPending} className={botonPrimario}>
               <Share2 size={16} /> Compartir
             </button>
@@ -937,6 +974,26 @@ export default function FacturaForm({
         onAnular={motivo => { setAnularAbierto(false); onAnular(motivo) }}
         onCerrar={() => setAnularAbierto(false)}
       />
+
+      {factura && (
+        <>
+          <DevolucionModal
+            key={registrando ? `reg-${registrando.diferencia?.id ?? 'factura'}` : 'reg-cerrado'}
+            pedidoId={factura.pedidoId}
+            esAdmin
+            abierto={registrando != null}
+            diferencia={registrando?.diferencia ?? null}
+            onCerrar={() => setRegistrando(null)}
+          />
+          <NotaCreditoModal
+            key={cargandoNc ?? 'nc-cerrado'}
+            pedidoId={factura.pedidoId}
+            devolucionId={cargandoNc}
+            abierto={cargandoNc != null}
+            onCerrar={() => setCargandoNc(null)}
+          />
+        </>
+      )}
 
       {factura && compartirAbierto && (
         <CompartirFacturaModal facturaId={factura.id} numero={factura.numero} onCerrar={() => setCompartirAbierto(false)} />

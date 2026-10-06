@@ -91,7 +91,27 @@ body {
   transform: scale(0.97);
 }
 
+/* B4: un paso del formulario que aparece al elegir algo arriba (motivo → ítems → NC). */
+.paso-entrada {
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+  @starting-style { opacity: 0; transform: translateY(6px); }
+}
+
+/* B4: la tarjeta a la que llevó un deep link: el anillo entra rápido y se va lento. */
+.resaltable {
+  transition: box-shadow 600ms ease, border-color 600ms ease;
+}
+.resaltable[data-resaltado='true'] {
+  transition: box-shadow 150ms var(--ease-out), border-color 150ms var(--ease-out);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 35%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .paso-entrada {
+    transition: opacity 150ms ease;
+    @starting-style { opacity: 0; transform: none; }
+  }
   .modal-caja, .popover-entrada, .toast-entrada {
     transition: opacity 150ms ease;
     @starting-style { opacity: 0; transform: none; }

@@ -41,6 +41,21 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'filtro: facturado falta recibir → facturados', real: filtroDelPedido({ estado_recepcion: 'enviado', estado_facturacion: 'facturado', recibioAlgo: false }), esperado: 'facturados' },
 ]
 
+// B4: devoluciones y nota de crédito.
+const esperaNc = { id: 'd1', codigo: 'D-0037-01' }
+casos.push(
+  { nombre: 'B4 devuelto con NC (admin): ninguna', real: proximaAccion(pedido({ estado_recepcion: 'devuelto', estado_facturacion: 'facturado', puedeFacturar: true }), ahora).tipo, esperado: 'ninguna' },
+  { nombre: 'B4 devuelto esperando NC (admin)', real: proximaAccion(pedido({ estado_recepcion: 'devuelto', estado_facturacion: 'facturado', puedeFacturar: true, devolucionEsperaNc: esperaNc }), ahora).boton, esperado: 'Cargar nota de crédito' },
+  { nombre: 'B4 devuelto esperando NC (no admin): sin botón', real: proximaAccion(pedido({ estado_recepcion: 'devuelto', estado_facturacion: 'facturado', devolucionEsperaNc: esperaNc }), ahora).boton, esperado: null },
+  { nombre: 'B4 devuelto: descripción', real: proximaAccion(pedido({ estado_recepcion: 'devuelto', puedeFacturar: true, devolucionEsperaNc: esperaNc }), ahora).descripcion, esperado: 'Se devolvió todo lo que llegó y el proveedor no repone. Falta cargar la nota de crédito.' },
+  { nombre: 'B4 facturado esperando NC', real: proximaAccion(pedido({ estado_recepcion: 'recibido', estado_facturacion: 'facturado', puedeFacturar: true, devolucionEsperaNc: esperaNc }), ahora).descripcion.includes('(D-0037-01)'), esperado: true },
+  { nombre: 'B4 las diferencias ganan a la NC', real: proximaAccion(pedido({ estado_recepcion: 'recibido', estado_facturacion: 'facturado', puedeFacturar: true, hayDiferencias: true, devolucionEsperaNc: esperaNc }), ahora).tipo, esperado: 'resolver_diferencias' },
+  { nombre: 'B4 falta recibir gana a todo', real: proximaAccion(pedido({ estado_recepcion: 'parcial', estado_facturacion: 'facturado', puedeFacturar: true, hayDiferencias: true, devolucionEsperaNc: esperaNc }), ahora).tipo, esperado: 'cargar_remito' },
+  { nombre: 'B4 parcial esperando la reposición', real: proximaAccion(pedido({ estado_recepcion: 'parcial', hayDevolucion: true, lineasPendientes: 1 }), ahora).tipo, esperado: 'cargar_remito' },
+  { nombre: 'B4 subtexto esperando NC (admin)', real: subtextoEstado(pedido({ estado_recepcion: 'recibido', estado_facturacion: 'facturado', hayDevolucion: true, puedeFacturar: true, devolucionEsperaNc: esperaNc })), esperado: 'con devolución · esperando nota de crédito' },
+  { nombre: 'B4 subtexto esperando NC (no admin)', real: subtextoEstado(pedido({ estado_recepcion: 'recibido', estado_facturacion: 'facturado', hayDevolucion: true, devolucionEsperaNc: esperaNc })), esperado: 'con devolución' },
+)
+
 // B3: pedidoAbierto en los 6 estados de recepción × 2 de facturación, y el
 // cerrado a mano con y sin mercadería. La misma tabla verifica la función SQL
 // _compras_pedidos_abiertos_de (escenario S6 de docs/bloque2/escenarios-B3.sql).

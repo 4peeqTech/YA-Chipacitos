@@ -17,11 +17,30 @@ export function consultarFacturas(supabase: Cliente) {
     .order('created_at', { ascending: false })
 }
 
-export function consultarFacturaItems(supabase: Cliente) {
+function consultaFacturaItems(supabase: Cliente) {
   return supabase
     .from('compras_factura_items')
     .select('id, factura_id, pedido_item_id, item_id, descripcion, unidad, cantidad, precio_unitario, alicuota_iva, subtotal, iva, orden, cantidad_base, precio_por')
+    // Orden total (id desempata): sin él, las páginas de range() pueden repetir o saltear filas.
     .order('orden')
+    .order('id')
+}
+
+const PAGINA = 1000
+
+/**
+ * Todas las líneas de facturas y NC, en páginas de 1000. PostgREST corta en
+ * 1000 filas: sin paginar, pasado ese número una factura (o una NC, B4) se
+ * abría con líneas de menos.
+ */
+export async function consultarFacturaItems(supabase: Cliente): Promise<{ data: FacturaItemFila[]; error: unknown }> {
+  const data: FacturaItemFila[] = []
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data: pagina, error } = await consultaFacturaItems(supabase).range(desde, desde + PAGINA - 1)
+    if (error) return { data, error }
+    data.push(...(pagina ?? []))
+    if (!pagina || pagina.length < PAGINA) return { data, error: null }
+  }
 }
 
 /**
@@ -71,7 +90,7 @@ export function consultarInsumosFactura(supabase: Cliente) {
 }
 
 export type FacturaFila = QueryData<ReturnType<typeof consultarFacturas>>[number]
-export type FacturaItemFila = QueryData<ReturnType<typeof consultarFacturaItems>>[number]
+export type FacturaItemFila = QueryData<ReturnType<typeof consultaFacturaItems>>[number]
 export type PedidoFactura = QueryData<ReturnType<typeof consultarPedidosFactura>>[number]
 export type PrecioRef = QueryData<ReturnType<typeof consultarPreciosRef>>[number]
 export type InsumoFactura = QueryData<ReturnType<typeof consultarInsumosFactura>>[number]

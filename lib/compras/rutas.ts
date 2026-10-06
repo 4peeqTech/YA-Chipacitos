@@ -13,6 +13,7 @@ export type TipoEntidad =
   | 'solicitud'
   | 'conteo'
   | 'proveedor'
+  | 'devolucion'
 
 const BASE: Record<TipoEntidad, string> = {
   pedido: '/admin/compras/pedidos',
@@ -23,6 +24,8 @@ const BASE: Record<TipoEntidad, string> = {
   solicitud: '/admin/compras/pedidos/solicitudes',
   conteo: '/admin/fabrica/conteos',
   proveedor: '/admin/proveedores',
+  // B4: la devolución vive dentro del pedido (sin pantalla propia).
+  devolucion: '/admin/compras/pedidos',
 }
 
 /** Pestañas de la ficha del proveedor (B3). */
@@ -33,12 +36,17 @@ export type PestanaInsumo = 'stock' | 'compras' | 'movimientos'
 export const PESTANAS_INSUMO: PestanaInsumo[] = ['stock', 'compras', 'movimientos']
 
 export type Entidad =
-  | { tipo: Exclude<TipoEntidad, 'proveedor' | 'insumo'>; id: string }
+  | { tipo: Exclude<TipoEntidad, 'proveedor' | 'insumo' | 'devolucion'>; id: string }
   | { tipo: 'proveedor'; id: string; pestana?: PestanaProveedor }
   | { tipo: 'insumo'; id: string; pestana?: PestanaInsumo }
+  | { tipo: 'devolucion'; id: string; pedidoId: string }
 
 export function rutaDe(entidad: Entidad): string {
   const { tipo, id } = entidad
+  // B4: abre el pedido y resalta la devolución.
+  if (entidad.tipo === 'devolucion') {
+    return `${BASE.devolucion}?pedido=${encodeURIComponent(entidad.pedidoId)}&devolucion=${encodeURIComponent(id)}`
+  }
   const base = `${BASE[tipo]}?${tipo}=${encodeURIComponent(id)}`
   return (entidad.tipo === 'proveedor' || entidad.tipo === 'insumo') && entidad.pestana
     ? `${base}&pestana=${entidad.pestana}` : base
