@@ -484,13 +484,15 @@ export function facturaDuplicada(
 
 /** Pedidos a los que hoy se les puede cargar una factura nueva. */
 export function pedidosFacturables(pedidos: PedidoFactura[], facturas: FacturaVista[]): PedidoFactura[] {
-  const conFactura = new Set(facturas.filter(f => f.estado !== 'anulada').map(f => f.pedidoId))
+  const conFactura = new Set(facturas.filter(f => f.tipoComprobante === 'factura' && f.estado !== 'anulada').map(f => f.pedidoId))
   return pedidos.filter(p => p.estado_recepcion !== 'sin_enviar' && !conFactura.has(p.id))
 }
 
 /** Los que ya recibieron algo y siguen sin factura: el banner de la lista. */
 export function esperandoFactura(pedidos: PedidoFactura[], facturas: FacturaVista[]): PedidoFactura[] {
   return pedidosFacturables(pedidos, facturas)
+    // B4: un pedido Devuelto (todo devuelto, sin reposición) ya no espera factura.
+    .filter(p => p.estado_recepcion !== 'devuelto')
     .filter(p => p.estado_recepcion === 'recibido' || p.estado_recepcion === 'parcial' || tieneRemitos(p))
 }
 
@@ -547,6 +549,19 @@ export interface FacturaVista {
   /** Diferencias con lo recibido sin resolver, y cuántas ya se pueden resolver (recepción completa). */
   diferenciasPendientes: number
   diferenciasAResolver: number
+  // B4 -----------------------------------------------------------------------
+  /** NC: la factura que corrige y su devolución. */
+  facturaOrigenId: string | null
+  facturaOrigenNumero: string | null
+  devolucionId: string | null
+  devolucionCodigo: string | null
+  /** NC: cómo afectó al gasto ('descontado' | 'cancelo_gasto' | 'a_favor' | 'sin_gasto') y cuánto le bajó. */
+  ncGasto: string | null
+  gastoDescontado: number | null
+  /** El monto actual del gasto (de la factura, o de la factura origen para una NC). */
+  gastoMonto: number | null
+  /** Factura: Σ de sus NC confirmadas. */
+  notasCreditoTotal: number
 }
 
 export function armarVistas(facturas: FacturaFila[]): FacturaVista[] {
@@ -585,12 +600,20 @@ export function armarVistas(facturas: FacturaFila[]): FacturaVista[] {
       diferenciasAResolver: f.estado === 'confirmada'
         ? cantidadAResolver(f.diferencias_pendientes ?? 0, f.pedido_estado_recepcion)
         : 0,
+      facturaOrigenId: f.factura_origen_id,
+      facturaOrigenNumero: f.factura_origen_numero,
+      devolucionId: f.devolucion_id,
+      devolucionCodigo: f.devolucion_codigo,
+      ncGasto: f.nc_gasto,
+      gastoDescontado: f.gasto_descontado,
+      gastoMonto: f.gasto_monto,
+      notasCreditoTotal: f.notas_credito_total ?? 0,
     })
   }
   return res
 }
 
-export type FiltroFacturas = 'activas' | 'borradores' | 'confirmadas' | 'con_diferencias' | 'anuladas' | 'todas'
+export type FiltroFacturas = 'activas' | 'borradores' | 'confirmadas' | 'con_diferencias' | 'notas_credito' | 'anuladas' | 'todas'
 
 export function entraEnFiltro(v: FacturaVista, filtro: FiltroFacturas): boolean {
   switch (filtro) {
@@ -599,6 +622,7 @@ export function entraEnFiltro(v: FacturaVista, filtro: FiltroFacturas): boolean 
     case 'confirmadas': return v.estado === 'confirmada'
     case 'con_diferencias': return v.diferenciasAResolver > 0
     case 'anuladas': return v.estado === 'anulada'
+    case 'notas_credito': return v.tipoComprobante === 'nota_credito'
     case 'todas': return true
   }
 }
@@ -608,7 +632,7 @@ export function entraEnFiltro(v: FacturaVista, filtro: FiltroFacturas): boolean 
  * antes de F5 no tiene gasto, así que cuenta como impaga.
  */
 export function estaVencida(v: FacturaVista, hoy: string = hoyISO()): boolean {
-  return v.estado === 'confirmada' && v.vencimiento != null && v.vencimiento < hoy && v.gastoEstado !== 'Pagado'
+  return v.tipoComprobante === 'factura' && v.estado === 'confirmada' && v.vencimiento != null && v.vencimiento < hoy && v.gastoEstado !== 'Pagado'
 }
 
 /** Busca por número de factura, código de pedido ("P-0012", "12") o proveedor. */

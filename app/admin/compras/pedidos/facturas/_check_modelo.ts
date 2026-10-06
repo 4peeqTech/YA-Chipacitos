@@ -110,6 +110,8 @@ const vista = (p: Partial<FacturaVista> = {}): FacturaVista => ({
   confirmadaEn: null, confirmadaPor: null, anuladaEn: null, anuladaPor: null, anuladaMotivo: null,
   gastoId: null, gastoGenerado: false, gastoEstado: null, gastoLocal: null, pedidoEstadoRecepcion: 'recibido',
   diferenciasPendientes: 0, diferenciasAResolver: 0,
+  facturaOrigenId: null, facturaOrigenNumero: null, devolucionId: null, devolucionCodigo: null,
+  ncGasto: null, gastoDescontado: null, gastoMonto: null, notasCreditoTotal: 0,
   ...p,
 })
 

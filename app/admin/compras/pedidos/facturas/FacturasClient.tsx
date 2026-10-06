@@ -20,6 +20,7 @@ import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { codigoPedido } from '@/lib/compras/codigos'
 import { armarDiferencias, type DiferenciaFila, type DiferenciaVista } from '@/lib/compras/diferencias'
 import FacturaForm from './FacturaForm'
+import NotaCreditoVista from './NotaCreditoVista'
 import {
   armarVistas, coincideBusqueda, entraEnFiltro, esperandoFactura, estaVencida,
   type FacturaVista, type FiltroFacturas,
@@ -34,6 +35,8 @@ const FILTROS: { value: FiltroFacturas; label: string }[] = [
   { value: 'borradores', label: 'Borradores' },
   { value: 'confirmadas', label: 'Confirmadas' },
   { value: 'con_diferencias', label: 'Con diferencias' },
+  // B4: aparece solo si hay alguna.
+  { value: 'notas_credito', label: 'Notas de crédito' },
   { value: 'anuladas', label: 'Anuladas' },
   { value: 'todas', label: 'Todas' },
 ]
@@ -96,6 +99,9 @@ export default function FacturasClient({
     return m
   }, [items])
 
+  const hayNotasCredito = vistas.some(v => v.tipoComprobante === 'nota_credito')
+  const filtros = FILTROS.filter(f => f.value !== 'notas_credito' || hayNotasCredito)
+
   const hayFiltros = !!busqueda || filtro !== 'activas' || !!desde || !!hasta
   const filtradas = useMemo(() => vistas
     .filter(v => entraEnFiltro(v, filtro))
@@ -139,8 +145,13 @@ export default function FacturasClient({
       key: 'numero',
       header: 'Factura',
       render: v => (
-        <span className={`whitespace-nowrap font-mono tabular-nums font-medium ${v.estado === 'anulada' ? 'text-muted line-through' : 'text-text'}`}>
-          {v.numero}
+        <span className="inline-flex flex-col items-start gap-0.5">
+          <span className={`whitespace-nowrap font-mono tabular-nums font-medium ${v.estado === 'anulada' ? 'text-muted line-through' : 'text-text'}`}>
+            {v.numero}
+          </span>
+          {v.tipoComprobante === 'nota_credito' && (
+            <span className="whitespace-nowrap rounded-full border border-border px-2 py-0.5 text-2xs font-medium text-muted">Nota de crédito</span>
+          )}
         </span>
       ),
       ordenar: v => v.numero,
@@ -148,7 +159,16 @@ export default function FacturasClient({
     {
       key: 'pedido',
       header: 'Pedido',
-      render: v => <LinkEntidad entidad={{ tipo: 'pedido', id: v.pedidoId }} className="text-muted">{v.codigo}</LinkEntidad>,
+      render: v => (
+        <span className="inline-flex flex-col items-start gap-0.5">
+          <LinkEntidad entidad={{ tipo: 'pedido', id: v.pedidoId }} className="text-muted">{v.codigo}</LinkEntidad>
+          {v.tipoComprobante === 'nota_credito' && (
+            <span className="whitespace-nowrap text-2xs text-muted">
+              corrige {v.facturaOrigenNumero ?? '—'}{v.devolucionCodigo && ` (${v.devolucionCodigo})`}
+            </span>
+          )}
+        </span>
+      ),
       ordenar: v => v.pedidoNumero ?? 0,
       ocultarHasta: 'sm',
     },
@@ -198,7 +218,7 @@ export default function FacturasClient({
       alinear: 'right',
       render: v => (
         <span className={`whitespace-nowrap tabular-nums font-semibold ${v.estado === 'anulada' ? 'text-muted line-through' : 'text-text'}`}>
-          {formatearMonedaExacta(v.total)}
+          {v.tipoComprobante === 'nota_credito' && '−'}{formatearMonedaExacta(v.total)}
         </span>
       ),
       ordenar: v => v.total,
@@ -263,7 +283,7 @@ export default function FacturasClient({
       )}
 
       <div className="space-y-3">
-        <ChipGroup opciones={FILTROS} value={filtro} onChange={setFiltro} />
+        <ChipGroup opciones={filtros} value={filtro} onChange={setFiltro} />
         <div className="flex flex-wrap items-center gap-3">
           <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar número de factura, P-0001 o proveedor" className="w-full sm:w-80" />
           <DateRangeInputs desde={desde} hasta={hasta} onChangeDesde={setDesde} onChangeHasta={setHasta} />
@@ -294,9 +314,9 @@ export default function FacturasClient({
       <Modal
         open={modalAbierto}
         onClose={cerrar}
-        title={facturaAbierta ? `Factura ${facturaAbierta.numero}` : 'Cargar factura'}
+        title={facturaAbierta ? `${facturaAbierta.tipoComprobante === 'nota_credito' ? 'Nota de crédito' : 'Factura'} ${facturaAbierta.numero}` : 'Cargar factura'}
         encabezado={facturaAbierta
-          ? <>Factura <span className="font-mono tabular-nums">{facturaAbierta.numero}</span></>
+          ? <>{facturaAbierta.tipoComprobante === 'nota_credito' ? 'Nota de crédito' : 'Factura'} <span className="font-mono tabular-nums">{facturaAbierta.numero}</span></>
           : undefined}
         size="xl"
         pantallaCompletaMobile
@@ -308,7 +328,10 @@ export default function FacturasClient({
             <Skeleton className="h-40 w-full" />
           </div>
         )}
-        {modalAbierto && !cargandoConfirmada && (
+        {modalAbierto && !cargandoConfirmada && facturaAbierta?.tipoComprobante === 'nota_credito' && (
+          <NotaCreditoVista nc={facturaAbierta} items={itemsPorFactura.get(facturaAbierta.id) ?? []} onCerrar={cerrarYa} />
+        )}
+        {modalAbierto && !cargandoConfirmada && facturaAbierta?.tipoComprobante !== 'nota_credito' && (
           <FacturaForm
             key={facturaAbierta?.id ?? (abierto && 'pedidoId' in abierto ? abierto.pedidoId ?? 'nueva' : 'nueva')}
             factura={facturaAbierta}
