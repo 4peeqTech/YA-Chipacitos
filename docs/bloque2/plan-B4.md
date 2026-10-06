@@ -512,3 +512,530 @@ Antes, `select distinct tipo from compras_pedido_eventos` en dev: tiene que ser 
 
 - `npm run types`. Tiene que traer **solo** lo de B4: las 3 tablas nuevas, las columnas, las 4 RPC y las vistas. Si trae algo más, alguien pusheó en el medio: avisar al coordinador.
 - El invariante del ledger tiene que dar 0 (§9.1).
+
+## 4. Server Actions: `app/admin/compras/pedidos/devoluciones/acciones.ts` (nuevo, `'use server'`)
+
+Mismo patrón que `remitos/acciones.ts` y `facturas/acciones.ts`: zod + `rpc` + `refresh()` de `next/cache` → `Resultado<T>` (`lib/acciones.ts`), sin `throw` a través del borde. **Antes de escribirla, leé `node_modules/next/dist/docs/` (Server Functions y `refresh`)**, como pide `AGENTS.md`.
+
+| Acción | RPC | Entrada (zod) | Devuelve |
+|---|---|---|---|
+| `registrarDevolucion` | `compras_registrar_devolucion` | `pedidoId`, `motivoId`, `repone`, `items[]` (`cantidad > 0`, `cantidadBase?` > 0, `precioCorrecto?` ≥ 0), `nota?` (≤ 500), `notaCredito?` `{numero (1–40), fecha (yyyy-mm-dd), totalPapel?, lineas[{indice, precioUnitario > 0, alicuotaIva ∈ ALICUOTAS}]}`, `diferenciaId?` | `{ id, codigo, impacto, estadoRecepcion, notaCredito }` |
+| `cargarNotaCredito` | `compras_cargar_nota_credito` | `devolucionId`, `numero`, `fecha`, `totalPapel?`, `lineas[{devolucionItemId, precioUnitario, alicuotaIva}]` | `{ notaCredito, diferenciasPendientes }` |
+| `anularNotaCredito` | `compras_anular_nota_credito` | `devolucionId`, `motivo` (1–300) | `{ gasto, montoDespues }` |
+| `anularDevolucion` | `compras_anular_devolucion` | `devolucionId`, `motivo` (1–300) | `{ impacto, estadoRecepcion, notaCreditoAnulada, gasto }` |
+
+- Los errores pasan por `mensajeError` (§5.5). El `raise` nuestro (P0001) ya llega como texto para el usuario.
+- La acción no decide permisos: los decide la RPC. La UI esconde lo que no corresponde (E15).
+
+## 5. Lógica pura (sin I/O; se chequea con `npx tsx`)
+
+### 5.1 `lib/compras/devoluciones.ts` (nuevo) + `lib/compras/_check_devoluciones.ts`
+
+- `type EfectoMotivo = 'mercaderia' | 'no_entregado' | 'precio'` y `efectoDeMotivo({devuelve_mercaderia, corrige_precio})`. La UI piensa en efectos y la base en flags.
+- `TEXTO_EFECTO`: `mercaderia` → "Sale del stock y vuelve al proveedor" · `no_entregado` → "No mueve stock: corrige lo que te facturaron de más" · `precio` → "No mueve stock: corrige el precio cobrado".
+- `lineasDevolvibles(pedido, pendiente, devoluciones, factura?)` → por insumo/línea: `{ key, pedidoItemId, itemId, descripcion, unidad, cobraPorBase, llego, devuelto, maximo, facturado, acreditado, maximoNoEntregado }`. Replica las reglas de §3.8.4 para mostrar el máximo antes de mandar. **La RPC vuelve a validar.**
+- `lineasPrecio(factura)` → líneas de la factura con `precio_unitario > 0`, con la cantidad cobrada en su unidad (kg si `precio_por = 'base'`).
+- `armarNotaCredito(items, factura, efecto, preciosEditados)` → líneas `{descripcion, cantidad, cantidadBase, precioUnitario, precioPor, alicuotaIva, subtotal, iva}`, con la misma regla que `_compras_crear_nota_credito` (E5), y los totales con `lib/compras/totalesFactura.ts`. **Tiene que dar el mismo total que la RPC:** hay un caso del check por cada efecto, y uno por kg.
+- `impactoGasto({ gastoId, gastoEstado, gastoMonto, totalNc })` → `{ caso: 'descontado'|'cancelo_gasto'|'a_favor'|'sin_gasto', texto, montoDespues }`. Los textos:
+  - descontado: "El gasto pendiente de la factura {N} baja de $ X a $ Y."
+  - cancelo_gasto: "La nota de crédito cubre todo el gasto: queda en $ 0 y se marca como pagado con la nota de crédito."
+  - a_favor (D5): "El gasto ya está pagado: estos $ X quedan a favor. Se verán en la cuenta corriente del proveedor (noviembre); por ahora figuran como «A favor» en la Cuenta del proveedor."
+  - sin_gasto: "La factura no tiene gasto: la nota de crédito resta en los reportes."
+- `impactoEstado(entrada, devolucion)` → el estado visible en que queda el pedido ("Queda Devuelto", "Vuelve a Parcialmente recibido: espera la reposición", "Sigue Facturado"). Reusa `estadoVisible` con la regla E8 aplicada en TS (`estadoRecepcionConDevolucion`, que replica §3.6 y se chequea contra los mismos casos que el escenario SQL).
+- `textoLineaDevolucion(l)` → "Queso Barra 2 Caja (33,4 kg)". Usa `textoBaseItem` de `lib/compras/unidades.ts`, de A2b.
+- `sugerenciaDesdeDiferencia(dif, motivos)` → `{ motivoId, cantidad, notaCredito: boolean }`:
+  - `diferencia > 0` → el primer motivo activo con efecto `no_entregado`, la cantidad `diferencia` y la NC sugerida;
+  - `diferencia < 0` → el primer motivo activo con efecto `mercaderia`, `|diferencia|`, "no repone" y sin NC.
+  Se elige por flags, nunca por nombre.
+- `codigoDevolucion` va en `lib/compras/codigos.ts` (junto a `codigoRemito`).
+- **Check:** ≥ 30 casos, entre ellos todos los de la tabla de §3.7, los máximos, los 4 casos de gasto, el redondeo de la NC por kg (33,4 kg × $ 1.250 = $ 41.750 + IVA 21 % = $ 8.767,50) y la corrección de precio (33,4 × $ 50 = $ 1.670).
+
+### 5.2 `lib/compras/estadoPedido.ts`
+
+- `hayDevolucion` deja de ser siempre `false`: lo arma la página con las devoluciones activas del pedido.
+- Entrada nueva opcional: `devolucionEsperaNc?: { id: string; codigo: string } | null` (la primera devolución con `espera_nota_credito`).
+- `proximaAccion`:
+  - nuevo `TipoAccion` **`'cargar_nota_credito'`**. En `facturado` con la recepción completa, **sin diferencias pendientes** y con `devolucionEsperaNc` y `puedeFacturar`: título "Falta la nota de crédito", descripción "Se devolvió mercadería de este pedido (D-…) y el proveedor todavía no mandó la nota de crédito.", botón "Cargar nota de crédito";
+  - "Resolver diferencias" sigue ganando si hay pendientes, y "falta recibir" gana a todo;
+  - `devuelto` → título "Devuelto", descripción "Se devolvió todo lo que llegó y el proveedor no repone." + (si `devolucionEsperaNc`) " Falta cargar la nota de crédito.", con el mismo botón para admin.
+- `subtextoEstado` sigue igual ("con devolución"). Agrega "esperando nota de crédito" cuando `devolucionEsperaNc` y quien mira es admin.
+- `_check_estado.ts`: +8 casos (devuelto con y sin NC, facturado esperando NC, diferencias que ganan, parcial con reposición).
+
+### 5.3 `lib/compras/reportes.ts` (B3 → B4)
+
+- `EstadoPago` suma **`'a_favor'`**. `estadoPago(f)` recibe `tipo_comprobante` y `nc_gasto` (opcionales, para no romper a quien no los pasa): una NC con `nc_gasto = 'a_favor'` → `'a_favor'`; el resto, como hoy (con el `gasto_estado` heredado de la factura origen, E11).
+- `ResumenPagos` suma `aFavor`. `resumirPagos` lo acumula (con signo, así que queda negativo). El comentario del invariante pasa a `facturado = pagado + pendiente + sinGasto + aFavor`.
+- `GastoProveedor` suma `aFavor`.
+- `FacturaReporte` suma `nc_gasto: string | null`.
+- `_check_reportes.ts`: +6 casos (los 4 de E10, y los dos de "factura pendiente → NC descontada → se paga").
+
+### 5.4 Otros archivos puros que cambian
+
+- **`lib/compras/historialPedido.ts`:**
+  - tipos nuevos `devolucion_registrada`, `devolucion_anulada`, `nota_credito` y `nota_credito_anulada`, con zod para el `detalle` (si viene mal, solo la etiqueta, como hoy);
+  - títulos e íconos (`Undo2`, `Ban`, `ReceiptText`):
+    - "Devolvió mercadería al proveedor · D-0037-01 · Mercadería en mal estado · El proveedor repone"
+    - "Registró un reclamo a la factura · D-0037-02 · Facturado y no entregado"
+    - "Anuló la devolución D-0037-01 · Motivo: …"
+    - "Nota de crédito N° 0001-00000123 · $ 50.517,50 · descontada del gasto" (admin)
+    - "Anuló la nota de crédito N° …"
+  - el agrupado de 5 minutos no cambia;
+  - `_check_historial.ts` +6.
+- **`lib/compras/diferencias.ts`:**
+  - el texto de la diferencia, cuando `devuelta > 0` o `acreditada > 0`: "Llegaron 10 Caja, se devolvieron 2: quedaron 8 · la factura dice 10 (8 con la nota de crédito)";
+  - en las resueltas como reclamo con `devolucion_id`: "Esperando la nota de crédito de D-0037-01";
+  - `accionDevolucion(d)` → si se ofrece "Registrar devolución": `resolucion = 'reclamo_proveedor'` y sin `devolucion_id`, con la recepción completa;
+  - `_check_diferencias.ts` +5.
+- **`lib/compras/rutas.ts`:** `TipoEntidad` suma `'devolucion'`. `Entidad` suma `{ tipo: 'devolucion'; id: string; pedidoId: string }` → `/admin/compras/pedidos?pedido=<pedidoId>&devolucion=<id>`. El módulo para `LinkEntidad` es `compras-pedidos` (en `lib/modulos.tsx`, donde B0 dejó la regla de acceso).
+- **`app/admin/compras/pedidos/facturas/modelo.ts`** (prellenado de una factura nueva):
+  - la cantidad prellenada pasa a `recibido − devuelto` (de `v_compras_pedido_pendiente`), así lo devuelto antes de facturar (D1) no se prellena;
+  - si `devuelto > 0`, la línea muestra "Se descontaron 2 devueltas (D-…)";
+  - `_check_modelo.ts` +2.
+- **`app/admin/compras/pedidos/remitos/modelo.ts`:** si prellena con `pendiente`, ya toma la reposición sin cambios (la columna cambió en la vista). Verificarlo y sumar 1 caso al check.
+
+### 5.5 `lib/errores.ts` (`CONSTRAINTS`)
+
+| Constraint | Mensaje |
+|---|---|
+| `compras_devolucion_motivos_nombre_unico` | Ya hay un motivo con ese nombre. |
+| `compras_devolucion_motivos_flags_validos` | Un motivo que devuelve mercadería no puede ser a la vez una corrección de precio. |
+| `compras_devoluciones_motivo_id_fkey` | Ese motivo ya se usó en devoluciones: desactivalo en vez de borrarlo. |
+| `compras_devoluciones_pedido_secuencia_key` | Otra persona registró una devolución de este pedido al mismo tiempo. Probá de nuevo. |
+| `compras_devoluciones_nc_unica` | Esa nota de crédito ya está asociada a otra devolución. Recargá la página. |
+| `compras_facturas_numero_unique` (ya existe) | se mantiene, y la acción lo traduce a "Ya cargaste una nota de crédito con ese número para este proveedor." cuando el `tipo` es NC (lo decide la acción, que sabe qué estaba guardando) |
+| `compras_devolucion_items_factura_item_id_fkey` | Esa línea de la factura tiene una corrección de precio registrada: anulá esa devolución primero. |
+
+## 6. UI
+
+### 6.0 Protocolo de diseño (obligatorio: es el Definition of Done)
+
+Lo dice el plan del Bloque 1 ("Protocolo de UX y diseño por fase") y lo repite el protocolo del Bloque 2. A1, B1 y F5 lo hicieron a mano, y quedó como deuda. **En B4 se invocan las skills de verdad**, porque es la pantalla con más plata y stock en juego:
+
+1. **`impeccable` en modo *shape*, antes de codear.** Se le pasan §0, las filas D1–D5 + los casos borde de §7 y las primitivas de §6.0.1. La mini-spec que devuelva va a `notas-B4.md` y manda sobre lo de abajo en lo visual (no en las reglas).
+2. **`emil-design-eng`** para el modal de pasos, el cambio de estado de la fila de devolución y los toasts.
+3. Construir.
+4. **`impeccable` *harden*** (doble clic, textos largos, 0 motivos, permisos, sin factura) + **`emil-design-eng`** (foco, transiciones, números alineados).
+5. **Capturas** a 375 px y desktop, en oscuro y claro, revisadas contra **`ui-ux-pro-max`** (contraste, ≥ 44 px, jerarquía).
+6. **`code-review`** en nivel medium sobre el diff, antes del último commit.
+
+#### 6.0.1 Primitivas
+
+`Modal` (xl en desktop; pantalla completa con pie sticky en mobile), `Field`/`controlClass`, `InputNumero` (nunca `type="number"`), `DatePicker` (nunca `<input type="date">`), `Chip`/`SegmentedControl`, `EstadoBadge` + `lib/estados.ts`, `EmptyState`, `Skeleton`, `useToast()`, `useConfirmar()`/`ConfirmDialog`, `HelpTooltip`, `LinkEntidad`, `useParamDeepLink`/`useQuitarParams`, íconos lucide, tokens semánticos (**sin hex**) y `formatearMoneda`/`formatearMonedaExacta`.
+
+Prohibido: `confirm()`/`alert()`, `router.push` después de una acción y la columna "editar".
+
+### 6.1 Motivos: pestaña "Motivos de devolución al proveedor" en Proveedores
+
+- `app/admin/proveedores/layout.tsx`: cuarto ítem de `Tabs`, `{ href: '/admin/proveedores/motivos-devolucion', label: 'Motivos de devolución', icon: <Undo2 size={14} /> }`. En la pestaña dice "Motivos de devolución"; el título de la página dice "al proveedor" (§1.3.6).
+- `app/admin/proveedores/motivos-devolucion/page.tsx` (nuevo) con `TablaMaestra`:
+  - título "Motivos de devolución al proveedor";
+  - descripción "Al registrar una devolución, el motivo decide si la mercadería sale del stock o si solo se corrige la factura. Cambiar un motivo no cambia las devoluciones ya registradas.";
+  - `camposExtra = [{ key: 'efecto', tipo: 'select', label: 'Qué pasa', opciones: [mercaderia, no_entregado, precio] }]`, con los textos de `TEXTO_EFECTO`;
+  - `resumenFila` → un chip del efecto.
+- `app/api/compras-devolucion-motivos/route.ts` (nuevo, copia de `fabrica-devolucion-motivos`):
+  - `GET` agrega `efecto` desde los flags;
+  - `POST` y `PATCH` traducen `efecto` → `devuelve_mercaderia` + `corrige_precio` (cualquier otro campo, 400);
+  - `DELETE` → si da la FK, el mensaje de §5.5 (`errorResponse` con el código `23503` → 409).
+  - Escrituras con `requireAdmin`.
+- Si `TablaMaestra` todavía tiene hex propios, no se arregla en B4 (es compartido): se anota en las notas.
+
+### 6.2 `DevolucionModal.tsx` (registrar)
+
+Se abre desde (a) el **detalle del pedido**, (b) la **factura confirmada** y (c) una **diferencia** resuelta como reclamo. Recibe `pedido`, `pendiente`, `devoluciones`, `factura?`, `diferencia?`, `motivos`, `esAdmin` y `stockPorItem`.
+
+```
+┌ Registrar devolución · P-0037 · GLOBAL ───────────────────────── ✕ ┐
+│ 1 Motivo                                                          │
+│  ( ) Mercadería en mal estado      Sale del stock                 │
+│  ( ) Producto equivocado           Sale del stock                 │
+│  ( ) Facturado y no entregado      Corrige la factura   [admin]   │
+│  ( ) Precio mal facturado          Corrige el precio    [admin]   │
+│ 2 Qué se devuelve                                [Devolver todo]  │
+│  Insumo         Llegó     Ya devuelto   Devolver      kg reales    │
+│  Queso Barra    2 Caja    —             [ 1    ] Caja [16,4 ] kg   │
+│  Fécula         3 Bolsa   —             [      ] Bolsa             │
+│  máx. 2 Caja · queda en 181 Caja en stock                          │
+│ 3 ¿El proveedor repone?  (solo si sale del stock)                  │
+│  [ Sí, repone ]  Vuelve a quedar pendiente de llegar en el pedido. │
+│  [ No repone  ]  Esa cantidad se cierra. Si estaba facturada,      │
+│                  falta la nota de crédito.                         │
+│ 4 Nota de crédito  (admin · factura confirmada · no repone)        │
+│  [x] Ya llegó la nota de crédito                                   │
+│  N° [0001-00000123]  Fecha [06/10/2026]                            │
+│  Queso Barra  16,4 kg × $ 1.250,00 /kg  IVA [21 ▾]  $ 20.500,00    │
+│  Subtotal $ 20.500 · IVA $ 4.305 · Total $ 24.805                  │
+│  Total según el papel [        ]                                   │
+│ Nota [ opcional                                              ]     │
+├────────────────────────────────────────────────────────────────────┤
+│ Resta 1 Caja de Queso Barra (queda en 181). El pedido vuelve a     │
+│ Parcialmente recibido. El gasto pendiente baja de $ 59.411 a       │
+│ $ 34.606.                         [Cancelar]  [Registrar devolución]│
+└────────────────────────────────────────────────────────────────────┘
+```
+
+- **Paso 1:** opciones grandes (radio cards, como "¿Ya llegó la mercadería?" de F4), agrupadas en "Sale del stock" y "Corrige la factura". Un no admin solo ve las de mercadería. Las de "Corrige la factura" aparecen deshabilitadas si no hay factura confirmada, con la ayuda "Primero confirmá la factura del pedido".
+- **Paso 2** cambia según el efecto:
+  - **mercadería:** las filas de `lineasDevolvibles` con `llego > 0`;
+  - **no entregado:** las filas facturadas, con "Facturado / Ya reclamado / Máx.";
+  - **precio:** las líneas de la factura, con "Cobrado $ 1.300 /kg → Correcto [ ]" y la cantidad (prellenada con todo lo cobrado).
+  - La columna "kg reales" solo aparece en los insumos que se cobran por kg. Lleva el placeholder nominal y el aviso del 10 % de A2b; si hay NC y la línea cobra por kg, es obligatoria.
+  - Pasarse del máximo → error en la celda, sin mandar. Si el stock va a quedar negativo, se avisa en ámbar sin bloquear.
+- **Paso 3:** solo si el efecto es mercadería. "Sí, repone" se deshabilita en un pedido cerrado a mano (con el texto de E9) y si el paso 4 está marcado (con el texto de E6).
+- **Paso 4:** solo admin, con factura confirmada y sin reposición. Si el switch está apagado: "La nota de crédito se puede cargar después, desde la devolución." Las líneas vienen de `armarNotaCredito`: precio y alícuota editables; la variación contra la factura se muestra como en FA4 ("↓ 4 % vs factura"). "Total según el papel", con el aviso de FA6 si difiere en más de $ 1.
+- **Pie:** el impacto en vivo (stock, estado y gasto: `impactoGasto`/`impactoEstado`). "Registrar devolución" abre un `useConfirmar` con el mismo resumen y los números ("Confirmá: resta 1 Caja de Queso Barra (queda en 181) y crea la nota de crédito 0001-00000123 por $ 24.805"). Mientras corre, `useTransition` + spinner + el botón deshabilitado.
+- **Al terminar:** toast "D-0037-01 registrada" (+ "· nota de crédito cargada"), `refresh()` y se cierra el modal. Si la RPC devuelve el caso `a_favor`, el toast lleva el texto D5. **Sin `router.push`.**
+- **Estados:**
+  - cargando los motivos (esqueleto);
+  - 0 motivos activos (`EmptyState`: "No hay motivos de devolución" + link a Proveedores › Motivos para admin);
+  - nada para devolver ("Todavía no llegó mercadería de este pedido: no hay nada para devolver." + "Corrige la factura" si corresponde);
+  - error (toast + `refresh()`; si es "Recargá la página", se recarga el modal con los datos nuevos).
+- Cerrar con cambios pide confirmación ("Sin pérdida de trabajo").
+- **Prellenado desde una diferencia:** `sugerenciaDesdeDiferencia` → motivo, línea y cantidad elegidos, y NC marcada si corresponde. Arriba: "Desde la diferencia de Queso Barra (+2)".
+
+### 6.3 Detalle del pedido (`PedidoDetalle.tsx`): sección Devoluciones
+
+- **Dónde:** después de la sección Factura y antes del Historial. Se muestra si hay alguna devolución (activa o anulada).
+- **Encabezado:** "Devoluciones" con el ícono `Undo2` y la cantidad de activas. Botón secundario "Registrar devolución", que se muestra si llegó algo o, para admin, si hay factura confirmada.
+- **Una tarjeta por devolución:**
+  - **arriba:** `LinkEntidad` código `D-0037-01` · fecha · persona; chip del efecto ("Sale del stock" / "Corrige la factura" / "Corrige el precio"); chip "Repone" o "No repone";
+  - **cuerpo:** las líneas con `textoLineaDevolucion`; la corrección de precio solo para admin ("de $ 1.300 a $ 1.250 /kg"); la nota;
+  - **bloque NC (solo admin):** "Nota de crédito N° … · $ 24.805 · bajó el gasto a $ 34.606", con link a la NC (`?factura=`). O "Falta la nota de crédito", con el botón "Cargar nota de crédito" si `espera_nota_credito`. O "Con reposición: no lleva nota de crédito". Para un no admin: "Tiene nota de crédito" / "Esperando nota de crédito", sin montos;
+  - **menú (`MenuSecundario`):** "Cargar nota de crédito" · "Anular nota de crédito" · "Anular devolución" (peligro).
+- **Anuladas:** van al final, con opacidad baja y el código tachado. "Anulada por Admin QA el 06/10 · Motivo: …". Si son más de 2, plegadas en "Ver N anuladas".
+- **Deep link `?devolucion=`:** el pedido abre y la tarjeta hace `scrollIntoView` + un anillo de acento 2 s. Al cerrar el pedido se limpian los dos params (`useQuitarParams('pedido', 'devolucion')`). Si el id no es de ese pedido: toast "No encontramos esa devolución en P-…".
+- **"Qué sigue":** `cargar_nota_credito` → abre `NotaCreditoModal` (§5.2). En el menú secundario del pedido se suma "Registrar devolución".
+- **Ítems:** la línea muestra "devuelto 1" junto a "llegó 2" cuando corresponde. "Falta" se calcula con el `pendiente` nuevo.
+- **Historial:** los 4 eventos nuevos (§5.4), con links a la devolución y a la NC.
+- **Datos (`pedidos/page.tsx` + `datos.ts`):**
+  - `v_compras_devoluciones` acotada a los pedidos cargados (`.in('pedido_id', ids)` en tandas de 100, como en B3);
+  - `compras_devolucion_motivos` activos (orden);
+  - `v_compras_facturas` ya se lee (la factura del pedido): sumar `gasto_monto`, `notas_credito_total` y `nc_gasto` a las columnas.
+  - `hayDevolucion` y `devolucionEsperaNc` se arman acá.
+  - La lista de pedidos (`PedidosClient`) muestra "con devolución" en el subtexto (ya existe).
+
+### 6.4 `NotaCreditoModal.tsx` (cargar después, D3)
+
+- Cabecera: "Nota de crédito de D-0037-01 · factura 0001-…".
+- Campos: N° (obligatorio), fecha (`DatePicker`, hoy por defecto, no futura), líneas (`armarNotaCredito`: solo precio y alícuota editables; la cantidad y los kg salen de la devolución), totales y "Total según el papel".
+- Impacto en el pie: el gasto con `impactoGasto` y las diferencias ("La diferencia de Queso Barra (+1) se cierra").
+- `useConfirmar` → `cargarNotaCredito` → toast + `refresh()`.
+- Si la devolución no tiene kg y la línea cobra por kg, el modal no deja guardar: "Esta devolución no tiene los kg de Queso Barra y la factura lo cobra por kg. Anulá la devolución y registrala de nuevo con los kg." (D7).
+
+### 6.5 `AnularModal.tsx` (compartido: anular devolución y anular NC)
+
+- Motivos rápidos (chips): "Se cargó por error" · "El proveedor no la aceptó" · "Otro" (con texto obligatorio).
+- **Impacto antes de confirmar:**
+  - "Vuelve a sumar 1 Caja de Queso Barra (queda en 182)";
+  - "Se anula la nota de crédito N° … y el gasto vuelve a $ 59.411";
+  - "El pedido vuelve a Facturado".
+- **Bloqueos conocidos de antemano** (con los datos que ya tiene la pantalla): la NC descontó un gasto que ahora está Pagado → el botón se deshabilita y aparece el mensaje de §3.5.7, con link al gasto.
+- Anular solo la NC aclara: "La devolución queda activa, esperando una nota de crédito nueva."
+- Al terminar: toast + `refresh()`.
+
+### 6.6 Facturas
+
+- **Lista (`FacturasClient.tsx`):**
+  - una NC lleva el chip "Nota de crédito" debajo del número, el total con "−" y, en la columna Pedido, "corrige 0001-… (D-…)";
+  - "Vence" queda vacío; la búsqueda por número la encuentra;
+  - el filtro de estado sigue igual, y se suma una pestaña **"Notas de crédito"** solo si hay alguna.
+- **Factura confirmada (`FacturaForm.tsx`, solo lectura):**
+  - en el pie, el botón secundario **"Registrar devolución"** (abre §6.2 con la factura);
+  - bloque **"Notas de crédito"** (si hay): lista con número, total y link, y "Neto de la factura: $ X";
+  - "Anular" avisa antes si hay NC (E18), con el mismo patrón del aviso de gasto pagado de F5.
+- **Vista de una NC** (`FacturaForm` en modo `nota_credito`, solo lectura):
+  - título "Nota de crédito 0001-…";
+  - "Corrige la factura `<LinkEntidad factura>`" · "De la devolución `<LinkEntidad devolucion>`";
+  - líneas y totales;
+  - bloque de gasto según `nc_gasto` ("Se descontaron $ X del gasto de la factura" / "Canceló el gasto" / "A favor: el gasto ya estaba pagado" / "La factura no tenía gasto");
+  - pie: "Anular nota de crédito" (§6.5) + "Cerrar". Sin "Compartir" (D5), sin diferencias y sin editar.
+  - **`CabeceraFactura.tsx` / `modelo.ts`** ya tienen `tipoComprobante`: se usa para elegir el modo.
+- **`DiferenciasPanel.tsx`:**
+  - en una diferencia `reclamo_proveedor` sin `devolucion_id`, el botón "Registrar devolución" (§6.2 prellenado);
+  - con `devolucion_id`: "Esperando la nota de crédito de `<LinkEntidad devolucion>`" + "Cargar nota de crédito" (admin);
+  - el texto de la diferencia usa `devuelta`/`acreditada` (§5.4).
+  - El modal "Resolver" no cambia. Después de elegir "Reclamo al proveedor", el toast trae la acción "Registrar devolución".
+
+### 6.7 Cuenta del proveedor y Reportes (las NC a favor)
+
+- **`components/compras/PagoFactura.tsx`:** el estado `a_favor` → chip "A favor" (tono info).
+- **`app/admin/proveedores/FichaPaneles.tsx` (Cuenta):** si `aFavor ≠ 0`, una tarjeta más, "A favor $ X", con la ayuda "Notas de crédito que llegaron con el gasto ya pagado: se descuentan del próximo pago (cuenta corriente en noviembre)". La suma visible sigue cuadrando: Pagado + Pendiente + Sin gasto + A favor = Facturado.
+- **`app/admin/proveedores/datos.ts`:** sumar `nc_gasto` al `select` de facturas.
+- **`app/admin/compras/reportes/page.tsx`:** sumar `nc_gasto` a `COLUMNAS_FACTURA` (una línea; A2c no toca este archivo).
+- **`app/admin/compras/reportes/GastoPorProveedor.tsx`:** la columna "A favor" aparece solo si algún proveedor tiene ≠ 0. En el detalle, la NC con su chip.
+- `ReportesClient.tsx` **no se toca** (el KPI ya resta las NC).
+
+### 6.8 Stock
+
+- **Sin cambios de pantalla en B4** (la ficha es de A2c → A4). El movimiento `devolucion_proveedor` ya se ve en Movimientos con su `motivo` ("Devolución D-0037-01 a GLOBAL: Mercadería en mal estado (16,4 kg)") y en el puente de A2c, en el grupo "Devolución".
+- **Para el coordinador:** exponer `devolucion_id` al final de `v_compras_stock_movimientos` y el chip "Devolución" en `PanelMovimientos` queda para A4 o una tanda chica (§14).
+
+## 7. Casos borde (y cómo se resuelven)
+
+1. **Kg:** un insumo que se cobra por kg y se devuelve sin NC → los kg son opcionales (aviso). Con NC → obligatorios (`'Cargá los kg devueltos de…'`). El subtotal de la NC = kg × $/kg de la factura (A2b E4). Los kg nunca mueven stock.
+2. **Devolución de algo facturado en kg con la NC después (D3):** si la devolución se registró **sin kg**, la NC no se puede cargar → anular y volver a registrar con kg (D7). El modal de la devolución lo previene: si el pedido tiene factura con esa línea por kg y "no repone", el campo kg ya aparece como "necesario para la nota de crédito".
+3. **Factura anulada:**
+   - con NC → frena (E18);
+   - con una devolución sin mercadería → frena;
+   - con una devolución con mercadería de lo que llegó por remito manual → se anula; la devolución queda con `factura_id` apuntando a la anulada y la NC, si hace falta, se carga sobre la factura nueva (`factura_id = coalesce(…)` no la pisa: la RPC usa la **factura activa** y la reescribe si la vieja está anulada);
+   - con mercadería del **remito automático** → el recálculo frena (E7).
+4. **Gasto pagado (D5):** la NC se registra igual, `a_favor`, y el gasto no cambia. Anular esa NC: no toca el gasto. Una NC descontada de un gasto que **después** se pagó: anular se frena (§3.5.7).
+5. **Gasto en $ 0** (NC = total): `cancelo_gasto` (D4). Si alguien deshace ese pago en Gastos, el gasto queda Pendiente en $ 0 y anular la NC se frena con "revisalo en Gastos" (limitación conocida, §12).
+6. **Gasto vinculado a mano (FA10)** con un monto distinto ±1 %: se descuenta `least(total NC, monto)` y la diferencia de redondeo queda en el gasto.
+7. **Factura vieja sin gasto** (P-0006, P-0011 y P-0027 en dev): `sin_gasto`. Resta en los reportes y en la Cuenta, en "Sin gasto".
+8. **Devolución antes de la factura (D1)** y la factura llega neta (8 de 10): el prellenado ya descuenta lo devuelto (§5.4). Si el proveedor factura 10, aparece la diferencia +2 → E13 la marca "esperando NC" (si la devolución es sin reposición).
+9. **Reposición que llega con otro precio:** la reposición no se factura (E6). Si el proveedor la factura aparte, eso es otro pedido, y se dice en la ayuda del paso 3.
+10. **Reposición que nunca llega:** el pedido queda Parcial → "Cerrar a mano" (P2). No hace falta editar la devolución.
+11. **Devolución con reposición en un pedido cerrado a mano:** frena (E9).
+12. **Remito editado por debajo de lo devuelto**, o eliminado: frena (E7), con el código D-… y "Anulá esa devolución primero".
+13. **Doble clic / dos personas:** el `for update` del pedido serializa, y la segunda ve el máximo nuevo y falla con el mensaje de máximo. La secuencia D-… no se pisa (unique + lock).
+14. **Motivo desactivado o editado después:** las devoluciones viejas usan la foto (E2); el motivo desactivado no aparece en el modal. Borrar un motivo usado → FK → "desactivalo".
+15. **Stock negativo** después de devolver (ya se consumió): se avisa en ámbar y no bloquea (principio del Bloque 1).
+16. **R3:** una diferencia ajustada en el stock frena registrar, cargar la NC y anular (E14).
+17. **Corrección de precio sobre una línea por kg:** la cantidad son los kg cobrados. "Precio correcto" en $/kg. La NC = kg × (cobrado − correcto).
+18. **Insumo archivado** (A2a): se puede devolver igual (está en el pedido). El chip "Archivado" aparece en la línea.
+19. **Proveedor archivado** (B3): un proveedor con pedidos abiertos no se archiva, así que un pedido Devuelto no cuenta como abierto (`pedidoAbierto` ya devuelve false). Registrar una devolución de un proveedor archivado **se permite** (es cerrar cuentas). No se llama a `_compras_exigir_proveedor_activo`.
+20. **Rol custom de Compras** (`qa-squad`): ve la sección, registra y anula devoluciones con mercadería sin NC, y no ve montos ni la NC (E15). Un rol solo `fabrica-conteos`: sin acceso (A2a D4).
+21. **NC con total > lo que queda de la factura:** frena (§3.5.5).
+22. **Una devolución que vacía el pedido**, pero con una línea que nunca llegó: queda Parcial, no Devuelto (E8).
+
+## 8. Archivos
+
+**En alcance:**
+
+| Archivo | Qué |
+|---|---|
+| `supabase/migrations/20261006150000_compras_devoluciones.sql` | §3 (nuevo) |
+| `docs/bloque2/escenarios-B4.sql` | §9.2 (nuevo) |
+| `lib/database.types.ts` | regenerado después del push |
+| `lib/compras/devoluciones.ts`, `_check_devoluciones.ts` | §5.1 (nuevos) |
+| `lib/compras/codigos.ts` | `codigoDevolucion` |
+| `lib/compras/estadoPedido.ts`, `_check_estado.ts` | §5.2 |
+| `lib/compras/reportes.ts`, `_check_reportes.ts` | §5.3 |
+| `lib/compras/historialPedido.ts`, `_check_historial.ts` | §5.4 |
+| `lib/compras/diferencias.ts`, `_check_diferencias.ts` | §5.4 |
+| `lib/compras/rutas.ts`, `lib/modulos.tsx` (solo el mapeo de `devolucion` → `compras-pedidos`, si `LinkEntidad` lo necesita) | §5.4 |
+| `lib/errores.ts` | §5.5 |
+| `app/admin/compras/pedidos/devoluciones/{DevolucionModal,NotaCreditoModal,AnularModal,DevolucionesSeccion}.tsx`, `acciones.ts`, `datos.ts` | §4, §6.2–6.5 (nuevos) |
+| `app/admin/compras/pedidos/{PedidoDetalle,PedidosClient}.tsx`, `page.tsx`, `datos.ts` | §6.3 |
+| `app/admin/compras/pedidos/facturas/{FacturaForm,FacturasClient,DiferenciasPanel,CabeceraFactura}.tsx`, `modelo.ts`, `_check_modelo.ts`, `datos.ts`, `page.tsx` | §5.4, §6.6 |
+| `app/admin/compras/pedidos/remitos/modelo.ts`, `_check_modelo.ts` | solo si el prellenado necesita el `pendiente` nuevo (§5.4) |
+| `app/admin/proveedores/layout.tsx`, `motivos-devolucion/page.tsx` (nuevo) | §6.1 |
+| `app/api/compras-devolucion-motivos/route.ts` | §6.1 (nuevo) |
+| `components/compras/PagoFactura.tsx`, `app/admin/proveedores/{FichaPaneles.tsx,datos.ts}` | §6.7 |
+| `app/admin/compras/reportes/{page.tsx,GastoPorProveedor.tsx}` | §6.7: una línea en `page.tsx` + la columna |
+| `eslint.config.mjs` | sumar `app/admin/compras/pedidos/devoluciones/*.tsx` y `app/admin/proveedores/motivos-devolucion/*.tsx` a la regla de hex |
+| `docs/bloque2/notas-B4.md` | notas, mini-spec de `impeccable` y lista de pruebas |
+
+**Fuera de alcance (no se tocan):**
+
+- **SQL de otros carriles o ya estable:**
+  - `compras_guardar_remito`, `compras_eliminar_remito`, `compras_guardar_factura` y `compras_confirmar_factura` (la guarda va en el recálculo, E7);
+  - `compras_trazabilidad_insumo`, `v_compras_insumo_documentos` y `v_compras_stock_movimientos` (A2c → A4);
+  - `cerrar_conteo_fabrica` y las de conteo (A1/A3);
+  - las de producción (A3);
+  - `gastos_*` y `v_gastos`;
+  - `proveedores_*`.
+- **Pantallas de A2c (y después A3/A4):** ficha de Stock (`app/admin/compras/stock/**`), Insumos (`app/admin/compras/insumos/**`) y Reportes › "Por insumo" (`reportes/PorInsumo.tsx`, `ReportesClient.tsx`, `lib/compras/reportePorInsumo.ts`, `lib/compras/trazabilidad.ts`).
+- **Compartir la NC** (B2: `CompartirFacturaModal`, `cargarComprobante`, `comprobanteFactura`, `facturaMensaje`; ver D5).
+- **Gastos** (`app/admin/gastos/**`): el gasto se modifica desde la RPC; la pantalla lo muestra como siempre.
+- **Fábrica:** devoluciones de producto de los locales (`fabrica_devolucion_motivos`).
+- **El manual `/ayuda`:** se arma en la entrega final, no por fase. Las notas dejan qué secciones cambian.
+
+## 9. Verificación
+
+### 9.1 Antes de empezar
+
+```bash
+git fetch && git reset --hard origin/qa        # o rebase si ya hay commits propios
+git log --oneline -1                           # c59eb64 o posterior
+rg -n "function public.compras_recalcular_estado_pedido|view public.v_compras_facturas|function public.compras_anular_factura|function public.compras_mover_stock|function public.compras_diferencias_calculadas|view public.v_compras_pedido_pendiente|view public.v_compras_pedido_eventos|view public.v_compras_factura_diferencias" supabase/migrations
+npx supabase migration list --linked --project-ref fafckqysyvtlslfnpzrh   # la última local y remota: 20261006120000
+npx supabase db query --linked --project-ref fafckqysyvtlslfnpzrh "select count(*) from compras_stock_actual a where a.cantidad <> (select coalesce(sum(delta),0) from compras_stock_movimientos m where m.item_id = a.item_id)"   # 0
+npx supabase db query --linked --project-ref fafckqysyvtlslfnpzrh "select distinct tipo from compras_pedido_eventos"
+```
+
+Copiar `.env.local` desde `C:\Dev\Trabajo\4peeq\YA!Chipacitos\.env.local`, correr `npm install` y levantar el dev server en el **3006** desde PowerShell (`npx next dev -p 3006`; desde Git Bash, `/admin` da 404).
+
+### 9.2 SQL de escenarios (dev, **sin pushear**; todo se revierte)
+
+`docs/bloque2/escenarios-B4.sql`, con el patrón de `escenarios-B3.sql`: un `do $$ … $$` que corre como `qa-admin` o `qa-squad` (`set_config('request.jwt.claims', …)` + `set_config('role','authenticated')`) y termina con `raise exception 'RESULTADO: %', v_res`, así revierte todo.
+
+```bash
+cat supabase/migrations/20261006150000_compras_devoluciones.sql docs/bloque2/escenarios-B4.sql > <scratchpad>/b4_escenarios.sql
+npx supabase db query --linked --project-ref fafckqysyvtlslfnpzrh -f <scratchpad>/b4_escenarios.sql
+npx supabase db query --linked --project-ref fafckqysyvtlslfnpzrh "select to_regclass('public.compras_devoluciones') is null as limpio"   # true
+```
+
+**Datos del lote:** se arman pedidos propios dentro del lote, con GLOBAL y Queso Barra (cobra por kg, $ 1.250) más Fécula (por bolsa). Se envían y se les cargan remitos y facturas con las RPC reales. Así no dependen de P-0037 ni de P-0019, y no los cambian.
+
+| # | Escenario | Resultado esperado |
+|---|---|---|
+| **S1** | Migración | 6 motivos con sus flags; los 3 CHECK; columnas nuevas; RLS: solo `select` en devoluciones e ítems; check de eventos con los 2 tipos; `compras_recalcular_diferencias_factura` compila y corre contra la función nueva; `v_compras_pedido_eventos` sin dependientes rotos |
+| **S2 (D1)** | Pedido A sin factura: remito 2 Caja Queso Barra (33 kg) + 3 Bolsa Fécula. Devolución "Mal estado" 1 Caja / 16,4 kg, **repone** | Movimiento `devolucion_proveedor` −1 con `devolucion_id` y "(16,4 kg)" en el motivo; stock −1; pedido `parcial`; `pendiente` de la línea = 1; evento `devolucion_registrada` sin montos; código `D-xxxx-01` |
+| **S3** | Remito de reposición, 1 Caja | Pedido `recibido`; `pendiente` 0 |
+| **S4** | Pedido B: remito con todo; devolución de **todo**, sin reposición | `devuelto`, legacy `cerrado`; `pedidoAbierto` (TS) false |
+| **S5 (D2)** | Pedido C facturado 2 Caja / 33,4 kg a $ 1.250 + 3 Bolsa (gasto pendiente creado). Devolución "Mal estado" 1 Caja / 16,4 kg, no repone, **con NC** | NC confirmada con `factura_origen_id`: 16,4 × 1.250 = 20.500 + IVA 4.305 = 24.805; gasto: monto − 24.805, `nc_gasto = 'descontado'`; diferencias de la factura: 0; `v_compras_facturas` de la NC: `gasto_estado = 'Pendiente de pago'`; la suma con signo de las filas por proveedor coincide con el `monto` del gasto |
+| **S6 (D2, desde la diferencia)** | Pedido D facturado 10 Bolsa, remitos 8, cerrado a mano → diferencia +2 → Reclamo → devolución "Facturado y no entregado" 2 + NC (`p_diferencia_id`) | Sin movimiento de stock; la NC baja la cantidad facturada; la diferencia desaparece; gasto descontado |
+| **S7** | Pedido C: "Precio mal facturado" sobre la línea por kg, correcto $ 1.200 | NC con una línea **sin `item_id`**: 33,4 kg cobrados (la cantidad es la de la línea de la factura, aunque una parte ya se haya devuelto) × $ 50 = $ 1.670 + IVA; stock sin cambios; las diferencias no cambian; la trazabilidad de A2c del insumo no cambia de cantidad |
+| **S8 (D3)** | Pedido E facturado; devolución "Mal estado" 1, no repone, **sin NC** | La diferencia +1 queda `reclamo_proveedor`, con `devolucion_id` y la nota "Esperando…"; `espera_nota_credito = true`; después `compras_cargar_nota_credito` → la diferencia se borra, el gasto baja, `nota_credito_id` cargado y `espera_nota_credito = false` |
+| **S9 (D4)** | Anular la devolución de S5 | `reversion` +1 con `anula_movimiento_id`; NC anulada; gasto = monto original exacto; diferencias = antes; evento `devolucion_anulada`; anular de nuevo → "ya está anulada"; el `reversion` duplicado no se puede crear |
+| **S10 (D5)** | Pedido F: factura, gasto marcado Pagado (`gastos_registrar_pago`), devolución + NC | `nc_gasto = 'a_favor'`; el gasto no cambia; el retorno trae `gasto = 'a_favor'`; `estadoPago` TS → `a_favor`; anular la NC no toca el gasto |
+| **S11** | NC descontada y después el gasto se paga → anular la NC | Error "ya se pagó con el descuento…"; nada cambió |
+| **S12** | Pedido G con factura "ya llegó" (remito automático) + devolución con mercadería; anular la factura | Error de la guarda E7 ("Anulá esa devolución primero"); el remito y el stock siguen |
+| **S13** | Factura con NC → anular la factura | Error E18 con el N° de la NC; anular la NC y después la factura → OK. `compras_anular_factura(<id de una NC>)` → "Una nota de crédito se anula desde su devolución" |
+| **S14** | NC por el total de la factura (devolución de todo, sin reposición, con NC) | Gasto en $ 0, `Pagado`, `forma_pago = 'Nota de crédito'`, `nc_gasto = 'cancelo_gasto'`; pedido `devuelto`; anular → `Pendiente de pago`, monto original y forma de pago anterior |
+| **S15** | Límites | Devolver > llegó; la segunda devolución pasa lo que queda; NC > lo que queda de la factura; N° de NC repetido (constraint); repone + NC; repone en un cerrado a mano; sin mercadería sin factura; NC con kg faltantes en una línea por kg; `precio_correcto ≥ cobrado`. Cada uno con su mensaje, y nada queda a medias |
+| **S16 (R3)** | Diferencia de Queso Barra resuelta como `ajusta_stock` → registrar una devolución de Queso Barra | El mensaje E14, sin movimientos |
+| **S17 (E7)** | Pedido A (S2): editar el remito y bajarlo por debajo de lo devuelto; eliminar el remito | Los dos con el error E7; el stock no cambió |
+| **S18** | Permisos (`qa-squad`) | Devolución con mercadería y sin NC: OK; sin mercadería: error admin; con NC: error; cargar o anular NC: error; anular una devolución con NC: error; la vista de devoluciones con `nc_*` y `precio_correcto` en null; `v_compras_pedido_eventos` sin `nota_credito`; `insert` directo en `compras_devoluciones` → RLS; `anon` sin `execute` en las 4 RPC |
+| **S19** | Motivo editado después (cambiar `devuelve_mercaderia` del motivo usado en S2) y anular S2 | La reversión mueve lo mismo que se movió (foto, E2) |
+| **S20** | Eventos | La rama `factura_anulada` no lista NC; `nota_credito` y `nota_credito_anulada` solo para admin, con `devolucion_id` |
+| **S21** | Vistas | `v_compras_pedido_pendiente` con `devuelto`/`pendiente` correctos en S2–S3; `v_compras_factura_diferencias` con `devuelta`/`acreditada` y kg netos; `v_compras_facturas` con `notas_credito_total` y `gasto_monto` |
+| **S22** | **Invariante del ledger** | 0 filas, al final del lote |
+
+**S23 (concurrencia, aparte, dos sesiones con `pg_sleep`, las dos revertidas):** dos devoluciones del mismo insumo y el mismo pedido a la vez, que juntas pasan el máximo → la segunda espera el `for update` del pedido y falla con el mensaje de máximo. Una devolución y un `compras_guardar_remito` del mismo pedido → se serializan, sin deadlock (los dos bloquean el pedido primero).
+
+### 9.3 Chequeos puros, tipos, lint y build
+
+- `npx tsx lib/compras/_check_devoluciones.ts`, `_check_estado.ts`, `_check_reportes.ts`, `_check_historial.ts` y `_check_diferencias.ts`, más `facturas/_check_modelo.ts` (y `remitos/_check_modelo.ts` si se tocó). Todos OK, con la cantidad de casos en las notas.
+- `npx tsc --noEmit`, `npx eslint` de los archivos tocados (0) y `npm run build`. Cero `as any` nuevos y cero hex nuevos.
+
+### 9.4 Push a dev (con OK del coordinador)
+
+1. `git fetch && git rebase origin/qa`. El timestamp tiene que seguir siendo el mayor de `qa`; si entró otro mayor, renombrar la migración (todavía no se aplicó).
+2. Pedirle el OK al coordinador (un solo push a la vez).
+3. `npx supabase db push --dry-run --linked --project-ref fafckqysyvtlslfnpzrh` → **solo** `20261006150000`.
+4. `npx supabase db push --linked --project-ref fafckqysyvtlslfnpzrh`.
+5. `npm run types` → solo lo de B4. Commit `chore(tipos): …`.
+6. El invariante en 0 y los motivos sembrados.
+
+### 9.5 QA en el navegador (local :3006 contra dev, `qa-admin` y `qa-squad`)
+
+El navegador de Traycer no hidrató `compras/pedidos/*` en B3. Si vuelve a pasar, usar el script de Playwright de B1 (`playwright-core` + Chromium) o un Chrome común.
+
+1. Proveedores › Motivos de devolución: los 6, con su chip. Crear "QA B4 motivo" (corrige el precio), editarlo, desactivarlo y borrarlo. Borrar "Mercadería en mal estado" después de usarlo → "desactivalo".
+2. **D1** en un pedido nuevo de GLOBAL (Queso Barra 2 + Fécula 3, enviado, remito con 33 kg):
+   - "Registrar devolución" › Mal estado › 1 Caja con 16,4 kg › Repone;
+   - el confirm dice "Resta 1 Caja… queda en …" y "vuelve a Parcialmente recibido";
+   - el toast; la sección Devoluciones y el historial;
+   - "Qué sigue" → cargar remito; el remito de reposición → Recibido.
+3. **D2:** facturar ese pedido (con el prellenado correcto) → "Registrar devolución" desde la factura, "no repone", con NC; el impacto del gasto ("baja de… a…"); la NC en la lista de Facturas; abrirla (vista NC, links); la Cuenta de GLOBAL cuadra.
+4. **Desde la diferencia:** P-0019 (1 diferencia pendiente) → Resolver › Reclamo → "Registrar devolución" prellenado ("Facturado y no entregado", 1, NC) → la diferencia desaparece.
+5. **D3:** una devolución sin NC → la diferencia "Esperando la nota de crédito de D-…" → "Qué sigue: Falta la nota de crédito" → `NotaCreditoModal` → listo.
+6. **D4:** anular esa devolución → el confirm con el stock y el gasto → todo vuelve (stock, gasto en Gastos › Pendientes, estado e historial).
+7. **D5:** marcar un gasto como pagado en Gastos › Pendientes y cargar una NC → el aviso "a favor"; la Cuenta muestra "A favor"; Reportes › Gasto por proveedor muestra la columna.
+8. **Corrección de precio** sobre la línea por kg → la NC "Diferencia de precio · …".
+9. **Bloqueos en pantalla:** anular una factura con NC (aviso previo); bajar un remito por debajo de lo devuelto (toast con D-…); repone en un cerrado a mano (opción deshabilitada con el texto).
+10. **`qa-squad`:** ve Devoluciones sin montos; registra "Mal estado" sin NC; no ve las opciones de "Corrige la factura" ni "Cargar nota de crédito".
+11. **Deep link** `?pedido=…&devolucion=…`: abre y resalta; al cerrar se limpia.
+12. **375 px y tema claro:** el modal de devolución en pantalla completa con el pie sticky, sin scroll horizontal y con los kg tocables; la sección Devoluciones; la vista de la NC.
+
+### 9.6 Datos de dev
+
+Lo que quede de la QA en el navegador se anota en `notas-B4.md` (pedido, códigos D-…, NC y estado de los gastos). Los escenarios SQL no dejan nada.
+
+## 10. Commits y cierre (rama `bloque2/pedidos`)
+
+Commits chicos, y push de la rama después de cada uno (con el token de 4peeqTech, §cabecera):
+
+1. `feat(compras): devoluciones al proveedor y nota de crédito en SQL (B4, sin aplicar)`: la migración + `escenarios-B4.sql` + `lib/database.types.ts` a mano, si hace falta para compilar.
+2. `feat(compras): lógica pura de devoluciones, estado, pagos a favor e historial (B4)`: `lib/compras/*` + checks.
+3. Después del push a dev: `chore(tipos): regenerar database.types tras aplicar B4 en dev`.
+4. `feat(compras): motivos de devolución al proveedor (B4)`.
+5. `feat(compras): registrar, anular y cargar nota de crédito desde el pedido, la factura y las diferencias (B4)`.
+6. `feat(compras): notas de crédito en Facturas, Cuenta del proveedor y Reportes (B4)`.
+7. `docs(bloque2): notas de B4`.
+
+Al cerrar, mandarle al coordinador: commits, resultado de S1–S23, invariante, checks y la lista de pruebas (§12). El plan maestro **no** se edita (lo actualiza el coordinador).
+
+## 11. Criterios de aceptación
+
+1. La migración corre en un lote revertido con S1–S22 en verde, y el push a dev deja el invariante del ledger en 0.
+2. Una devolución con mercadería mueve el stock **en unidad de compra**, con un `devolucion_proveedor` por insumo que lleva `devolucion_id`, y los kg reales quedan en la línea y en el motivo.
+3. El estado del pedido se calcula con E8: con reposición pendiente queda Parcial, y se llega a Devuelto con todo devuelto sin reposición. Anular lo deja como estaba.
+4. La NC es una `compras_facturas` `nota_credito` confirmada, con `factura_origen_id`. Sus líneas salen del servidor (E5) y su total coincide con el de `armarNotaCredito` en TS.
+5. El gasto pendiente baja exactamente el total de la NC. Un gasto pagado no cambia y la NC queda "A favor". Anular la NC devuelve el gasto al centavo, o frena con un mensaje que dice qué hacer.
+6. Las diferencias reflejan devoluciones y NC (tabla de §3.7). Una devolución sin NC deja la diferencia "Esperando la nota de crédito" en vez de una pendiente nueva.
+7. Ninguna acción deja menos recibido que devuelto (E7). La guarda R3 frena con su mensaje (E14). Anular una factura con NC frena (E18).
+8. Los 4 caminos de la UI funcionan: el detalle del pedido, la factura, la diferencia y "Cargar nota de crédito" después. Hay anular devolución y anular NC, cada una con su impacto antes de confirmar.
+9. Pestaña de motivos con los 3 efectos; borrar un motivo usado da el mensaje de "desactivalo".
+10. La Cuenta del proveedor y Gasto por proveedor cuadran: Pagado + Pendiente + Sin gasto + A favor = Facturado (neto de NC).
+11. Permisos según E15, probados con `qa-squad`. Ni la tabla de eventos ni las vistas exponen montos a quien no es admin.
+12. Historial con los 4 eventos nuevos. La NC anulada no aparece como "factura anulada".
+13. Protocolo de diseño de §6.0 cumplido, con la mini-spec en las notas. 375 px y tema claro sin scroll horizontal. `tsc`, lint de lo tocado y build limpios.
+14. No se tocó ningún archivo de "Fuera de alcance".
+
+## 12. Lista de pruebas para el usuario
+
+En **https://qa.yachipacitos.com.ar** (rama `qa` + Supabase dev), con `qa-admin@chipacitos.test`, **una vez mergeado B4 a `qa`**. El Ejecutor la completa con los datos reales que deje en dev.
+
+1. **Proveedores › Motivos de devolución.**
+   - Hay 6 motivos: 4 "Sale del stock", "Facturado y no entregado" y "Precio mal facturado".
+   - Crear uno, cambiarle "Qué pasa" y desactivarlo.
+   - Intentar borrar "Mercadería en mal estado" después de usarlo → "desactivalo".
+2. **Mercadería mal, el proveedor repone (D1).**
+   - Crear un pedido a GLOBAL con 2 Queso Barra y 3 Fécula, enviarlo y cargar el remito con 33 kg.
+   - En el pedido: Registrar devolución › Mercadería en mal estado › 1 Caja, 16,4 kg › "Sí, repone".
+   - → El confirm dice cuánto resta del stock y que el pedido vuelve a "Parcialmente recibido".
+   - → Aparece la sección Devoluciones con D-xxxx-01, y el historial dice "Devolvió mercadería…".
+   - Cargar un remito con 1 Caja → Recibido.
+3. **Con factura y nota de crédito (D2).**
+   - Facturar ese pedido y confirmar (gasto pendiente).
+   - En la factura: Registrar devolución › Mal estado › 1 Caja, 16,4 kg › "No repone" › "Ya llegó la nota de crédito", con número y fecha.
+   - → El total sale 16,4 × $/kg + IVA, y el pie dice "El gasto pendiente baja de $ X a $ Y".
+   - → En Gastos › Pendientes, el gasto tiene el monto nuevo.
+   - → En Facturas aparece la NC con "−" y el chip; al abrirla, linkea a la factura y a la devolución.
+4. **La NC llega después (D3).**
+   - Otra devolución sin NC en un pedido facturado. → "Qué sigue: Falta la nota de crédito", y la diferencia dice "Esperando la nota de crédito de D-…".
+   - Cargar la NC desde la devolución. → La diferencia desaparece y el gasto baja.
+5. **Desde una diferencia.** P-0019 tiene 1 diferencia: Resolver › Reclamo al proveedor › "Registrar devolución". → Viene prellenado ("Facturado y no entregado", 1 Caja, con NC). Al registrar, la diferencia se cierra.
+6. **Precio mal facturado.** En una factura con Queso Barra por kg: Registrar devolución › Precio mal facturado › precio correcto 50 menos. → La NC dice "Diferencia de precio · Queso Barra…" y el stock no se mueve.
+7. **Anular (D4).**
+   - Anular la devolución del punto 3. → El confirm dice que vuelve a sumar stock y que el gasto vuelve a su monto. Después de anular: el stock, el gasto y el estado del pedido quedan como antes, y el historial dice "Anuló la devolución…".
+   - Anular solo una NC → la devolución queda "esperando nota de crédito".
+8. **Gasto ya pagado (D5).** Pagar un gasto en Gastos › Pendientes y después cargar una NC sobre su factura. → Aviso "estos $ X quedan a favor"; en Proveedores › GLOBAL › Cuenta aparece "A favor".
+9. **Devuelto.** Un pedido recibido completo, sin facturar: devolver todo, sin reposición. → Badge "Devuelto"; aparece en la pestaña Devueltos de Pedidos.
+10. **Lo que no se puede (cada uno dice qué hacer).**
+    - Devolver más de lo que llegó.
+    - Editar el remito por debajo de lo devuelto.
+    - Anular una factura con NC.
+    - "Repone" en un pedido cerrado a mano.
+    - Una NC más grande que lo que queda de la factura.
+11. **Con `qa-squad`.** Ve las devoluciones sin montos, puede registrar "Mercadería en mal estado" sin NC, y no ve "Corrige la factura" ni "Cargar nota de crédito".
+12. **Reportes › Gasto por proveedor y Proveedores › Cuenta.** Pagado + Pendiente + Sin gasto + A favor = Facturado (ya neto de NC).
+13. **Celular (375 px) y tema claro.** El modal de devolución ocupa la pantalla, con el botón abajo siempre visible; se lee sin scroll horizontal y los campos de kg se tocan bien.
+
+## 13. Decisiones que necesitan al usuario
+
+| # | Pregunta | Recomendación (la que asume esta spec) | Alternativa |
+|---|---|---|---|
+| **D1** | ¿Los motivos tienen un tercer comportamiento, "Facturado y no entregado" (no mueve stock y la NC baja la cantidad facturada), además de "sale mercadería" y "corrige el precio"? | **Sí:** dos flags (`devuelve_mercaderia` + `corrige_precio`) y el seed con "Facturado y no entregado". En la pantalla es un solo select de 3 opciones. | Solo el flag de F6. Pero entonces la diferencia +2 de F5 ("facturaron 2 que no llegaron") no tiene cómo cerrarse con una NC, que es justamente el camino D2 "desde Reclamo al proveedor". |
+| **D2** | La NC por **corrección de precio** ¿va como una línea **sin insumo** ("Diferencia de precio · Queso Barra")? | **Sí.** No toca las diferencias ni la cantidad comprada de A2c. **Costo:** en la ficha del insumo y en "Por insumo", esos pesos no se le restan al insumo (sí al proveedor y al total). Se anota para A4. | Línea con insumo + una marca `solo_precio`, y redefinir `compras_trazabilidad_insumo` de A2c para que no reste cantidad. Es más preciso, pero B4 invade A2c/A4. |
+| **D3** | Una devolución **con reposición** ¿puede traer nota de crédito? | **No.** Con 1 factura = 1 pedido, la reposición ya está facturada: la NC acreditaría dos veces. Si el proveedor no repone al final, se cierra el pedido a mano y la NC va en una devolución nueva sin reposición. | Permitirlo. Pero entonces hay que decidir si la reposición se vuelve a facturar, y eso choca con F1. |
+| **D4** | Si la NC deja el gasto pendiente en **$ 0** (se devolvió todo), ¿qué pasa con el gasto? | **Queda en $ 0 y "Pagado"**, con forma de pago "Nota de crédito" y la fecha de la NC; anular la NC lo devuelve a Pendiente con su monto. No aparece en Pendientes de pago. | (a) Que quede "Pendiente" en $ 0: aparece en Pendientes y alguien lo puede "pagar". (b) Borrarlo: anular la NC tendría que recrearlo. |
+| **D5** | ¿La NC se **comparte** (imagen y mensaje de B2)? | **No en B4.** La NC se ve en la factura, en la devolución y en Facturas. La administración se entera por el gasto, que ya baja solo. `cargarComprobante` sigue con el 409. Si hace falta, es una tanda chica después (título "NOTA DE CRÉDITO", plantilla tipo `factura` con "corrige la factura N°"). | Sumarlo ahora: toca los 4 archivos de B2 y la plantilla. |
+| **D6** | ¿Quién registra devoluciones? | **Cualquiera con Compras** registra y anula devoluciones **con mercadería y sin NC** (es quien recibe). Todo lo que corrige la factura y todo lo de NC, **solo admin**. Quien no es admin no ve montos. | Todo solo admin: es más simple, pero quien recibe no puede dejar asentado que devolvió mercadería. |
+| **D7** | Una devolución registrada **sin kg** de un insumo que se factura por kg: ¿se le puede cargar la NC después? | **No:** hay que anularla y registrarla de nuevo con los kg. El modal avisa de antemano que los kg son necesarios para la NC. | Pedir los kg en el modal de la NC y guardarlos en la devolución después. Es una escritura más sobre una devolución ya registrada, y en el historial queda menos claro. |
+
+## 14. Para el coordinador
+
+- **Tabla de dueños** (B4 toma estos objetos; el siguiente parte de su cuerpo):
+
+  | Objeto | Antes | Después |
+  |---|---|---|
+  | `compras_mover_stock` | A1 → A4 | **B4** (`p_devolucion_id`) → A4 |
+  | `compras_recalcular_estado_pedido` | — | **B4** |
+  | `compras_diferencias_calculadas`, `v_compras_factura_diferencias` | A2b | **B4** |
+  | `compras_anular_factura` | A2b | **B4** |
+  | `v_compras_pedido_pendiente` | A2b | **B4** |
+  | `v_compras_facturas` | F5 | **B4** |
+  | `v_compras_pedido_eventos`, `compras_pedido_eventos_tipo_check` | B1 | **B4** |
+  | `lib/compras/reportes.ts` (`estadoPago`, `resumirPagos`) | B3 | **B4** |
+  | `compras_devolucion*`, `compras_registrar_devolucion`, `compras_cargar_nota_credito`, `compras_anular_nota_credito`, `compras_anular_devolucion` | — | **B4** (nuevos) |
+
+- **No los toca:** `compras_guardar_remito`, `compras_eliminar_remito`, `compras_guardar_factura`, `compras_confirmar_factura`, `compras_trazabilidad_insumo` ni `v_compras_stock_movimientos`.
+- **Para A4 (o una tanda chica):**
+  - `devolucion_id` al final de `v_compras_stock_movimientos` y el chip "Devolución" en `PanelMovimientos`;
+  - si se elige la alternativa de D2, la marca `solo_precio` en la trazabilidad.
+- **Para F9:** la consulta de devoluciones del pedido está acotada por pedido, pero la lista de pedidos sigue sin límite (lo de B3).
+- **Para la release** (cuando el usuario la pida): antes de aplicar `20261006150000` en prod, contar las NC de prod (0 esperado; si hay, `compras_facturas_nc_con_origen` puede fallar) y los tipos de `compras_pedido_eventos`.
