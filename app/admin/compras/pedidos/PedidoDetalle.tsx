@@ -336,6 +336,7 @@ export default function PedidoDetalle({
   esAdmin,
   stockPorItem,
   devolucionResaltada = null,
+  diasDemora,
 }: {
   pedido: PedidoVista
   acciones: AccionesDetalle
@@ -346,6 +347,8 @@ export default function PedidoDetalle({
   stockPorItem: Record<string, number>
   /** B4: la devolución a la que llevó un deep link (?devolucion=). */
   devolucionResaltada?: string | null
+  /** B5: compras_config 'pedidos.dias_demora' (default DIAS_DEMORA). */
+  diasDemora?: number
 }) {
   const toast = useToast()
   // B4: modales de devolución. El de registrar se abre desde "Más acciones", la
@@ -360,7 +363,7 @@ export default function PedidoDetalle({
     if (!pedido.devoluciones.some(d => d.id === devolucionResaltada)) toast.error(`No encontramos esa devolución en ${pedido.codigo}.`)
   }, [devolucionResaltada, pedido.devoluciones, pedido.codigo, toast])
   const { fila, entrada, visible } = pedido
-  const accion = proximaAccion(entrada)
+  const accion = proximaAccion(entrada, undefined, diasDemora)
   const subtexto = subtextoEstado(entrada)
   const esperaMercaderia = entrada.estado_recepcion === 'enviado' || entrada.estado_recepcion === 'parcial'
   const remitos = [...fila.compras_remitos].sort((a, b) => a.secuencia - b.secuencia)

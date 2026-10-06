@@ -54,6 +54,7 @@ export default function ProveedorFicha({
   pedidosAbiertos,
   localesFacturacion,
   esAdmin,
+  diasDemora,
   onEditar,
   onEliminado,
   onClose,
@@ -64,6 +65,7 @@ export default function ProveedorFicha({
   pedidosAbiertos: number
   localesFacturacion: LocalFacturacion[]
   esAdmin: boolean
+  diasDemora?: number
   onEditar: () => void
   onEliminado: () => void
   onClose: () => void
@@ -262,7 +264,7 @@ export default function ProveedorFicha({
     switch (clave) {
       case 'pedidos':
         if (errores.pedidos) return <ErrorCarga mensaje={errores.pedidos} />
-        return datos.pedidos ? <PanelPedidos pedidos={datos.pedidos.filas} facturas={datos.pedidos.facturas} esAdmin={esAdmin} /> : <Cargando />
+        return datos.pedidos ? <PanelPedidos pedidos={datos.pedidos.filas} facturas={datos.pedidos.facturas} esAdmin={esAdmin} diasDemora={diasDemora} /> : <Cargando />
       case 'remitos':
         if (errores.remitos) return <ErrorCarga mensaje={errores.remitos} />
         return datos.remitos ? <PanelRemitos remitos={datos.remitos} facturas={datos.facturas} esAdmin={esAdmin} errorFacturas={errores.facturas} /> : <Cargando />

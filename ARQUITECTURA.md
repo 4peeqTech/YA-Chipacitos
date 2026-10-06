@@ -47,7 +47,7 @@ acoplados en una sola app Next.js sobre una sola base Postgres (Supabase):
 | **Compras a proveedores** | Catálogo de insumos, stock, pedidos por WhatsApp, remitos de recepción, reportes | `admin`, `squad` |
 | **Tareas** | Gestión de tareas del equipo administrativo, con subtareas, informes diarios, voz→tarea vía IA | todos los que tengan el módulo |
 
-Todo corre en **Vercel** (SSR + API Routes + 1 cron) contra **Supabase**
+Todo corre en **Vercel** (SSR + API Routes + 2 crons) contra **Supabase**
 (Postgres + Auth + Realtime + Storage).
 
 ```
@@ -97,7 +97,7 @@ Cualquier cambio de permisos hay que hacerlo **en los dos lados**.
 | Tema | Dark por defecto; toggle claro persistido en cookie `theme`, leída en el Root Layout para evitar flash |
 | Idioma | **Todo el código, comentarios, tablas y columnas están en español** (`es-AR`) |
 | Zona horaria | `America/Argentina/Buenos_Aires` (UTC-3), manejada a mano — ver [§10.4](#104-manejo-de-zona-horaria) |
-| Deploy | Vercel; 1 cron en [vercel.json](vercel.json) |
+| Deploy | Vercel; 2 crons en [vercel.json](vercel.json) (tareas y avisos de compras) |
 | Tests | **No hay.** Ni unitarios, ni E2E, ni CI |
 
 > ⚠️ **[AGENTS.md](AGENTS.md) advierte que esta versión de Next.js tiene breaking changes
@@ -891,6 +891,25 @@ Busca: tareas con fecha_limite = mañana
 Envía push "⏰ Vence mañana" a creador + asignados
 Marca recordatorio_enviado_at = now()
 ```
+
+#### El cron de avisos de compras (B5)
+
+[GET /api/cron/avisos-compras](app/api/cron/avisos-compras/route.ts), disparado por
+Vercel a las **10:00 UTC (07:00 ART)**, una vez por día, solo en producción.
+
+```
+Auth: Authorization: Bearer ${CRON_SECRET}, comparado en tiempo constante.
+      503 si CRON_SECRET falta o tiene menos de 16 caracteres, o si el entorno
+      de Supabase no verifica (verificarEntornoServidor).
+Corre: correrAvisos({ origen: 'cron' }) (lib/compras/avisosServidor.ts)
+       → compras_avisos_tomar (service_role, advisory lock): candidatos, rearme
+         y "ya avisé" en compras_avisos_enviados (un aviso por episodio)
+       → push agrupado por tipo a los destinatarios fijos (lib/compras/avisos.ts)
+       → una fila en compras_avisos_corridas (se ve en Compras › Avisos)
+```
+
+Los mismos chequeos corren con "Revisar ahora" (Compras › Avisos) y, para
+"listo para facturar", en un `after()` de `guardarRemito`.
 
 #### Dos hardcodeos a revisar
 
@@ -1737,6 +1756,7 @@ existe solo en `/api/usuarios`.
 | `/api/tareas/transcribir` | POST | sesión | ✗ | Solo Whisper |
 | `/api/tareas/agente` | POST | sesión | ✗ | Tool calling, 4 tools, RLS como frontera ✅ |
 | `/api/cron/recordatorios-tareas` | GET | `Bearer CRON_SECRET` | ✔ | Vercel Cron 11:00 UTC |
+| `/api/cron/avisos-compras` | GET | `Bearer CRON_SECRET` (≥ 16, tiempo constante) | ✔ | Vercel Cron 10:00 UTC; avisos de compras (B5) |
 
 ### El patrón `requireAdmin()`
 

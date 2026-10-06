@@ -2,6 +2,8 @@
 // base guarda dos ejes (estado_recepcion, estado_facturacion) y la pantalla
 // muestra uno solo. Chequeo: `npx tsx lib/compras/_check_estado.ts`.
 
+import type { AlertaPedidos } from './rutas'
+
 export type EstadoRecepcion = 'sin_enviar' | 'enviado' | 'parcial' | 'recibido' | 'cerrado_manual' | 'devuelto'
 export type EstadoFacturacion = 'sin_facturar' | 'facturado'
 export type EstadoVisible = 'sin_enviar' | 'enviado' | 'parcial' | 'recibido' | 'cerrado' | 'facturado' | 'devuelto'
@@ -45,7 +47,10 @@ export function aEstadoFacturacion(v: string): EstadoFacturacion {
 /** Los 7 estados visibles en el orden del flujo (gráficos y conteos). */
 export const ESTADOS_VISIBLES: EstadoVisible[] = ['sin_enviar', 'enviado', 'parcial', 'recibido', 'cerrado', 'facturado', 'devuelto']
 
-// TODO(config): compras_config 'pedidos.dias_demora' (decidido con el usuario el 24-09: 3 días).
+/**
+ * Default de "demorado" (acordado el 24-09). El valor vigente es
+ * compras_config 'pedidos.dias_demora' (B5): las páginas lo leen y lo pasan.
+ */
 export const DIAS_DEMORA = 3
 
 const DIA_MS = 24 * 60 * 60 * 1000
@@ -75,11 +80,18 @@ export function diasDesdeEnvio(enviadoEn: string | null, ahora: Date = new Date(
   return Math.floor((ahora.getTime() - new Date(enviadoEn).getTime()) / DIA_MS)
 }
 
-/** Enviado (o parcial) hace DIAS_DEMORA días o más y todavía esperando mercadería. */
-export function estaDemorado(p: Pick<EstadoPedidoEntrada, 'estado_recepcion' | 'enviado_en'>, ahora: Date = new Date()): boolean {
+/**
+ * Enviado (o parcial) hace `diasDemora` días o más y todavía esperando mercadería.
+ * Lo replica _compras_pedidos_demorados en SQL (avisos y tablero de B5).
+ */
+export function estaDemorado(
+  p: Pick<EstadoPedidoEntrada, 'estado_recepcion' | 'enviado_en'>,
+  ahora: Date = new Date(),
+  diasDemora: number = DIAS_DEMORA,
+): boolean {
   if (p.estado_recepcion !== 'enviado' && p.estado_recepcion !== 'parcial') return false
   const dias = diasDesdeEnvio(p.enviado_en, ahora)
-  return dias != null && dias >= DIAS_DEMORA
+  return dias != null && dias >= diasDemora
 }
 
 export type TipoAccion = 'enviar' | 'cargar_remito' | 'cargar_factura' | 'resolver_diferencias' | 'cargar_nota_credito' | 'ninguna'
@@ -96,7 +108,7 @@ function plural(n: number, singular: string, pluralTxt: string): string {
   return `${n} ${n === 1 ? singular : pluralTxt}`
 }
 
-export function proximaAccion(p: EstadoPedidoEntrada, ahora: Date = new Date()): ProximaAccion {
+export function proximaAccion(p: EstadoPedidoEntrada, ahora: Date = new Date(), diasDemora: number = DIAS_DEMORA): ProximaAccion {
   const visible = estadoVisible(p)
   switch (visible) {
     case 'sin_enviar':
@@ -109,7 +121,7 @@ export function proximaAccion(p: EstadoPedidoEntrada, ahora: Date = new Date()):
       return {
         tipo: 'cargar_remito',
         titulo: 'Esperando la mercadería',
-        descripcion: `Se envió ${cuando}. Cuando llegue, cargá el remito.${estaDemorado(p, ahora) ? ' Ya pasaron varios días: conviene llamar al proveedor.' : ''}`,
+        descripcion: `Se envió ${cuando}. Cuando llegue, cargá el remito.${estaDemorado(p, ahora, diasDemora) ? ' Ya pasaron varios días: conviene llamar al proveedor.' : ''}`,
         boton: 'Cargar remito',
       }
     }
@@ -207,4 +219,20 @@ export function filtroDelPedido(p: Pick<EstadoPedidoEntrada, 'estado_recepcion' 
   // Cerrado a mano: se factura solo si llegó algo (un "enviado por error" no).
   if (visible === 'cerrado' && p.recibioAlgo) return 'por_facturar'
   return null
+}
+
+/**
+ * B5: si un pedido entra en una alerta de Pedidos (?alerta=). Las mismas reglas
+ * que los helpers SQL del tablero, así el KPI y la lista dan el mismo número.
+ */
+export function coincideAlerta(
+  v: Pick<EstadoPedidoEntrada, 'estado_recepcion' | 'hayDiferencias' | 'devolucionEsperaNc'> & { demorado: boolean },
+  alerta: AlertaPedidos,
+): boolean {
+  switch (alerta) {
+    case 'por_recibir': return v.estado_recepcion === 'enviado' || v.estado_recepcion === 'parcial'
+    case 'demorados': return v.demorado
+    case 'diferencias': return !!v.hayDiferencias
+    case 'nc': return v.devolucionEsperaNc != null
+  }
 }

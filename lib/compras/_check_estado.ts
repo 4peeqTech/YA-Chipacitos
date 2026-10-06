@@ -1,6 +1,6 @@
 // Chequeo de las funciones puras del estado del pedido.
 // Correr con: npx tsx lib/compras/_check_estado.ts
-import { estadoVisible, subtextoEstado, estaDemorado, proximaAccion, filtroDelPedido, pedidoAbierto, type EstadoPedidoEntrada, type EstadoRecepcion, type EstadoFacturacion } from './estadoPedido'
+import { estadoVisible, subtextoEstado, estaDemorado, proximaAccion, filtroDelPedido, pedidoAbierto, coincideAlerta, type EstadoPedidoEntrada, type EstadoRecepcion, type EstadoFacturacion } from './estadoPedido'
 
 const ahora = new Date('2026-09-24T12:00:00Z')
 const haceDias = (d: number) => new Date(ahora.getTime() - d * 86_400_000).toISOString()
@@ -81,6 +81,24 @@ for (const t of TABLA_ABIERTO) {
     esperado: t.abierto,
   })
 }
+
+// B5: días de demora configurables y alertas de Pedidos.
+const alerta = (p: Partial<EstadoPedidoEntrada> & { demorado?: boolean }) => ({ ...pedido(p), demorado: p.demorado ?? false })
+casos.push(
+  { nombre: 'B5 demorado con 5 días: a los 4 no', real: estaDemorado(pedido({ enviado_en: haceDias(4) }), ahora, 5), esperado: false },
+  { nombre: 'B5 demorado con 5 días: a los 5 sí', real: estaDemorado(pedido({ enviado_en: haceDias(5) }), ahora, 5), esperado: true },
+  { nombre: 'B5 qué sigue usa los días', real: proximaAccion(pedido({ enviado_en: haceDias(4) }), ahora, 5).descripcion.includes('conviene llamar'), esperado: false },
+  { nombre: 'B5 qué sigue con el default', real: proximaAccion(pedido({ enviado_en: haceDias(4) }), ahora).descripcion.includes('conviene llamar'), esperado: true },
+  { nombre: 'B5 alerta por_recibir: enviado', real: coincideAlerta(alerta({}), 'por_recibir'), esperado: true },
+  { nombre: 'B5 alerta por_recibir: parcial facturado', real: coincideAlerta(alerta({ estado_recepcion: 'parcial', estado_facturacion: 'facturado' }), 'por_recibir'), esperado: true },
+  { nombre: 'B5 alerta por_recibir: recibido no', real: coincideAlerta(alerta({ estado_recepcion: 'recibido' }), 'por_recibir'), esperado: false },
+  { nombre: 'B5 alerta demorados', real: coincideAlerta(alerta({ demorado: true }), 'demorados'), esperado: true },
+  { nombre: 'B5 alerta demorados: no demorado', real: coincideAlerta(alerta({}), 'demorados'), esperado: false },
+  { nombre: 'B5 alerta diferencias', real: coincideAlerta(alerta({ estado_recepcion: 'recibido', hayDiferencias: true }), 'diferencias'), esperado: true },
+  { nombre: 'B5 alerta diferencias: sin', real: coincideAlerta(alerta({ estado_recepcion: 'recibido' }), 'diferencias'), esperado: false },
+  { nombre: 'B5 alerta nc', real: coincideAlerta(alerta({ devolucionEsperaNc: { id: 'd', codigo: 'D-0001-01' } }), 'nc'), esperado: true },
+  { nombre: 'B5 alerta nc: sin', real: coincideAlerta(alerta({ devolucionEsperaNc: null }), 'nc'), esperado: false },
+)
 
 let fallas = 0
 for (const c of casos) {

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { aEstadoFacturacion, aEstadoRecepcion, pedidoAbierto } from '@/lib/compras/estadoPedido'
 import type { PestanaProveedor } from '@/lib/compras/rutas'
 import ProveedoresClient from './ProveedoresClient'
+import { CLAVE, leerConfigAvisos } from '@/lib/compras/avisos'
 
 export const metadata = { title: 'Proveedores | YA! Chipacitos' }
 
@@ -20,12 +21,14 @@ export default async function ProveedoresPage({
 
   const { proveedor, pestana } = await searchParams
 
-  const [{ data: perfil }, { data: proveedores }, { data: pares }, { data: pedidos }, { data: locales }] = await Promise.all([
+  const [{ data: perfil }, { data: proveedores }, { data: pares }, { data: pedidos }, { data: locales }, { data: config }] = await Promise.all([
     supabase.from('profiles').select('rol').eq('id', user.id).single(),
     consultarProveedores(supabase),
     supabase.from('compras_item_proveedores').select('proveedor_id').eq('activo', true),
     supabase.from('compras_pedidos').select('proveedor_id, estado_recepcion, estado_facturacion, compras_remitos(count)'),
     supabase.from('locales_facturacion').select('id, nombre').eq('activo', true).order('orden'),
+    // B5: "demorado" en la ficha con los días de Compras › Avisos.
+    supabase.from('compras_config').select('clave, valor').eq('clave', CLAVE.diasDemora),
   ])
 
   // Insumos activos y pedidos abiertos por proveedor (las columnas de la lista).
@@ -48,6 +51,7 @@ export default async function ProveedoresPage({
       abiertosPorProveedor={abiertos}
       localesFacturacion={locales ?? []}
       esAdmin={perfil?.rol === 'admin'}
+      diasDemora={leerConfigAvisos(config ?? []).diasDemora}
       proveedorInicial={proveedor}
       pestanaInicial={PESTANAS.find(p => p === pestana)}
     />
