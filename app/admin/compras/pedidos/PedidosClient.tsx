@@ -14,6 +14,7 @@ import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
+import { useSearchParams } from 'next/navigation'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { codigoPedido } from '@/lib/compras/codigos'
 import { DIAS_DEMORA, subtextoEstado, type FiltroPedidos } from '@/lib/compras/estadoPedido'
@@ -38,6 +39,10 @@ const FILTROS: { value: FiltroPedidos; label: string; vacio: { titulo: string; d
   { value: 'todos', label: 'Todos', vacio: { titulo: 'Todavía no hay pedidos', descripcion: 'Usá "Crear pedido" para armar el primero.' } },
   { value: 'eliminados', label: 'Eliminados', vacio: { titulo: 'No hay pedidos eliminados', descripcion: '' } },
 ]
+
+function filtroDeParam(valor: string | undefined): FiltroPedidos | null {
+  return FILTROS.find(f => f.value === valor)?.value ?? null
+}
 
 // Activos: primero los que falta enviar, después los enviados hace más tiempo.
 function ordenActivos(a: PedidoVista, b: PedidoVista): number {
@@ -80,7 +85,13 @@ export default function PedidosClient({
   const confirmar = useConfirmar()
   const toast = useToast()
   const [isPending, startTransition] = useTransition()
-  const [filtro, setFiltro] = useState<FiltroPedidos>('activos')
+  // B3: ?estado=por_facturar (el aviso de Reportes) arranca en esa pestaña; un
+  // valor que no es una pestaña se ignora. Elegir otra a mano lo saca de la URL.
+  const estadoParam = useSearchParams().get('estado') ?? undefined
+  const [filtro, setFiltro] = useState<FiltroPedidos>(() => filtroDeParam(estadoParam) ?? 'activos')
+  const quitarEstado = useQuitarParams('estado')
+  useAlCambiarParam(estadoParam, e => { const f = filtroDeParam(e); if (f) setFiltro(f) })
+  function elegirFiltro(f: FiltroPedidos) { setFiltro(f); quitarEstado() }
   const [busqueda, setBusqueda] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
@@ -357,7 +368,7 @@ export default function PedidosClient({
       <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <SegmentedControl
           value={filtro}
-          onChange={setFiltro}
+          onChange={elegirFiltro}
           opciones={FILTROS.map(f => ({
             value: f.value,
             label: (

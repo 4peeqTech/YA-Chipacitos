@@ -29,6 +29,20 @@ export interface EstadoPedidoEntrada {
   facturaEnBorrador?: boolean
 }
 
+const RECEPCION: EstadoRecepcion[] = ['sin_enviar', 'enviado', 'parcial', 'recibido', 'cerrado_manual', 'devuelto']
+
+/** Las columnas llegan como text desde los tipos generados: se normalizan acá. */
+export function aEstadoRecepcion(v: string): EstadoRecepcion {
+  return (RECEPCION as string[]).includes(v) ? (v as EstadoRecepcion) : 'enviado'
+}
+
+export function aEstadoFacturacion(v: string): EstadoFacturacion {
+  return v === 'facturado' ? 'facturado' : 'sin_facturar'
+}
+
+/** Los 7 estados visibles en el orden del flujo (gráficos y conteos). */
+export const ESTADOS_VISIBLES: EstadoVisible[] = ['sin_enviar', 'enviado', 'parcial', 'recibido', 'cerrado', 'facturado', 'devuelto']
+
 // TODO(config): compras_config 'pedidos.dias_demora' (decidido con el usuario el 24-09: 3 días).
 export const DIAS_DEMORA = 3
 
@@ -146,6 +160,19 @@ export function proximaAccion(p: EstadoPedidoEntrada, ahora: Date = new Date()):
     case 'devuelto':
       return { tipo: 'ninguna', titulo: 'Devuelto', descripcion: 'La mercadería se devolvió al proveedor.', boton: null }
   }
+}
+
+/**
+ * Todavía necesita algo del proveedor: envío, mercadería o factura. Devuelto nunca.
+ * Es la regla de "no se archiva un proveedor con pedidos abiertos" (B3): la
+ * replica _compras_pedidos_abiertos_de en SQL, con los mismos casos.
+ */
+export function pedidoAbierto(p: Pick<EstadoPedidoEntrada, 'estado_recepcion' | 'estado_facturacion'> & { recibioAlgo: boolean }): boolean {
+  const r = p.estado_recepcion
+  if (r === 'sin_enviar' || r === 'enviado' || r === 'parcial') return true
+  if (p.estado_facturacion === 'facturado') return false
+  if (r === 'recibido') return true
+  return r === 'cerrado_manual' && p.recibioAlgo
 }
 
 // 'cerrados' (todos los cerrados a mano, también los que están por facturar) y
