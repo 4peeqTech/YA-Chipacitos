@@ -87,8 +87,10 @@ begin
       ('devuelto', 'facturado', true, false)
     ) t(er, ef, remito, abierto)
   loop
-    insert into compras_pedidos (proveedor_id, estado, estado_recepcion, estado_facturacion, creado_por)
-    values (v_prov3, 'borrador', c.er, c.ef, c_admin) returning id into v_ped;
+    insert into compras_pedidos (proveedor_id, estado, estado_recepcion, estado_facturacion, creado_por, enviado_en, cierre_motivo)
+    values (v_prov3, 'borrador', c.er, c.ef, c_admin,
+            case when c.er <> 'sin_enviar' then now() end,
+            case when c.er = 'cerrado_manual' then 'QA B3' end) returning id into v_ped;
     if c.remito then
       insert into compras_remitos (pedido_id, secuencia, fecha, creado_por) values (v_ped, 1, current_date, c_admin);
     end if;
@@ -140,8 +142,8 @@ begin
   -- ===== S12 reabrir un cerrado a mano de un proveedor archivado
   perform set_config('role', 'postgres', true);
   insert into proveedores (nombre, estado) values ('QA B3 Cerrado', 'activo') returning id into v_tmp;
-  insert into compras_pedidos (proveedor_id, estado, estado_recepcion, estado_facturacion, creado_por, enviado_en)
-  values (v_tmp, 'borrador', 'cerrado_manual', 'sin_facturar', c_admin, now()) returning id into v_ped;
+  insert into compras_pedidos (proveedor_id, estado, estado_recepcion, estado_facturacion, creado_por, enviado_en, cierre_motivo)
+  values (v_tmp, 'borrador', 'cerrado_manual', 'sin_facturar', c_admin, now(), 'QA B3') returning id into v_ped;
   perform set_config('role', 'authenticated', true);
   r := proveedores_archivar(v_tmp, true);
   begin perform compras_reabrir_pedido(v_ped); v_err := 'NO FALLÓ';
