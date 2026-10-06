@@ -194,7 +194,14 @@ function Formulario({
   )
   const filasMercaderia = filas.filter(f => f.llego > 0)
   const filasNoEntregado = filas.filter(f => f.facturado > 0)
-  const filasPrecio: LineaPrecio[] = useMemo(() => (factura ? lineasPrecio(factura, unidadBaseDe) : []), [factura]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Una línea con una corrección de precio activa no se vuelve a ofrecer (la RPC también lo frena).
+  const filasPrecio: LineaPrecio[] = useMemo(() => {
+    if (!factura) return []
+    const corregidas = new Set(ctx.devoluciones
+      .filter(d => d.estado === 'activa' && d.corrigePrecio)
+      .flatMap(d => d.lineas.map(l => l.facturaItemId).filter(Boolean)))
+    return lineasPrecio(factura, unidadBaseDe).filter(l => !corregidas.has(l.facturaItemId))
+  }, [factura, ctx.devoluciones]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const hayNc = esAdmin && !!factura && conNc && (efecto !== 'mercaderia' || repone === false)
 
