@@ -1,4 +1,9 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "bloque2/*": false
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/recordatorios-tareas",
