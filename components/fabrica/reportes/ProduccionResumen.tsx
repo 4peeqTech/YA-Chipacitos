@@ -1,9 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { CalendarDays, Sun, User, IceCreamCone } from 'lucide-react'
+import { CalendarDays, Sun, User, IceCreamCone, LayoutList, Table2 } from 'lucide-react'
 import Card from '@/components/ui/Card'
-import { agruparProduccion, type AgrupacionProduccion, type ProduccionFila } from '@/lib/fabrica/reportes'
+import { agruparProduccion, ordenarResumen, ordenInicial, type AgrupacionProduccion, type OrdenResumen, type ProduccionFila } from '@/lib/fabrica/reportes'
+import OrdenSelector from './OrdenSelector'
+import ProduccionTabla from './ProduccionTabla'
 
 const DIMENSIONES: { key: AgrupacionProduccion; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
   { key: 'fecha', label: 'Día', icon: CalendarDays },
@@ -23,13 +25,50 @@ function formatClave(dimension: AgrupacionProduccion, clave: string) {
 }
 
 export default function ProduccionResumen({ filas }: { filas: ProduccionFila[] }) {
+  const [vista, setVista] = useState<'resumen' | 'tabla'>('resumen')
   const [dimension, setDimension] = useState<AgrupacionProduccion>('fecha')
 
-  const resumen = useMemo(() => agruparProduccion(filas, dimension), [filas, dimension])
+  const [orden, setOrden] = useState<OrdenResumen>('fecha_desc')
+
+  const cambiarDimension = (d: AgrupacionProduccion) => {
+    setDimension(d)
+    setOrden(ordenInicial(d === 'fecha'))
+  }
+
+  const resumen = useMemo(
+    () => ordenarResumen(agruparProduccion(filas, dimension), orden, r => r.masaKg, r => r.cargas),
+    [filas, dimension, orden]
+  )
   const maxMasa = useMemo(() => Math.max(1, ...resumen.map(r => r.masaKg)), [resumen])
+
+  const switchVista = (
+    <div className="flex gap-1 p-1 rounded-xl bg-[#1a1a1a] w-fit">
+      {([['resumen', 'Resumen', LayoutList], ['tabla', 'Tabla', Table2]] as const).map(([key, label, Icon]) => (
+        <button
+          key={key}
+          onClick={() => setVista(key)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            vista === key ? 'bg-[#2a2a2a] text-[#e8c547]' : 'text-[#888] hover:text-[#f0f0f0]'
+          }`}
+        >
+          <Icon size={13} /> {label}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (vista === 'tabla') {
+    return (
+      <div className="space-y-3">
+        {switchVista}
+        <ProduccionTabla filas={filas} />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-3">
+      {switchVista}
       <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4">
         {DIMENSIONES.map(d => {
           const Icon = d.icon
@@ -37,7 +76,7 @@ export default function ProduccionResumen({ filas }: { filas: ProduccionFila[] }
           return (
             <button
               key={d.key}
-              onClick={() => setDimension(d.key)}
+              onClick={() => cambiarDimension(d.key)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
                 activo ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-[#1a1a1a] text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'
               }`}
@@ -47,6 +86,8 @@ export default function ProduccionResumen({ filas }: { filas: ProduccionFila[] }
           )
         })}
       </div>
+
+      <OrdenSelector orden={orden} onChange={setOrden} esFecha={dimension === 'fecha'} cantidadLabel="Cargas" />
 
       {resumen.length === 0 ? (
         <Card className="p-8 text-center">
