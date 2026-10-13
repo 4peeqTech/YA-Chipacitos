@@ -38,6 +38,32 @@ export function agruparProduccion(filas: ProduccionFila[], dimension: Agrupacion
   return [...porClave.values()].sort((a, b) => b.masaKg - a.masaKg)
 }
 
+export type OrdenResumen = 'fecha_desc' | 'fecha_asc' | 'kg_desc' | 'cantidad_desc' | 'nombre_asc'
+
+// Orden por defecto: por fecha (más reciente primero) cuando se agrupa por día,
+// por kg en el resto — antes todo salía por kg, incluso los días.
+export function ordenInicial(esFecha: boolean): OrdenResumen {
+  return esFecha ? 'fecha_desc' : 'kg_desc'
+}
+
+// Ordena una lista ya agrupada. `kg` y `cantidad` (cargas/líneas) se pasan como
+// accessors porque cada resumen los llama distinto. Devuelve una copia.
+export function ordenarResumen<T extends { clave: string }>(
+  lista: T[],
+  orden: OrdenResumen,
+  kg: (r: T) => number,
+  cantidad: (r: T) => number
+): T[] {
+  const copia = [...lista]
+  switch (orden) {
+    case 'fecha_desc': return copia.sort((a, b) => b.clave.localeCompare(a.clave))
+    case 'fecha_asc': return copia.sort((a, b) => a.clave.localeCompare(b.clave))
+    case 'kg_desc': return copia.sort((a, b) => kg(b) - kg(a))
+    case 'cantidad_desc': return copia.sort((a, b) => cantidad(b) - cantidad(a))
+    case 'nombre_asc': return copia.sort((a, b) => a.clave.localeCompare(b.clave, 'es'))
+  }
+}
+
 export interface EmbolsadoFila {
   fecha: string
   presentacionNombre: string
@@ -48,7 +74,7 @@ export interface EmbolsadoFila {
   cantidadKg: number
 }
 
-export type AgrupacionEmbolsado = 'presentacionNombre' | 'saborNombre' | 'tamanioNombre' | 'operarioNombre'
+export type AgrupacionEmbolsado = 'fecha' | 'presentacionNombre' | 'saborNombre' | 'tamanioNombre' | 'operarioNombre'
 
 export interface ResumenEmbolsado {
   clave: string
@@ -84,7 +110,7 @@ export interface DevolucionFila {
   notas?: string | null
 }
 
-export type AgrupacionDevolucion = 'motivoNombre' | 'saborNombre' | 'tamanioNombre' | 'presentacionNombre' | 'destino'
+export type AgrupacionDevolucion = 'fecha' | 'motivoNombre' | 'saborNombre' | 'tamanioNombre' | 'presentacionNombre' | 'destino'
 
 export interface ResumenDevolucion {
   clave: string
@@ -236,4 +262,24 @@ export function calcularKpisFabrica(
     devueltoKg,
     pctDevolucionSobreProducido: masaKg > 0 ? (devueltoKg / masaKg) * 100 : null,
   }
+}
+
+export type ColumnaProduccion = 'fecha' | 'turno' | 'operarioNombre' | 'saborNombre' | 'feculaKg' | 'masaKg' | 'rendimiento'
+
+function rendimientoFila(f: ProduccionFila): number {
+  return f.feculaKg > 0 ? f.masaKg / f.feculaKg : -1
+}
+
+// Orden de la tabla fila por fila de Producción. Las filas sin fécula (sin
+// rendimiento) quedan al final en descendente y al principio en ascendente.
+export function ordenarProduccionFilas(filas: ProduccionFila[], columna: ColumnaProduccion, asc: boolean): ProduccionFila[] {
+  const dir = asc ? 1 : -1
+  return [...filas].sort((a, b) => {
+    let r: number
+    if (columna === 'feculaKg' || columna === 'masaKg') r = a[columna] - b[columna]
+    else if (columna === 'rendimiento') r = rendimientoFila(a) - rendimientoFila(b)
+    else r = a[columna].localeCompare(b[columna], 'es')
+    // Desempate por fecha reciente para que el orden no salte entre renders.
+    return r !== 0 ? r * dir : b.fecha.localeCompare(a.fecha)
+  })
 }

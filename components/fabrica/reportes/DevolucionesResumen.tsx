@@ -1,12 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Undo2, IceCreamCone, Ruler, Package, Recycle, MessageSquareText } from 'lucide-react'
+import { CalendarDays, ArrowDownUp, Undo2, IceCreamCone, Ruler, Package, Recycle, MessageSquareText } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
-import { agruparDevoluciones, type AgrupacionDevolucion, type DevolucionFila } from '@/lib/fabrica/reportes'
+import { agruparDevoluciones, ordenarResumen, ordenInicial, type AgrupacionDevolucion, type DevolucionFila, type OrdenResumen } from '@/lib/fabrica/reportes'
+import OrdenSelector from './OrdenSelector'
 
 const DIMENSIONES: { key: AgrupacionDevolucion; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+  { key: 'fecha', label: 'Día', icon: CalendarDays },
   { key: 'motivoNombre', label: 'Motivo', icon: Undo2 },
   { key: 'destino', label: 'Destino', icon: Recycle },
   { key: 'saborNombre', label: 'Sabor', icon: IceCreamCone },
@@ -18,6 +20,11 @@ function formatKg(kg: number) {
   return `${kg.toLocaleString('es-AR', { maximumFractionDigits: 1 })} kg`
 }
 
+function formatClave(dimension: AgrupacionDevolucion, clave: string) {
+  if (dimension === 'fecha') return formatFecha(clave)
+  return clave
+}
+
 function formatFecha(fecha: string) {
   return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -26,12 +33,23 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
   const [dimension, setDimension] = useState<AgrupacionDevolucion>('motivoNombre')
   const [detalle, setDetalle] = useState<DevolucionFila | null>(null)
 
-  const resumen = useMemo(() => agruparDevoluciones(filas, dimension), [filas, dimension])
+  const [orden, setOrden] = useState<OrdenResumen>('kg_desc')
+  const [fechaDesc, setFechaDesc] = useState(true)
+
+  const cambiarDimension = (d: AgrupacionDevolucion) => {
+    setDimension(d)
+    setOrden(ordenInicial(d === 'fecha'))
+  }
+
+  const resumen = useMemo(
+    () => ordenarResumen(agruparDevoluciones(filas, dimension), orden, r => r.cantidadKg, r => r.cargas),
+    [filas, dimension, orden]
+  )
   const total = useMemo(() => resumen.reduce((acc, r) => acc + r.cantidadKg, 0), [resumen])
   const maxKg = useMemo(() => Math.max(1, ...resumen.map(r => r.cantidadKg)), [resumen])
   const individuales = useMemo(
-    () => [...filas].sort((a, b) => b.fecha.localeCompare(a.fecha)),
-    [filas]
+    () => [...filas].sort((a, b) => fechaDesc ? b.fecha.localeCompare(a.fecha) : a.fecha.localeCompare(b.fecha)),
+    [filas, fechaDesc]
   )
 
   return (
@@ -43,7 +61,7 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
           return (
             <button
               key={d.key}
-              onClick={() => setDimension(d.key)}
+              onClick={() => cambiarDimension(d.key)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
                 activo ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-[#1a1a1a] text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'
               }`}
@@ -53,6 +71,8 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
           )
         })}
       </div>
+
+      <OrdenSelector orden={orden} onChange={setOrden} esFecha={dimension === 'fecha'} cantidadLabel="Cargas" />
 
       {resumen.length === 0 ? (
         <Card className="p-8 text-center">
@@ -65,7 +85,7 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
             {resumen.map(r => (
               <div key={r.clave} className="px-4 py-3 space-y-1.5">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-[#f0f0f0] font-medium truncate">{r.clave}</p>
+                  <p className="text-sm text-[#f0f0f0] font-medium truncate">{formatClave(dimension, r.clave)}</p>
                   <p className="text-sm text-[#f0f0f0] font-semibold shrink-0">{formatKg(r.cantidadKg)}</p>
                 </div>
                 <div className="h-1.5 rounded-full bg-[#1a1a1a] overflow-hidden">
@@ -80,7 +100,15 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
 
       {individuales.length > 0 && (
         <div className="space-y-2 pt-2">
-          <p className="text-xs font-semibold text-[#888] uppercase tracking-wider px-1">Devoluciones del período</p>
+          <div className="flex items-center justify-between gap-2 px-1">
+            <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">Devoluciones del período</p>
+            <button
+              onClick={() => setFechaDesc(v => !v)}
+              className="flex items-center gap-1.5 text-xs text-[#888] hover:text-[#f0f0f0] transition-colors"
+            >
+              <ArrowDownUp size={13} /> {fechaDesc ? 'Más recientes primero' : 'Más antiguas primero'}
+            </button>
+          </div>
           <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
             {individuales.map((d, i) => (
               <div

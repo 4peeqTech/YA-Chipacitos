@@ -1,16 +1,23 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Package, IceCreamCone, Ruler, User } from 'lucide-react'
+import { CalendarDays, Package, IceCreamCone, Ruler, User } from 'lucide-react'
 import Card from '@/components/ui/Card'
-import { agruparEmbolsado, type AgrupacionEmbolsado, type EmbolsadoFila } from '@/lib/fabrica/reportes'
+import { agruparEmbolsado, ordenarResumen, ordenInicial, type AgrupacionEmbolsado, type EmbolsadoFila, type OrdenResumen } from '@/lib/fabrica/reportes'
+import OrdenSelector from './OrdenSelector'
 
 const DIMENSIONES: { key: AgrupacionEmbolsado; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+  { key: 'fecha', label: 'Día', icon: CalendarDays },
   { key: 'presentacionNombre', label: 'Presentación', icon: Package },
   { key: 'saborNombre', label: 'Sabor', icon: IceCreamCone },
   { key: 'tamanioNombre', label: 'Tamaño', icon: Ruler },
   { key: 'operarioNombre', label: 'Operario', icon: User },
 ]
+
+function formatClave(dimension: AgrupacionEmbolsado, clave: string) {
+  if (dimension === 'fecha') return new Date(clave + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
+  return clave
+}
 
 function formatKg(kg: number) {
   return `${kg.toLocaleString('es-AR', { maximumFractionDigits: 1 })} kg`
@@ -19,7 +26,17 @@ function formatKg(kg: number) {
 export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) {
   const [dimension, setDimension] = useState<AgrupacionEmbolsado>('presentacionNombre')
 
-  const resumen = useMemo(() => agruparEmbolsado(filas, dimension), [filas, dimension])
+  const [orden, setOrden] = useState<OrdenResumen>('kg_desc')
+
+  const cambiarDimension = (d: AgrupacionEmbolsado) => {
+    setDimension(d)
+    setOrden(ordenInicial(d === 'fecha'))
+  }
+
+  const resumen = useMemo(
+    () => ordenarResumen(agruparEmbolsado(filas, dimension), orden, r => r.cantidadKg, r => r.lineas),
+    [filas, dimension, orden]
+  )
   const total = useMemo(() => resumen.reduce((acc, r) => acc + r.cantidadKg, 0), [resumen])
   const maxKg = useMemo(() => Math.max(1, ...resumen.map(r => r.cantidadKg)), [resumen])
 
@@ -32,7 +49,7 @@ export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) 
           return (
             <button
               key={d.key}
-              onClick={() => setDimension(d.key)}
+              onClick={() => cambiarDimension(d.key)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
                 activo ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-[#1a1a1a] text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'
               }`}
@@ -42,6 +59,8 @@ export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) 
           )
         })}
       </div>
+
+      <OrdenSelector orden={orden} onChange={setOrden} esFecha={dimension === 'fecha'} cantidadLabel="Líneas" />
 
       {resumen.length === 0 ? (
         <Card className="p-8 text-center">
@@ -54,7 +73,7 @@ export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) 
             {resumen.map(r => (
               <div key={r.clave} className="px-4 py-3 space-y-1.5">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-[#f0f0f0] font-medium truncate">{r.clave}</p>
+                  <p className="text-sm text-[#f0f0f0] font-medium truncate">{formatClave(dimension, r.clave)}</p>
                   <p className="text-sm text-[#f0f0f0] font-semibold shrink-0">{formatKg(r.cantidadKg)}</p>
                 </div>
                 <div className="h-1.5 rounded-full bg-[#1a1a1a] overflow-hidden">
