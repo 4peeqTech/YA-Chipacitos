@@ -98,14 +98,16 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
     let channel: ReturnType<typeof supabase.channel> | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let huboCaida = false
+    let activo = true
 
     function conectar() {
+      if (!activo) return
       // Topic único por intento: si se reconecta antes de que el `leave`
       // del canal anterior termine del lado del servidor, supabase-js
       // devuelve ese mismo canal (ya suscripto) en vez de uno nuevo al
       // pedir el mismo topic, y `.on()` explota con "after subscribe()".
       const topic = `operador-${destino}-${Math.random().toString(36).slice(2)}`
-      channel = supabase.channel(topic)
+      const ch = supabase.channel(topic)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -133,27 +135,35 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
         }, (payload) => {
           setPedidos(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
         })
-        .subscribe((status) => {
-          // El socket puede caerse en silencio (suspensión de la laptop,
-          // cambio de red) sin pasar por acá como error visible — cuando
-          // sí lo reporta, reconectamos y resincronizamos lo que se haya
-          // perdido durante la caída.
-          if (status === 'SUBSCRIBED' && huboCaida) {
-            huboCaida = false
-            dispararActualizacion()
-          }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            huboCaida = true
-            if (channel) supabase.removeChannel(channel)
-            retryTimer = setTimeout(conectar, 3000)
-          }
-        })
+      channel = ch
+      ch.subscribe((status) => {
+        // Solo el canal vigente: removeChannel vuelve a avisar CLOSED, y sin
+        // este corte se reconectaría en bucle (o después de desmontar).
+        if (channel !== ch) return
+        // El socket puede caerse en silencio (suspensión de la laptop,
+        // cambio de red) sin pasar por acá como error visible — cuando
+        // sí lo reporta, reconectamos y resincronizamos lo que se haya
+        // perdido durante la caída.
+        if (status === 'SUBSCRIBED' && huboCaida) {
+          huboCaida = false
+          dispararActualizacion()
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          huboCaida = true
+          channel = null
+          supabase.removeChannel(ch)
+          retryTimer = setTimeout(conectar, 3000)
+        }
+      })
     }
     conectar()
 
     return () => {
+      activo = false
       if (retryTimer) clearTimeout(retryTimer)
-      if (channel) supabase.removeChannel(channel)
+      const ch = channel
+      channel = null
+      if (ch) supabase.removeChannel(ch)
     }
   }, [destino, dispararActualizacion]) // eslint-disable-line react-hooks/exhaustive-deps
 
