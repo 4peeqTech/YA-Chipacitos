@@ -82,7 +82,11 @@ export default function HojaPreparacion({ pedidos, productos, sucursal }: Props)
   // El portal de impresión necesita document: solo después de montar.
   useEffect(() => { setMontado(true) }, []) // eslint-disable-line react-hooks/set-state-in-effect
 
-  const unidades = useMemo(() => new Map(productos.map(p => [p.id, p.unidad])), [productos])
+  // "Unidad" es el valor por defecto y no dice nada: el nombre ya trae el envase (Kg., x 4 L.).
+  const unidades = useMemo(
+    () => new Map(productos.map(p => [p.id, p.unidad && p.unidad.toLowerCase() !== 'unidad' ? p.unidad : ''])),
+    [productos],
+  )
   const aPreparar = useMemo(
     () => pedidos.filter(p => (p.estado === 'pendiente' || p.estado === 'preparando') && (sucursal === 'todas' || p.local_nombre === sucursal)),
     [pedidos, sucursal],

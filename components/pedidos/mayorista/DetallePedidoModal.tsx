@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { CircleX, PackageOpen, Pencil, StickyNote, Truck, TriangleAlert } from 'lucide-react'
-import type { Pedido, PedidoEvento, Producto } from '@/lib/types'
+import type { Pedido, PedidoEvento, PedidoItem, Producto } from '@/lib/types'
 import Modal from '@/components/ui/Modal'
 import { useConfirm } from '@/components/ui/ConfirmDialog'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -33,7 +33,9 @@ interface Props {
 const seccion = 'text-2xs font-semibold uppercase tracking-wider text-faint'
 
 export default function DetallePedidoModal({ pedido, eventos, productos, usuarioId, onClose, onRecargar, toast }: Props) {
-  const [editando, setEditando] = useState(false)
+  // Los ítems se congelan al empezar a editar: el realtime puede traer el
+  // pedido actualizado (por ejemplo, el propio guardado) a mitad de camino.
+  const [itemsEdicion, setItemsEdicion] = useState<PedidoItem[] | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [cancelando, setCancelando] = useState(false)
   const [motivo, setMotivo] = useState('')
@@ -41,6 +43,7 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
 
   const items = pedido.pedido_items ?? []
   const editable = esEditable(pedido.estado)
+  const editando = editable && itemsEdicion !== null
   const salen = items.filter(i => cantidadAEnviar(i) > 0)
 
   async function ejecutar<T>(accion: () => Promise<Resultado<T>>, exito: (data: T) => string) {
@@ -62,7 +65,7 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
       () => editarItemsPedido(pedido.id, cambios),
       n => n === 0 ? 'No había cambios para guardar.' : 'Cambios guardados. Le avisamos al local.',
     )
-    if (ok) setEditando(false)
+    if (ok) setItemsEdicion(null)
   }
 
   function pedirEnvio() {
@@ -121,15 +124,15 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
               <div className="flex items-center justify-between gap-2">
                 <h4 className={seccion}>{editando ? 'Editar lo que se manda' : 'Productos'}</h4>
                 {editable && !editando && (
-                  <button type="button" onClick={() => setEditando(true)} disabled={ocupado}
+                  <button type="button" onClick={() => setItemsEdicion(items)} disabled={ocupado}
                     className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-accent hover:bg-accent-bg disabled:opacity-40">
                     <Pencil size={13} /> Editar pedido
                   </button>
                 )}
               </div>
-              {editando ? (
-                <EditorItems items={items} productos={productos} guardando={ocupado}
-                  onCancelar={() => setEditando(false)} onGuardar={guardarEdicion} />
+              {editando && itemsEdicion ? (
+                <EditorItems items={itemsEdicion} productos={productos} guardando={ocupado}
+                  onCancelar={() => setItemsEdicion(null)} onGuardar={guardarEdicion} />
               ) : (
                 <ItemsPedido items={items} />
               )}

@@ -141,12 +141,14 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
     let channel: ReturnType<typeof supabase.channel> | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let huboCaida = false
+    let activo = true
 
     function conectar() {
+      if (!activo) return
       // Topic único por intento: si se reconecta antes de que el `leave` del
       // canal anterior termine, supabase-js devolvería el mismo canal.
       const topic = `mayorista-${DESTINO}-${Math.random().toString(36).slice(2)}`
-      channel = supabase.channel(topic)
+      const ch = supabase.channel(topic)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos', filter: `destino=eq.${DESTINO}` }, async payload => {
           const p = await leerPedido(payload.new.id as string)
           if (!p || esCerrado(p.estado)) return
@@ -184,25 +186,33 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
           setPedidos(prev => prev.map(agregar))
           setDetalle(d => d ? agregar(d) : d)
         })
-        .subscribe(status => {
-          // El socket puede caerse en silencio; cuando lo reporta,
-          // reconectamos y resincronizamos lo que se perdió.
-          if (status === 'SUBSCRIBED' && huboCaida) {
-            huboCaida = false
-            dispararActualizacion()
-          }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            huboCaida = true
-            if (channel) supabase.removeChannel(channel)
-            retryTimer = setTimeout(conectar, 3000)
-          }
-        })
+      channel = ch
+      ch.subscribe(status => {
+        // Solo el canal vigente: removeChannel vuelve a avisar CLOSED, y sin
+        // este corte se reconectaría en bucle (o después de desmontar).
+        if (channel !== ch) return
+        // El socket puede caerse en silencio; cuando lo reporta,
+        // reconectamos y resincronizamos lo que se perdió.
+        if (status === 'SUBSCRIBED' && huboCaida) {
+          huboCaida = false
+          dispararActualizacion()
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          huboCaida = true
+          channel = null
+          supabase.removeChannel(ch)
+          retryTimer = setTimeout(conectar, 3000)
+        }
+      })
     }
     conectar()
 
     return () => {
+      activo = false
       if (retryTimer) clearTimeout(retryTimer)
-      if (channel) supabase.removeChannel(channel)
+      const ch = channel
+      channel = null
+      if (ch) supabase.removeChannel(ch)
     }
   }, [supabase, dispararActualizacion, leerPedido, aplicarPedido])
 
