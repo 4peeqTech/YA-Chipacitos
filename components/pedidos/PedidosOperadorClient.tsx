@@ -6,15 +6,19 @@ import { Producto, Pedido, TipoProducto, DestinoProducto } from '@/lib/types'
 import { BadgeEstado } from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
 import PushToggle from '@/components/ui/PushToggle'
-import PedidoMensajes from '@/components/pedidos/PedidoMensajes'
+import ChatPedido from '@/components/pedidos/compartido/ChatPedido'
+import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { useRefrescarAlVolver } from '@/lib/hooks/useRefrescarAlVolver'
+import { esCerrado } from '@/lib/pedidos/estados'
+import { empezarPreparacion, marcarEnviado } from '@/lib/pedidos/acciones'
 
 interface Props {
   productosIniciales: Producto[]
   pedidosIniciales: Pedido[]
   tipo: TipoProducto
   destino: DestinoProducto
-  operadorNombre: string
+  /** Ya no se usa: el autor de los mensajes lo pone la base. */
+  operadorNombre?: string
 }
 
 const estadoBorderTop: Record<string, string> = {
@@ -22,6 +26,7 @@ const estadoBorderTop: Record<string, string> = {
   preparando: 'border-t-[#e8c547]',
   enviado:    'border-t-[#f0a030]',
   recibido:   'border-t-[#56d68a]',
+  cancelado:  'border-t-[#444444]',
 }
 
 let beepCtx: AudioContext | null = null
@@ -62,7 +67,7 @@ function showBrowserNotification(pedido: Pedido) {
   }
 }
 
-export default function PedidosOperadorClient({ productosIniciales, pedidosIniciales, tipo, destino, operadorNombre }: Props) {
+export default function PedidosOperadorClient({ productosIniciales, pedidosIniciales, destino }: Props) {
   const [productos, setProductos] = useState(productosIniciales)
   const [pedidos, setPedidos] = useState(pedidosIniciales)
   const [filtro, setFiltro] = useState('activos')
@@ -71,11 +76,16 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   const [flashEnviado, setFlashEnviado] = useState<string | null>(null)
   const [nuevosIds, setNuevosIds] = useState<string[]>([])
   const [supabase] = useState(() => createClient())
+  const [usuarioId, setUsuarioId] = useState<string | null>(null)
+  const toast = useToasts()
   const titleRef = useRef(typeof document !== 'undefined' ? document.title : '')
   const pedidosRef = useRef(pedidos)
   const actualizarRef = useRef<() => void>(() => {})
 
   useEffect(() => { pedidosRef.current = pedidos }, [pedidos])
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUsuarioId(data.user?.id ?? null))
+  }, [supabase])
   useEffect(() => { actualizarRef.current = actualizar })
 
   // Red de seguridad: visibilidad, red, y (abajo) reconexión del canal
@@ -173,7 +183,7 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   const pedidosSucursal = sucursal === 'todas' ? pedidos : pedidos.filter(p => p.local_nombre === sucursal)
   const pendientes = pedidosSucursal.filter(p => p.estado === 'pendiente')
   const enviados = pedidosSucursal.filter(p => p.estado === 'enviado')
-  const pedidosActivos = pedidosSucursal.filter(p => p.estado !== 'recibido')
+  const pedidosActivos = pedidosSucursal.filter(p => !esCerrado(p.estado))
   const pedidosPorFiltro = filtro === 'activos' ? pedidosActivos : pedidosSucursal.filter(p => p.estado === filtro)
   const pedidosFiltrados = busqueda.trim()
     ? pedidosPorFiltro.filter(p => {
@@ -205,44 +215,32 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   async function toggleActivo(producto: Producto) {
     const { data, error } = await supabase.from('productos').update({ activo: !producto.activo }).eq('id', producto.id).select().single()
     if (data) setProductos(prev => prev.map(p => p.id === data.id ? data : p))
-    else if (error) console.error('No se pudo actualizar el producto', error)
+    else if (error) toast.error('No se pudo actualizar el producto. Probá de nuevo.')
   }
 
   async function cambiarEstado(pedidoId: string, nuevoEstado: 'preparando' | 'enviado') {
     if (nuevoEstado === 'preparando') {
-      const { data, error } = await supabase.from('pedidos')
-        .update({ estado: 'preparando', preparando_at: new Date().toISOString() })
-        .eq('id', pedidoId).select().single()
-      if (error) console.error('No se pudo actualizar el estado del pedido', error)
-      if (data) setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, ...data } : p))
+      const r = await empezarPreparacion(pedidoId)
+      if (!r.ok) { toast.error(r.error); return }
+      const preparandoAt = new Date().toISOString()
+      setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, estado: 'preparando', preparando_at: preparandoAt } : p))
       return
     }
 
     // Vía RPC: si el pedido es destino='fabrica', descuenta el stock de
-    // producto terminado de cada línea con terna resuelta (Fase 5).
-    const { error } = await supabase.rpc('fabrica_marcar_pedido_enviado', { p_pedido_id: pedidoId })
-    if (error) {
-      console.error('No se pudo marcar el pedido como enviado', error)
-      return
-    }
-    const numero = pedidos.find(p => p.id === pedidoId)?.numero
+    // producto terminado de cada línea con terna resuelta (Fase 5). La misma
+    // acción avisa al local.
+    const r = await marcarEnviado(pedidoId)
+    if (!r.ok) { toast.error(r.error); return }
+    if (r.advertencia) toast.error(r.advertencia)
     const enviadoAt = new Date().toISOString()
     setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, estado: 'enviado', enviado_at: enviadoAt } : p))
     setFlashEnviado(pedidoId); setTimeout(() => setFlashEnviado(null), 3000)
-    fetch('/api/notificaciones/pedidos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        pedidoId,
-        title: `🚚 Pedido #${numero} enviado`,
-        body: `Tu pedido de ${destino} está en camino`,
-        url: '/local/historial',
-      }),
-    }).catch(() => { /* notificación best-effort */ })
   }
 
   return (
     <div className="w-full px-4 py-4 lg:px-8 lg:py-6 space-y-4">
+      <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
 
       <PushToggle
         descripcionActivar="Te avisamos cuando llegue un pedido nuevo, aunque cierres la pestaña."
@@ -304,8 +302,9 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
                 { key: 'preparando', label: 'Preparando' },
                 { key: 'enviado',    label: 'Enviados' },
                 { key: 'recibido',   label: 'Recibidos' },
+                { key: 'cancelado',  label: 'Cancelados' },
               ].map(f => {
-                const count = f.key === 'activos' ? pedidosSucursal.filter(p => p.estado !== 'recibido').length : pedidosSucursal.filter(p => p.estado === f.key).length
+                const count = f.key === 'activos' ? pedidosActivos.length : pedidosSucursal.filter(p => p.estado === f.key).length
                 return (
                   <button key={f.key} onClick={() => setFiltro(f.key)}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
@@ -427,8 +426,12 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
                             🚚 Marcar como enviado
                           </button>
                         )}
-                        <PedidoMensajes pedidoId={pedido.id} mensajesIniciales={pedido.pedido_mensajes || []}
-                          autorRol={destino} autorNombre={operadorNombre} />
+                        {usuarioId && (
+                          <div className="mt-2 pt-2 border-t border-[#2a2a2a]">
+                            <ChatPedido pedidoId={pedido.id} mensajesIniciales={pedido.pedido_mensajes || []}
+                              usuarioId={usuarioId} enVivo={!esCerrado(pedido.estado)} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
