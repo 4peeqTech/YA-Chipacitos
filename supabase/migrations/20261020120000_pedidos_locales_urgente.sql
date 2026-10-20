@@ -154,19 +154,14 @@ $$;
 
 -- ─── 3. RLS ─────────────────────────────────────────────────────────────────
 
--- pedidos: el local ya no inserta (pedidos_crear) ni actualiza. El update
--- directo queda solo para el operador del destino: depósito todavía marca
--- "preparando" así hasta que se rediseñe.
+-- pedidos: nadie inserta ni actualiza directo. Todo cambio pasa por las RPC
+-- (D7), que validan la transición, mueven stock y graban el evento.
 drop policy if exists "local ve sus pedidos" on public.pedidos;
 drop policy if exists "local crea pedidos" on public.pedidos;
 drop policy if exists "operadores actualizan pedidos" on public.pedidos;
 
 create policy "ven pedidos el local dueño y el operador del destino" on public.pedidos
   for select using (local_id = auth.uid() or puede_operar_destino(destino));
-
-create policy "operadores actualizan pedidos" on public.pedidos
-  for update using (puede_operar_destino(destino))
-  with check (puede_operar_destino(destino));
 
 -- pedido_items: solo lectura según la visibilidad del pedido.
 drop policy if exists "todos los autenticados ven items" on public.pedido_items;
@@ -593,6 +588,13 @@ begin
     select 1 from pedido_items pi where pi.id = re.item_id and pi.pedido_id = p_pedido_id)) then
     raise exception 'Hay un producto que no es de este pedido';
   end if;
+  -- Un ítem repetido duplicaría el ajuste de stock.
+  if exists (select 1 from _recepcion group by item_id having count(*) > 1) then
+    raise exception 'Hay un producto informado dos veces. Dejá una sola cantidad por producto';
+  end if;
+  if exists (select 1 from _recepcion_nuevos where producto_id is not null group by producto_id having count(*) > 1) then
+    raise exception 'Hay un producto agregado dos veces. Dejá una sola cantidad por producto';
+  end if;
 
   -- Ítems del pedido: recibido = lo informado o, si no se informó, lo enviado.
   for r in
@@ -643,6 +645,9 @@ begin
     select * into v_prod from productos where id = r.producto_id;
     if not found then
       raise exception 'Hay un producto que no es válido';
+    end if;
+    if v_prod.destino <> v_pedido.destino then
+      raise exception '% no se despacha desde este destino', v_prod.nombre;
     end if;
     if exists (select 1 from pedido_items where pedido_id = p_pedido_id and producto_id = r.producto_id) then
       raise exception '% ya está en el pedido: corregí su cantidad en la lista', v_prod.nombre;

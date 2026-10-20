@@ -280,9 +280,9 @@ begin
 end $$;
 reset role;
 
--- ─── "Llegó todo bien" y depósito con su update directo ────────────────────
+-- ─── Recepción: duplicados y destino; "Llegó todo bien"; sin update directo ─
 do $$
-declare r jsonb; v_id uuid; v_res jsonb; n int;
+declare r jsonb; v_id uuid; v_res jsonb; n int; v_item uuid;
 begin
   perform pg_temp.como('93b4b0a1-a7c2-4932-a17e-9be77de9dc60');
   r := pedidos_crear(jsonb_build_array(
@@ -294,6 +294,24 @@ begin
   perform fabrica_marcar_pedido_enviado(v_id);
 
   perform pg_temp.como('93b4b0a1-a7c2-4932-a17e-9be77de9dc60');
+  select id into v_item from pedido_items where pedido_id = v_id;
+  perform pg_temp.falla('5 · recepción: el mismo ítem dos veces se rechaza',
+    format('select fabrica_confirmar_recepcion_pedido(%L, %L::jsonb)', v_id, jsonb_build_array(
+      jsonb_build_object('id', v_item, 'cantidad_recibida', 1),
+      jsonb_build_object('id', v_item, 'cantidad_recibida', 1))),
+    'informado dos veces');
+  perform pg_temp.falla('5 · recepción: el mismo producto agregado dos veces se rechaza',
+    format('select fabrica_confirmar_recepcion_pedido(%L, %L::jsonb, %L::jsonb)', v_id, '[]', jsonb_build_array(
+      jsonb_build_object('producto_id', pg_temp.ctx('pf'), 'cantidad_recibida', 1),
+      jsonb_build_object('producto_id', pg_temp.ctx('pf'), 'cantidad_recibida', 2))),
+    'agregado dos veces');
+  perform pg_temp.falla('5 · recepción: no se agrega un producto de otro destino',
+    format('select fabrica_confirmar_recepcion_pedido(%L, %L::jsonb, %L::jsonb)', v_id, '[]', jsonb_build_array(
+      jsonb_build_object('producto_id', pg_temp.ctx('pd'), 'cantidad_recibida', 1))),
+    'no se despacha');
+  perform pg_temp.chequear('5 · tras los rechazos el pedido sigue en camino',
+    (select estado = 'enviado' from pedidos where id = v_id));
+
   v_res := fabrica_confirmar_recepcion_pedido(v_id);
   perform pg_temp.chequear('6 · "Llegó todo bien": sin diferencias y recibido = enviado',
     not (v_res->>'con_diferencias')::boolean
@@ -301,10 +319,15 @@ begin
     and (select count(*) = 1 from pedido_eventos where pedido_id = v_id and tipo = 'recibido'), v_res::text);
 
   perform pg_temp.como('570ef4d4-038a-40c4-845c-6920eb898652');
-  update pedidos set estado = 'preparando', preparando_at = now()
+  update pedidos set estado = 'enviado'
     where id = (select (e->>'id')::uuid from jsonb_array_elements(r) e where e->>'destino' = 'deposito');
   get diagnostics n = row_count;
-  perform pg_temp.chequear('depósito sigue pudiendo marcar "preparando" directo', n = 1, n::text);
+  perform pg_temp.chequear('4 · depósito no actualiza pedidos directo (0 filas)', n = 0, n::text);
+
+  perform pg_temp.como('a6b5f78f-cd70-4235-a735-af51feb63d14');
+  update pedidos set estado = 'recibido' where destino = 'fabrica';
+  get diagnostics n = row_count;
+  perform pg_temp.chequear('4 · mayorista no actualiza pedidos directo (0 filas)', n = 0, n::text);
 end $$;
 reset role;
 
