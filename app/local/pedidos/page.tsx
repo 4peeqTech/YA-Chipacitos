@@ -1,29 +1,33 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
-import LocalPedidosClient from './LocalPedidosClient'
+import LocalPedidosClient, { type UltimoPedido } from './LocalPedidosClient'
 
 export default async function LocalPedidosPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const [{ data: profile }, { data: productos }, { data: pedidos }] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
-    supabase.from('productos').select('*').eq('activo', true).order('nombre'),
+  // Por ahora el local solo le pide al mayorista (D10): los productos de
+  // depósito no se muestran.
+  const [{ data: productos }, { data: ultimo }] = await Promise.all([
+    supabase.from('productos').select('*').eq('activo', true).eq('destino', 'fabrica').order('nombre'),
     supabase
       .from('pedidos')
-      .select('*, pedido_items(*), pedido_mensajes(*)')
+      .select('numero, pedido_items(producto_id, producto_nombre, cantidad, origen)')
       .eq('local_id', user.id)
+      .eq('destino', 'fabrica')
+      .neq('estado', 'cancelado')
       .order('created_at', { ascending: false })
-      .limit(50),
+      .limit(1)
+      .maybeSingle(),
   ])
 
   return (
     <LocalPedidosClient
-      profile={profile}
+      usuarioId={user.id}
       productos={productos || []}
-      pedidosIniciales={pedidos || []}
+      ultimoPedido={(ultimo as UltimoPedido | null) ?? null}
     />
   )
 }
