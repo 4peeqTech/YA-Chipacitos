@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Producto, TipoProducto, DestinoProducto } from '@/lib/types'
 import Card from '@/components/ui/Card'
 import HelpTooltip from '@/components/ui/HelpTooltip'
+import { useToasts, ToastStack } from '@/components/ui/Toast'
 
 interface Parametro { id: string; nombre: string }
 interface PresentacionParametro extends Parametro { pesoKg: number }
@@ -59,6 +60,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
   const [importMsg, setImportMsg] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const inputCsvRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
+  const toast = useToasts()
 
   function csvCell(v: string | number | null | undefined) {
     return `"${String(v ?? '').replace(/"/g, '""')}"`
@@ -163,7 +165,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
     const { data, error } = await supabase
       .from('productos').update({ activo: !producto.activo }).eq('id', producto.id).select().single()
     if (data) setProductos(prev => prev.map(p => p.id === data.id ? data : p))
-    else if (error) console.error('No se pudo actualizar el producto', error)
+    else if (error) toast.error(`No se pudo ${producto.activo ? 'desactivar' : 'activar'} ${producto.nombre}. Probá de nuevo.`)
   }
 
   async function agregar() {
@@ -220,7 +222,15 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
     if (!eliminando) return
     setGuardando(true)
     const { error } = await supabase.from('productos').delete().eq('id', eliminando.id)
-    if (!error) setProductos(prev => prev.filter(p => p.id !== eliminando.id))
+    if (!error) {
+      setProductos(prev => prev.filter(p => p.id !== eliminando.id))
+      toast.success(`${eliminando.nombre} eliminado.`)
+    } else if (error.code === '23503') {
+      // FK: el producto ya aparece en pedidos (u otra tabla), borrarlo rompería ese historial.
+      toast.error(`${eliminando.nombre} ya tiene pedidos cargados y no se puede borrar. Desactivalo para que no se pueda pedir más.`)
+    } else {
+      toast.error(`No se pudo eliminar ${eliminando.nombre}. Probá de nuevo.`)
+    }
     setEliminando(null)
     setGuardando(false)
   }
@@ -497,6 +507,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
           </div>
         </div>
       )}
+      <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
   )
 }
