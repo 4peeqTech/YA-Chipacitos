@@ -1,550 +1,426 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { Profile, Producto, Pedido, PedidoItem, CarritoItem } from '@/lib/types'
-import { BadgeEstado, BadgeDestino } from '@/components/ui/Badge'
-import Card from '@/components/ui/Card'
+import { useMemo, useState } from 'react'
+import { ChevronUp, History, PackageSearch, Search, Send, ShoppingBasket, Trash2, X } from 'lucide-react'
+import type { Producto } from '@/lib/types'
+import { crearPedido } from '@/lib/pedidos/acciones'
+import { formatoCantidad } from '@/lib/pedidos/estados'
+import Modal from '@/components/ui/Modal'
+import EmptyState from '@/components/ui/EmptyState'
+import { Chip } from '@/components/ui/Chip'
 import PushToggle from '@/components/ui/PushToggle'
-import PedidoMensajes from '@/components/pedidos/PedidoMensajes'
-import { useRefrescarAlVolver } from '@/lib/hooks/useRefrescarAlVolver'
+import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
+import ControlCantidad from './ControlCantidad'
+import { parseCantidad } from '../cantidad'
+import { useCarritoGuardado, type CarritoGuardado } from './useCarritoGuardado'
 
-interface Props {
-  profile: Profile
-  productos: Producto[]
-  pedidosIniciales: Pedido[]
+export interface UltimoPedido {
+  numero: number
+  pedido_items: { producto_id: string | null; producto_nombre: string; cantidad: number; origen?: string | null }[]
 }
 
-export default function LocalPedidosClient({ profile, productos, pedidosIniciales }: Props) {
-  const router = useRouter()
-  const [carrito, setCarrito] = useState<CarritoItem[]>([])
-  const [notas, setNotas] = useState('')
-  const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales)
-  const [enviando, setEnviando] = useState(false)
-  const [exitoNums, setExitoNums] = useState<number[]>([])
-  const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
-  const [remitoPedidoId, setRemitoPedidoId] = useState<string | null>(null)
-  const [remitoItems, setRemitoItems] = useState<Record<string, { cantidad_recibida: string; valor_total: string }>>({})
-  const [remitoNuevos, setRemitoNuevos] = useState<Array<{ tempId: string; producto: Producto; cantidad_recibida: string; valor_total: string }>>([])
-  const [remitoBusquedaProducto, setRemitoBusquedaProducto] = useState('')
-  const [confirmando, setConfirmando] = useState(false)
-  const [tabActiva, setTabActiva] = useState<'fabrica' | 'deposito'>('fabrica')
-  const [cantidadesInput, setCantidadesInput] = useState<Record<string, string>>({})
+interface Props {
+  usuarioId: string
+  /** Solo productos activos del mayorista. */
+  productos: Producto[]
+  ultimoPedido: UltimoPedido | null
+}
+
+interface Linea { producto: Producto; cantidad: number }
+
+const SIN_CATEGORIA = 'Sin categoría'
+
+function plural(n: number, uno: string, varios: string) {
+  return `${n} ${n === 1 ? uno : varios}`
+}
+
+export default function LocalPedidosClient({ usuarioId, productos, ultimoPedido }: Props) {
+  const toast = useToast()
+  const confirmar = useConfirmar()
+  const [carrito, actualizarCarrito] = useCarritoGuardado(`ya-carrito-local-${usuarioId}`)
   const [busqueda, setBusqueda] = useState('')
-  const supabase = useMemo(() => createClient(), [])
+  const [categoria, setCategoria] = useState<string | null>(null)
+  const [carritoAbierto, setCarritoAbierto] = useState(false)
+  const [resumenAbierto, setResumenAbierto] = useState(false)
+  const [enviando, setEnviando] = useState(false)
 
-  const productosFabrica = productos.filter(p => p.destino === 'fabrica')
-  const productosDeposito = productos.filter(p => p.destino === 'deposito')
-  const productosTabBase = tabActiva === 'fabrica' ? productosFabrica : productosDeposito
-  // Detectar formato "codigo*cantidad" (ej: "1*15")
-  const matchCodigoCantidad = busqueda.trim().match(/^(\d+)\*(\d+(?:[.,]\d+)?)$/)
-  const busquedaBase = matchCodigoCantidad ? matchCodigoCantidad[1] : busqueda.trim()
-  const esBusquedaNumerica = /^\d+$/.test(busquedaBase)
-  const productosTab = busquedaBase
-    ? productosTabBase.filter(p => {
-        if (esBusquedaNumerica) {
-          return p.codigo != null && String(p.codigo) === busquedaBase
-        }
-        return (
-          p.nombre.toLowerCase().includes(busquedaBase.toLowerCase()) ||
-          (p.categoria || '').toLowerCase().includes(busquedaBase.toLowerCase())
-        )
-      })
-    : productosTabBase
+  const porId = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos])
+  const categorias = useMemo(
+    () => [...new Set(productos.map(p => p.categoria || SIN_CATEGORIA))].sort((a, b) => a.localeCompare(b, 'es')),
+    [productos],
+  )
 
-  function handleBusquedaEnter() {
-    if (!busqueda.trim()) return
-    if (matchCodigoCantidad && productosTab.length === 1) {
-      const cantidad = parseFloat(matchCodigoCantidad[2].replace(',', '.')) || 1
-      setCantidad(productosTab[0], (carrito.find(i => i.producto.id === productosTab[0].id)?.cantidad || 0) + cantidad)
-      setBusqueda('')
-      return
-    }
-    if (productosTab.length === 1) {
-      agregarAlCarrito(productosTab[0])
-      setBusqueda('')
-    }
-  }
+  // Las líneas guardadas de productos que ya no están activos se ignoran.
+  const lineas: Linea[] = carrito.lineas
+    .map(l => ({ producto: porId.get(l.producto_id), cantidad: l.cantidad }))
+    .filter((l): l is Linea => !!l.producto)
+  const cantidadEnCarrito = (id: string) => lineas.find(l => l.producto.id === id)?.cantidad ?? 0
 
-  function getCantidadInput(id: string) {
-    return cantidadesInput[id] ?? '1'
-  }
+  // "código*cantidad" (ej. 12*1,5) + Enter suma esa cantidad al producto.
+  const atajo = busqueda.trim().match(/^(\d+)\*(\d+(?:[.,]\d+)?)$/)
+  const texto = (atajo ? atajo[1] : busqueda.trim()).toLowerCase()
+  const esCodigo = /^\d+$/.test(texto)
+  const visibles = productos.filter(p => {
+    if (categoria && (p.categoria || SIN_CATEGORIA) !== categoria) return false
+    if (!texto) return true
+    if (esCodigo) return p.codigo != null && String(p.codigo) === texto
+    return p.nombre.toLowerCase().includes(texto) || (p.categoria || '').toLowerCase().includes(texto)
+  })
+  const grupos = categorias
+    .map(cat => [cat, visibles.filter(p => (p.categoria || SIN_CATEGORIA) === cat)] as const)
+    .filter(([, prods]) => prods.length > 0)
 
-  function setCantidad(producto: Producto, cantidad: number) {
-    if (cantidad <= 0) {
-      setCarrito(c => c.filter(i => i.producto.id !== producto.id))
-    } else {
-      setCarrito(c => {
-        const ex = c.find(i => i.producto.id === producto.id)
-        if (ex) return c.map(i => i.producto.id === producto.id ? { ...i, cantidad } : i)
-        return [...c, { producto, cantidad }]
-      })
-    }
-  }
-
-  function agregarAlCarrito(producto: Producto) {
-    const qty = parseFloat(cantidadesInput[producto.id] ?? '1') || 1
-    setCantidad(producto, (carrito.find(i => i.producto.id === producto.id)?.cantidad || 0) + qty)
-  }
-
-  function getCantidad(id: string) {
-    return carrito.find(i => i.producto.id === id)?.cantidad || 0
-  }
-
-  const itemsFabrica = carrito.filter(i => i.producto.destino === 'fabrica')
-  const itemsDeposito = carrito.filter(i => i.producto.destino === 'deposito')
-  const totalItems = carrito.reduce((s, i) => s + i.cantidad, 0)
-
-  async function enviarPedido() {
-    if (carrito.length === 0) return
-    setEnviando(true)
-    setErrorEnvio(null)
-    const grupoId = crypto.randomUUID()
-    const nums: number[] = []
-    const destinosFallidos: Array<'fabrica' | 'deposito'> = []
-    const destinos: Array<{ destino: 'fabrica' | 'deposito'; items: CarritoItem[] }> = []
-    if (itemsFabrica.length > 0) destinos.push({ destino: 'fabrica', items: itemsFabrica })
-    if (itemsDeposito.length > 0) destinos.push({ destino: 'deposito', items: itemsDeposito })
-    for (const { destino, items } of destinos) {
-      const { data: pedido, error } = await supabase.from('pedidos')
-        .insert({ local_id: profile.id, local_nombre: profile.local_nombre || profile.nombre, destino, notas: notas || null, grupo_id: grupoId })
-        .select().single()
-      if (error || !pedido) { destinosFallidos.push(destino); continue }
-      const { error: itemsError } = await supabase.from('pedido_items').insert(items.map(i => ({
-        pedido_id: pedido.id, producto_id: i.producto.id, producto_nombre: i.producto.nombre, cantidad: i.cantidad,
-      })))
-      if (itemsError) { destinosFallidos.push(destino); continue }
-      nums.push(pedido.numero)
-      fetch('/api/notificaciones/pedidos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destino,
-          title: `📦 Nuevo pedido #${pedido.numero}`,
-          body: profile.local_nombre || profile.nombre,
-        }),
-      }).catch(() => { /* notificación best-effort */ })
-    }
-    setExitoNums(nums)
-    if (destinosFallidos.length > 0) {
-      // Dejamos en el carrito solo lo que no se pudo enviar, para no perderlo.
-      setCarrito(c => c.filter(i => destinosFallidos.includes(i.producto.destino)))
-      setErrorEnvio(`No pudimos enviar el pedido de ${destinosFallidos.join(' y ')}. Los productos quedaron en tu carrito, probá de nuevo.`)
-    } else {
-      setCarrito([])
-      setNotas('')
-    }
-    setEnviando(false)
-    const { data } = await supabase.from('pedidos').select('*, pedido_items(*), pedido_mensajes(*)')
-      .eq('local_id', profile.id).order('created_at', { ascending: false }).limit(50)
-    if (data) setPedidos(data)
-  }
-
-  useEffect(() => {
-    const ch = supabase.channel(`pedidos-local-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: `local_id=eq.${profile.id}` },
-        p => setPedidos(prev => prev.map(x => x.id === p.new.id ? { ...x, ...p.new } : x)))
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
-  }, [profile.id]) // supabase es estable por useMemo, no necesita ser dependencia
-
-  // El server component (page.tsx) es la única fuente de verdad: cuando
-  // llega una `pedidosIniciales` nueva (tras un router.refresh()),
-  // resincronizamos el estado local durante el render (no en un efecto —
-  // evita el cascading-render que marca react-hooks/set-state-in-effect).
-  const [pedidosInicialesSincronizados, setPedidosInicialesSincronizados] = useState(pedidosIniciales)
-  if (pedidosIniciales !== pedidosInicialesSincronizados) {
-    setPedidosInicialesSincronizados(pedidosIniciales)
-    setPedidos(pedidosIniciales)
-  }
-
-  // Red de seguridad para cuando el WebSocket de realtime muere en silencio.
-  useRefrescarAlVolver(() => router.refresh())
-
-  function abrirRemito(pedido: Pedido) {
-    const inicial: Record<string, { cantidad_recibida: string; valor_total: string }> = {}
-    for (const item of pedido.pedido_items || []) {
-      inicial[item.id] = {
-        cantidad_recibida: String(item.cantidad),
-        valor_total: '',
-      }
-    }
-    setRemitoItems(inicial)
-    setRemitoNuevos([])
-    setRemitoBusquedaProducto('')
-    setRemitoPedidoId(pedido.id)
-  }
-
-  function agregarProductoARemito(producto: Producto) {
-    setRemitoNuevos(prev => [...prev, { tempId: crypto.randomUUID(), producto, cantidad_recibida: '1', valor_total: '' }])
-    setRemitoBusquedaProducto('')
-  }
-
-  async function confirmarRecepcion(pedido: Pedido) {
-    setConfirmando(true)
-    const items = pedido.pedido_items || []
-    const payloadItems = items.map(item => {
-      const vals = remitoItems[item.id]
+  function setCantidad(productoId: string, cantidad: number) {
+    actualizarCarrito(c => {
+      const resto = c.lineas.filter(l => l.producto_id !== productoId)
+      if (cantidad <= 0) return { ...c, lineas: resto }
+      const existe = c.lineas.some(l => l.producto_id === productoId)
       return {
-        id: item.id,
-        cantidad_recibida: vals?.cantidad_recibida ? parseInt(vals.cantidad_recibida) : null,
-        valor_total: vals?.valor_total ? parseFloat(vals.valor_total.replace(',', '.')) : null,
+        ...c,
+        lineas: existe
+          ? c.lineas.map(l => (l.producto_id === productoId ? { ...l, cantidad } : l))
+          : [...c.lineas, { producto_id: productoId, cantidad }],
       }
     })
-    const payloadNuevos = remitoNuevos.map(n => ({
-      producto_id: n.producto.id,
-      producto_nombre: n.producto.nombre,
-      cantidad_recibida: parseInt(n.cantidad_recibida) || 1,
-      valor_total: n.valor_total ? parseFloat(n.valor_total.replace(',', '.')) : null,
-    }))
+  }
 
-    // Vía RPC: si el pedido es destino='fabrica', ajusta el stock de
-    // producto terminado por la diferencia pedido vs. recibido, incluyendo
-    // los ítems agregados en el momento (Fase 5).
-    const { error } = await supabase.rpc('fabrica_confirmar_recepcion_pedido', {
-      p_pedido_id: pedido.id, p_items: payloadItems, p_items_nuevos: payloadNuevos,
-    })
-    if (error) {
-      console.error('No se pudo confirmar la recepción', error)
-      setConfirmando(false)
+  function setNotas(notas: string) {
+    actualizarCarrito(c => ({ ...c, notas }))
+  }
+
+  function alPresionarEnter() {
+    if (visibles.length !== 1) return
+    const p = visibles[0]
+    const sumar = atajo ? parseCantidad(atajo[2]) : 1
+    if (sumar == null) return
+    // código*0 saca el producto del carrito (si estaba); no suma nada.
+    setCantidad(p.id, sumar === 0 ? 0 : Math.round((cantidadEnCarrito(p.id) + sumar) * 1000) / 1000)
+    setBusqueda('')
+  }
+
+  function cargarUltimoPedido() {
+    if (!ultimoPedido) return
+    const pedidos = ultimoPedido.pedido_items.filter(i => (!i.origen || i.origen === 'pedido') && Number(i.cantidad) > 0)
+    const cargados: CarritoGuardado['lineas'] = []
+    const afuera: string[] = []
+    for (const i of pedidos) {
+      if (i.producto_id && porId.has(i.producto_id)) cargados.push({ producto_id: i.producto_id, cantidad: Number(i.cantidad) })
+      else afuera.push(i.producto_nombre)
+    }
+    if (cargados.length === 0) {
+      toast.error(`No se pudo repetir el pedido #${ultimoPedido.numero}: ninguno de sus productos está activo.`)
       return
     }
-
-    const itemsNuevos: PedidoItem[] = payloadNuevos.map(n => ({
-      id: crypto.randomUUID(),
-      pedido_id: pedido.id,
-      producto_id: n.producto_id,
-      producto_nombre: n.producto_nombre,
-      cantidad: n.cantidad_recibida,
-      cantidad_recibida: n.cantidad_recibida,
-      valor_total: n.valor_total,
-      created_at: new Date().toISOString(),
-    }))
-
-    setPedidos(prev => prev.map(p => p.id === pedido.id
-      ? {
-          ...p, estado: 'recibido',
-          pedido_items: [
-            ...(p.pedido_items || []).map(item => {
-              const vals = payloadItems.find(pi => pi.id === item.id)
-              return { ...item, cantidad_recibida: vals?.cantidad_recibida ?? null, valor_total: vals?.valor_total ?? null }
-            }),
-            ...itemsNuevos,
-          ]
-        }
-      : p
-    ))
-    setRemitoPedidoId(null)
-    setRemitoItems({})
-    setRemitoNuevos([])
-    setRemitoBusquedaProducto('')
-    setConfirmando(false)
+    actualizarCarrito(c => ({ ...c, lineas: cargados }))
+    toast.success(`Cargamos ${plural(cargados.length, 'producto', 'productos')} del pedido #${ultimoPedido.numero}.`)
+    if (afuera.length > 0) {
+      toast.error(`Quedaron afuera porque ya no están activos: ${afuera.join(', ')}.`)
+    }
   }
 
-  function CardProducto({ producto }: { producto: Producto }) {
-    const enCarrito = getCantidad(producto.id)
-    const inputVal = getCantidadInput(producto.id)
-    return (
-      <div className={`bg-[#1a1a1a] border rounded-2xl p-4 flex flex-col gap-3 transition-all ${enCarrito > 0 ? 'border-[#e8c547]' : 'border-[#2a2a2a]'}`}>
-        <div className="flex-1 min-h-[40px]">
-          <p className="text-sm font-semibold text-[#f0f0f0] leading-snug">
-            {producto.codigo != null ? <span className="text-[#e8c547]">{producto.codigo} - </span> : null}{producto.nombre}
-          </p>
-          <span className="inline-block mt-1.5 text-[11px] text-[#666] bg-[#111] border border-[#2a2a2a] rounded-md px-2 py-0.5">{producto.unidad}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min="0"
-            step="0.5"
-            value={inputVal}
-            onChange={e => setCantidadesInput(prev => ({ ...prev, [producto.id]: e.target.value }))}
-            style={{ padding: '8px 4px' }}
-            className="w-16 bg-[#111] border border-[#2a2a2a] text-[#f0f0f0] rounded-xl text-sm text-center focus:outline-none focus:border-[#e8c547]"
-          />
-          <button
-            onClick={() => agregarAlCarrito(producto)}
-            className="flex-1 bg-[#e8c547] hover:opacity-90 text-black text-sm font-['Syne'] font-bold rounded-xl py-2 transition-opacity active:opacity-70 whitespace-nowrap"
-          >
-            + Agregar
-          </button>
-        </div>
-        {enCarrito > 0 && (
-          <div className="flex items-center justify-between pt-1 border-t border-[#2a2a2a]">
-            <span className="text-xs text-[#e8c547] font-semibold">En pedido: {enCarrito}</span>
-            <button onClick={() => setCantidad(producto, 0)} className="text-xs text-[#555] hover:text-[#888]">✕ Quitar</button>
-          </div>
-        )}
-      </div>
+  function repetir() {
+    if (lineas.length === 0) return cargarUltimoPedido()
+    confirmar({
+      titulo: 'Repetir mi último pedido',
+      mensaje: 'Se reemplaza lo que tenés en el carrito por los productos de tu último pedido. Las observaciones quedan como están.',
+      textoConfirmar: 'Reemplazar',
+      onConfirmar: cargarUltimoPedido,
+    })
+  }
+
+  function vaciar() {
+    confirmar({
+      titulo: 'Vaciar el carrito',
+      mensaje: 'Se sacan todos los productos y las observaciones.',
+      textoConfirmar: 'Vaciar',
+      peligroso: true,
+      onConfirmar: () => {
+        actualizarCarrito(() => ({ lineas: [], notas: '' }))
+        setCarritoAbierto(false)
+      },
+    })
+  }
+
+  function abrirResumen() {
+    if (lineas.length === 0) return
+    setCarritoAbierto(false)
+    setResumenAbierto(true)
+  }
+
+  async function enviar() {
+    if (lineas.length === 0 || enviando) return
+    setEnviando(true)
+    const r = await crearPedido(
+      lineas.map(l => ({ producto_id: l.producto.id, cantidad: l.cantidad })),
+      carrito.notas.trim() || null,
     )
+    setEnviando(false)
+    if (!r.ok) {
+      // No se creó nada: el carrito queda como estaba para reintentar.
+      toast.error(r.error)
+      return
+    }
+    actualizarCarrito(() => ({ lineas: [], notas: '' }))
+    setResumenAbierto(false)
+    const numeros = r.data.map(p => `#${p.numero}`).join(' y ')
+    toast.success(
+      r.data.length > 1 ? `Pedidos ${numeros} enviados.` : `Pedido ${numeros} enviado.`,
+      { label: 'Ver en Mis pedidos', href: '/local/historial' },
+    )
+    if (r.advertencia) toast.error(r.advertencia)
   }
 
-  const gruposTab = productosTab.reduce<Record<string, Producto[]>>((acc, p) => {
-    const cat = p.categoria || 'Sin categoría'
-    if (!acc[cat]) acc[cat] = []
-    acc[cat].push(p)
-    return acc
-  }, {})
-
-  const pedidosActivos = pedidos.filter(p => p.estado !== 'recibido')
-  const pedidosPorConfirmar = pedidos.filter(p => p.estado === 'enviado')
+  const panel = (
+    <PanelCarrito
+      lineas={lineas}
+      notas={carrito.notas}
+      onCantidad={setCantidad}
+      onNotas={setNotas}
+      onEnviar={abrirResumen}
+      onVaciar={vaciar}
+    />
+  )
 
   return (
-    <div className="w-full px-4 py-4 lg:px-8 lg:py-6 space-y-6">
-
-      <PushToggle
-        descripcionActivar="Te avisamos cuando tu pedido salga en camino, aunque cierres la pestaña."
-        descripcionActiva="Este dispositivo recibe el aviso cuando tu pedido sale en camino."
-      />
-
-      {exitoNums.length > 0 && (
-        <div className="bg-[rgba(86,214,138,.08)] border-l-4 border-[#56d68a] rounded-r-lg px-4 py-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-[#56d68a]">
-            ✓ Pedido{exitoNums.length > 1 ? 's' : ''} {exitoNums.map(n => `#${n}`).join(' y ')} enviado{exitoNums.length > 1 ? 's' : ''}
-          </p>
-          <button onClick={() => setExitoNums([])} className="text-[#56d68a] text-xl leading-none ml-3">×</button>
-        </div>
-      )}
-
-      {errorEnvio && (
-        <div className="bg-[rgba(232,66,16,.08)] border-l-4 border-[#e84210] rounded-r-lg px-4 py-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-[#e84210]">⚠ {errorEnvio}</p>
-          <button onClick={() => setErrorEnvio(null)} className="text-[#e84210] text-xl leading-none ml-3">×</button>
-        </div>
-      )}
-
-      {/* Pedidos activos */}
-      {pedidosActivos.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Pedidos en curso</p>
-          {pedidosActivos.map(pedido => (
-            <div key={pedido.id} className={`bg-[#111] border border-[#2a2a2a] rounded-2xl overflow-hidden border-t-2 ${pedido.estado === 'enviado' ? 'border-t-[#56d68a]' : pedido.estado === 'preparando' ? 'border-t-[#e8c547]' : 'border-t-[#f0a849]'}`}>
-              <div className="px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-['Syne'] font-bold text-[#f0f0f0]">Pedido #{pedido.numero}</p>
-                  <p className="text-xs text-[#888] mt-0.5 capitalize">{pedido.destino} · {pedido.estado === 'pendiente' ? '⏳ Pendiente' : pedido.estado === 'preparando' ? '🔄 Preparando' : '🚚 En camino'}</p>
-                </div>
-                {pedido.estado === 'enviado' && remitoPedidoId !== pedido.id && (
-                  <button onClick={() => abrirRemito(pedido)}
-                    className="bg-[#56d68a] text-black text-xs font-['Syne'] font-bold px-3 py-1.5 rounded-lg">
-                    ✓ Confirmar recepción
-                  </button>
-                )}
-              </div>
-              <div className="px-4 pb-2 space-y-1">
-                {(pedido.pedido_items || []).map(i => (
-                  <div key={i.id} className="flex justify-between text-xs">
-                    <span className="text-[#c0c0c0]">{i.producto_nombre}</span>
-                    <span className="text-[#888]">× {i.cantidad}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Form remito inline */}
-              {remitoPedidoId === pedido.id && (
-                <div className="border-t border-[#2a2a2a] px-4 py-3 space-y-3 bg-[#0d1f14]">
-                  <p className="text-xs font-semibold text-[#56d68a] uppercase tracking-wider">Cargar remito</p>
-                  <div className="grid grid-cols-[1fr_90px_90px] gap-x-2 pb-1 border-b border-[#2a2a2a]">
-                    <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider">Producto</span>
-                    <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider text-center">Cant. recibida</span>
-                    <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider text-right">$ Total</span>
-                  </div>
-                  {(pedido.pedido_items || []).map(item => (
-                    <div key={item.id} className="grid grid-cols-[1fr_90px_90px] gap-x-2 items-center">
-                      <span className="text-xs text-[#f0f0f0] leading-tight">{item.producto_nombre}</span>
-                      <input
-                        type="number" min="0" step="1"
-                        value={remitoItems[item.id]?.cantidad_recibida ?? ''}
-                        onChange={e => setRemitoItems(prev => ({ ...prev, [item.id]: { ...prev[item.id], cantidad_recibida: e.target.value } }))}
-                        placeholder={String(item.cantidad)}
-                        className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-[#56d68a]"
-                      />
-                      <input
-                        type="number" min="0" step="0.01"
-                        value={remitoItems[item.id]?.valor_total ?? ''}
-                        onChange={e => setRemitoItems(prev => ({ ...prev, [item.id]: { ...prev[item.id], valor_total: e.target.value } }))}
-                        placeholder="$0"
-                        className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-1 text-xs text-right focus:outline-none focus:border-[#56d68a]"
-                      />
-                    </div>
-                  ))}
-                  {remitoNuevos.length > 0 && (
-                    <div className="space-y-1.5 pt-1 border-t border-[#2a2a2a]">
-                      {remitoNuevos.map(n => (
-                        <div key={n.tempId} className="grid grid-cols-[1fr_90px_90px_16px] gap-x-2 items-center">
-                          <span className="text-xs text-[#56d68a] leading-tight">+ {n.producto.nombre}</span>
-                          <input
-                            type="number" min="0" step="1"
-                            value={n.cantidad_recibida}
-                            onChange={e => setRemitoNuevos(prev => prev.map(x => x.tempId === n.tempId ? { ...x, cantidad_recibida: e.target.value } : x))}
-                            className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-[#56d68a]"
-                          />
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={n.valor_total}
-                            onChange={e => setRemitoNuevos(prev => prev.map(x => x.tempId === n.tempId ? { ...x, valor_total: e.target.value } : x))}
-                            placeholder="$0"
-                            className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2 py-1 text-xs text-right focus:outline-none focus:border-[#56d68a]"
-                          />
-                          <button onClick={() => setRemitoNuevos(prev => prev.filter(x => x.tempId !== n.tempId))}
-                            className="text-[#444] hover:text-[#e84210] text-xs" title="Quitar">✕</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="pt-1 border-t border-[#2a2a2a] space-y-1.5 relative">
-                    <input
-                      type="text"
-                      value={remitoBusquedaProducto}
-                      onChange={e => setRemitoBusquedaProducto(e.target.value)}
-                      placeholder="+ Agregar producto no pedido..."
-                      className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#56d68a] placeholder:text-[#666]"
-                    />
-                    {remitoBusquedaProducto.trim() && (() => {
-                      const q = remitoBusquedaProducto.trim().toLowerCase()
-                      const yaCargados = new Set([
-                        ...(pedido.pedido_items || []).map(i => i.producto_id),
-                        ...remitoNuevos.map(n => n.producto.id),
-                      ])
-                      const opciones = productos.filter(p =>
-                        p.destino === pedido.destino &&
-                        !yaCargados.has(p.id) &&
-                        (p.nombre.toLowerCase().includes(q) || (p.codigo != null && String(p.codigo) === q))
-                      ).slice(0, 8)
-                      return (
-                        <div className="max-h-32 overflow-y-auto space-y-0.5 bg-[#111] border border-[#2a2a2a] rounded-lg p-1">
-                          {opciones.length === 0
-                            ? <p className="text-[11px] text-[#555] px-2 py-1">Sin resultados</p>
-                            : opciones.map(p => (
-                              <button key={p.id} onClick={() => agregarProductoARemito(p)}
-                                className="w-full text-left text-xs text-[#f0f0f0] hover:bg-[#1a1a1a] rounded px-2 py-1">
-                                {p.codigo != null ? <span className="text-[#e8c547]">{p.codigo} - </span> : null}{p.nombre}
-                              </button>
-                            ))}
-                        </div>
-                      )
-                    })()}
-                  </div>
-
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={() => { setRemitoPedidoId(null); setRemitoItems({}); setRemitoNuevos([]); setRemitoBusquedaProducto('') }}
-                      className="flex-1 py-2 border border-[#2a2a2a] rounded-xl text-xs font-medium text-[#888] hover:text-[#f0f0f0]">
-                      Cancelar
-                    </button>
-                    <button onClick={() => confirmarRecepcion(pedido)} disabled={confirmando}
-                      className="flex-1 py-2 bg-[#56d68a] text-black rounded-xl text-xs font-['Syne'] font-bold disabled:opacity-40">
-                      {confirmando ? 'Guardando...' : 'Confirmar recepción'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex gap-6 items-start">
-
-        {/* Catálogo — columna principal */}
-        <div className="flex-1 min-w-0 space-y-4">
-          <p className="text-xs font-semibold text-[#e8c547] uppercase tracking-wider">Nuevo pedido</p>
-
-          {/* Tabs Mayorista / Depósito */}
-          <div className="flex gap-2">
-            {productosFabrica.length > 0 && (
-              <button onClick={() => setTabActiva('fabrica')}
-                className={`flex-1 py-2 rounded-xl text-sm font-['Syne'] font-bold transition-all border ${tabActiva === 'fabrica' ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'}`}>
-                🛒 Mayorista {itemsFabrica.length > 0 && <span className={`ml-1 text-xs ${tabActiva === 'fabrica' ? 'text-black/60' : 'text-[#e8c547]'}`}>({itemsFabrica.reduce((s,i)=>s+i.cantidad,0)})</span>}
-              </button>
-            )}
-            {productosDeposito.length > 0 && (
-              <button onClick={() => setTabActiva('deposito')}
-                className={`flex-1 py-2 rounded-xl text-sm font-['Syne'] font-bold transition-all border ${tabActiva === 'deposito' ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'}`}>
-                📦 Depósito {itemsDeposito.length > 0 && <span className={`ml-1 text-xs ${tabActiva === 'deposito' ? 'text-black/60' : 'text-[#e8c547]'}`}>({itemsDeposito.reduce((s,i)=>s+i.cantidad,0)})</span>}
-              </button>
-            )}
-          </div>
-
-          {/* Buscador */}
-          <input
-            type="text" value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleBusquedaEnter() }}
-            placeholder="Buscar por nombre, código... (Enter para agregar)"
+    <div className={`w-full px-4 py-4 lg:px-8 lg:py-6 ${lineas.length > 0 ? 'pb-24 lg:pb-6' : ''}`}>
+      <div className="lg:flex lg:items-start lg:gap-6">
+        <section className="flex-1 min-w-0 space-y-4">
+          <PushToggle
+            descripcionActivar="Te avisamos cuando tu pedido salga en camino, aunque cierres la pestaña."
+            descripcionActiva="Este dispositivo recibe el aviso cuando tu pedido sale en camino."
           />
 
-          {/* Grid de productos por categoría */}
-          <div className="space-y-4">
-            {Object.entries(gruposTab).map(([cat, prods]) => (
-              <div key={cat}>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-1 h-4 bg-[#e8c547] rounded-full" />
-                  <p className="text-xs font-bold text-[#e8c547] uppercase tracking-wider">{cat}</p>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {prods.map(p => <CardProducto key={p.id} producto={p} />)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Carrito — sidebar sticky */}
-        <div className="hidden lg:block w-72 shrink-0 sticky top-4">
-          <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">
-              Pedido actual {totalItems > 0 && <span className="text-[#e8c547]">· {totalItems} unidades</span>}
-            </p>
-            {carrito.length === 0 ? (
-              <p className="text-sm text-[#555] text-center py-4">Todavía no agregaste productos.</p>
-            ) : (
-              <div className="space-y-1.5">
-                {carrito.map(item => (
-                  <div key={item.producto.id} style={{display:'grid', gridTemplateColumns:'1fr 46px 18px', gap:'6px', alignItems:'center'}}>
-                    <span className="text-[#c0c0c0] text-xs truncate">{item.producto.nombre}</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={item.cantidad}
-                      onChange={e => {
-                        const v = parseFloat(e.target.value.replace(',', '.'))
-                        setCantidad(item.producto, isNaN(v) ? 0 : v)
-                      }}
-                      style={{ padding: '2px' }}
-                      className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#e8c547] font-semibold rounded text-xs text-center focus:outline-none focus:border-[#e8c547] w-full"
-                    />
-                    <button onClick={() => setCantidad(item.producto, 0)} className="text-[#444] hover:text-[#e84210] transition-colors text-xs text-center" title="Quitar">✕</button>
-                  </div>
-                ))}
-              </div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-text">Pedido al mayorista</h1>
+              <p className="text-xs text-muted">Cargá las cantidades y revisá antes de enviar.</p>
+            </div>
+            {ultimoPedido && (
+              <button
+                type="button"
+                onClick={repetir}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-border bg-surface2 px-3 py-2 text-xs font-semibold text-text hover:border-accent/50 active:opacity-70"
+              >
+                <History size={15} aria-hidden />
+                <span className="sm:hidden">Repetir</span>
+                <span className="hidden sm:inline">Repetir mi último pedido</span>
+              </button>
             )}
-            <textarea value={notas} onChange={e => setNotas(e.target.value)}
-              placeholder="Observaciones (opcional)" rows={2}
-              className="w-full border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] resize-none bg-[#1a1a1a] text-[#f0f0f0] placeholder:text-[#555]" />
-            <button onClick={enviarPedido} disabled={enviando || carrito.length === 0}
-              className="w-full bg-[#e8c547] text-black rounded-xl py-3 text-sm font-['Syne'] font-bold disabled:opacity-40 active:opacity-80">
-              {enviando ? 'Enviando...' : carrito.length === 0 ? 'Enviar Pedido' : `Enviar Pedido (${totalItems} unidades)`}
+          </div>
+
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" aria-hidden />
+            <input
+              type="text"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') alPresionarEnter() }}
+              placeholder="Nombre o código (12*3 + Enter)"
+              aria-label="Buscar producto"
+              enterKeyHint="done"
+              className="w-full rounded-xl border border-border bg-surface2 py-2.5 pl-9 pr-9 text-sm text-text focus:border-accent focus:outline-none"
+            />
+            {busqueda && (
+              <button
+                type="button"
+                onClick={() => setBusqueda('')}
+                aria-label="Limpiar búsqueda"
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:text-text"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          {categorias.length > 1 && (
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none lg:mx-0 lg:flex-wrap lg:px-0">
+              <Chip active={categoria === null} onClick={() => setCategoria(null)}>Todas</Chip>
+              {categorias.map(c => (
+                <Chip key={c} active={categoria === c} onClick={() => setCategoria(categoria === c ? null : c)}>{c}</Chip>
+              ))}
+            </div>
+          )}
+
+          {productos.length === 0 ? (
+            <EmptyState icono={PackageSearch} titulo="No hay productos para pedir" descripcion="El mayorista todavía no tiene productos activos. Avisale a administración." />
+          ) : visibles.length === 0 ? (
+            <EmptyState icono={PackageSearch} titulo="Sin resultados" descripcion="Probá con otro nombre o código, o elegí otra categoría." />
+          ) : (
+            <div className="space-y-5">
+              {grupos.map(([cat, prods]) => (
+                <div key={cat} className="space-y-2">
+                  <h2 className="text-2xs font-bold uppercase tracking-wider text-accent">{cat}</h2>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {prods.map(p => (
+                      <TarjetaProducto key={p.id} producto={p} cantidad={cantidadEnCarrito(p.id)} onCantidad={n => setCantidad(p.id, n)} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <aside className="hidden lg:block w-80 shrink-0 sticky top-4">
+          <div className="rounded-2xl border border-border bg-surface p-4">{panel}</div>
+        </aside>
+      </div>
+
+      {/* Celular: barra sobre el menú de abajo que abre el carrito. */}
+      {lineas.length > 0 && (
+        <div className="lg:hidden fixed inset-x-0 bottom-[57px] z-40 border-t border-border bg-surface px-4 py-2.5">
+          <button
+            type="button"
+            onClick={() => setCarritoAbierto(true)}
+            className="flex w-full items-center justify-between gap-3 rounded-xl bg-accent px-4 py-3 text-black active:opacity-80"
+          >
+            <span className="inline-flex items-center gap-2 text-sm font-bold">
+              <ShoppingBasket size={18} aria-hidden />
+              Ver pedido · {plural(lineas.length, 'producto', 'productos')}
+            </span>
+            <ChevronUp size={18} aria-hidden />
+          </button>
+        </div>
+      )}
+
+      <Modal open={carritoAbierto} onClose={() => setCarritoAbierto(false)} title="Tu pedido">
+        {panel}
+      </Modal>
+
+      <Modal open={resumenAbierto} onClose={() => !enviando && setResumenAbierto(false)} title="Revisá antes de enviar">
+        <div className="space-y-4">
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {lineas.map(l => (
+              <li key={l.producto.id} className="flex items-baseline justify-between gap-3 px-3 py-2 text-sm">
+                <span className="min-w-0 text-text">
+                  {l.producto.codigo != null && <span className="text-accent">{l.producto.codigo} · </span>}
+                  {l.producto.nombre}
+                </span>
+                <span className="shrink-0 font-semibold tabular-nums text-text">
+                  {formatoCantidad(l.cantidad)} <span className="text-xs font-normal text-muted">{l.producto.unidad}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div>
+            <p className="text-2xs font-semibold uppercase tracking-wider text-faint">Observaciones</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-text">{carrito.notas.trim() || <span className="text-muted">Sin observaciones</span>}</p>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setResumenAbierto(false)}
+              disabled={enviando}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-medium text-muted hover:text-text disabled:opacity-40"
+            >
+              Volver
+            </button>
+            <button
+              type="button"
+              onClick={enviar}
+              disabled={enviando}
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-bold text-black disabled:opacity-50"
+            >
+              <Send size={16} aria-hidden />
+              {enviando ? 'Enviando…' : 'Enviar pedido'}
             </button>
           </div>
         </div>
+      </Modal>
+    </div>
+  )
+}
 
+function TarjetaProducto({ producto, cantidad, onCantidad }: { producto: Producto; cantidad: number; onCantidad: (n: number) => void }) {
+  return (
+    <div className={`flex items-center justify-between gap-3 rounded-2xl border bg-surface p-3 transition-colors ${cantidad > 0 ? 'border-accent/60' : 'border-border'}`}>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold leading-snug text-text break-words">
+          {producto.codigo != null && <span className="text-accent">{producto.codigo} · </span>}
+          {producto.nombre}
+        </p>
+        <span className="mt-1 inline-block rounded-md border border-border bg-bg px-1.5 py-0.5 text-2xs text-muted">{producto.unidad}</span>
+      </div>
+      <div className="shrink-0">
+        <ControlCantidad valor={cantidad} onCambiar={onCantidad} etiqueta={producto.nombre} />
+      </div>
+    </div>
+  )
+}
+
+function PanelCarrito({
+  lineas, notas, onCantidad, onNotas, onEnviar, onVaciar,
+}: {
+  lineas: Linea[]
+  notas: string
+  onCantidad: (productoId: string, n: number) => void
+  onNotas: (notas: string) => void
+  onEnviar: () => void
+  onVaciar: () => void
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-2xs font-semibold uppercase tracking-wider text-muted">
+          Tu pedido{lineas.length > 0 && <span className="text-accent"> · {plural(lineas.length, 'producto', 'productos')}</span>}
+        </p>
+        {lineas.length > 0 && (
+          <button type="button" onClick={onVaciar} className="text-xs text-faint hover:text-brand-red">Vaciar</button>
+        )}
       </div>
 
-      {/* Carrito mobile — fijo abajo */}
-      {carrito.length > 0 && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#111] border-t border-[#2a2a2a] px-4 py-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">Pedido · <span className="text-[#e8c547]">{totalItems} unidades</span></p>
-            <p className="text-xs text-[#888]">{carrito.length} producto{carrito.length !== 1 ? 's' : ''}</p>
-          </div>
-          <button onClick={enviarPedido} disabled={enviando}
-            className="w-full bg-[#e8c547] text-black rounded-xl py-3 text-sm font-['Syne'] font-bold disabled:opacity-40 active:opacity-80">
-            {enviando ? 'Enviando...' : `Enviar Pedido (${totalItems} unidades)`}
-          </button>
-        </div>
+      {lineas.length === 0 ? (
+        <p className="py-4 text-center text-sm text-faint">Todavía no agregaste productos.</p>
+      ) : (
+        <ul className="space-y-2">
+          {lineas.map(l => (
+            <li key={l.producto.id} className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm leading-tight text-text break-words">
+                  {l.producto.codigo != null && <span className="text-accent">{l.producto.codigo} · </span>}
+                  {l.producto.nombre}
+                </p>
+                <p className="text-2xs text-faint">{l.producto.unidad}</p>
+              </div>
+              <ControlCantidad
+                valor={l.cantidad}
+                onCambiar={n => onCantidad(l.producto.id, n)}
+                etiqueta={l.producto.nombre}
+                conBotonAgregar={false}
+                tamano="sm"
+              />
+              <button
+                type="button"
+                onClick={() => onCantidad(l.producto.id, 0)}
+                aria-label={`Quitar ${l.producto.nombre}`}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-faint hover:text-brand-red"
+              >
+                <Trash2 size={15} />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
+
+      <textarea
+        value={notas}
+        onChange={e => onNotas(e.target.value)}
+        placeholder="Observaciones (opcional)"
+        aria-label="Observaciones"
+        rows={2}
+        maxLength={500}
+        className="w-full resize-none rounded-xl border border-border bg-surface2 px-3 py-2 text-sm text-text focus:border-accent focus:outline-none"
+      />
+
+      <button
+        type="button"
+        onClick={onEnviar}
+        disabled={lineas.length === 0}
+        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-bold text-black disabled:opacity-40 active:opacity-80"
+      >
+        <Send size={16} aria-hidden />
+        Revisar y enviar
+      </button>
     </div>
   )
 }

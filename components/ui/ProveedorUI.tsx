@@ -1,11 +1,14 @@
 'use client'
 
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
+import Link from 'next/link'
 import { CheckCircle2, TriangleAlert, X } from 'lucide-react'
 import Modal from './Modal'
 
 type ToastType = 'success' | 'error'
-interface ToastItem { id: number; type: ToastType; message: string }
+/** Enlace opcional dentro del toast (ej. "Ver en Mis pedidos"). */
+export interface ToastAccion { label: string; href: string }
+interface ToastItem { id: number; type: ToastType; message: string; accion?: ToastAccion }
 
 interface ConfirmOptions {
   titulo?: string
@@ -20,7 +23,7 @@ interface ConfirmOptions {
 }
 
 interface ProveedorUICtx {
-  toast: { success: (mensaje: string) => void; error: (mensaje: string) => void }
+  toast: { success: (mensaje: string, accion?: ToastAccion) => void; error: (mensaje: string) => void }
   confirmar: (opciones: ConfirmOptions) => void
 }
 
@@ -41,10 +44,11 @@ export default function ProveedorUI({ children }: { children: ReactNode }) {
     setToasts(prev => prev.filter(t => t.id !== id))
   }, [])
 
-  const push = useCallback((type: ToastType, message: string) => {
+  const push = useCallback((type: ToastType, message: string, accion?: ToastAccion) => {
     const id = ++idRef.current
-    setToasts(prev => [...prev, { id, type, message }])
-    setTimeout(() => dismiss(id), 4000)
+    setToasts(prev => [...prev, { id, type, message, accion }])
+    // Con enlace queda más tiempo, para que dé tiempo a tocarlo.
+    setTimeout(() => dismiss(id), accion ? 7000 : 4000)
   }, [dismiss])
 
   function cerrarConfirm() {
@@ -58,7 +62,7 @@ export default function ProveedorUI({ children }: { children: ReactNode }) {
 
   const ctx: ProveedorUICtx = {
     toast: {
-      success: (mensaje: string) => push('success', mensaje),
+      success: (mensaje: string, accion?: ToastAccion) => push('success', mensaje, accion),
       error: (mensaje: string) => push('error', mensaje),
     },
     confirmar: setConfirmOpciones,
@@ -79,7 +83,14 @@ export default function ProveedorUI({ children }: { children: ReactNode }) {
               <span className={`shrink-0 mt-0.5 ${t.type === 'success' ? 'text-success' : 'text-brand-red'}`}>
                 {t.type === 'success' ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}
               </span>
-              <p className="text-sm flex-1">{t.message}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm">{t.message}</p>
+                {t.accion && (
+                  <Link href={t.accion.href} onClick={() => dismiss(t.id)} className="mt-1 inline-block text-sm font-semibold text-accent underline underline-offset-2">
+                    {t.accion.label}
+                  </Link>
+                )}
+              </div>
               <button onClick={() => dismiss(t.id)} aria-label="Cerrar notificación" className="text-faint hover:text-text shrink-0">
                 <X size={16} />
               </button>

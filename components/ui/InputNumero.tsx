@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type KeyboardEvent } from 'react'
-import { parseDecimal } from '@/lib/numeros'
+import { parseCantidad, parseDecimal } from '@/lib/numeros'
 import { controlClass } from './Field'
 
 export const inputNumeroClass = controlClass
@@ -15,6 +15,8 @@ interface Props {
   min?: number
   /** Rechaza el separador decimal — para cantidades que solo admiten enteros. */
   enteros?: boolean
+  /** Cantidad: la coma o el punto son siempre decimales, sin separador de miles ("1,500" = 1,5). */
+  cantidad?: boolean
   autoFocus?: boolean
   /** Nombre accesible cuando no hay un <label> asociado (ej. celdas de una tabla editable). */
   ariaLabel?: string
@@ -25,15 +27,16 @@ interface Props {
  * Input numérico tolerante a coma decimal. Nunca usar type="number": el
  * browser descarta un valor con coma antes de que llegue al JS.
  */
-export default function InputNumero({ value, onChange, placeholder, className, disabled, min, enteros, autoFocus, ariaLabel, onKeyDown }: Props) {
+export default function InputNumero({ value, onChange, placeholder, className, disabled, min, enteros, cantidad, autoFocus, ariaLabel, onKeyDown }: Props) {
   const [raw, setRaw] = useState(value == null ? '' : String(value).replace('.', ','))
   const [focused, setFocused] = useState(false)
+  const parsear = cantidad ? parseCantidad : parseDecimal
 
   // Sin foco se muestra lo tipeado si todavía representa el valor (conserva "1,50");
   // si el valor cambió desde afuera, se muestra el valor nuevo. Derivado en el render,
   // sin effect que sincronice estado.
   const formateado = value == null ? '' : String(value).replace('.', ',')
-  const mostrado = focused || parseDecimal(raw) === value ? raw : formateado
+  const mostrado = focused || parsear(raw) === value ? raw : formateado
 
   return (
     <input
@@ -52,7 +55,7 @@ export default function InputNumero({ value, onChange, placeholder, className, d
         let next = e.target.value
         if (enteros) next = next.replace(/[.,]/g, '')
         setRaw(next)
-        const parsed = parseDecimal(next)
+        const parsed = parsear(next)
         if (parsed !== null && min !== undefined && parsed < min) return
         onChange(parsed)
       }}

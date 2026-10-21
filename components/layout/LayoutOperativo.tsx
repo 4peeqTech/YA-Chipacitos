@@ -6,6 +6,7 @@ interface NavItem {
   href: string
   label: string
   icon: ReactNode
+  badge?: number
 }
 
 /** Shell compartido por los layouts operativos (fábrica/local/depósito): Header +
@@ -42,7 +43,14 @@ export default function LayoutOperativo({
               href={item.href}
               className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] text-muted hover:text-accent transition-colors"
             >
-              <span className="text-lg">{item.icon}</span>{item.label}
+              <span className="relative text-lg">
+                {item.icon}
+                {!!item.badge && (
+                  <span className="absolute -right-2.5 -top-1 min-w-4 h-4 rounded-full bg-accent2 px-1 text-3xs font-bold leading-4 text-black text-center">
+                    {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                )}
+              </span>{item.label}
             </a>
           ))}
         </div>

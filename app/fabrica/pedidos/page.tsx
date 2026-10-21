@@ -2,29 +2,37 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import PedidosOperadorClient from '@/components/pedidos/PedidosOperadorClient'
+import PedidosMayoristaClient from '@/components/pedidos/mayorista/PedidosMayoristaClient'
+import type { Pedido, Producto } from '@/lib/types'
 
 export default async function FabricaPedidosPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: profile }, { data: productos }, { data: pedidos }] = await Promise.all([
+  const [{ data: profile }, { data: productos }, { data: pedidos }, { data: locales }, { data: inicioVersion }] = await Promise.all([
     supabase.from('profiles').select('nombre, rol').eq('id', user!.id).single(),
     supabase.from('productos').select('*').eq('tipo', 'producto').eq('destino', 'fabrica').order('nombre'),
+    // Todos los activos, sin límite: los cerrados van al historial paginado.
     supabase.from('pedidos').select('*, pedido_items(*), pedido_mensajes(*)')
-      .eq('destino', 'fabrica').order('created_at', { ascending: false }).limit(100),
+      .eq('destino', 'fabrica').in('estado', ['pendiente', 'preparando', 'enviado']).order('created_at'),
+    // Sucursales para los filtros (también las que hoy no tienen pedidos activos).
+    supabase.from('pedidos').select('local_nombre').eq('destino', 'fabrica')
+      .order('created_at', { ascending: false }).limit(1000),
+    supabase.rpc('pedidos_inicio_version'),
   ])
 
   // Pedidos es de mayorista/admin — supervisor_fabrica no entra (ver nav en app/fabrica/layout.tsx).
   if (!['admin', 'mayorista'].includes(profile?.rol ?? '')) redirect('/fabrica/stock')
 
+  const sucursales = [...new Set((locales ?? []).map(l => l.local_nombre as string))].sort((a, b) => a.localeCompare(b, 'es'))
+
   return (
-    <PedidosOperadorClient
-      productosIniciales={productos || []}
-      pedidosIniciales={pedidos || []}
-      tipo="producto"
-      destino="fabrica"
-      operadorNombre={profile?.nombre || 'Fábrica'}
+    <PedidosMayoristaClient
+      pedidosIniciales={(pedidos ?? []) as Pedido[]}
+      productos={(productos ?? []) as Producto[]}
+      sucursales={sucursales}
+      inicioVersion={(inicioVersion as string | null) ?? null}
+      usuarioId={user!.id}
     />
   )
 }

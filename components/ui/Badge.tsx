@@ -1,17 +1,11 @@
 import { EstadoPedido } from '@/lib/types'
 import { refDeUrl, REF_PROD } from '@/lib/entorno'
-
-const estadoConfig: Record<EstadoPedido, { label: string; class: string }> = {
-  pendiente:  { label: 'Pendiente',       class: 'bg-warning-bg text-warning' },
-  preparando: { label: 'En preparación',  class: 'bg-accent-bg text-accent' },
-  enviado:    { label: 'Enviado',         class: 'bg-info-bg text-accent2' },
-  recibido:   { label: 'Recibido',        class: 'bg-green-bg text-success' },
-}
+import { ESTADOS_PEDIDO } from '@/lib/pedidos/estados'
 
 export function BadgeEstado({ estado }: { estado: EstadoPedido }) {
-  const cfg = estadoConfig[estado]
+  const cfg = ESTADOS_PEDIDO[estado]
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wide ${cfg.class}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wide ${cfg.clase}`}>
       {cfg.label}
     </span>
   )

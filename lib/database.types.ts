@@ -3642,9 +3642,11 @@ export type Database = {
       pedido_items: {
         Row: {
           cantidad: number
+          cantidad_enviada: number | null
           cantidad_recibida: number | null
           created_at: string | null
           id: string
+          origen: string
           pedido_id: string | null
           producto_id: string | null
           producto_nombre: string
@@ -3652,9 +3654,11 @@ export type Database = {
         }
         Insert: {
           cantidad: number
+          cantidad_enviada?: number | null
           cantidad_recibida?: number | null
           created_at?: string | null
           id?: string
+          origen?: string
           pedido_id?: string | null
           producto_id?: string | null
           producto_nombre: string
@@ -3662,9 +3666,11 @@ export type Database = {
         }
         Update: {
           cantidad?: number
+          cantidad_enviada?: number | null
           cantidad_recibida?: number | null
           created_at?: string | null
           id?: string
+          origen?: string
           pedido_id?: string | null
           producto_id?: string | null
           producto_nombre?: string
@@ -3687,8 +3693,57 @@ export type Database = {
           },
         ]
       }
+      pedido_eventos: {
+        Row: {
+          autor_id: string | null
+          autor_nombre: string | null
+          autor_rol: string | null
+          created_at: string
+          detalle: Json
+          id: string
+          pedido_id: string
+          tipo: string
+        }
+        Insert: {
+          autor_id?: string | null
+          autor_nombre?: string | null
+          autor_rol?: string | null
+          created_at?: string
+          detalle?: Json
+          id?: string
+          pedido_id: string
+          tipo: string
+        }
+        Update: {
+          autor_id?: string | null
+          autor_nombre?: string | null
+          autor_rol?: string | null
+          created_at?: string
+          detalle?: Json
+          id?: string
+          pedido_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedido_eventos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedido_eventos_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pedido_mensajes: {
         Row: {
+          autor_id: string | null
           autor_nombre: string
           autor_rol: string
           created_at: string | null
@@ -3697,6 +3752,7 @@ export type Database = {
           texto: string
         }
         Insert: {
+          autor_id?: string | null
           autor_nombre: string
           autor_rol: string
           created_at?: string | null
@@ -3705,6 +3761,7 @@ export type Database = {
           texto: string
         }
         Update: {
+          autor_id?: string | null
           autor_nombre?: string
           autor_rol?: string
           created_at?: string | null
@@ -3724,6 +3781,9 @@ export type Database = {
       }
       pedidos: {
         Row: {
+          cancelado_at: string | null
+          cancelado_por: string | null
+          cierre_automatico: boolean
           created_at: string | null
           destino: string
           enviado_at: string | null
@@ -3732,12 +3792,19 @@ export type Database = {
           id: string
           local_id: string | null
           local_nombre: string
+          motivo_cancelacion: string | null
+          nota_recepcion: string | null
           notas: string | null
           numero: number
           preparando_at: string | null
+          recepcion_con_diferencias: boolean
           recibido_at: string | null
+          version_anterior: boolean
         }
         Insert: {
+          cancelado_at?: string | null
+          cancelado_por?: string | null
+          cierre_automatico?: boolean
           created_at?: string | null
           destino: string
           enviado_at?: string | null
@@ -3746,12 +3813,19 @@ export type Database = {
           id?: string
           local_id?: string | null
           local_nombre: string
+          motivo_cancelacion?: string | null
+          nota_recepcion?: string | null
           notas?: string | null
           numero?: number
           preparando_at?: string | null
+          recepcion_con_diferencias?: boolean
           recibido_at?: string | null
+          version_anterior?: boolean
         }
         Update: {
+          cancelado_at?: string | null
+          cancelado_por?: string | null
+          cierre_automatico?: boolean
           created_at?: string | null
           destino?: string
           enviado_at?: string | null
@@ -3760,10 +3834,14 @@ export type Database = {
           id?: string
           local_id?: string | null
           local_nombre?: string
+          motivo_cancelacion?: string | null
+          nota_recepcion?: string | null
           notas?: string | null
           numero?: number
           preparando_at?: string | null
+          recepcion_con_diferencias?: boolean
           recibido_at?: string | null
+          version_anterior?: boolean
         }
         Relationships: [
           {
@@ -5768,8 +5846,13 @@ export type Database = {
       }
       es_admin: { Args: never; Returns: boolean }
       fabrica_confirmar_recepcion_pedido: {
-        Args: { p_items: Json; p_items_nuevos?: Json; p_pedido_id: string }
-        Returns: undefined
+        Args: {
+          p_items?: Json
+          p_items_nuevos?: Json
+          p_nota?: string
+          p_pedido_id: string
+        }
+        Returns: Json
       }
       fabrica_guardar_cantidad_conteo: {
         Args: { p_cantidad?: number; p_conteo_item_id?: string }
@@ -5877,6 +5960,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      pedido_cancelar: {
+        Args: { p_motivo?: string; p_pedido_id: string }
+        Returns: undefined
+      }
+      pedido_editar_items: {
+        Args: { p_items: Json; p_pedido_id: string }
+        Returns: number
+      }
+      pedido_empezar_preparacion: {
+        Args: { p_pedido_id: string }
+        Returns: undefined
+      }
+      pedidos_crear: {
+        Args: { p_items: Json; p_notas?: string }
+        Returns: Json
+      }
+      pedidos_inicio_version: { Args: never; Returns: string }
       proveedores_archivar: {
         Args: { p_archivar: boolean; p_id: string }
         Returns: Json
@@ -5887,6 +5987,8 @@ export type Database = {
         Returns: Json
       }
       proveedores_impacto: { Args: { p_id: string }; Returns: Json }
+      puede_operar_destino: { Args: { p_destino: string }; Returns: boolean }
+      puede_ver_pedido: { Args: { p_pedido_id: string }; Returns: boolean }
       recalcular_conciliacion: {
         Args: { p_fecha: string; p_local_id: string }
         Returns: undefined

@@ -8,15 +8,24 @@ export const local: SeccionManual = {
   area: 'dia-a-dia',
   roles: ['local'],
   modulos: [],
-  resumen: 'Pedidos a fábrica y depósito, recepción de lo que llega y ventas de tu sucursal.',
-  actualizado: '2026-09-23',
-  pendiente: 'Esta sección viene del manual anterior. Se revisa y se suman capturas en una próxima entrega.',
+  resumen: 'Pedidos al mayorista, seguimiento, mensajes y recepción de lo que llega.',
+  actualizado: '2026-10-21',
+  novedades: [
+    { fecha: '2026-10-21', texto: 'Pantalla **Pedir** nueva: carrito que no se pierde, **Repetir mi último pedido** y resumen antes de enviar. Se pueden pedir cantidades con decimales (por ejemplo 1,5).' },
+    { fecha: '2026-10-21', texto: 'En **Pedidos** ves en vivo en qué está cada pedido y si el mayorista cambió algo antes de mandarlo.' },
+    { fecha: '2026-10-21', texto: 'La recepción se confirma con un toque (**Llegó todo bien**) o indicando qué llegó distinto. El $ es opcional.' },
+    { fecha: '2026-10-21', texto: 'Los pedidos anteriores a esta versión quedan marcados como **Versión anterior**: los que estaban en camino se cerraron como recibidos automáticamente y pueden no reflejar lo que llegó.' },
+  ],
   apartados: [
     {
       ancla: 'que-puedo-hacer',
       titulo: '¿Qué puedo hacer desde mi cuenta?',
       bloques: [
-        { tipo: 'parrafo', texto: 'Como local (sucursal) podés hacer pedidos a fábrica y depósito, consultar el historial de tus pedidos, y ver las ventas registradas en Posberry para tu sucursal.' },
+        { tipo: 'parrafo', texto: 'Como local (sucursal) le pedís productos al mayorista, seguís cada pedido hasta que llega, hablás con el mayorista dentro del pedido y confirmás lo que recibiste.' },
+        { tipo: 'lista', items: [
+          '**Pedir**: armar y mandar un pedido nuevo.',
+          '**Pedidos**: tus pedidos, en curso y anteriores. El número en el menú te dice cuántos están en camino sin confirmar.',
+        ] },
       ],
     },
     {
@@ -26,15 +35,16 @@ export const local: SeccionManual = {
         {
           tipo: 'pasos',
           pasos: [
-            { texto: 'Ingresá a **Pedir ＋** desde el menú inferior.' },
-            { texto: 'Encontrarás dos pestañas: **Fábrica** (chipacitos y productos elaborados) y **Depósito** (insumos y packaging). Usá el buscador o los botones **＋ / −** para seleccionar cantidades.' },
-            { texto: 'Para agregar rápido por código, escribí **código*cantidad** en el buscador (ej: `12*5`) y presioná Enter.' },
-            { texto: 'Si tenés alguna aclaración, escribila en **Nota para el pedido**.' },
-            { texto: 'Tocá **Enviar pedido**. Si el pedido tiene productos de los dos destinos, se crean automáticamente dos órdenes separadas.' },
+            { texto: 'Entrá a **Pedir** desde el menú.' },
+            { texto: 'Buscá por nombre o código, o filtrá por categoría. Cargá la cantidad con **−** y **+** o escribiéndola; se aceptan decimales con coma o punto (por ejemplo 1,5).' },
+            { texto: 'Para cargar rápido por código, escribí **código*cantidad** en el buscador (por ejemplo `12*3`) y apretá Enter.' },
+            { texto: '¿Pedís casi siempre lo mismo? Tocá **Repetir mi último pedido** y ajustá lo que cambie. Si algún producto ya no se puede pedir, te avisamos cuál quedó afuera.' },
+            { texto: 'Revisá **Tu pedido** (en el celular, tocá la barra de abajo) y escribí las **Observaciones** si hace falta.' },
+            { texto: 'Tocá **Enviar pedido**, revisá el resumen y confirmá. Te aparece el número del pedido y un enlace para verlo en Mis pedidos.' },
           ],
         },
-        { tipo: 'tip', texto: 'El pedido llega al instante. No hace falta llamar para confirmar.' },
-        { tipo: 'alerta', texto: 'Si algún destino no se pudo enviar (por ejemplo, por un problema de conexión), te avisamos con un mensaje y esos productos quedan en tu carrito para que reintentes — no se pierden.' },
+        { tipo: 'tip', texto: 'El carrito se guarda en este dispositivo: si se te cierra la página, lo encontrás como lo dejaste.' },
+        { tipo: 'alerta', texto: 'Si se corta la conexión al enviar, te avisamos y el carrito queda igual. No se manda nada a medias: probá de nuevo.' },
       ],
     },
     {
@@ -45,43 +55,66 @@ export const local: SeccionManual = {
           tipo: 'estados',
           dominio: 'pedidos',
           estados: [
-            { estado: 'pendiente', texto: 'El pedido fue recibido y está en espera.' },
-            { estado: 'preparando', texto: 'Fábrica o depósito está armando el pedido.' },
-            { estado: 'enviado', texto: 'El pedido fue despachado. Aparece el botón para confirmar recepción.' },
-            { estado: 'recibido', texto: 'Confirmaste que recibiste el pedido. El ciclo está completo.' },
+            { estado: 'pendiente', texto: 'Lo mandaste y el mayorista todavía no lo empezó a preparar.' },
+            { estado: 'preparando', texto: 'El mayorista lo está armando. Puede ajustar cantidades si falta algo: lo vas a ver marcado.' },
+            { estado: 'enviado', texto: 'Salió para tu local. Cuando llegue, confirmá la recepción.' },
+            { estado: 'recibido', texto: 'Confirmaste lo que llegó. El pedido queda cerrado.' },
+            { estado: 'cancelado', texto: 'Se canceló antes de salir, por vos o por el mayorista. Se ve el motivo si lo dejaron.' },
           ],
         },
       ],
     },
     {
-      ancla: 'confirmar-recepcion',
-      titulo: 'Confirmar recepción',
+      ancla: 'seguimiento',
+      titulo: 'Seguir un pedido y ver qué cambió',
       bloques: [
         {
           tipo: 'pasos',
           pasos: [
-            { texto: 'Cuando el pedido pase a **Enviado**, te aparece un botón **✓ Confirmar recepción**.' },
-            { texto: 'Se abre el remito con los productos del pedido. Para cada uno podés corregir la **cantidad recibida** y cargar el **valor ($ total)** — por ejemplo, si llegó menos cantidad de la pedida o el precio final fue distinto.' },
-            { texto: 'Si llegó algún producto que **no estaba en el pedido original**, buscalo en "+ Agregar producto no pedido...", seleccionalo de la lista y cargale cantidad y valor. Podés agregar más de uno.' },
-            { texto: 'Tocá **Confirmar recepción**. El pedido pasa a **Recibido** con todos los ítems (los originales editados y los que agregaste) guardados en el remito.' },
+            { texto: 'Entrá a **Pedidos**. Arriba elegís **En curso**, **Recibidos**, **Cancelados** o todos, y podés buscar por número o producto, o filtrar por fecha.' },
+            { texto: 'Tocá un pedido para ver el detalle: los productos, en qué estado está y los **Movimientos** (quién hizo qué y cuándo).' },
+            { texto: 'Si el mayorista cambió algo antes de mandarlo (otra cantidad, sacó o agregó un producto), el pedido muestra **Fábrica cambió el pedido** y en el detalle ves lo que pediste y lo que se manda.' },
           ],
         },
-        { tipo: 'alerta', texto: 'Confirmá la recepción solo cuando el pedido efectivamente llegó y revisaste las cantidades. Una vez confirmado no se puede reabrir el remito.' },
+        { tipo: 'tip', texto: 'La lista se actualiza sola: no hace falta recargar para ver si tu pedido salió.' },
+      ],
+    },
+    {
+      ancla: 'cancelar',
+      titulo: 'Cancelar un pedido',
+      bloques: [
+        { tipo: 'parrafo', texto: 'Se puede cancelar hasta que salga en camino. Abrí el pedido, tocá **Cancelar pedido** y, si querés, escribí el motivo. Al mayorista le llega el aviso.' },
+        { tipo: 'alerta', texto: 'Cuando el pedido ya está **En camino** no se puede cancelar: está yendo para tu local. Si hay un problema, avisá por los mensajes del pedido.' },
+      ],
+    },
+    {
+      ancla: 'confirmar-recepcion',
+      titulo: 'Confirmar la recepción',
+      bloques: [
+        {
+          tipo: 'pasos',
+          pasos: [
+            { texto: 'Cuando el pedido está **En camino**, abrilo: te pregunta **¿Llegó el pedido?**' },
+            { texto: 'Si llegó todo lo que se mandó, tocá **Llegó todo bien** y confirmá. Listo.' },
+            { texto: 'Si algo llegó distinto, elegí la opción de diferencias: corregí lo que **Llegó** de cada producto, cargá el **$** si lo tenés (es opcional) y dejá una nota. Si vino un producto que no pediste, agregalo en **Agregar un producto que llegó sin pedirse**.' },
+            { texto: 'Tocá **Guardar recepción**. El pedido queda **Recibido** (o **Recibido con diferencias**) y al mayorista le llega el aviso.' },
+          ],
+        },
+        { tipo: 'tip', texto: 'Las cantidades a corregir vienen cargadas con lo que se mandó: solo cambiás lo que no coincide.' },
       ],
     },
     {
       ancla: 'mensajes',
       titulo: 'Mensajes dentro del pedido',
       bloques: [
-        { tipo: 'parrafo', texto: 'Dentro de cada pedido podés enviar y recibir mensajes con fábrica o depósito. Es útil para aclaraciones sin tener que llamar.' },
-        { tipo: 'tip', texto: 'Los mensajes quedan guardados en el historial del pedido.' },
+        { tipo: 'parrafo', texto: 'Dentro de cada pedido tenés **Mensajes con el mayorista**. Podés escribir desde que lo mandaste, por ejemplo para avisar algo urgente o pedir un cambio. Al otro le llega el aviso y los mensajes se ven en vivo.' },
       ],
     },
     {
-      ancla: 'historial',
-      titulo: 'Historial de pedidos',
+      ancla: 'version-anterior',
+      titulo: 'Pedidos de la versión anterior',
       bloques: [
-        { tipo: 'parrafo', texto: 'En **Pedidos 📋** ves todos tus pedidos anteriores. Podés filtrar por estado o buscar por número de pedido y ver el detalle completo de cada uno.' },
+        { tipo: 'parrafo', texto: 'Los pedidos hechos antes de esta versión del sistema llevan la marca **Versión anterior**. Los que estaban en camino sin confirmar se cerraron como recibidos automáticamente (**Cerrado automáticamente**), así que pueden no reflejar lo que llegó de verdad.' },
       ],
     },
     {

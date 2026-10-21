@@ -19,8 +19,9 @@ export const ESTADOS = {
   pedidos: {
     pendiente:  { label: 'Pendiente',       tono: 'alerta' },
     preparando: { label: 'En preparación',  tono: 'neutro' },
-    enviado:    { label: 'Enviado',         tono: 'info' },
+    enviado:    { label: 'En camino',       tono: 'info' },
     recibido:   { label: 'Recibido',        tono: 'exito' },
+    cancelado:  { label: 'Cancelado',       tono: 'peligro' },
   },
   // Estado visible del pedido a proveedor (lo deriva lib/compras/estadoPedido.ts
   // de estado_recepcion + estado_facturacion).

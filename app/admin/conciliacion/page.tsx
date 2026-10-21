@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import ConciliacionClient from './ConciliacionClient'
+import AvisoVersionAnterior from '@/components/pedidos/compartido/AvisoVersionAnterior'
 
 export default async function ConciliacionPage() {
   const supabase = await createClient()
@@ -27,13 +28,20 @@ export default async function ConciliacionPage() {
     if (prod?.nombre) mapaProductos[m.nombre_posberry] = prod.nombre
   })
 
+  // Los remitos de antes del corte de versión de pedidos pueden no reflejar lo
+  // que llegó (se cerraron como recibidos automáticamente): se avisa acá también.
+  const { data: inicioVersion } = await supabase.rpc('pedidos_inicio_version')
+
   return (
-    <ConciliacionClient
-      conciliacionesIniciales={conc || []}
-      locales={locales || []}
-      ventasHoy={ventasHoy}
-      fechaInicial={hoy}
-      mapaProductos={mapaProductos}
-    />
+    <div className="space-y-4">
+      <AvisoVersionAnterior fecha={inicioVersion ?? undefined} />
+      <ConciliacionClient
+        conciliacionesIniciales={conc || []}
+        locales={locales || []}
+        ventasHoy={ventasHoy}
+        fechaInicial={hoy}
+        mapaProductos={mapaProductos}
+      />
+    </div>
   )
 }

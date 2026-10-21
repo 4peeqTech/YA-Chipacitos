@@ -3,7 +3,12 @@
 export type Rol = string
 export type TipoProducto = 'producto' | 'insumo'
 export type DestinoProducto = 'fabrica' | 'deposito'
-export type EstadoPedido = 'pendiente' | 'preparando' | 'enviado' | 'recibido'
+export type EstadoPedido = 'pendiente' | 'preparando' | 'enviado' | 'recibido' | 'cancelado'
+/** pedido = lo pidió el local; despacho = lo agregó quien despacha; recepcion = llegó sin pedirse. */
+export type OrigenItemPedido = 'pedido' | 'despacho' | 'recepcion'
+export type TipoEventoPedido =
+  | 'creado' | 'preparando' | 'editado' | 'enviado' | 'recibido'
+  | 'recibido_con_diferencias' | 'cancelado' | 'cierre_automatico'
 export type PrioridadTarea = 'alta' | 'media' | 'baja'
 export type EstadoTarea = 'pendiente' | 'en_progreso' | 'completada'
 export type Turno = 'manana' | 'tarde'
@@ -137,8 +142,19 @@ export interface Pedido {
   created_at: string
   enviado_at: string | null
   recibido_at: string | null
+  preparando_at?: string | null
+  cancelado_at?: string | null
+  cancelado_por?: string | null
+  motivo_cancelacion?: string | null
+  recepcion_con_diferencias?: boolean
+  nota_recepcion?: string | null
+  /** Pedido anterior al corte de versión (D6/D13): sus datos pueden no ser confiables. */
+  version_anterior?: boolean
+  /** Enviado viejo que la migración cerró como recibido. */
+  cierre_automatico?: boolean
   pedido_items?: PedidoItem[]
   pedido_mensajes?: PedidoMensaje[]
+  pedido_eventos?: PedidoEvento[]
 }
 
 export interface PedidoItem {
@@ -146,9 +162,13 @@ export interface PedidoItem {
   pedido_id: string
   producto_id: string
   producto_nombre: string
+  /** Lo pedido. 0 en los productos que agregó el despacho o que llegaron sin pedirse. */
   cantidad: number
+  /** Lo que se mandó. null = igual a lo pedido. */
+  cantidad_enviada?: number | null
   cantidad_recibida: number | null
   valor_total: number | null
+  origen?: OrigenItemPedido
   created_at: string
 }
 
@@ -193,9 +213,25 @@ export interface ProductoMapeo {
 export interface PedidoMensaje {
   id: string
   pedido_id: string
+  /** Lo completa la base (trigger); null en los mensajes viejos. */
+  autor_id?: string | null
   autor_rol: string
   autor_nombre: string
   texto: string
+  created_at: string
+}
+
+export interface PedidoEvento {
+  id: string
+  pedido_id: string
+  tipo: TipoEventoPedido
+  /** editado: {cambios: [{tipo, producto_nombre, antes, despues}]};
+   *  recibido*: {diferencias: [{producto_nombre, enviada, recibida}], nota};
+   *  cancelado / cierre_automatico: {motivo}. */
+  detalle: Record<string, unknown>
+  autor_id: string | null
+  autor_nombre: string | null
+  autor_rol: string | null
   created_at: string
 }
 
