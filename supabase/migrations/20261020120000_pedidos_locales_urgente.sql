@@ -43,10 +43,17 @@ as $$
   );
 $$;
 
-revoke all on function public.puede_operar_destino(text) from public, anon;
-revoke all on function public.puede_ver_pedido(uuid) from public, anon;
-grant execute on function public.puede_operar_destino(text) to authenticated;
-grant execute on function public.puede_ver_pedido(uuid) to authenticated;
+-- anon también necesita EXECUTE: las policies de pedidos/pedido_eventos/
+-- pedido_mensajes las llaman, y realtime evalúa esas policies para cada
+-- suscriptor, incluidos los que quedaron como anon (pestaña con la sesión
+-- vencida). Si la función tira "permission denied" para uno solo, realtime
+-- descarta el cambio para TODOS los suscriptores (pasó en dev el 21-10: los
+-- UPDATE de pedidos dejaron de llegar). Para anon devuelven false: auth.uid()
+-- es null y get_user_rol() no encuentra perfil.
+revoke all on function public.puede_operar_destino(text) from public;
+revoke all on function public.puede_ver_pedido(uuid) from public;
+grant execute on function public.puede_operar_destino(text) to anon, authenticated;
+grant execute on function public.puede_ver_pedido(uuid) to anon, authenticated;
 
 -- ─── 2. Esquema ─────────────────────────────────────────────────────────────
 
