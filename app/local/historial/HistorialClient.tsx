@@ -136,13 +136,18 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
   }, [enCurso, cerrados])
 
   useEffect(() => {
+    // Los callbacks de un canal que ya no es el vigente (desmontado o StrictMode)
+    // se ignoran; nunca se reconecta ni se llama a removeChannel desde subscribe.
+    let activo = true
     const canal = supabase
       .channel(`mis-pedidos-${usuarioId}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `local_id=eq.${usuarioId}` }, payload => {
+        if (!activo) return
         const id = (payload.new as { id?: string })?.id ?? (payload.old as { id?: string })?.id
         if (id) recargarPedido(id)
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedido_eventos' }, payload => {
+        if (!activo) return
         const ev = payload.new as PedidoEvento
         setVersionEventos(prev => ({ ...prev, [ev.pedido_id]: (prev[ev.pedido_id] ?? 0) + 1 }))
         recargarPedido(ev.pedido_id)
@@ -155,8 +160,8 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
         // El número de "en camino" del menú lo arma el layout.
         if (ev.tipo === 'enviado' || ev.tipo === 'recibido' || ev.tipo === 'recibido_con_diferencias') router.refresh()
       })
-      .subscribe(estado => { if (estado === 'CHANNEL_ERROR') router.refresh() })
-    return () => { supabase.removeChannel(canal) }
+      .subscribe(estado => { if (activo && estado === 'CHANNEL_ERROR') router.refresh() })
+    return () => { activo = false; supabase.removeChannel(canal) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuarioId, supabase, recargarPedido])
 
