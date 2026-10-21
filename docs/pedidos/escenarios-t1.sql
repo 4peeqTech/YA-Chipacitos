@@ -334,3 +334,16 @@ reset role;
 select caso, ok, detalle from _r order by ts;
 
 rollback;
+
+-- ─── Anon (pestaña con la sesión vencida) ───────────────────────────────────
+-- Las funciones de las policies tienen que poder ejecutarse como anon: si
+-- fallan con "permission denied", realtime descarta el cambio para todos los
+-- suscriptores (dev, 21-10). Como anon no se ve nada y no hay error.
+begin;
+set local role anon;
+select
+  (select count(*) from public.pedidos) = 0          as ok_anon_no_ve_pedidos,
+  (select count(*) from public.pedido_mensajes) = 0  as ok_anon_no_ve_mensajes,
+  (select count(*) from public.pedido_eventos) = 0   as ok_anon_no_ve_eventos,
+  public.puede_operar_destino('fabrica') = false     as ok_anon_no_opera;
+rollback;
