@@ -11,6 +11,7 @@ import { Chip } from '@/components/ui/Chip'
 import PushToggle from '@/components/ui/PushToggle'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import ControlCantidad from './ControlCantidad'
+import { parseCantidad } from '../cantidad'
 import { useCarritoGuardado, type CarritoGuardado } from './useCarritoGuardado'
 
 export interface UltimoPedido {
@@ -90,8 +91,10 @@ export default function LocalPedidosClient({ usuarioId, productos, ultimoPedido 
   function alPresionarEnter() {
     if (visibles.length !== 1) return
     const p = visibles[0]
-    const sumar = atajo ? Number(atajo[2].replace(',', '.')) || 1 : 1
-    setCantidad(p.id, Math.round((cantidadEnCarrito(p.id) + sumar) * 1000) / 1000)
+    const sumar = atajo ? parseCantidad(atajo[2]) : 1
+    if (sumar == null) return
+    // código*0 saca el producto del carrito (si estaba); no suma nada.
+    setCantidad(p.id, sumar === 0 ? 0 : Math.round((cantidadEnCarrito(p.id) + sumar) * 1000) / 1000)
     setBusqueda('')
   }
 

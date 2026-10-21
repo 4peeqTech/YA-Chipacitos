@@ -44,6 +44,18 @@ function diaAr(iso: string) {
   return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
 }
 
+interface FiltroTexto { q: string; desde: string; hasta: string }
+
+/** Búsqueda (número o producto) y fechas, igual que la consulta del servidor. */
+function coincideTexto(p: Pedido, f: FiltroTexto) {
+  if (f.desde && diaAr(p.created_at) < f.desde) return false
+  if (f.hasta && diaAr(p.created_at) > f.hasta) return false
+  const texto = f.q.trim().toLowerCase()
+  if (!texto) return true
+  if (/^\d+$/.test(texto)) return p.numero === Number(texto)
+  return (p.pedido_items ?? []).some(i => i.producto_nombre.toLowerCase().includes(texto))
+}
+
 interface Props {
   usuarioId: string
   enCursoIniciales: Pedido[]
@@ -65,6 +77,11 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
   const [hasta, setHasta] = useState('')
   const [verFechas, setVerFechas] = useState(false)
   const [claveCargada, setClaveCargada] = useState(CLAVE_INICIAL)
+  // Filtro con el que se cargó `cerrados` (lo usa el realtime para decidir si
+  // un pedido entra en la lista) y cuántas filas trajo el servidor: el offset
+  // de "Ver más" no depende de lo que agregue o saque el realtime.
+  const filtroCargadoRef = useRef<FiltroTexto & { estado: FiltroCerrados }>({ estado: 'todos', q: '', desde: '', hasta: '' })
+  const [offsetServidor, setOffsetServidor] = useState(cerradosIniciales?.pedidos.length ?? 0)
   const [cargando, setCargando] = useState(false)
   const [cargandoMas, setCargandoMas] = useState(false)
   const [abierto, setAbierto] = useState<{ id: string; modo: 'detalle' | 'diferencias' } | null>(null)
@@ -98,6 +115,8 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
       if (!r.ok) return toast.error(r.error)
       setCerrados(r.data.pedidos)
       setHayMas(r.data.hayMas)
+      setOffsetServidor(r.data.pedidos.length)
+      filtroCargadoRef.current = { estado: estadoCerrados, q: q.trim(), desde, hasta }
       setClaveCargada(clave)
     }, 350)
     return () => { vigente = false; clearTimeout(t) }
@@ -106,11 +125,14 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
 
   async function cargarMas() {
     setCargandoMas(true)
-    const r = await buscarPedidosCerrados({ estado: estadoCerrados, q: q.trim(), desde, hasta, offset: cerrados.length })
+    const r = await buscarPedidosCerrados({ estado: estadoCerrados, q: q.trim(), desde, hasta, offset: offsetServidor })
     setCargandoMas(false)
     if (!r.ok) return toast.error(r.error)
-    const vistos = new Set(cerrados.map(p => p.id))
-    setCerrados(prev => [...prev, ...r.data.pedidos.filter(p => !vistos.has(p.id))])
+    setCerrados(prev => {
+      const vistos = new Set(prev.map(p => p.id))
+      return [...prev, ...r.data.pedidos.filter(p => !vistos.has(p.id))]
+    })
+    setOffsetServidor(o => o + r.data.pedidos.length)
     setHayMas(r.data.hayMas)
   }
 
@@ -123,9 +145,13 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
       const resto = prev.filter(x => x.id !== id)
       return p && esEnCurso(p) ? [...resto, p].sort(porFechaDesc) : resto
     })
+    // A cerrados entra solo si cumple el filtro con el que se cargó la lista;
+    // si no lo cumple (o ya no se ve), sale.
+    const f = filtroCargadoRef.current
     setCerrados(prev => {
       const resto = prev.filter(x => x.id !== id)
-      return p && !esEnCurso(p) ? [...resto, p].sort(porFechaDesc) : resto
+      const entra = p && !esEnCurso(p) && (f.estado === 'todos' || p.estado === f.estado) && coincideTexto(p, f)
+      return entra ? [...resto, p].sort(porFechaDesc) : resto
     })
   }, [supabase])
 
@@ -176,13 +202,7 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
 
   // En curso: siempre están todos cargados, se filtran acá.
   const texto = q.trim().toLowerCase()
-  const enCursoFiltrados = enCurso.filter(p => {
-    if (desde && diaAr(p.created_at) < desde) return false
-    if (hasta && diaAr(p.created_at) > hasta) return false
-    if (!texto) return true
-    if (/^\d+$/.test(texto)) return p.numero === Number(texto)
-    return (p.pedido_items ?? []).some(i => i.producto_nombre.toLowerCase().includes(texto))
-  })
+  const enCursoFiltrados = enCurso.filter(p => coincideTexto(p, { q, desde, hasta }))
   const lista = filtro === 'en_curso' ? enCursoFiltrados : filtro === 'todos' ? [...enCursoFiltrados, ...cerrados] : cerrados
   const mostrandoCerrados = necesitaCerrados && clave === claveCargada
   const hayFiltros = !!(texto || desde || hasta)

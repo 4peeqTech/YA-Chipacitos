@@ -37,28 +37,23 @@ const FECHA = /^\d{4}-\d{2}-\d{2}$/
 export async function consultarCerrados(supabase: SupabaseClient, localId: string, b: BusquedaCerrados): Promise<PaginaCerrados> {
   const offset = Math.max(0, Math.floor(b.offset ?? 0))
   const q = (b.q ?? '').trim()
+  const porProducto = !!q && !/^\d+$/.test(q)
+  // Búsqueda por producto: un join !inner (alias "coincide") filtra los pedidos
+  // que tienen ese producto; pedido_items(*) sigue trayendo todos sus ítems.
+  // Orden y paginación quedan del lado del servidor.
   let query = supabase
     .from('pedidos')
-    .select(SELECT_PEDIDO)
+    .select(porProducto ? `${SELECT_PEDIDO}, coincide:pedido_items!inner(id)` : SELECT_PEDIDO)
     .eq('local_id', localId)
     .in('estado', b.estado === 'todos' ? [...ESTADOS_CERRADOS] : [b.estado])
 
   if (b.desde && FECHA.test(b.desde)) query = query.gte('created_at', inicioDia(b.desde))
   if (b.hasta && FECHA.test(b.hasta)) query = query.lte('created_at', finDia(b.hasta))
 
-  if (/^\d+$/.test(q)) {
-    query = query.eq('numero', Number(q))
+  if (porProducto) {
+    query = query.ilike('coincide.producto_nombre', `%${q.replace(/[%_\\]/g, '')}%`)
   } else if (q) {
-    // Pedidos que tienen un producto con ese nombre (RLS limita a los suyos).
-    const { data: items, error } = await supabase
-      .from('pedido_items')
-      .select('pedido_id')
-      .ilike('producto_nombre', `%${q.replace(/[%_]/g, '')}%`)
-      .limit(1000)
-    if (error) throw error
-    const ids = [...new Set((items ?? []).map(i => i.pedido_id as string))]
-    if (ids.length === 0) return { pedidos: [], hayMas: false }
-    query = query.in('id', ids)
+    query = query.eq('numero', Number(q))
   }
 
   // Se pide uno de más para saber si hay otra página.
@@ -66,6 +61,11 @@ export async function consultarCerrados(supabase: SupabaseClient, localId: strin
     .order('created_at', { ascending: false })
     .range(offset, offset + PAGINA)
   if (error) throw error
-  const filas = (data ?? []) as Pedido[]
+  // Se descarta el alias del join (solo sirve para filtrar).
+  const filas = ((data ?? []) as unknown as (Pedido & { coincide?: unknown })[]).map(p => {
+    const copia = { ...p }
+    delete copia.coincide
+    return copia as Pedido
+  })
   return { pedidos: filas.slice(0, PAGINA), hayMas: filas.length > PAGINA }
 }

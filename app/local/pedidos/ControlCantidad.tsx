@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Minus, Plus } from 'lucide-react'
-import { parseDecimal } from '@/lib/numeros'
+import { cantidadATexto as aTexto, parseCantidad } from '../cantidad'
 
 // − / número / +. Acepta decimales con coma o punto (1,5 o 1.5). Si se borra
 // el número y se sale del campo, vuelve al valor anterior; para sacar el
@@ -15,10 +15,6 @@ interface Props {
   /** Sin cantidad muestra el botón "Agregar" en lugar del control. */
   conBotonAgregar?: boolean
   tamano?: 'md' | 'sm'
-}
-
-function aTexto(n: number) {
-  return String(Math.round(n * 1000) / 1000).replace('.', ',')
 }
 
 export default function ControlCantidad({ valor, onCambiar, etiqueta, conBotonAgregar = true, tamano = 'md' }: Props) {
@@ -43,8 +39,8 @@ export default function ControlCantidad({ valor, onCambiar, etiqueta, conBotonAg
 
   function confirmarTexto() {
     if (texto == null) return
-    const n = parseDecimal(texto)
-    if (n != null && n >= 0) onCambiar(Math.round(n * 1000) / 1000)
+    const n = parseCantidad(texto)
+    if (n != null) onCambiar(n)
     setTexto(null)
   }
 

@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Search, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { confirmarRecepcion, type ItemRecepcion, type ItemRecepcionNuevo } from '@/lib/pedidos/acciones'
+import { avisar, confirmarRecepcion, type ItemRecepcion, type ItemRecepcionNuevo } from '@/lib/pedidos/acciones'
 import { formatoCantidad } from '@/lib/pedidos/estados'
 import { parseDecimal } from '@/lib/numeros'
+import { cantidadATexto as aTexto, parseCantidad } from '../cantidad'
 import { useToast } from '@/components/ui/ProveedorUI'
 import type { Pedido, Producto } from '@/lib/types'
 
@@ -17,10 +18,6 @@ interface Fila { recibida: string; valor: string }
 interface Nuevo { producto: Pick<Producto, 'id' | 'nombre' | 'codigo' | 'unidad'>; recibida: string; valor: string }
 
 const campo = 'h-10 w-full rounded-xl border border-border bg-bg px-2 text-right text-sm tabular-nums text-text focus:border-accent focus:outline-none'
-
-function aTexto(n: number) {
-  return String(Math.round(n * 1000) / 1000).replace('.', ',')
-}
 
 function limpiar(v: string) {
   return v.replace(/[^\d.,]/g, '')
@@ -73,15 +70,16 @@ export default function RecepcionDiferencias({ pedido, onListo, onVolver }: {
     const payload: ItemRecepcion[] = []
     for (const i of items) {
       const f = filas[i.id]
-      const recibida = parseDecimal(f.recibida)
+      // Cantidad: coma/punto siempre decimal. El $ sí admite puntos de miles.
+      const recibida = parseCantidad(f.recibida)
       const valor = f.valor.trim() ? parseDecimal(f.valor) : null
-      if (recibida == null || recibida < 0) return toast.error(`Revisá la cantidad recibida de ${i.producto_nombre}.`)
+      if (recibida == null) return toast.error(`Revisá la cantidad recibida de ${i.producto_nombre}.`)
       if (f.valor.trim() && (valor == null || valor < 0)) return toast.error(`Revisá el $ de ${i.producto_nombre}.`)
       payload.push({ id: i.id, cantidad_recibida: recibida, valor_total: valor })
     }
     const payloadNuevos: ItemRecepcionNuevo[] = []
     for (const n of nuevos) {
-      const recibida = parseDecimal(n.recibida)
+      const recibida = parseCantidad(n.recibida)
       const valor = n.valor.trim() ? parseDecimal(n.valor) : null
       if (recibida == null || recibida <= 0) return toast.error(`La cantidad de ${n.producto.nombre} tiene que ser mayor a 0.`)
       if (n.valor.trim() && (valor == null || valor < 0)) return toast.error(`Revisá el $ de ${n.producto.nombre}.`)
@@ -89,13 +87,25 @@ export default function RecepcionDiferencias({ pedido, onListo, onVolver }: {
     }
 
     setGuardando(true)
-    const r = await confirmarRecepcion(pedido.id, { items: payload, itemsNuevos: payloadNuevos, nota: nota.trim() || null })
+    const notaLimpia = nota.trim() || null
+    const r = await confirmarRecepcion(pedido.id, { items: payload, itemsNuevos: payloadNuevos, nota: notaLimpia })
+    if (!r.ok) {
+      setGuardando(false)
+      return toast.error(r.error)
+    }
+    let advertencia = r.advertencia
+    if (r.data.con_diferencias) {
+      toast.success(`Recepción del pedido #${pedido.numero} guardada. Le avisamos al mayorista de las diferencias.`)
+    } else if (notaLimpia) {
+      // Sin diferencias, confirmarRecepcion no avisa: la nota igual tiene que llegarle al mayorista.
+      const avisado = await avisar(pedido.id, 'recibido')
+      toast.success(`Recepción del pedido #${pedido.numero} confirmada: coincidió con lo enviado. Le pasamos tu nota al mayorista.`)
+      if (!avisado) advertencia = 'Se guardó, pero no se pudo avisar al mayorista de tu nota. Si es urgente, avisá por otro medio.'
+    } else {
+      toast.success(`Recepción del pedido #${pedido.numero} confirmada: coincidió con lo enviado.`)
+    }
     setGuardando(false)
-    if (!r.ok) return toast.error(r.error)
-    toast.success(r.data.con_diferencias
-      ? `Recepción del pedido #${pedido.numero} guardada. Le avisamos al mayorista de las diferencias.`
-      : `Recepción del pedido #${pedido.numero} confirmada: coincidió con lo enviado.`)
-    if (r.advertencia) toast.error(r.advertencia)
+    if (advertencia) toast.error(advertencia)
     onListo()
   }
 
@@ -107,7 +117,7 @@ export default function RecepcionDiferencias({ pedido, onListo, onVolver }: {
         {items.map(i => {
           const enviada = Number(i.cantidad_enviada ?? i.cantidad)
           const f = filas[i.id]
-          const distinta = parseDecimal(f.recibida) !== enviada
+          const distinta = parseCantidad(f.recibida) !== enviada
           return (
             <li key={i.id} className={`rounded-xl border p-3 ${distinta ? 'border-warning/60 bg-warning-bg' : 'border-border bg-surface2'}`}>
               <p className="text-sm font-medium leading-snug text-text break-words">{i.producto_nombre}</p>
