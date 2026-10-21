@@ -105,16 +105,20 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
 
   async function actualizar() {
     setActualizando(true)
+    // Lo que había al arrancar la consulta: si falta en la respuesta es que
+    // se cerró. Lo que llegó por realtime mientras tanto se conserva.
+    const previos = new Set(pedidosRef.current.map(p => p.id))
     const { data, error } = await supabase.from('pedidos').select(SELECT)
       .eq('destino', DESTINO).in('estado', ACTIVOS).order('created_at')
     if (error) {
       toast.error('No se pudieron actualizar los pedidos. Revisá la conexión.')
     } else if (data) {
+      const leidos = data as Pedido[]
       // Si el realtime venía muerto en silencio, esto detecta los pedidos que
       // llegaron sin avisar y los marca como nuevos recién ahora.
-      const previos = new Set(pedidosRef.current.map(p => p.id))
-      const nuevos = (data as Pedido[]).filter(p => !previos.has(p.id) && p.estado === 'pendiente')
-      setPedidos(data as Pedido[])
+      const nuevos = leidos.filter(p => !previos.has(p.id) && p.estado === 'pendiente')
+      const idsLeidos = new Set(leidos.map(p => p.id))
+      setPedidos(prev => ordenar([...leidos, ...prev.filter(p => !idsLeidos.has(p.id) && !previos.has(p.id))]))
       setVersionHistorial(v => v + 1)
       if (nuevos.length > 0) {
         setNuevosIds(prev => [...new Set([...prev, ...nuevos.map(p => p.id)])])
@@ -140,7 +144,6 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
-    let huboCaida = false
     let activo = true
 
     function conectar() {
@@ -193,12 +196,10 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
         if (channel !== ch) return
         // El socket puede caerse en silencio; cuando lo reporta,
         // reconectamos y resincronizamos lo que se perdió.
-        if (status === 'SUBSCRIBED' && huboCaida) {
-          huboCaida = false
-          dispararActualizacion()
-        }
+        // También en la primera suscripción: cubre lo que entró entre el
+        // render del servidor y este momento.
+        if (status === 'SUBSCRIBED') dispararActualizacion()
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          huboCaida = true
           channel = null
           supabase.removeChannel(ch)
           retryTimer = setTimeout(conectar, 3000)

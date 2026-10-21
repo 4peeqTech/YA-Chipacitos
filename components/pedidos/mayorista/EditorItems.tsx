@@ -68,7 +68,10 @@ export default function EditorItems({ items, productos, guardando, onCancelar, o
           {items.map(i => {
             const v = valores[i.id]
             const quitado = v === 0
-            const cambiado = v != null && Number(v) !== Number(i.cantidad)
+            const actual = cantidadAEnviar(i)
+            const cambiado = v != null && Number(v) !== actual
+            // Si ya venía en 0 (quitado antes), se vuelve a lo pedido; si no, a lo que se mandaba.
+            const restaurar = actual > 0 ? actual : Number(i.cantidad) || null
             return (
               <tr key={i.id} className="border-b border-border/50 last:border-0">
                 <td className={`py-2 pr-2 leading-tight ${quitado ? 'text-faint line-through' : 'text-text'}`}>
@@ -90,7 +93,7 @@ export default function EditorItems({ items, productos, guardando, onCancelar, o
                 <td className="py-2 pl-1 text-right">
                   {quitado ? (
                     <button type="button" disabled={guardando} aria-label={`Volver a mandar ${i.producto_nombre}`} title="Volver a mandar"
-                      onClick={() => setValores(prev => ({ ...prev, [i.id]: Number(i.cantidad) || null }))}
+                      onClick={() => setValores(prev => ({ ...prev, [i.id]: restaurar }))}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface2 hover:text-text">
                       <RotateCcw size={15} />
                     </button>
