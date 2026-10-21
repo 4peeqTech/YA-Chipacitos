@@ -7,6 +7,8 @@ interface NavItem {
   href: string
   label: string
   icon: React.ReactNode
+  /** Número chico sobre el ícono (ej. pedidos en camino sin confirmar). 0 o nada = no se muestra. */
+  badge?: number
 }
 
 interface BottomNavProps {
@@ -28,7 +30,14 @@ export default function BottomNav({ items }: BottomNavProps) {
               active ? 'text-accent' : 'text-muted'
             }`}
           >
-            <span className="text-lg leading-none">{item.icon}</span>
+            <span className="relative text-lg leading-none">
+              {item.icon}
+              {!!item.badge && (
+                <span className="absolute -right-2.5 -top-1.5 min-w-4 h-4 rounded-full bg-accent2 px-1 text-3xs font-bold leading-4 text-black text-center" aria-label={`${item.badge} pendientes`}>
+                  {item.badge > 9 ? '9+' : item.badge}
+                </span>
+              )}
+            </span>
             {item.label}
           </Link>
         )
