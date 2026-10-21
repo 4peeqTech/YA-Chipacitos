@@ -21,7 +21,7 @@ function getAdminClient() {
 //   creado               → rol del destino (fábrica → mayorista, depósito → deposito)
 //   editado, enviado     → local dueño
 //   cancelado, mensaje   → la otra parte
-//   recibido             → rol del destino, solo si hubo diferencias
+//   recibido             → rol del destino, si hubo diferencias o el local dejó una nota
 
 type Evento = 'creado' | 'editado' | 'enviado' | 'cancelado' | 'recibido' | 'mensaje'
 const EVENTOS: Evento[] = ['creado', 'editado', 'enviado', 'cancelado', 'recibido', 'mensaje']
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     // Con la sesión de quien llama: si RLS no le deja ver el pedido, 403.
     const { data: pedido } = await supabase
       .from('pedidos')
-      .select('id, numero, local_id, local_nombre, destino, estado, motivo_cancelacion, recepcion_con_diferencias')
+      .select('id, numero, local_id, local_nombre, destino, estado, motivo_cancelacion, recepcion_con_diferencias, nota_recepcion')
       .eq('id', pedidoId)
       .maybeSingle()
     if (!pedido) return NextResponse.json({ error: 'No podés ver este pedido' }, { status: 403 })
@@ -113,12 +113,21 @@ export async function POST(request: NextRequest) {
         texto = esLocalDueno ? `Lo canceló ${pedido.local_nombre}` : 'Se canceló tu pedido'
         if (pedido.motivo_cancelacion) texto += `: ${recortar(pedido.motivo_cancelacion)}`
         break
-      case 'recibido':
-        if (!pedido.recepcion_con_diferencias) return NextResponse.json({ sent: 0, failed: 0 })
+      case 'recibido': {
+        // Un "llegó todo bien" sin nota no avisa: no hay nada que mirar.
+        const nota = pedido.nota_recepcion?.trim()
+        if (!pedido.recepcion_con_diferencias && !nota) return NextResponse.json({ sent: 0, failed: 0 })
         destinatarios = await alDestino()
-        title = `Pedido ${n} recibido con diferencias`
-        texto = `${pedido.local_nombre} marcó diferencias en lo que llegó.`
+        if (pedido.recepcion_con_diferencias) {
+          title = `Pedido ${n} recibido con diferencias`
+          texto = `${pedido.local_nombre} marcó diferencias en lo que llegó.`
+          if (nota) texto += ` Nota: ${recortar(nota)}`
+        } else {
+          title = `Pedido ${n} recibido con una nota`
+          texto = `${pedido.local_nombre}: ${recortar(nota!)}`
+        }
         break
+      }
       case 'mensaje': {
         // El texto sale del último mensaje de quien llama, no del body.
         const { data: msg } = await admin
