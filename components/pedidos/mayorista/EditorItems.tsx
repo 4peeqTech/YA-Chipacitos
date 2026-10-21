@@ -83,6 +83,7 @@ export default function EditorItems({ items, productos, guardando, onCancelar, o
                 </td>
                 <td className="py-2 pl-3 text-right">
                   <InputNumero
+                    cantidad
                     value={v}
                     min={0}
                     disabled={guardando}
@@ -117,6 +118,7 @@ export default function EditorItems({ items, productos, guardando, onCancelar, o
               <td className="py-2 text-right text-muted">—</td>
               <td className="py-2 pl-3 text-right">
                 <InputNumero
+                  cantidad
                   value={a.cantidad}
                   min={0}
                   autoFocus

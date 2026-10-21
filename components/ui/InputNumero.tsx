@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type KeyboardEvent } from 'react'
-import { parseDecimal } from '@/lib/numeros'
+import { parseCantidad, parseDecimal } from '@/lib/numeros'
 import { controlClass } from './Field'
 
 export const inputNumeroClass = controlClass
@@ -15,6 +15,8 @@ interface Props {
   min?: number
   /** Rechaza el separador decimal — para cantidades que solo admiten enteros. */
   enteros?: boolean
+  /** Cantidad: la coma o el punto son siempre decimales, sin separador de miles ("1,500" = 1,5). */
+  cantidad?: boolean
   autoFocus?: boolean
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void
 }
@@ -23,13 +25,14 @@ interface Props {
  * Input numérico tolerante a coma decimal. Nunca usar type="number": el
  * browser descarta un valor con coma antes de que llegue al JS.
  */
-export default function InputNumero({ value, onChange, placeholder, className, disabled, min, enteros, autoFocus, onKeyDown }: Props) {
+export default function InputNumero({ value, onChange, placeholder, className, disabled, min, enteros, cantidad, autoFocus, onKeyDown }: Props) {
   const [raw, setRaw] = useState(value == null ? '' : String(value).replace('.', ','))
   const [focused, setFocused] = useState(false)
+  const parsear = cantidad ? parseCantidad : parseDecimal
 
   useEffect(() => {
     if (focused) return
-    const parsed = parseDecimal(raw)
+    const parsed = parsear(raw)
     if (value !== parsed) {
       setRaw(value == null ? '' : String(value).replace('.', ','))
     }
@@ -52,7 +55,7 @@ export default function InputNumero({ value, onChange, placeholder, className, d
         let next = e.target.value
         if (enteros) next = next.replace(/[.,]/g, '')
         setRaw(next)
-        const parsed = parseDecimal(next)
+        const parsed = parsear(next)
         if (parsed !== null && min !== undefined && parsed < min) return
         onChange(parsed)
       }}
