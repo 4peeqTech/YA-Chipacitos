@@ -37,7 +37,7 @@ function agrupar(pedidos: Pedido[], unidades: Map<string, string>): Linea[] {
 }
 
 function fechaHoy() {
-  return new Date().toLocaleString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+  return new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
 }
 
 const CSS_IMPRESION = `

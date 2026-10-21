@@ -360,7 +360,7 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
                         <div className="min-w-0">
                           <p className="font-['Syne'] font-bold text-[#f0f0f0] text-sm">{pedido.local_nombre}</p>
                           <p className="text-xs text-[#888] mt-0.5">
-                            #{pedido.numero} · {new Date(pedido.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                            #{pedido.numero} · {new Date(pedido.created_at).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'short' })}
                           </p>
                         </div>
                         <BadgeEstado estado={pedido.estado} />
