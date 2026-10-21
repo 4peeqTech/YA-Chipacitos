@@ -5,7 +5,7 @@ export function nombreDestino(destino: DestinoProducto) {
 }
 
 export function fechaCorta(iso: string) {
-  return new Date(iso).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 /** El que despacha cambió algo de lo pedido (cantidad, quitó o agregó un producto). */

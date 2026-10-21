@@ -61,7 +61,7 @@ export function haceCuanto(iso: string, ahora: number): string {
 }
 
 export function fechaCorta(iso: string): string {
-  return new Date(iso).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 const ROLES_OPERADOR = new Set(['mayorista', 'admin', 'fabrica'])

@@ -22,7 +22,7 @@ interface Cambio { tipo?: string; producto_nombre?: string; antes?: number; desp
 interface Diferencia { producto_nombre?: string; enviada?: number; recibida?: number; agregado?: boolean }
 
 function fechaHora(iso: string) {
-  return new Date(iso).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 function DetalleEdicion({ cambios }: { cambios: Cambio[] }) {
