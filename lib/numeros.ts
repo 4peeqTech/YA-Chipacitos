@@ -47,7 +47,10 @@ export function parseCantidad(input: string): number | null {
   const s = String(input).trim()
   if (!/^(\d+([.,]\d*)?|[.,]\d+)$/.test(s)) return null
   const n = parseFloat(s.replace(',', '.'))
-  return Number.isFinite(n) ? n : null
+  // Hasta 3 decimales: lo mismo que se muestra en pantalla. Si el mayorista
+  // pudiera guardar más, el local vería un valor redondeado y "Hubo
+  // diferencias" sin tocar nada registraría una diferencia mínima.
+  return Number.isFinite(n) ? Math.round(n * 1000) / 1000 : null
 }
 
 /** Formatea un número con coma decimal (es-AR). */
