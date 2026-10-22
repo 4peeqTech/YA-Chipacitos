@@ -11,7 +11,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import PushToggle from '@/components/ui/PushToggle'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import CampoCantidad from './CampoCantidad'
-import { unidadVisible } from './unidad'
+import { unidadVisible } from '@/lib/pedidos/unidad'
 import { parseCantidad } from '../cantidad'
 import { useCarritoGuardado, type CarritoGuardado } from './useCarritoGuardado'
 

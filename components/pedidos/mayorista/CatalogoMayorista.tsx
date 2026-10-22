@@ -8,6 +8,7 @@ import SearchInput from '@/components/ui/SearchInput'
 import EmptyState from '@/components/ui/EmptyState'
 import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { estiloCategoria, ordenCategoria } from '@/lib/pedidos/categorias'
+import { unidadVisible } from '@/lib/pedidos/unidad'
 
 // Catálogo del mayorista (R1/R6): marca qué productos tienen stock.
 // productos.activo = hay stock; false = sin stock por ahora (los locales lo
@@ -16,13 +17,6 @@ import { estiloCategoria, ordenCategoria } from '@/lib/pedidos/categorias'
 type Filtro = 'todos' | 'con' | 'sin'
 
 const SIN_CATEGORIA = 'Sin categoría'
-
-// Se oculta la genérica "Unidad" y la que ya dice el nombre ("MASA CLÁSICO Kg.").
-function unidadVisible(p: Producto) {
-  const u = p.unidad?.trim()
-  if (!u || u.toLowerCase() === 'unidad') return null
-  return p.nombre.toLowerCase().includes(u.toLowerCase().replace(/\.$/, '')) ? null : u
-}
 
 export default function CatalogoMayorista({ productosIniciales }: { productosIniciales: Producto[] }) {
   const [supabase] = useState(() => createClient())
