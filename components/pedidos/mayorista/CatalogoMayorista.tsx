@@ -17,8 +17,11 @@ type Filtro = 'todos' | 'con' | 'sin'
 
 const SIN_CATEGORIA = 'Sin categoría'
 
-function unidadVisible(u: string | null | undefined) {
-  return u && u.toLowerCase() !== 'unidad' ? u : null
+// Se oculta la genérica "Unidad" y la que ya dice el nombre ("MASA CLÁSICO Kg.").
+function unidadVisible(p: Producto) {
+  const u = p.unidad?.trim()
+  if (!u || u.toLowerCase() === 'unidad') return null
+  return p.nombre.toLowerCase().includes(u.toLowerCase().replace(/\.$/, '')) ? null : u
 }
 
 export default function CatalogoMayorista({ productosIniciales }: { productosIniciales: Producto[] }) {
@@ -74,7 +77,7 @@ export default function CatalogoMayorista({ productosIniciales }: { productosIni
         : `${p.nombre}: sin stock. Los locales lo ven como "Sin stock por ahora".`)
     } else {
       setProductos(prev => prev.map(x => x.id === p.id ? { ...x, activo: p.activo } : x))
-      toast.error(`No se pudo cambiar el stock de ${p.nombre}. Revisá la conexión y probá de nuevo.`)
+      toast.error(`No se pudo cambiar el stock de ${p.nombre.replace(/\.$/, '')}. Revisá la conexión y probá de nuevo.`)
     }
     setGuardando(prev => { const s = new Set(prev); s.delete(p.id); return s })
   }
@@ -87,7 +90,8 @@ export default function CatalogoMayorista({ productosIniciales }: { productosIni
   const hayFiltros = filtro !== 'todos' || !!categoria || !!busqueda.trim()
 
   return (
-    <div className="w-full space-y-4 px-4 py-4 lg:px-8 lg:py-6">
+    // Ancho acotado: en 1440 el botón queda cerca del nombre.
+    <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-4 lg:px-8 lg:py-6">
       <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -165,7 +169,7 @@ export default function CatalogoMayorista({ productosIniciales }: { productosIni
                 <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
                   {g.productos.map(p => {
                     const ocupado = guardando.has(p.id)
-                    const unidad = unidadVisible(p.unidad)
+                    const unidad = unidadVisible(p)
                     return (
                       <li key={p.id} className="flex items-center gap-3 px-3 py-2.5 sm:px-4">
                         <div className={`flex min-w-0 flex-1 items-center gap-3 ${p.activo ? '' : 'opacity-50'}`}>
@@ -176,7 +180,7 @@ export default function CatalogoMayorista({ productosIniciales }: { productosIni
                             <span className="w-9 shrink-0 text-right text-xs font-bold tabular-nums text-accent">#{p.codigo}</span>
                           )}
                           <span className="min-w-0">
-                            <span className={`block truncate text-sm ${p.activo ? 'text-text' : 'text-muted'}`}>{p.nombre}</span>
+                            <span className={`block text-sm leading-snug break-words sm:truncate ${p.activo ? 'text-text' : 'text-muted'}`}>{p.nombre}</span>
                             {unidad && <span className="block text-2xs text-faint">{unidad}</span>}
                           </span>
                         </div>
