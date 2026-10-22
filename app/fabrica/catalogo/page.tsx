@@ -2,7 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import CatalogoClient from '@/components/pedidos/CatalogoClient'
+import CatalogoMayorista from '@/components/pedidos/mayorista/CatalogoMayorista'
+import type { Producto } from '@/lib/types'
 
 export default async function FabricaCatalogoPage() {
   const supabase = await createClient()
@@ -15,5 +16,5 @@ export default async function FabricaCatalogoPage() {
   const { data: productos } = await supabase
     .from('productos').select('*').eq('tipo', 'producto').eq('destino', 'fabrica').order('nombre')
 
-  return <CatalogoClient productosIniciales={productos || []} tipo="producto" destino="fabrica" />
+  return <CatalogoMayorista productosIniciales={(productos ?? []) as Producto[]} />
 }
