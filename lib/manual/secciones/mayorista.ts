@@ -11,8 +11,9 @@ export const mayorista: SeccionManual = {
   roles: ['mayorista'],
   modulos: [],
   resumen: 'Los pedidos de los locales: prepararlos, ajustarlos antes de mandar, despacharlos y hablar con el local.',
-  actualizado: '2026-10-21',
+  actualizado: '2026-10-22',
   novedades: [
+    { fecha: '2026-10-22', texto: '**Catálogo** nuevo: cada producto tiene un botón **Hay stock / Sin stock**. Cuando algo se termina, lo marcás sin stock y los locales lo ven en gris.' },
     { fecha: '2026-10-21', texto: 'Pantalla nueva en **tablero**: Nuevos, En preparación y En camino, con aviso al celular cuando entra un pedido.' },
     { fecha: '2026-10-21', texto: 'Antes de despachar podés **editar el pedido**: cambiar cantidades, sacar o agregar productos. El local ve lo que cambiaste.' },
     { fecha: '2026-10-21', texto: 'Nueva **Hoja de preparación** con el total por producto de lo que hay que armar, para imprimir.' },
@@ -95,7 +96,14 @@ export const mayorista: SeccionManual = {
       ancla: 'catalogo',
       titulo: 'Catálogo de productos',
       bloques: [
-        { tipo: 'parrafo', texto: 'En **Catálogo** ves los productos elaborados que pueden pedir los locales, con sus códigos y unidades, y podés activarlos o desactivarlos. Un producto desactivado no aparece para pedir.' },
+        { tipo: 'parrafo', texto: 'En **Catálogo** ves los productos que pueden pedir los locales, por categoría y con su código. Arriba te dice cuántos están sin stock, y podés filtrar por **Todos / Con stock / Sin stock** o buscar por nombre o código.' },
+        {
+          tipo: 'pasos',
+          pasos: [
+            { texto: 'Cuando un producto se termina, tocá su botón **Hay stock**: pasa a **Sin stock** y los locales lo ven en gris como "Sin stock por ahora", sin poder pedirlo.' },
+            { texto: 'Cuando vuelve a haber, tocá **Sin stock** y vuelve a **Hay stock**.' },
+          ],
+        },
       ],
     },
   ],
