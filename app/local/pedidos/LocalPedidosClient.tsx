@@ -11,6 +11,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import PushToggle from '@/components/ui/PushToggle'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import CampoCantidad from './CampoCantidad'
+import { unidadVisible } from './unidad'
 import { parseCantidad } from '../cantidad'
 import { useCarritoGuardado, type CarritoGuardado } from './useCarritoGuardado'
 
@@ -324,7 +325,7 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
                   {l.producto.nombre}
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums text-text">
-                  {formatoCantidad(l.cantidad)} <span className="text-xs font-normal text-muted">{l.producto.unidad}</span>
+                  {formatoCantidad(l.cantidad)}{unidadVisible(l.producto) && <span className="text-xs font-normal text-muted"> {unidadVisible(l.producto)}</span>}
                 </span>
               </li>
             ))}
@@ -399,7 +400,7 @@ function TarjetaHabitual({ producto, ultimaCantidad, cantidad, onCantidad }: {
         <IconoCategoria categoria={producto.categoria} />
         <div className="min-w-0 flex-1">
           <NombreProducto producto={producto} />
-          <p className="text-2xs text-muted">{producto.unidad}</p>
+          {unidadVisible(producto) && <p className="text-2xs text-muted">{unidadVisible(producto)}</p>}
         </div>
       </div>
       <div className="mt-3">
@@ -408,7 +409,7 @@ function TarjetaHabitual({ producto, ultimaCantidad, cantidad, onCantidad }: {
         )}
       </div>
       {ultimaCantidad != null && (
-        <p className="mt-2 text-2xs text-faint">Última vez: {formatoCantidad(ultimaCantidad)} {producto.unidad}</p>
+        <p className="mt-2 text-2xs text-faint">Última vez: {formatoCantidad(ultimaCantidad)}{unidadVisible(producto) ? ` ${unidadVisible(producto)}` : ''}</p>
       )}
     </div>
   )
@@ -422,7 +423,7 @@ function FilaProducto({ producto, cantidad, onCantidad }: { producto: Producto; 
         <IconoCategoria categoria={producto.categoria} />
         <div className="min-w-0">
           <NombreProducto producto={producto} />
-          <p className="text-2xs text-muted">{producto.unidad}</p>
+          {unidadVisible(producto) && <p className="text-2xs text-muted">{unidadVisible(producto)}</p>}
         </div>
       </div>
       <div className="ml-auto shrink-0">
@@ -469,7 +470,7 @@ function PanelCarrito({
                   {l.producto.codigo != null && <span className="text-accent">{l.producto.codigo} · </span>}
                   {l.producto.nombre}
                 </p>
-                <p className="text-2xs text-faint">{l.producto.unidad}</p>
+                {unidadVisible(l.producto) && <p className="text-2xs text-faint">{unidadVisible(l.producto)}</p>}
               </div>
               <CampoCantidad
                 valor={l.cantidad}
