@@ -32,13 +32,14 @@ function calcularHabituales(pedidos: PedidoHistorial[], productos: Producto[]): 
   }
   if (stats.size > 0) {
     return [...stats.entries()]
-      .sort(([, a], [, b]) => b.veces - a.veces || b.total - a.total)
+      .sort(([idA, a], [idB, b]) => b.veces - a.veces || b.total - a.total
+        || (porId.get(idA)?.nombre ?? '').localeCompare(porId.get(idB)?.nombre ?? '', 'es'))
       .slice(0, MAX_HABITUALES)
       .map(([id, s]) => ({ productoId: id, ultimaCantidad: s.ultima }))
   }
   return productos
     .filter(p => p.categoria === 'Masas')
-    .sort((a, b) => Number(b.activo) - Number(a.activo))
+    .sort((a, b) => Number(b.activo) - Number(a.activo) || a.nombre.localeCompare(b.nombre, 'es'))
     .slice(0, MAX_HABITUALES)
     .map(p => ({ productoId: p.id, ultimaCantidad: null }))
 }
@@ -58,7 +59,7 @@ export default async function LocalPedidosPage() {
   // Por ahora el local solo le pide al mayorista (D10): los productos de
   // depósito no se muestran. Los sin stock (activo = false) vienen igual:
   // se ven en gris y no se pueden cargar (R2).
-  const [{ data: productos }, { data: ultimo }, { data: historial }] = await Promise.all([
+  const [rProductos, rUltimo, rHistorial] = await Promise.all([
     supabase.from('productos').select('*').eq('destino', 'fabrica').order('nombre'),
     supabase
       .from('pedidos')
@@ -75,8 +76,18 @@ export default async function LocalPedidosPage() {
       .eq('local_id', user.id)
       .eq('destino', 'fabrica')
       .neq('estado', 'cancelado')
-      .gte('created_at', desde),
+      .gte('created_at', desde)
+      .order('created_at', { ascending: false }),
   ])
+
+  // Si una consulta falla la página sigue con lo que tenga, pero el error
+  // queda en el log del servidor (no se tapa en silencio).
+  if (rProductos.error) console.error('[local/pedidos] productos:', rProductos.error.message)
+  if (rUltimo.error) console.error('[local/pedidos] último pedido:', rUltimo.error.message)
+  if (rHistorial.error) console.error('[local/pedidos] historial de habituales:', rHistorial.error.message)
+  const productos = rProductos.data
+  const ultimo = rUltimo.data
+  const historial = rHistorial.data
 
   const lista = (productos ?? []) as Producto[]
   return (
@@ -85,6 +96,7 @@ export default async function LocalPedidosPage() {
       productos={lista}
       habituales={calcularHabituales((historial ?? []) as PedidoHistorial[], lista)}
       ultimoPedido={(ultimo as UltimoPedido | null) ?? null}
+      errorUltimoPedido={!!rUltimo.error}
     />
   )
 }

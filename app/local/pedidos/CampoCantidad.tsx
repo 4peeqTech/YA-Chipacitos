@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { cantidadATexto, parseCantidad } from '../cantidad'
 
 // Cantidad que se escribe directo (Opción A): con un número > 0 el producto
-// entra al pedido; con 0 o vacío sale. Decimales con coma o punto (1,5 o
+// entra al pedido; con 0 o vacío sale al salir del campo. Decimales con coma o punto (1,5 o
 // 1.5), siempre como decimales. Los atajos +5 / +10 / +25 suman.
 
 export const ATAJOS = [5, 10, 25] as const
@@ -29,12 +29,20 @@ export default function CampoCantidad({ valor, onCambiar, etiqueta, unidad, tama
   const mostrado = texto ?? (valor > 0 ? cantidadATexto(valor) : '')
   const invalido = texto != null && texto.trim() !== '' && parseCantidad(texto) == null
 
+  // Mientras se escribe solo se aplican cantidades > 0. El 0 o el vacío se
+  // aplican al salir del campo: así borrar para reescribir, o escribir "0,5",
+  // no saca el producto del pedido a mitad de camino (en "Tu pedido" eso
+  // desmontaba la línea).
   function escribir(v: string) {
     const limpio = v.replace(/[^\d.,]/g, '')
     setTexto(limpio)
-    if (limpio.trim() === '') return onCambiar(0)
     const n = parseCantidad(limpio)
-    if (n != null) onCambiar(n)
+    if (n != null && n > 0) onCambiar(n)
+  }
+
+  function salir() {
+    if (texto != null && (texto.trim() === '' || parseCantidad(texto) === 0)) onCambiar(0)
+    setTexto(null)
   }
 
   const campo = tamano === 'lg' ? 'h-11 w-24 text-lg' : 'h-10 w-20 text-base'
@@ -49,7 +57,7 @@ export default function CampoCantidad({ valor, onCambiar, etiqueta, unidad, tama
         value={mostrado}
         onFocus={e => { setTexto(mostrado); e.currentTarget.select() }}
         onChange={e => escribir(e.target.value)}
-        onBlur={() => setTexto(null)}
+        onBlur={salir}
         onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
         className={`${campo} shrink-0 rounded-xl border px-2 text-center font-semibold tabular-nums focus:outline-none ${
           invalido ? 'border-brand-red text-brand-red' : valor > 0 ? 'border-accent bg-accent-bg text-accent' : 'border-border bg-bg text-text focus:border-accent'

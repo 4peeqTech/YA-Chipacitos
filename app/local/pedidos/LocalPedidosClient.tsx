@@ -29,6 +29,8 @@ interface Props {
   productos: Producto[]
   habituales: Habitual[]
   ultimoPedido: UltimoPedido | null
+  /** Falló la consulta del último pedido: Repetir se muestra deshabilitado. */
+  errorUltimoPedido?: boolean
 }
 
 interface Linea { producto: Producto; cantidad: number }
@@ -43,7 +45,7 @@ function redondear(n: number) {
   return Math.round(n * 1000) / 1000
 }
 
-export default function LocalPedidosClient({ usuarioId, productos, habituales, ultimoPedido }: Props) {
+export default function LocalPedidosClient({ usuarioId, productos, habituales, ultimoPedido, errorUltimoPedido = false }: Props) {
   const toast = useToast()
   const confirmar = useConfirmar()
   const [carrito, actualizarCarrito] = useCarritoGuardado(`ya-carrito-local-${usuarioId}`)
@@ -209,11 +211,13 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
               <h1 className="text-lg font-bold text-text">Pedido al mayorista</h1>
               <p className="text-xs text-muted">Escribí la cantidad y el producto entra al pedido.</p>
             </div>
-            {ultimoPedido && (
+            {(ultimoPedido || errorUltimoPedido) && (
               <button
                 type="button"
                 onClick={repetir}
-                className="shrink-0 inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-surface2 px-3 text-xs font-semibold text-text hover:border-accent/50 active:opacity-70"
+                disabled={!ultimoPedido}
+                title={!ultimoPedido ? 'No se pudo leer tu último pedido. Recargá la página para volver a intentar.' : undefined}
+                className="shrink-0 inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-surface2 px-3 text-xs font-semibold text-text hover:border-accent/50 active:opacity-70 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border"
               >
                 <History size={15} aria-hidden />
                 Repetir el último
