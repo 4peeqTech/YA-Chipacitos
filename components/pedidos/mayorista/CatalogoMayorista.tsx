@@ -1,13 +1,13 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { CircleCheck, PackageCheck, PackageSearch, PackageX, TriangleAlert } from 'lucide-react'
+import { CircleCheck, PackageSearch, TriangleAlert } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Producto } from '@/lib/types'
 import SearchInput from '@/components/ui/SearchInput'
 import EmptyState from '@/components/ui/EmptyState'
 import { ToastStack, useToasts } from '@/components/ui/Toast'
-import { estiloCategoria, ordenCategoria } from '@/lib/pedidos/categorias'
+import { estiloCategoria, estiloProducto, ordenCategoria } from '@/lib/pedidos/categorias'
 import { unidadVisible } from '@/lib/pedidos/unidad'
 
 // Catálogo del mayorista (R1/R6): marca qué productos tienen stock.
@@ -164,11 +164,12 @@ export default function CatalogoMayorista({ productosIniciales }: { productosIni
                   {g.productos.map(p => {
                     const ocupado = guardando.has(p.id)
                     const unidad = unidadVisible(p)
+                    const { icono: IconoP, clase } = estiloProducto(p)
                     return (
                       <li key={p.id} className="flex items-center gap-3 px-3 py-2.5 sm:px-4">
                         <div className={`flex min-w-0 flex-1 items-center gap-3 ${p.activo ? '' : 'opacity-50'}`}>
-                          <span className={`hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:flex ${estilo.clase}`}>
-                            <Icono size={16} aria-hidden />
+                          <span className={`hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:flex ${clase}`}>
+                            <IconoP size={16} aria-hidden />
                           </span>
                           {p.codigo != null && (
                             <span className="w-9 shrink-0 text-right text-xs font-bold tabular-nums text-accent">#{p.codigo}</span>
@@ -178,17 +179,24 @@ export default function CatalogoMayorista({ productosIniciales }: { productosIni
                             {unidad && <span className="block text-2xs text-faint">{unidad}</span>}
                           </span>
                         </div>
-                        <button type="button" onClick={() => cambiarStock(p)} disabled={ocupado}
-                          aria-label={p.activo ? `${p.nombre}: hay stock. Marcar sin stock` : `${p.nombre}: sin stock. Marcar que hay stock`}
-                          title={p.activo ? 'Marcar sin stock' : 'Marcar que hay stock'}
-                          className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60 sm:px-3 ${
-                            p.activo
-                              ? 'border-success/30 bg-green-bg text-success hover:border-success/60'
-                              : 'border-border bg-surface2 text-muted hover:text-text'
-                          }`}>
-                          {p.activo ? <PackageCheck size={15} aria-hidden /> : <PackageX size={15} aria-hidden />}
-                          {p.activo ? 'Hay stock' : 'Sin stock'}
-                        </button>
+                        {/* Dos posiciones: se ve el estado (la resaltada) y se toca la otra para cambiarlo. */}
+                        <div role="radiogroup" aria-label={`Stock de ${p.nombre}`}
+                          className={`flex shrink-0 rounded-lg border border-border p-0.5 ${ocupado ? 'opacity-60' : ''}`}>
+                          {([true, false] as const).map(valor => {
+                            const elegido = p.activo === valor
+                            return (
+                              <button key={String(valor)} type="button" role="radio" aria-checked={elegido}
+                                disabled={ocupado} onClick={() => { if (!elegido) cambiarStock(p) }}
+                                className={`whitespace-nowrap rounded-md px-1.5 py-1.5 text-[11px] font-semibold transition-colors sm:px-2.5 sm:text-xs ${
+                                  elegido
+                                    ? valor ? 'bg-green-bg text-success' : 'bg-surface2 text-text'
+                                    : 'text-faint hover:text-text'
+                                }`}>
+                                {valor ? 'Con stock' : 'Sin stock'}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </li>
                     )
                   })}

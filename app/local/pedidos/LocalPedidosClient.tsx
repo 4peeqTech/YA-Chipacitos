@@ -5,7 +5,7 @@ import { ChevronUp, History, PackageSearch, Search, Send, ShoppingBasket, Star, 
 import type { Producto } from '@/lib/types'
 import { crearPedido } from '@/lib/pedidos/acciones'
 import { formatoCantidad } from '@/lib/pedidos/estados'
-import { estiloCategoria, ordenCategoria } from '@/lib/pedidos/categorias'
+import { estiloCategoria, estiloProducto, ordenCategoria, type EstiloProducto } from '@/lib/pedidos/categorias'
 import Modal from '@/components/ui/Modal'
 import EmptyState from '@/components/ui/EmptyState'
 import PushToggle from '@/components/ui/PushToggle'
@@ -278,7 +278,7 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
               {grupos.map(([cat, prods]) => (
                 <div key={cat} className="space-y-2">
                   <h2 className="flex items-center gap-2 text-2xs font-bold uppercase tracking-wider text-muted">
-                    <IconoCategoria categoria={cat} chico />
+                    <IconoEstilo estilo={estiloCategoria(cat)} chico />
                     {cat}
                   </h2>
                   <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
@@ -363,8 +363,8 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
   )
 }
 
-function IconoCategoria({ categoria, chico = false }: { categoria: string | null | undefined; chico?: boolean }) {
-  const { icono: Icono, clase } = estiloCategoria(categoria)
+function IconoEstilo({ estilo, chico = false }: { estilo: EstiloProducto; chico?: boolean }) {
+  const { icono: Icono, clase } = estilo
   return (
     <span className={`inline-flex shrink-0 items-center justify-center rounded-lg ${chico ? 'h-6 w-6' : 'h-9 w-9'} ${clase}`} aria-hidden>
       <Icono size={chico ? 13 : 17} />
@@ -401,7 +401,7 @@ function TarjetaHabitual({ producto, ultimaCantidad, cantidad, onCantidad }: {
       sinStock ? 'border-border opacity-50' : cantidad > 0 ? 'border-accent/70' : 'border-border'
     }`}>
       <div className="flex items-start gap-2.5">
-        <IconoCategoria categoria={producto.categoria} />
+        <IconoEstilo estilo={estiloProducto(producto)} />
         <div className="min-w-0 flex-1">
           <NombreProducto producto={producto} />
           {unidadVisible(producto) && <p className="text-2xs text-muted">{unidadVisible(producto)}</p>}
@@ -424,7 +424,7 @@ function FilaProducto({ producto, cantidad, onCantidad }: { producto: Producto; 
   return (
     <li className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 sm:flex-nowrap ${cantidad > 0 ? 'bg-accent-bg/40' : ''}`}>
       <div className={`flex min-w-0 flex-1 basis-full items-center gap-2.5 sm:basis-auto ${sinStock ? 'opacity-50' : ''}`}>
-        <IconoCategoria categoria={producto.categoria} />
+        <IconoEstilo estilo={estiloProducto(producto)} />
         <div className="min-w-0">
           <NombreProducto producto={producto} />
           {unidadVisible(producto) && <p className="text-2xs text-muted">{unidadVisible(producto)}</p>}

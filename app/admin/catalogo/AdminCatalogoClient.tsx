@@ -7,6 +7,8 @@ import { Producto, TipoProducto, DestinoProducto } from '@/lib/types'
 import Card from '@/components/ui/Card'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import SelectorIcono from '@/components/pedidos/SelectorIcono'
+import { estiloProducto } from '@/lib/pedidos/categorias'
 
 interface Parametro { id: string; nombre: string }
 interface PresentacionParametro extends Parametro { pesoKg: number }
@@ -32,7 +34,7 @@ const CATEGORIAS = [
   'Vasos Café Ya!',
 ]
 
-const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto, categoria: '', precio: '', codigo: '', presentacion_id: '', sabor_id: '', tamanio_id: '' }
+const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto, categoria: '', precio: '', codigo: '', presentacion_id: '', sabor_id: '', tamanio_id: '', icono: '' }
 
 function mensajeErrorProducto(error: { code?: string; message: string }) {
   if (error.code === '23505') return 'Ya existe un producto con esa combinación de presentación, sabor y tamaño.'
@@ -52,7 +54,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
   const [modalNuevo, setModalNuevo] = useState(false)
   const [editando, setEditando] = useState<Producto | null>(null)
   const [form, setForm] = useState(FORM_VACIO)
-  const [formEdit, setFormEdit] = useState({ nombre: '', descripcion: '', unidad: '', categoria: '', precio: '', codigo: '', presentacion_id: '', sabor_id: '', tamanio_id: '' })
+  const [formEdit, setFormEdit] = useState({ nombre: '', descripcion: '', unidad: '', categoria: '', precio: '', codigo: '', presentacion_id: '', sabor_id: '', tamanio_id: '', icono: '' })
   const [guardando, setGuardando] = useState(false)
   const [errorForm, setErrorForm] = useState<string | null>(null)
   const [eliminando, setEliminando] = useState<Producto | null>(null)
@@ -180,6 +182,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
         presentacion_id: form.presentacion_id || null,
         sabor_id: form.sabor_id || null,
         tamanio_id: form.tamanio_id || null,
+        icono: form.icono || null,
         activo: true,
       }).select().single()
     if (data) { setProductos(prev => [...prev, data]); setModalNuevo(false); setForm({ ...FORM_VACIO, destino: tab, tipo: tab === 'fabrica' ? 'producto' : 'insumo' }) }
@@ -194,6 +197,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
       nombre: p.nombre, descripcion: p.descripcion ?? '', unidad: p.unidad, categoria: p.categoria ?? '',
       precio: p.precio != null ? String(p.precio) : '', codigo: p.codigo != null ? String(p.codigo) : '',
       presentacion_id: p.presentacion_id ?? '', sabor_id: p.sabor_id ?? '', tamanio_id: p.tamanio_id ?? '',
+      icono: p.icono ?? '',
     })
   }
 
@@ -211,6 +215,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
         presentacion_id: formEdit.presentacion_id || null,
         sabor_id: formEdit.sabor_id || null,
         tamanio_id: formEdit.tamanio_id || null,
+        icono: formEdit.icono || null,
       })
       .eq('id', editando.id).select().single()
     if (data) { setProductos(prev => prev.map(p => p.id === data.id ? data : p)); setEditando(null) }
@@ -332,6 +337,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
           ) : (
             filtrados.map((p, i) => (
               <div key={p.id} className={`flex items-center gap-2 px-3 py-3 ${i < filtrados.length - 1 ? 'border-b border-[#2a2a2a]' : ''}`}>
+                {tab === 'fabrica' && <IconoFila producto={p} />}
                 {p.codigo != null && (
                   <span className="shrink-0 w-8 text-center text-[11px] font-bold text-[#e8c547] bg-[#e8c547]/10 rounded-md py-0.5">{p.codigo}</span>
                 )}
@@ -395,7 +401,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
 
       {modalNuevo && (
         <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50">
-          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-t-2xl w-full max-w-lg p-5 space-y-3">
+          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-t-2xl w-full max-w-lg p-5 space-y-3 max-h-[90dvh] overflow-y-auto">
             <h3 className="font-['Syne'] font-bold text-sm text-[#f0f0f0]">
               Nuevo {tab === 'fabrica' ? 'producto' : 'insumo'} · {tab === 'fabrica' ? 'Fábrica' : 'Depósito'}
             </h3>
@@ -421,6 +427,13 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
                 {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+            {tab === 'fabrica' && (
+              <div>
+                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Ícono</label>
+                <SelectorIcono valor={form.icono} onCambiar={icono => setForm(f => ({ ...f, icono }))}
+                  nombre={form.nombre} categoria={form.categoria || null} />
+              </div>
+            )}
             {/* Terna presentación/sabor/tamaño — oculta junto con Fase 5/6 de Fábrica, no entregadas todavía.
             {tab === 'fabrica' && (
               <TernaSelects value={form} onChange={v => setForm(f => ({ ...f, ...v }))} />
@@ -464,7 +477,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
 
       {editando && (
         <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50">
-          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-t-2xl w-full max-w-lg p-5 space-y-3">
+          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-t-2xl w-full max-w-lg p-5 space-y-3 max-h-[90dvh] overflow-y-auto">
             <h3 className="font-['Syne'] font-bold text-sm text-[#f0f0f0]">Editar producto</h3>
             {[
               { label: 'Código', key: 'codigo', type: 'number' },
@@ -488,6 +501,13 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
                 {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+            {editando.destino === 'fabrica' && (
+              <div>
+                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Ícono</label>
+                <SelectorIcono valor={formEdit.icono} onCambiar={icono => setFormEdit(f => ({ ...f, icono }))}
+                  nombre={formEdit.nombre} categoria={formEdit.categoria || null} />
+              </div>
+            )}
             {/* Terna presentación/sabor/tamaño — oculta junto con Fase 5/6 de Fábrica, no entregadas todavía.
             {editando.destino === 'fabrica' && (
               <TernaSelects value={formEdit} onChange={v => setFormEdit(f => ({ ...f, ...v }))} />
@@ -509,5 +529,14 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
       )}
       <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
+  )
+}
+
+function IconoFila({ producto }: { producto: Producto }) {
+  const { icono: Icono, clase } = estiloProducto(producto)
+  return (
+    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${clase} ${producto.activo ? '' : 'opacity-50'}`} aria-hidden>
+      <Icono size={15} />
+    </span>
   )
 }

@@ -3925,6 +3925,7 @@ export type Database = {
           codigo: number | null
           created_at: string | null
           descripcion: string | null
+          icono: string | null
           destino: string
           id: string
           nombre: string
@@ -3941,6 +3942,7 @@ export type Database = {
           codigo?: number | null
           created_at?: string | null
           descripcion?: string | null
+          icono?: string | null
           destino: string
           id?: string
           nombre: string
@@ -3957,6 +3959,7 @@ export type Database = {
           codigo?: number | null
           created_at?: string | null
           descripcion?: string | null
+          icono?: string | null
           destino?: string
           id?: string
           nombre?: string
