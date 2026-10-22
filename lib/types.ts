@@ -127,6 +127,8 @@ export interface Producto {
   presentacion_id: string | null
   sabor_id: string | null
   tamanio_id: string | null
+  /** Clave de lib/pedidos/categorias.ts; null = automático según nombre y categoría. */
+  icono: string | null
   created_at: string
 }
 
