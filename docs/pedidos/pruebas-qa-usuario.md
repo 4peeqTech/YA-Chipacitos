@@ -6,12 +6,20 @@ En **qa.yachipacitos.com.ar**, con las cuentas de prueba (`docs/qa-credenciales-
 
 ## 1. El local pide (`qa-local`, mejor en el celular)
 
-1. Entrá a **Pedir**. Tiene que haber **solo productos del mayorista**: nada de depósito.
-2. Cargá un producto con **+**, otro escribiendo **1,5** y otro con el buscador `código*2` + Enter.
-3. Cerrá la página y volvé a entrar: **el carrito tiene que seguir ahí**.
-4. Tocá la barra de abajo: revisá **Tu pedido** y escribí una observación.
-5. **Enviar pedido**: aparece el resumen. Confirmá. Tiene que salir el número del pedido y el enlace **Ver en Mis pedidos**.
-6. Volvé a **Pedir** y tocá **Repetir mi último pedido**: carga lo mismo.
+1. Entrá a **Pedir**. Tiene que haber **solo productos del mayorista**, nada de depósito. Arriba están **Tus habituales** y abajo el resto, por categoría y con su ícono.
+2. En un habitual, tocá **+25**: entra al pedido con 25. En otro producto escribí **1,5**. Cargá un tercero con el buscador: `código*2` + Enter. No hay botón "Agregar": con la cantidad ya entra.
+3. En **Tu pedido**, borrá una cantidad y escribí otra: el producto **no** tiene que desaparecer mientras escribís.
+4. En la compu, bajá la pantalla: el panel **Tu pedido** tiene que quedar a la vista, sin taparse con el menú de arriba.
+5. Cerrá la página y volvé a entrar: **el carrito tiene que seguir ahí**.
+6. En el celular, tocá la barra de abajo, revisá **Tu pedido** y escribí una observación.
+7. **Revisar y enviar**: aparece el resumen. Confirmá. Tiene que salir el número del pedido y el enlace **Ver en Mis pedidos**.
+8. Volvé a **Pedir** y tocá **Repetir el último**: carga lo mismo.
+
+## 1b. Sin stock (`qa-mayorista` + `qa-local`)
+
+1. Con `qa-mayorista`, en **Catálogo**, tocá **Hay stock** en un producto: pasa a **Sin stock**, sale un aviso y arriba dice "1 producto sin stock". Probá los filtros **Con stock / Sin stock** y el buscador.
+2. Con `qa-local`, recargá **Pedir**: ese producto se ve en gris con **Sin stock por ahora** y no se le puede cargar cantidad.
+3. Volvé a ponerlo con **Sin stock → Hay stock**: el local lo puede pedir de nuevo.
 
 ## 2. El mayorista lo recibe (`qa-mayorista`)
 
