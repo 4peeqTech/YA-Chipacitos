@@ -11,6 +11,9 @@ export const admin: SeccionManual = {
   resumen: 'Gastos, ventas y conciliación, catálogo, usuarios, parámetros y tareas.',
   actualizado: '2026-09-23',
   pendiente: 'Esta sección viene del manual anterior. Se revisa módulo por módulo en próximas entregas; Compras y Fábrica tienen sus propias secciones.',
+  novedades: [
+    { fecha: '2026-10-23', texto: 'En **Catálogo** podés elegir el **ícono** de cada producto de fábrica. Si no elegís ninguno, sale solo del nombre.' },
+  ],
   apartados: [
     {
       ancla: 'vision-general',
@@ -123,6 +126,16 @@ export const admin: SeccionManual = {
       titulo: 'Catálogo',
       bloques: [
         { tipo: 'parrafo', texto: 'Administrás todos los productos del sistema: chipacitos (fábrica) e insumos (depósito). Podés crear, editar y desactivar productos, asignarles código, categoría, unidad y destino.' },
+        { tipo: 'parrafo', texto: 'Los productos de **Fábrica** tienen un **ícono**: es el que ven los locales en **Pedir** y el mayorista en su **Catálogo**. Lo ves a la izquierda de cada producto.' },
+        {
+          tipo: 'pasos',
+          pasos: [
+            { texto: 'Tocá el lápiz del producto (o **Agregar producto**) y bajá hasta **Ícono**.' },
+            { texto: 'Por defecto está en **Auto**: el ícono sale del nombre (masa, queso, jamón, salame, membrillo, dulce de leche…) o, si no reconoce ninguna palabra, de la categoría. Los congelados siempre llevan el copo de nieve.' },
+            { texto: 'Para elegir otro, tocalo en la grilla (si dejás el dedo o el mouse encima, te dice qué es) y tocá **Guardar**. Queda fijo para ese producto aunque cambie el nombre.' },
+            { texto: 'Para volver al automático, elegí **Auto** y guardá.' },
+          ],
+        },
       ],
     },
     {

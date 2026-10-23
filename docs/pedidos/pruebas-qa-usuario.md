@@ -17,9 +17,17 @@ En **qa.yachipacitos.com.ar**, con las cuentas de prueba (`docs/qa-credenciales-
 
 ## 1b. Sin stock (`qa-mayorista` + `qa-local`)
 
-1. Con `qa-mayorista`, en **Catálogo**, tocá **Hay stock** en un producto: pasa a **Sin stock**, sale un aviso y arriba dice "1 producto sin stock". Probá los filtros **Con stock / Sin stock** y el buscador.
+1. Con `qa-mayorista`, en **Catálogo**, cada producto tiene **[Con stock | Sin stock]** con la opción actual resaltada. Tocá **Sin stock** en uno: queda resaltado, sale un aviso y arriba dice "1 producto sin stock". Tocarlo otra vez no hace nada. Probá los filtros **Con stock / Sin stock** y el buscador.
 2. Con `qa-local`, recargá **Pedir**: ese producto se ve en gris con **Sin stock por ahora** y no se le puede cargar cantidad.
-3. Volvé a ponerlo con **Sin stock → Hay stock**: el local lo puede pedir de nuevo.
+3. Volvé a tocar **Con stock**: el local lo puede pedir de nuevo.
+
+## 1c. Íconos de producto (`qa-admin` + `qa-local` + `qa-mayorista`)
+
+1. Con `qa-admin`, en **Catálogo → Fábrica**, cada producto tiene su ícono (masa, queso, jamón, salame, copo de nieve en los congelados…).
+2. Editá **MASA EXTRA CHEESE**: en **Ícono** dice "Automático según el nombre: Masa / pan". Elegí el **queso** y guardá: la fila cambia. Recargá: sigue el queso.
+3. Con `qa-local` en **Pedir** y con `qa-mayorista` en **Catálogo**, ese producto tiene el queso.
+4. Volvé a editarlo, elegí **Auto** y guardá: vuelve el ícono de masa.
+5. En **Agregar producto** de fábrica también está el selector de ícono.
 
 ## 2. El mayorista lo recibe (`qa-mayorista`)
 
@@ -56,6 +64,6 @@ En **qa.yachipacitos.com.ar**, con las cuentas de prueba (`docs/qa-credenciales-
 - `qa-deposito`: su pantalla funciona como antes. Al local ya no le aparece depósito.
 - `qa-fabrica` (supervisor): Registro, Stock, etc., igual que antes.
 - `qa-admin`, en **Catálogo**: intentá borrar un producto que ya tiene pedidos. Tiene que avisar que no se puede y que lo desactives.
-- **Ayuda**: las secciones **Locales** y **Pedidos a fábrica** describen las pantallas nuevas.
+- **Ayuda**: las secciones **Locales** y **Pedidos a fábrica** describen las pantallas nuevas (el Catálogo con **Con stock | Sin stock**), y **Administración → Catálogo** explica cómo elegir el ícono.
 
 Si algo no anda como dice acá, anotá el paso y la cuenta y lo corrijo.

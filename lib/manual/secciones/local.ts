@@ -38,7 +38,7 @@ export const local: SeccionManual = {
           pasos: [
             { texto: 'Entrá a **Pedir** desde el menú.' },
             { texto: 'Arriba están **Tus habituales**: los productos que más pedís, con la cantidad de la última vez. Escribí la cantidad en el producto (se aceptan decimales con coma o punto, por ejemplo 1,5) o sumá con **+5**, **+10** o **+25**. Con una cantidad, el producto ya entra a tu pedido.' },
-            { texto: 'El resto de los productos está abajo, por categoría. Para encontrar uno, usá el buscador por nombre o código. Para cargar rápido, escribí **código*cantidad** (por ejemplo `12*3`) y apretá Enter.' },
+            { texto: 'El resto de los productos está abajo, por categoría y cada uno con su ícono. Para encontrar uno, usá el buscador por nombre o código. Para cargar rápido, escribí **código*cantidad** (por ejemplo `12*3`) y apretá Enter.' },
             { texto: '¿Pedís casi siempre lo mismo? Tocá **Repetir el último** y ajustá lo que cambie. Si algún producto no tiene stock, te avisamos cuál quedó afuera.' },
             { texto: 'Revisá **Tu pedido** (en el celular, tocá la barra de abajo) y escribí las **Observaciones** si hace falta.' },
             { texto: 'Tocá **Enviar pedido**, revisá el resumen y confirmá. Te aparece el número del pedido y un enlace para verlo en Mis pedidos.' },
