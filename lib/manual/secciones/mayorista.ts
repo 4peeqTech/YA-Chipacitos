@@ -11,9 +11,10 @@ export const mayorista: SeccionManual = {
   roles: ['mayorista'],
   modulos: [],
   resumen: 'Los pedidos de los locales: prepararlos, ajustarlos antes de mandar, despacharlos y hablar con el local.',
-  actualizado: '2026-10-22',
+  actualizado: '2026-10-23',
   novedades: [
-    { fecha: '2026-10-22', texto: '**Catálogo** nuevo: cada producto tiene un botón **Hay stock / Sin stock**. Cuando algo se termina, lo marcás sin stock y los locales lo ven en gris.' },
+    { fecha: '2026-10-23', texto: 'Cada producto tiene **su propio ícono** (masa, queso, jamón…), el mismo que ven los locales al pedir.' },
+    { fecha: '2026-10-22', texto: '**Catálogo** nuevo: cada producto tiene **Con stock | Sin stock**, con la opción actual resaltada. Cuando algo se termina, tocás **Sin stock** y los locales lo ven en gris.' },
     { fecha: '2026-10-21', texto: 'Pantalla nueva en **tablero**: Nuevos, En preparación y En camino, con aviso al celular cuando entra un pedido.' },
     { fecha: '2026-10-21', texto: 'Antes de despachar podés **editar el pedido**: cambiar cantidades, sacar o agregar productos. El local ve lo que cambiaste.' },
     { fecha: '2026-10-21', texto: 'Nueva **Hoja de preparación** con el total por producto de lo que hay que armar, para imprimir.' },
@@ -100,10 +101,12 @@ export const mayorista: SeccionManual = {
         {
           tipo: 'pasos',
           pasos: [
-            { texto: 'Cuando un producto se termina, tocá su botón **Hay stock**: pasa a **Sin stock** y los locales lo ven en gris como "Sin stock por ahora", sin poder pedirlo.' },
-            { texto: 'Cuando vuelve a haber, tocá **Sin stock** y vuelve a **Hay stock**.' },
+            { texto: 'Cada producto tiene **Con stock | Sin stock**. La opción resaltada es como está ahora.' },
+            { texto: 'Cuando un producto se termina, tocá **Sin stock**: queda resaltado y los locales lo ven en gris como "Sin stock por ahora", sin poder pedirlo.' },
+            { texto: 'Cuando vuelve a haber, tocá **Con stock** y lo pueden pedir de nuevo.' },
           ],
         },
+        { tipo: 'tip', texto: 'Cada cambio te muestra un aviso abajo. Si no hay conexión, el producto vuelve a como estaba y te avisa que no se guardó.' },
       ],
     },
   ],
