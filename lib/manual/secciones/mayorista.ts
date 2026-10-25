@@ -11,8 +11,9 @@ export const mayorista: SeccionManual = {
   roles: ['mayorista'],
   modulos: [],
   resumen: 'Los pedidos de los locales: prepararlos, ajustarlos antes de mandar, despacharlos y hablar con el local.',
-  actualizado: '2026-10-23',
+  actualizado: '2026-10-25',
   novedades: [
+    { fecha: '2026-10-25', texto: 'Los avisos se prenden o apagan desde la **campana** (ya no queda el cartel arriba) y tocar una notificación abre ese pedido. El sonido ahora anda en Safari.' },
     { fecha: '2026-10-23', texto: 'Cada producto tiene **su propio ícono** (masa, queso, jamón…), el mismo que ven los locales al pedir.' },
     { fecha: '2026-10-22', texto: '**Catálogo** nuevo: cada producto tiene **Con stock | Sin stock**, con la opción actual resaltada. Cuando algo se termina, tocás **Sin stock** y los locales lo ven en gris.' },
     { fecha: '2026-10-21', texto: 'Pantalla nueva en **tablero**: Nuevos, En preparación y En camino, con aviso al celular cuando entra un pedido.' },
@@ -26,7 +27,8 @@ export const mayorista: SeccionManual = {
       titulo: '¿Qué puedo hacer desde mi cuenta?',
       bloques: [
         { tipo: 'parrafo', texto: 'Ves en vivo los pedidos que los locales le hacen a fábrica, los preparás, ajustás lo que se manda si falta algo, los despachás y hablás con cada local dentro del pedido.' },
-        { tipo: 'tip', texto: 'Activá los avisos en este dispositivo para enterarte de un pedido nuevo aunque tengas la pestaña cerrada.' },
+        { tipo: 'tip', texto: 'Activá los avisos en este dispositivo para enterarte de un pedido nuevo aunque tengas la app cerrada. La primera vez te lo pregunta la pantalla; después se prende o se apaga desde la **campana**, en **Avisos en este dispositivo**. Tocar el aviso te lleva directo a ese pedido.' },
+        { tipo: 'tip', texto: 'En Safari el sonido de pedido nuevo suena después de tocar la pantalla una vez. Con la app cerrada o el teléfono bloqueado solo llega la notificación, sin sonido de la página.' },
       ],
     },
     {

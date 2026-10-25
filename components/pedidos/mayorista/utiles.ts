@@ -4,26 +4,8 @@ import type { Pedido, PedidoItem, PedidoMensaje } from '@/lib/types'
 // notificación del navegador, igual que el tablero viejo), tiempos relativos,
 // sumas con decimales y mensajes sin leer.
 
-let beepCtx: AudioContext | null = null
-
-export function sonarAviso() {
-  try {
-    if (!beepCtx) beepCtx = new AudioContext()
-    if (beepCtx.state === 'suspended') beepCtx.resume()
-    const ctx = beepCtx
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(880, ctx.currentTime)
-    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15)
-    gain.gain.setValueAtTime(0.4, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 0.5)
-  } catch {}
-}
+// El sonido vive en lib/sonido (se despierta con el primer toque: Safari).
+export { sonarAviso } from '@/lib/sonido'
 
 export function notificarNavegador(pedido: Pedido) {
   if (typeof window === 'undefined' || !('Notification' in window)) return

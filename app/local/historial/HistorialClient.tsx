@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarDays, ChevronRight, ClipboardList, Pencil, Plus, SearchX, TriangleAlert, Truck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Pedido, PedidoEvento } from '@/lib/types'
@@ -85,6 +85,19 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
   const [cargando, setCargando] = useState(false)
   const [cargandoMas, setCargandoMas] = useState(false)
   const [abierto, setAbierto] = useState<{ id: string; modo: 'detalle' | 'diferencias' } | null>(null)
+  // ?pedido=<id> (al tocar una notificación): se abre ese pedido. Si no está en
+  // las listas cargadas (un cerrado viejo), se lee aparte.
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const pedidoParam = searchParams.get('pedido')
+  const [paramAtendido, setParamAtendido] = useState<string | null>(null)
+  if (pedidoParam && pedidoParam !== paramAtendido) {
+    setParamAtendido(pedidoParam)
+    setAbierto({ id: pedidoParam, modo: 'detalle' })
+  } else if (!pedidoParam && paramAtendido) {
+    setParamAtendido(null) // salió de la dirección: otra notificación del mismo pedido lo vuelve a abrir
+  }
+  const [pedidoSuelto, setPedidoSuelto] = useState<Pedido | null>(null)
   const [versionEventos, setVersionEventos] = useState<Record<string, number>>({})
 
   const estadoCerrados: FiltroCerrados = filtro === 'recibido' || filtro === 'cancelado' ? filtro : 'todos'
@@ -210,7 +223,24 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
   const lista = filtro === 'en_curso' ? enCursoFiltrados : filtro === 'todos' ? [...enCursoFiltrados, ...cerrados] : cerrados
   const mostrandoCerrados = necesitaCerrados && clave === claveCargada
   const hayFiltros = !!(texto || desde || hasta)
-  const pedidoAbierto = abierto ? [...enCurso, ...cerrados].find(p => p.id === abierto.id) ?? null : null
+  const enListas = abierto ? [...enCurso, ...cerrados].find(p => p.id === abierto.id) ?? null : null
+  const pedidoAbierto = enListas ?? (abierto && pedidoSuelto?.id === abierto.id ? pedidoSuelto : null)
+  const faltaLeer = !!abierto && !enListas && pedidoSuelto?.id !== abierto.id
+  useEffect(() => {
+    if (!faltaLeer || !abierto) return
+    let vigente = true
+    supabase.from('pedidos').select(SELECT_PEDIDO).eq('id', abierto.id).maybeSingle()
+      .then(({ data }) => { if (vigente && data) setPedidoSuelto(data as Pedido) })
+    return () => { vigente = false }
+  }, [faltaLeer, abierto, supabase])
+
+  function cerrarDetalle() {
+    setAbierto(null)
+    // Que recargar la página no lo vuelva a abrir. replaceState (integrado al router de
+    // Next) saca el ?pedido= sin volver a pedir la página: router.replace la releía entera
+    // y en el tablero la dirección quedaba sin cambiar.
+    if (pedidoParam) window.history.replaceState(null, '', pathname)
+  }
   const enCaminoSinConfirmar = enCurso.filter(p => p.estado === 'enviado').length
 
   return (
@@ -325,7 +355,7 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
         usuarioId={usuarioId}
         versionEventos={abierto ? versionEventos[abierto.id] ?? 0 : 0}
         modoInicial={abierto?.modo}
-        onCerrar={() => setAbierto(null)}
+        onCerrar={cerrarDetalle}
         onCambio={alCambiar}
       />
     </div>

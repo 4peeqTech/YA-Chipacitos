@@ -82,8 +82,10 @@ export async function POST(request: NextRequest) {
       const { data } = await admin.from('profiles').select('id').eq('rol', rolDestino)
       return (data || []).map(p => p.id)
     }
-    const alLocal = () => ({ ids: pedido.local_id ? [pedido.local_id] : [], url: URL_LOCAL })
-    const alDestino = async () => ({ ids: await idsDelDestino(), url: URL_DESTINO[pedido.destino] || URL_LOCAL })
+    // ?pedido=<id>: al tocar la notificación se abre ese pedido, no la lista.
+    const conPedido = (url: string) => `${url}?pedido=${pedido.id}`
+    const alLocal = () => ({ ids: pedido.local_id ? [pedido.local_id] : [], url: conPedido(URL_LOCAL) })
+    const alDestino = async () => ({ ids: await idsDelDestino(), url: conPedido(URL_DESTINO[pedido.destino] || URL_LOCAL) })
 
     let destinatarios: { ids: string[]; url: string }
     let title: string
