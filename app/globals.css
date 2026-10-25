@@ -164,6 +164,39 @@ select option {
   color: #f0f0f0;
 }
 
+/* Celulares y tablets: con menos de 16 px el iPhone hace zoom al tocar un campo y
+   no lo deshace (la pantalla queda "agrandada" después del login, en el chat, etc.).
+   Gana sobre text-xs/text-sm de cada campo; el pinch-zoom sigue funcionando. */
+@media (pointer: coarse) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Scroll propio en toda la app (página, modales, paneles): fino y del color del tema,
+   en vez de la barra nativa del SO. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: #2a2a2a;
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #3a3a3a;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Scrollbars propias — reemplazan la barra nativa del SO (gruesa, gris,
    desentona con el tema oscuro) en paneles con scroll interno como el Sidebar. */
 .scrollbar-thin {
@@ -285,6 +318,9 @@ html.light [class*="border-[#2a2a2a]"] { border-color: #d5d5d5 !important; }
 html.light [class*="border-[#444]"]    { border-color: #cccccc !important; }
 
 /* Scrollbar */
+html.light, html.light * { scrollbar-color: #d5d5d5 transparent; }
+html.light *::-webkit-scrollbar-thumb { background-color: #d5d5d5; }
+html.light *::-webkit-scrollbar-thumb:hover { background-color: #bbbbbb; }
 html.light .scrollbar-thin { scrollbar-color: #d5d5d5 transparent; }
 html.light .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #d5d5d5; }
 html.light .scrollbar-thin::-webkit-scrollbar-thumb:hover { background-color: #bbbbbb; }

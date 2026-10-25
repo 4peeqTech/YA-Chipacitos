@@ -111,7 +111,9 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] w-80 max-w-[90vw] max-h-[70vh] overflow-y-auto bg-surface border border-border rounded-lg shadow-modal z-[60]">
+        // En el celular la campana no está pegada al borde: colgado de ella, el panel se
+        // salía por la izquierda. Ahí va fijo, de lado a lado, debajo del encabezado.
+        <div className="fixed inset-x-2 top-16 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain bg-surface border border-border rounded-lg shadow-modal z-[60] sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+8px)] sm:w-80 sm:max-h-[70vh]">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border sticky top-0 bg-surface">
             <span className="text-xs font-semibold text-text">Notificaciones</span>
             {noLeidas > 0 && (
@@ -133,8 +135,8 @@ export default function NotificationBell() {
                 <div className="flex items-start gap-2">
                   {!n.leida && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent shrink-0" />}
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-text truncate">{n.titulo}</p>
-                    {n.cuerpo && <p className="text-2xs text-muted line-clamp-2">{n.cuerpo}</p>}
+                    <p className="text-xs font-medium text-text break-words">{n.titulo}</p>
+                    {n.cuerpo && <p className="text-2xs text-muted break-words">{n.cuerpo}</p>}
                     <p className="text-3xs text-faint mt-0.5">{formatearFecha(n.created_at)}</p>
                   </div>
                 </div>
