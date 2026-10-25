@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { IconBellOff } from '@tabler/icons-react'
+import { useAvisosPush } from '@/lib/hooks/useAvisosPush'
 
 interface Notificacion {
   id: string
@@ -123,6 +125,8 @@ export default function NotificationBell() {
             )}
           </div>
 
+          <AvisosDispositivo />
+
           {items.length === 0 ? (
             <p className="px-3 py-6 text-center text-xs text-muted">Sin notificaciones</p>
           ) : (
@@ -145,6 +149,39 @@ export default function NotificationBell() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// Avisos push de este dispositivo: el lugar fijo para activarlos o desactivarlos
+// (el cartel de las pantallas solo aparece la primera vez).
+function AvisosDispositivo() {
+  const { estado, ocupado, activar, desactivar } = useAvisosPush()
+  if (estado === 'cargando') return null
+
+  if (estado === 'no-soportado' || estado === 'bloqueado') {
+    return (
+      <p className="flex items-start gap-2 border-b border-border bg-surface2/50 px-3 py-2.5 text-2xs text-muted">
+        <IconBellOff size={14} className="mt-px shrink-0" aria-hidden />
+        {estado === 'bloqueado'
+          ? 'Avisos bloqueados en este navegador. Para habilitarlos, tocá el candado de la barra de dirección.'
+          : 'Para recibir avisos en el iPhone, instalá la app: Compartir → “Agregar a pantalla de inicio”.'}
+      </p>
+    )
+  }
+
+  const activo = estado === 'activo'
+  return (
+    <div className="flex items-center gap-3 border-b border-border bg-surface2/50 px-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-text">Avisos en este dispositivo</p>
+        <p className="text-2xs text-muted">{activo ? 'Te llegan aunque cierres la app.' : 'Activalos para enterarte aunque cierres la app.'}</p>
+      </div>
+      <button type="button" role="switch" aria-checked={activo} aria-label="Avisos en este dispositivo"
+        disabled={ocupado} onClick={activo ? desactivar : activar}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60 ${activo ? 'bg-success' : 'bg-border'}`}>
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] ${activo ? 'left-[22px]' : 'left-0.5'}`} />
+      </button>
     </div>
   )
 }

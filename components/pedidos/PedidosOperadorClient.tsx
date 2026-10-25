@@ -6,6 +6,7 @@ import { Producto, Pedido, TipoProducto, DestinoProducto } from '@/lib/types'
 import { BadgeEstado } from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
 import PushToggle from '@/components/ui/PushToggle'
+import { prepararSonido, sonarAviso } from '@/lib/sonido'
 import ChatPedido from '@/components/pedidos/compartido/ChatPedido'
 import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { useRefrescarAlVolver } from '@/lib/hooks/useRefrescarAlVolver'
@@ -29,26 +30,8 @@ const estadoBorderTop: Record<string, string> = {
   cancelado:  'border-t-[#444444]',
 }
 
-let beepCtx: AudioContext | null = null
-
-function playBeep() {
-  try {
-    if (!beepCtx) beepCtx = new AudioContext()
-    if (beepCtx.state === 'suspended') beepCtx.resume()
-    const ctx = beepCtx
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(880, ctx.currentTime)
-    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15)
-    gain.gain.setValueAtTime(0.4, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 0.5)
-  } catch {}
-}
+// Sonido compartido (lib/sonido): se despierta con el primer toque, si no Safari no suena.
+const playBeep = sonarAviso
 
 function showBrowserNotification(pedido: Pedido) {
   if (typeof window === 'undefined' || !('Notification' in window)) return
@@ -83,6 +66,7 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
   const actualizarRef = useRef<() => void>(() => {})
 
   useEffect(() => { pedidosRef.current = pedidos }, [pedidos])
+  useEffect(() => { prepararSonido() }, []) // Safari: el sonido se despierta con el primer toque
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUsuarioId(data.user?.id ?? null))
   }, [supabase])

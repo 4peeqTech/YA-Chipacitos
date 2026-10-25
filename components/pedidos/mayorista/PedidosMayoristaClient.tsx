@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { BellRing, ClipboardList, Clock, History, Inbox, LayoutGrid, PackageOpen, RefreshCw, Truck, X, type LucideIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { EstadoPedido, Pedido, PedidoEvento, PedidoMensaje, Producto } from '@/lib/types'
@@ -15,6 +16,7 @@ import DetallePedidoModal from './DetallePedidoModal'
 import HistorialPedidos from './HistorialPedidos'
 import HojaPreparacion from './HojaPreparacion'
 import { leerVistos, marcarVisto, mensajesSinLeer, notificarNavegador, sonarAviso } from './utiles'
+import { prepararSonido } from '@/lib/sonido'
 
 // Pantalla del mayorista (/fabrica/pedidos): tablero Nuevos / En preparación /
 // En camino, historial paginado y hoja de preparación. Mantiene lo del
@@ -47,6 +49,8 @@ function ordenar(ps: Pedido[]) {
 
 export default function PedidosMayoristaClient({ pedidosIniciales, productos, sucursales: sucursalesIniciales, inicioVersion, usuarioId }: Props) {
   const [supabase] = useState(() => createClient())
+  const pathname = usePathname()
+  const pedidoParam = useSearchParams().get('pedido')
   const [pedidos, setPedidos] = useState<Pedido[]>(() => ordenar(pedidosIniciales))
   const [nuevosIds, setNuevosIds] = useState<string[]>([])
   const [vista, setVista] = useState<Vista>('tablero')
@@ -70,6 +74,7 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
   useEffect(() => { detalleIdRef.current = detalle?.id ?? null }, [detalle])
   useEffect(() => {
     setVistos(leerVistos()) // eslint-disable-line react-hooks/set-state-in-effect
+    prepararSonido() // Safari: el sonido se despierta con el primer toque
     tituloRef.current = document.title
     const iv = setInterval(() => setAhora(Date.now()), 60_000)
     return () => clearInterval(iv)
@@ -246,7 +251,26 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
   function cerrarDetalle() {
     setDetalle(null)
     setEventos(null)
+    // Que recargar la página no lo vuelva a abrir. replaceState (integrado al router de
+    // Next) saca el ?pedido= sin volver a pedir la página: router.replace la releía entera
+    // y en el tablero la dirección quedaba sin cambiar.
+    if (pedidoParam) window.history.replaceState(null, '', pathname)
   }
+
+  // ?pedido=<id> (al tocar una notificación): se abre ese pedido. Si no está en el
+  // tablero (por ejemplo ya se recibió), se lee aparte.
+  const atendidoRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!pedidoParam) { atendidoRef.current = null; return }
+    if (atendidoRef.current === pedidoParam) return
+    atendidoRef.current = pedidoParam
+    const enTablero = pedidos.find(p => p.id === pedidoParam)
+    // Abrir el detalle responde a un cambio de la dirección (algo externo): va en el efecto.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (enTablero) { abrir(enTablero); return }
+    supabase.from('pedidos').select(SELECT).eq('id', pedidoParam).maybeSingle()
+      .then(({ data }) => { if (data && atendidoRef.current === pedidoParam) abrir(data as Pedido) })
+  }, [pedidoParam, pedidos, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sucursales = useMemo(
     () => [...new Set([...sucursalesIniciales, ...pedidos.map(p => p.local_nombre)])].sort((a, b) => a.localeCompare(b, 'es')),
