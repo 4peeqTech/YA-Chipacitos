@@ -305,7 +305,7 @@ export default function PedidosOperadorClient({ productosIniciales, pedidosInici
 
           {/* Controles: filtro estado + sucursal + actualizar */}
           <div className="flex flex-wrap gap-2 items-center sticky top-0 z-10 bg-[#0a0a0a] py-2 -mx-4 px-4 lg:-mx-8 lg:px-8">
-            <div className="flex gap-2 overflow-x-auto scrollbar-none flex-1">
+            <div className="flex flex-wrap gap-2 flex-1">
               {[
                 { key: 'activos',    label: 'Activos' },
                 { key: 'pendiente',  label: 'Pendientes' },

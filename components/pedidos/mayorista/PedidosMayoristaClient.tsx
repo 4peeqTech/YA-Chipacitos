@@ -27,10 +27,10 @@ const ACTIVOS: EstadoPedido[] = ['pendiente', 'preparando', 'enviado']
 
 type Vista = 'tablero' | 'historial' | 'hoja'
 
-const COLUMNAS: { estado: EstadoPedido; titulo: string; icono: LucideIcon; vacio: string }[] = [
-  { estado: 'pendiente',  titulo: 'Nuevos',         icono: Clock,       vacio: 'No hay pedidos nuevos.' },
-  { estado: 'preparando', titulo: 'En preparación', icono: PackageOpen, vacio: 'No estás preparando ninguno.' },
-  { estado: 'enviado',    titulo: 'En camino',      icono: Truck,       vacio: 'No hay pedidos en camino.' },
+const COLUMNAS: { estado: EstadoPedido; titulo: string; corto: string; icono: LucideIcon; vacio: string }[] = [
+  { estado: 'pendiente',  titulo: 'Nuevos', corto: 'Nuevos',         icono: Clock,       vacio: 'No hay pedidos nuevos.' },
+  { estado: 'preparando', titulo: 'En preparación', corto: 'Preparando', icono: PackageOpen, vacio: 'No estás preparando ninguno.' },
+  { estado: 'enviado',    titulo: 'En camino', corto: 'En camino',      icono: Truck,       vacio: 'No hay pedidos en camino.' },
 ]
 
 interface Props {
@@ -273,10 +273,10 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
 
   const nuevosVisibles = pedidos.filter(p => nuevosIds.includes(p.id))
 
-  const VISTAS: { key: Vista; label: string; icono: LucideIcon }[] = [
-    { key: 'tablero', label: 'Tablero', icono: LayoutGrid },
-    { key: 'hoja', label: 'Hoja de preparación', icono: ClipboardList },
-    { key: 'historial', label: 'Historial', icono: History },
+  const VISTAS: { key: Vista; label: string; corto: string; icono: LucideIcon }[] = [
+    { key: 'tablero', label: 'Tablero', corto: 'Tablero', icono: LayoutGrid },
+    { key: 'hoja', label: 'Hoja de preparación', corto: 'Hoja', icono: ClipboardList },
+    { key: 'historial', label: 'Historial', corto: 'Historial', icono: History },
   ]
 
   return (
@@ -308,40 +308,44 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
         </div>
       )}
 
+      {/* En el celular: renglón 1 = vistas + actualizar; renglón 2 = sucursal + búsqueda.
+          Sin scroll horizontal: las vistas reparten el ancho y usan el nombre corto. */}
       <div className="flex flex-wrap items-center gap-2">
-        <div role="tablist" aria-label="Vista" className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1">
-          {VISTAS.map(v => {
-            const Icono = v.icono
-            const activa = vista === v.key
-            return (
-              <button key={v.key} type="button" role="tab" aria-selected={activa} onClick={() => setVista(v.key)}
-                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activa ? 'bg-accent text-black' : 'text-muted hover:bg-surface2 hover:text-text'
-                }`}>
-                <Icono size={15} aria-hidden />
-                {v.label}
-              </button>
-            )
-          })}
+        <div className="flex w-full items-center gap-2 lg:w-auto">
+          <div role="tablist" aria-label="Vista" className="grid flex-1 grid-cols-3 gap-1 rounded-xl border border-border bg-surface p-1 lg:flex lg:flex-none">
+            {VISTAS.map(v => {
+              const Icono = v.icono
+              const activa = vista === v.key
+              return (
+                <button key={v.key} type="button" role="tab" aria-selected={activa} aria-label={v.label} onClick={() => setVista(v.key)}
+                  className={`inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-sm font-medium transition-colors sm:px-3 ${
+                    activa ? 'bg-accent text-black' : 'text-muted hover:bg-surface2 hover:text-text'
+                  }`}>
+                  <Icono size={15} aria-hidden className="shrink-0" />
+                  <span className="sm:hidden">{v.corto}</span>
+                  <span className="hidden sm:inline">{v.label}</span>
+                </button>
+              )
+            })}
+          </div>
+          <button type="button" onClick={() => actualizar()} disabled={actualizando} aria-label="Actualizar" title="Actualizar"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-muted hover:border-accent hover:text-accent disabled:opacity-50 lg:order-last">
+            <RefreshCw size={16} className={actualizando ? 'animate-spin' : ''} />
+          </button>
         </div>
 
         {vista !== 'historial' && (
-          <>
+          <div className="flex w-full min-w-0 items-center gap-2 lg:w-auto lg:flex-1">
             <select value={sucursal} onChange={e => setSucursal(e.target.value)} aria-label="Sucursal"
-              className="rounded-xl border border-border bg-surface2 px-3 py-2 text-sm text-text focus:border-accent focus:outline-none">
+              className="w-auto max-w-[45%] shrink-0 rounded-xl border border-border bg-surface2 px-3 py-2 text-sm text-text focus:border-accent focus:outline-none lg:max-w-none">
               <option value="todas">Todas las sucursales</option>
               {sucursales.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             {vista === 'tablero' && (
-              <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar número, sucursal o producto…" className="min-w-[14rem] flex-1" />
+              <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar…" className="min-w-0 flex-1" />
             )}
-          </>
+          </div>
         )}
-
-        <button type="button" onClick={() => actualizar()} disabled={actualizando} aria-label="Actualizar" title="Actualizar"
-          className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted hover:border-accent hover:text-accent disabled:opacity-50">
-          <RefreshCw size={16} className={actualizando ? 'animate-spin' : ''} />
-        </button>
       </div>
 
       {vista === 'tablero' && (
@@ -356,7 +360,7 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
                   className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold sm:text-sm ${
                     activa ? 'bg-surface2 text-text' : 'text-muted hover:text-text'
                   }`}>
-                  <span className="truncate">{c.titulo}</span>
+                  <span className="truncate">{c.corto}</span>
                   <span className={`rounded-full px-1.5 text-2xs font-bold ${activa ? 'bg-accent text-black' : 'bg-surface2 text-muted'}`}>{n}</span>
                 </button>
               )

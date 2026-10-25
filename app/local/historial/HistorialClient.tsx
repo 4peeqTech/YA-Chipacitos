@@ -256,7 +256,7 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
         </div>
       )}
 
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none lg:mx-0 lg:px-0">
+      <div className="flex flex-wrap gap-2">
         {FILTROS.map(f => (
           <Chip key={f.value} active={filtro === f.value} onClick={() => setFiltro(f.value)}>
             {f.label}{f.value === 'en_curso' && enCurso.length > 0 ? ` · ${enCurso.length}` : ''}
