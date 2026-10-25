@@ -8,6 +8,7 @@ import { formatoCantidad } from '@/lib/pedidos/estados'
 import InputNumero from '@/components/ui/InputNumero'
 import SelectBuscador from '@/components/ui/SelectBuscador'
 import { cantidadAEnviar } from './utiles'
+import { Puntos } from '@/components/ui/Cargando'
 
 // Edición de lo que se manda (pedido_editar_items): cambiar la cantidad
 // enviada, sacar un producto (enviada 0) o agregar uno del catálogo activo.
@@ -160,7 +161,7 @@ export default function EditorItems({ items, productos, guardando, onCancelar, o
         </button>
         <button type="button" onClick={() => onGuardar(cambios)} disabled={guardando || hayVacios || cambios.length === 0}
           className="rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-black hover:opacity-90 disabled:opacity-40">
-          {guardando ? 'Guardando…' : cambios.length ? `Guardar ${cambios.length} cambio${cambios.length === 1 ? '' : 's'}` : 'Guardar'}
+          {guardando ? <><Puntos className="mr-1.5" />Guardando</> : cambios.length ? `Guardar ${cambios.length} cambio${cambios.length === 1 ? '' : 's'}` : 'Guardar'}
         </button>
       </div>
     </div>

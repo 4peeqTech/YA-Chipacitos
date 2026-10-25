@@ -9,6 +9,7 @@ import { parseDecimal } from '@/lib/numeros'
 import { cantidadATexto as aTexto, parseCantidad } from '../cantidad'
 import { useToast } from '@/components/ui/ProveedorUI'
 import type { Pedido, Producto } from '@/lib/types'
+import { Puntos } from '@/components/ui/Cargando'
 
 // "Hubo diferencias" (D11): la lista arranca con lo enviado. Se corrige lo
 // que llegó, el $ es opcional, y se puede sumar un producto que llegó sin
@@ -244,7 +245,7 @@ export default function RecepcionDiferencias({ pedido, onListo, onVolver }: {
           disabled={guardando}
           className="flex-1 rounded-xl bg-accent py-3 text-sm font-bold text-black disabled:opacity-50"
         >
-          {guardando ? 'Guardando…' : 'Guardar recepción'}
+          {guardando ? <><Puntos className="mr-1.5" />Guardando</> : 'Guardar recepción'}
         </button>
       </div>
     </div>

@@ -14,6 +14,7 @@ import CampoCantidad from './CampoCantidad'
 import { unidadVisible } from '@/lib/pedidos/unidad'
 import { parseCantidad } from '../cantidad'
 import { useCarritoGuardado, type CarritoGuardado } from './useCarritoGuardado'
+import { Puntos } from '@/components/ui/Cargando'
 
 export interface UltimoPedido {
   numero: number
@@ -353,8 +354,7 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
               disabled={enviando}
               className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-bold text-black disabled:opacity-50"
             >
-              <Send size={16} aria-hidden />
-              {enviando ? 'Enviando…' : 'Enviar pedido'}
+              {enviando ? <><Puntos /> Enviando</> : <><Send size={16} aria-hidden /> Enviar pedido</>}
             </button>
           </div>
         </div>
