@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
+import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import SWRegister from '@/components/ui/SWRegister'
+import BarraNavegacion from '@/components/ui/BarraNavegacion'
 import InstallPrompt from '@/components/ui/InstallPrompt'
 import ProveedorUI from '@/components/ui/ProveedorUI'
 import './globals.css'
@@ -30,6 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <SWRegister />
         <InstallPrompt />
+        <Suspense fallback={null}><BarraNavegacion /></Suspense>
         <ProveedorUI>{children}</ProveedorUI>
       </body>
     </html>

@@ -16,6 +16,7 @@ import ChatPedido from '@/components/pedidos/compartido/ChatPedido'
 import { MarcaVersionAnterior } from '@/components/pedidos/compartido/AvisoVersionAnterior'
 import RecepcionDiferencias from './RecepcionDiferencias'
 import { fabricaCambio, fechaCorta, nombreDestino } from './utilidades'
+import { Puntos } from '@/components/ui/Cargando'
 
 const PASOS: { estado: EstadoPedido; label: string }[] = [
   { estado: 'pendiente', label: 'Pedido' },
@@ -102,7 +103,9 @@ function Contenido({ pedido, usuarioId, versionEventos, modoInicial = 'detalle',
   const [modo, setModo] = useState(modoInicial)
   const [eventos, setEventos] = useState<PedidoEvento[] | null>(null)
   const [errorEventos, setErrorEventos] = useState(false)
-  const [ocupado, setOcupado] = useState(false)
+  // Qué acción está en curso: los puntos van en ese botón y los demás se deshabilitan.
+  const [enCurso, setEnCurso] = useState<'cancelar' | 'recibir' | null>(null)
+  const ocupado = enCurso !== null
   const motivoRef = useRef<HTMLTextAreaElement>(null)
   const enCamino = pedido.estado === 'enviado'
 
@@ -147,9 +150,9 @@ function Contenido({ pedido, usuarioId, versionEventos, modoInicial = 'detalle',
       ),
       onConfirmar: async () => {
         const motivo = motivoRef.current?.value.trim() || null
-        setOcupado(true)
+        setEnCurso('cancelar')
         const r = await cancelarPedido(pedido.id, motivo)
-        setOcupado(false)
+        setEnCurso(null)
         if (!r.ok) return toast.error(r.error)
         toast.success(`Pedido #${pedido.numero} cancelado.`)
         if (r.advertencia) toast.error(r.advertencia)
@@ -164,9 +167,9 @@ function Contenido({ pedido, usuarioId, versionEventos, modoInicial = 'detalle',
       mensaje: `Confirmás que llegó todo lo que se mandó en el pedido #${pedido.numero}, en las cantidades de la columna “Enviado”.`,
       textoConfirmar: 'Sí, llegó todo',
       onConfirmar: async () => {
-        setOcupado(true)
+        setEnCurso('recibir')
         const r = await confirmarRecepcion(pedido.id)
-        setOcupado(false)
+        setEnCurso(null)
         if (!r.ok) return toast.error(r.error)
         toast.success(`Recepción del pedido #${pedido.numero} confirmada.`)
         if (r.advertencia) toast.error(r.advertencia)
@@ -232,8 +235,7 @@ function Contenido({ pedido, usuarioId, versionEventos, modoInicial = 'detalle',
               disabled={ocupado}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-success py-3 text-sm font-bold text-black disabled:opacity-50"
             >
-              <CircleCheck size={17} aria-hidden />
-              Llegó todo bien
+              {enCurso === 'recibir' ? <><Puntos /> Confirmando</> : <><CircleCheck size={17} aria-hidden /> Llegó todo bien</>}
             </button>
             <button
               type="button"
@@ -270,8 +272,7 @@ function Contenido({ pedido, usuarioId, versionEventos, modoInicial = 'detalle',
             disabled={ocupado}
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-brand-red/50 py-2.5 text-sm font-semibold text-brand-red hover:bg-danger-bg disabled:opacity-50 sm:w-auto sm:px-4"
           >
-            <CircleX size={16} aria-hidden />
-            Cancelar pedido
+            {enCurso === 'cancelar' ? <><Puntos /> Cancelando</> : <><CircleX size={16} aria-hidden /> Cancelar pedido</>}
           </button>
           <p className="mt-1.5 text-2xs text-faint">Se puede cancelar hasta que salga en camino.</p>
         </div>

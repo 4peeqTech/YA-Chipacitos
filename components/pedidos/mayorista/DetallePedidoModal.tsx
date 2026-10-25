@@ -5,6 +5,7 @@ import { CircleX, PackageOpen, Pencil, StickyNote, Truck, TriangleAlert } from '
 import type { Pedido, PedidoEvento, PedidoItem, Producto } from '@/lib/types'
 import Modal from '@/components/ui/Modal'
 import { useConfirm } from '@/components/ui/ConfirmDialog'
+import { Puntos } from '@/components/ui/Cargando'
 import { Skeleton } from '@/components/ui/Skeleton'
 import EstadoPedidoBadge from '@/components/pedidos/compartido/EstadoPedidoBadge'
 import ItemsPedido from '@/components/pedidos/compartido/ItemsPedido'
@@ -36,7 +37,9 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
   // Los ítems se congelan al empezar a editar: el realtime puede traer el
   // pedido actualizado (por ejemplo, el propio guardado) a mitad de camino.
   const [itemsEdicion, setItemsEdicion] = useState<PedidoItem[] | null>(null)
-  const [ocupado, setOcupado] = useState(false)
+  // Qué acción está en curso: los puntos van en ese botón y los demás se deshabilitan.
+  const [enCurso, setEnCurso] = useState<'editar' | 'empezar' | 'enviar' | 'cancelar' | null>(null)
+  const ocupado = enCurso !== null
   const [cancelando, setCancelando] = useState(false)
   const [motivo, setMotivo] = useState('')
   const { confirmar, dialog } = useConfirm()
@@ -46,8 +49,8 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
   const editando = editable && itemsEdicion !== null
   const salen = items.filter(i => cantidadAEnviar(i) > 0)
 
-  async function ejecutar<T>(accion: () => Promise<Resultado<T>>, exito: (data: T) => string) {
-    setOcupado(true)
+  async function ejecutar<T>(clave: NonNullable<typeof enCurso>, accion: () => Promise<Resultado<T>>, exito: (data: T) => string) {
+    setEnCurso(clave)
     const r = await accion()
     if (r.ok) {
       await onRecargar(pedido.id)
@@ -56,12 +59,12 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
     } else {
       toast.error(r.error)
     }
-    setOcupado(false)
+    setEnCurso(null)
     return r.ok
   }
 
   async function guardarEdicion(cambios: ItemEdicion[]) {
-    const ok = await ejecutar(
+    const ok = await ejecutar('editar',
       () => editarItemsPedido(pedido.id, cambios),
       n => n === 0 ? 'No había cambios para guardar.' : 'Cambios guardados. Le avisamos al local.',
     )
@@ -89,12 +92,12 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
           </span>
         </span>
       ),
-      onConfirmar: () => { ejecutar(() => marcarEnviado(pedido.id), () => `Pedido #${pedido.numero} en camino.`) },
+      onConfirmar: () => { ejecutar('enviar', () => marcarEnviado(pedido.id), () => `Pedido #${pedido.numero} en camino.`) },
     })
   }
 
   async function confirmarCancelacion() {
-    const ok = await ejecutar(() => cancelarPedido(pedido.id, motivo.trim() || null), () => `Pedido #${pedido.numero} cancelado.`)
+    const ok = await ejecutar('cancelar', () => cancelarPedido(pedido.id, motivo.trim() || null), () => `Pedido #${pedido.numero} cancelado.`)
     if (ok) { setCancelando(false); setMotivo('') }
   }
 
@@ -186,14 +189,14 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
             </button>
             {pedido.estado === 'pendiente' && (
               <button type="button" disabled={ocupado}
-                onClick={() => ejecutar(() => empezarPreparacion(pedido.id), () => `Empezaste a preparar el #${pedido.numero}.`)}
+                onClick={() => ejecutar('empezar', () => empezarPreparacion(pedido.id), () => `Empezaste a preparar el #${pedido.numero}.`)}
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-accent px-4 py-2.5 text-sm font-bold text-accent hover:bg-accent-bg disabled:opacity-40">
-                <PackageOpen size={16} /> Empezar preparación
+                {enCurso === 'empezar' ? <><Puntos /> Empezando</> : <><PackageOpen size={16} /> Empezar preparación</>}
               </button>
             )}
             <button type="button" onClick={pedirEnvio} disabled={ocupado}
               className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-black hover:opacity-90 disabled:opacity-40">
-              <Truck size={16} /> Marcar como enviado
+              {enCurso === 'enviar' ? <><Puntos /> Enviando</> : <><Truck size={16} /> Marcar como enviado</>}
             </button>
           </div>
         )}
@@ -214,7 +217,7 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
           </button>
           <button type="button" onClick={confirmarCancelacion} disabled={ocupado}
             className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-bold text-white hover:bg-red-500 disabled:opacity-40">
-            {ocupado ? 'Cancelando…' : 'Cancelar pedido'}
+            {enCurso === 'cancelar' ? <><Puntos className="mr-1.5" />Cancelando</> : 'Cancelar pedido'}
           </button>
         </div>
       </Modal>
