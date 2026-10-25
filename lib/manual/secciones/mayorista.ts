@@ -51,7 +51,7 @@ export const mayorista: SeccionManual = {
         {
           tipo: 'pasos',
           pasos: [
-            { texto: 'Tocá la tarjeta para abrir el pedido: ves los productos, las **Observaciones del local**, los **Movimientos** y los **Mensajes**.' },
+            { texto: 'Tocá la tarjeta para abrir el pedido: ves los productos, las **Observaciones del local**, los **Movimientos** y el botón **Chat con** el local, que se pone en rojo si hay mensajes sin leer. El chat se abre en su propio panel; al abrirlo quedan leídos.' },
             { texto: 'Tocá **Empezar preparación** cuando lo empieces a armar. El local lo ve al instante.' },
             { texto: 'Si falta algo o hay que cambiar una cantidad, tocá **Editar pedido**: cambiá lo que **Se manda** de cada producto (0 para no mandarlo) o agregá un producto. Tocá **Guardar**: al local le llega el aviso con lo que cambió.' },
             { texto: 'Cuando sale, tocá **Marcar como enviado**. Te mostramos lo que sale para que lo revises; confirmá con **Sí, sale ahora**. Al local le llega el aviso y la tarjeta pasa a **En camino**.' },

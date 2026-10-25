@@ -240,11 +240,10 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
     detalleIdRef.current = p.id
     leerEventos(p.id)
     setNuevosIds(prev => prev.filter(id => id !== p.id))
-    setVistos(marcarVisto(vistos, p.id))
+    // Los mensajes quedan leídos al abrir el chat (BotonChat), no al abrir el pedido.
   }
 
   function cerrarDetalle() {
-    if (detalle) setVistos(marcarVisto(vistos, detalle.id))
     setDetalle(null)
     setEventos(null)
   }
@@ -410,7 +409,9 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
 
       {detalle && (
         <DetallePedidoModal key={detalle.id} pedido={detalle} eventos={eventos} productos={productos}
-          usuarioId={usuarioId} onClose={cerrarDetalle} onRecargar={recargar} toast={toast} />
+          usuarioId={usuarioId} onClose={cerrarDetalle} onRecargar={recargar} toast={toast}
+          sinLeer={mensajesSinLeer(detalle.pedido_mensajes, usuarioId, vistos[detalle.id])}
+          onChatVisto={() => setVistos(v => marcarVisto(v, detalle.id))} />
       )}
     </div>
   )

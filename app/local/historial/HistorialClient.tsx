@@ -170,6 +170,10 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `local_id=eq.${usuarioId}` }, payload => {
         if (!activo) return
         const id = (payload.new as { id?: string })?.id ?? (payload.old as { id?: string })?.id
+        // El estado nuevo se ve al instante con lo que trae el cambio; después se
+        // relee el pedido completo (ítems, y si pasa de "en curso" a cerrado).
+        const nuevo = payload.new as Partial<Pedido> | undefined
+        if (id && nuevo?.estado) setEnCurso(prev => prev.map(x => x.id === id ? { ...x, ...nuevo, pedido_items: x.pedido_items } : x))
         if (id) recargarPedido(id)
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedido_eventos' }, payload => {
@@ -360,7 +364,7 @@ function TarjetaPedido({ pedido, onAbrir }: { pedido: Pedido; onAbrir: () => voi
           {cambio && (
             <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-2xs font-semibold text-warning">
               <Pencil size={11} aria-hidden />
-              Fábrica cambió el pedido
+              {pedido.destino === 'deposito' ? 'Depósito' : 'El mayorista'} cambió el pedido
             </span>
           )}
           {pedido.recepcion_con_diferencias && (
