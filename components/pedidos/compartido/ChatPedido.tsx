@@ -18,6 +18,8 @@ interface Props {
   usuarioId: string
   /** false en listas largas para no abrir un canal por pedido. */
   enVivo?: boolean
+  /** Ocupa todo el alto disponible (panel del chat): la lista crece y el campo queda abajo. */
+  llenar?: boolean
 }
 
 const ROL_LABEL: Record<string, string> = {
@@ -32,7 +34,7 @@ function agregar(prev: PedidoMensaje[], m: PedidoMensaje) {
   return prev.some(x => x.id === m.id) ? prev : ordenar([...prev, m])
 }
 
-export default function ChatPedido({ pedidoId, mensajesIniciales, usuarioId, enVivo = true }: Props) {
+export default function ChatPedido({ pedidoId, mensajesIniciales, usuarioId, enVivo = true, llenar = false }: Props) {
   const [mensajes, setMensajes] = useState<PedidoMensaje[]>(() => ordenar(mensajesIniciales ?? []))
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -86,9 +88,12 @@ export default function ChatPedido({ pedidoId, mensajesIniciales, usuarioId, enV
   }
 
   return (
-    <div className="space-y-2">
+    <div className={llenar ? 'flex h-full min-h-0 flex-col gap-2' : 'space-y-2'}>
+      {llenar && mensajes.length === 0 && (
+        <p className="flex flex-1 items-center justify-center text-center text-sm text-muted">Todavía no hay mensajes. Escribí el primero.</p>
+      )}
       {mensajes.length > 0 && (
-        <div ref={listaRef} className="space-y-1.5 max-h-48 overflow-y-auto">
+        <div ref={listaRef} className={`space-y-1.5 overflow-y-auto overscroll-contain ${llenar ? 'min-h-0 flex-1' : 'max-h-48'}`}>
           {mensajes.map(m => {
             const mio = m.autor_id ? m.autor_id === usuarioId : false
             return (
@@ -96,7 +101,7 @@ export default function ChatPedido({ pedidoId, mensajesIniciales, usuarioId, enV
                 <span className="text-2xs text-faint px-1">
                   {mio ? 'Vos' : `${m.autor_nombre} · ${ROL_LABEL[m.autor_rol] ?? m.autor_rol}`}
                 </span>
-                <p className={`max-w-[85%] rounded-xl px-3 py-1.5 text-xs whitespace-pre-wrap break-words ${
+                <p className={`max-w-[85%] rounded-xl px-3 py-1.5 whitespace-pre-wrap break-words ${llenar ? 'text-sm' : 'text-xs'} ${
                   mio ? 'bg-accent-bg text-text border border-accent/30' : 'bg-surface2 text-text border border-border'
                 }`}>
                   {m.texto}

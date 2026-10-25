@@ -12,7 +12,7 @@ import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import EstadoPedidoBadge from '@/components/pedidos/compartido/EstadoPedidoBadge'
 import ItemsPedido from '@/components/pedidos/compartido/ItemsPedido'
 import HistorialEventos from '@/components/pedidos/compartido/HistorialEventos'
-import ChatPedido from '@/components/pedidos/compartido/ChatPedido'
+import BotonChat from '@/components/pedidos/compartido/BotonChat'
 import { MarcaVersionAnterior } from '@/components/pedidos/compartido/AvisoVersionAnterior'
 import RecepcionDiferencias from './RecepcionDiferencias'
 import { fabricaCambio, fechaCorta, nombreDestino } from './utilidades'
@@ -250,6 +250,9 @@ function Contenido({ pedido, usuarioId, versionEventos, modoInicial = 'detalle',
         </div>
       )}
 
+      <BotonChat pedidoId={pedido.id} usuarioId={usuarioId}
+        titulo={pedido.destino === 'fabrica' ? 'Chat con el mayorista' : 'Chat con depósito'} />
+
       <Seccion titulo="Movimientos" icono={IconoHistorial}>
         {errorEventos ? (
           <p className="text-xs text-brand-red">No se pudieron cargar los movimientos. Cerrá y volvé a abrir el pedido.</p>
@@ -258,10 +261,6 @@ function Contenido({ pedido, usuarioId, versionEventos, modoInicial = 'detalle',
         ) : (
           <HistorialEventos eventos={eventos} />
         )}
-      </Seccion>
-
-      <Seccion titulo={pedido.destino === 'fabrica' ? 'Mensajes con el mayorista' : 'Mensajes con depósito'} icono={MessageSquare}>
-        <ChatPedido pedidoId={pedido.id} usuarioId={usuarioId} />
       </Seccion>
 
       {esEditable(pedido.estado) && (

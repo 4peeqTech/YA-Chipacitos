@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import EstadoPedidoBadge from '@/components/pedidos/compartido/EstadoPedidoBadge'
 import ItemsPedido from '@/components/pedidos/compartido/ItemsPedido'
 import HistorialEventos from '@/components/pedidos/compartido/HistorialEventos'
-import ChatPedido from '@/components/pedidos/compartido/ChatPedido'
+import BotonChat from '@/components/pedidos/compartido/BotonChat'
 import { MarcaVersionAnterior } from '@/components/pedidos/compartido/AvisoVersionAnterior'
 import { esCerrado, esEditable, formatoCantidad } from '@/lib/pedidos/estados'
 import {
@@ -29,11 +29,15 @@ interface Props {
   /** Vuelve a leer el pedido y sus eventos después de una acción. */
   onRecargar: (pedidoId: string) => Promise<void>
   toast: { success: (m: string) => void; error: (m: string) => void }
+  /** Mensajes del local sin leer (los cuenta el tablero). */
+  sinLeer: number
+  /** Se abrió el chat: lo que había quedó leído. */
+  onChatVisto: () => void
 }
 
 const seccion = 'text-2xs font-semibold uppercase tracking-wider text-faint'
 
-export default function DetallePedidoModal({ pedido, eventos, productos, usuarioId, onClose, onRecargar, toast }: Props) {
+export default function DetallePedidoModal({ pedido, eventos, productos, usuarioId, onClose, onRecargar, toast, sinLeer, onChatVisto }: Props) {
   // Los ítems se congelan al empezar a editar: el realtime puede traer el
   // pedido actualizado (por ejemplo, el propio guardado) a mitad de camino.
   const [itemsEdicion, setItemsEdicion] = useState<PedidoItem[] | null>(null)
@@ -167,11 +171,9 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
           </div>
 
           <div className="space-y-4 min-w-0">
-            <section className="space-y-2">
-              <h4 className={seccion}>Mensajes</h4>
-              <ChatPedido key={pedido.id} pedidoId={pedido.id} mensajesIniciales={pedido.pedido_mensajes ?? []}
-                usuarioId={usuarioId} enVivo={!esCerrado(pedido.estado)} />
-            </section>
+            <BotonChat key={pedido.id} pedidoId={pedido.id} usuarioId={usuarioId}
+              titulo={`Chat con ${pedido.local_nombre}`} mensajes={pedido.pedido_mensajes ?? []}
+              sinLeer={sinLeer} onVisto={onChatVisto} enVivo={!esCerrado(pedido.estado)} />
             <section className="space-y-2">
               <h4 className={seccion}>Movimientos</h4>
               {eventos ? <HistorialEventos eventos={eventos} /> : (

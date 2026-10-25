@@ -75,7 +75,7 @@ export const local: SeccionManual = {
           pasos: [
             { texto: 'Entrá a **Pedidos**. Arriba elegís **En curso**, **Recibidos**, **Cancelados** o todos, y podés buscar por número o producto, o filtrar por fecha.' },
             { texto: 'Tocá un pedido para ver el detalle: los productos, en qué estado está y los **Movimientos** (quién hizo qué y cuándo).' },
-            { texto: 'Si el mayorista cambió algo antes de mandarlo (otra cantidad, sacó o agregó un producto), el pedido muestra **Fábrica cambió el pedido** y en el detalle ves lo que pediste y lo que se manda.' },
+            { texto: 'Si el mayorista cambió algo antes de mandarlo (otra cantidad, sacó o agregó un producto), el pedido muestra **El mayorista cambió el pedido** y en el detalle ves lo que pediste y lo que se manda.' },
           ],
         },
         { tipo: 'tip', texto: 'La lista se actualiza sola: no hace falta recargar para ver si tu pedido salió.' },
@@ -86,7 +86,7 @@ export const local: SeccionManual = {
       titulo: 'Cancelar un pedido',
       bloques: [
         { tipo: 'parrafo', texto: 'Se puede cancelar hasta que salga en camino. Abrí el pedido, tocá **Cancelar pedido** y, si querés, escribí el motivo. Al mayorista le llega el aviso.' },
-        { tipo: 'alerta', texto: 'Cuando el pedido ya está **En camino** no se puede cancelar: está yendo para tu local. Si hay un problema, avisá por los mensajes del pedido.' },
+        { tipo: 'alerta', texto: 'Cuando el pedido ya está **En camino** no se puede cancelar: está yendo para tu local. Si hay un problema, avisá por el chat del pedido.' },
       ],
     },
     {
@@ -109,7 +109,7 @@ export const local: SeccionManual = {
       ancla: 'mensajes',
       titulo: 'Mensajes dentro del pedido',
       bloques: [
-        { tipo: 'parrafo', texto: 'Dentro de cada pedido tenés **Mensajes con el mayorista**. Podés escribir desde que lo mandaste, por ejemplo para avisar algo urgente o pedir un cambio. Al otro le llega el aviso y los mensajes se ven en vivo.' },
+        { tipo: 'parrafo', texto: 'Dentro de cada pedido está el botón **Chat con el mayorista**: dice cuántos mensajes hay y se pone en rojo con **sin leer** cuando el mayorista te escribió algo que todavía no viste. Tocalo y el chat se abre en su propio panel. Podés escribir desde que mandaste el pedido, por ejemplo para avisar algo urgente o pedir un cambio. Al otro le llega el aviso y los mensajes se ven en vivo.' },
       ],
     },
     {

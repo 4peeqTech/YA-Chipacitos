@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { ChevronUp, History, PackageSearch, Search, Send, ShoppingBasket, Star, Trash2, X } from 'lucide-react'
+import { IconPlus } from '@tabler/icons-react'
 import type { Producto } from '@/lib/types'
 import { crearPedido } from '@/lib/pedidos/acciones'
 import { formatoCantidad } from '@/lib/pedidos/estados'
@@ -65,8 +66,9 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
     .filter((l): l is Linea => !!l.producto && l.producto.activo)
   const cantidadEnCarrito = (id: string) => lineas.find(l => l.producto.id === id)?.cantidad ?? 0
 
-  // "código*cantidad" (ej. 12*1,5) + Enter suma esa cantidad al producto.
-  const atajo = busqueda.trim().match(/^(\d+)\*(\d+(?:[.,]\d*)?)$/)
+  // "código*cantidad" (ej. 12*1,5) + Enter suma esa cantidad al producto. Acepta
+  // espacios y la x en vez del asterisco (en el teclado del iPhone el * está escondido).
+  const atajo = busqueda.trim().match(/^(\d+)\s*[*xX×]\s*(\d+(?:[.,]\d*)?|[.,]\d+)$/)
   const texto = (atajo ? atajo[1] : busqueda.trim()).toLowerCase()
   const esCodigo = /^\d+$/.test(texto)
   const coincide = (p: Producto) => {
@@ -102,6 +104,11 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
   function setNotas(notas: string) {
     actualizarCarrito(c => ({ ...c, notas }))
   }
+
+  // Producto al que se le suma con el atajo (uno solo, con stock) y cuánto.
+  const candidatosAtajo = atajo ? productos.filter(coincide) : []
+  const productoAtajo = candidatosAtajo.length === 1 && candidatosAtajo[0].activo ? candidatosAtajo[0] : null
+  const cantidadAtajo = atajo ? parseCantidad(atajo[2]) : null
 
   function alPresionarEnter() {
     const candidatos = productos.filter(coincide)
@@ -249,6 +256,14 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
               </button>
             )}
           </div>
+          {/* En el celular el Enter no es evidente (el iPhone dice "OK"): el atajo válido se puede tocar. */}
+          {productoAtajo && cantidadAtajo != null && cantidadAtajo > 0 && (
+            <button type="button" onClick={alPresionarEnter}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-accent/60 bg-accent-bg px-3 py-2 text-sm font-semibold text-accent hover:border-accent">
+              <IconPlus size={15} aria-hidden />
+              Sumar {formatoCantidad(cantidadAtajo)} a {productoAtajo.nombre}
+            </button>
+          )}
 
           {productos.length === 0 ? (
             <EmptyState icono={PackageSearch} titulo="No hay productos para pedir" descripcion="El mayorista todavía no cargó productos. Avisale a administración." />
