@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight, History, PackagePlus } from 'lucide-react'
+import { IconChevronRight, IconHistory, IconPackageImport } from '@tabler/icons-react'
 import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
 import Card from '@/components/ui/Card'
@@ -59,7 +59,7 @@ export default function HistorialGlobal({ historial }: { historial: HistorialGlo
   return (
     <div className="space-y-2 pt-2">
       <p className="flex items-center gap-1.5 text-xs font-semibold text-[#888] uppercase tracking-wider px-1">
-        <History size={14} /> Historial de conteos cerrados
+        <IconHistory size={14} /> Historial de conteos cerrados
       </p>
       {historial.length === 0 ? (
         <p className="text-sm text-[#666] px-1">Todavía no hay conteos cerrados.</p>
@@ -78,7 +78,7 @@ export default function HistorialGlobal({ historial }: { historial: HistorialGlo
                 </p>
                 {c.pideMasas && <p className="text-xs text-[#666] mt-0.5">{c.masas_proyectadas} masas proyectadas</p>}
               </div>
-              <ChevronRight size={16} className="text-[#666] shrink-0" />
+              <IconChevronRight size={16} className="text-[#666] shrink-0" />
             </button>
           ))}
         </Card>
@@ -112,7 +112,7 @@ export default function HistorialGlobal({ historial }: { historial: HistorialGlo
                   )}
                   {it.item_id && excesoPorItem.has(it.item_id) ? (
                     <p className="flex items-center justify-end gap-1 text-xs font-semibold text-warning">
-                      <PackagePlus size={12} /> Sobrestock +{formatearNumero(excesoPorItem.get(it.item_id)!, 1)} {it.unidad}
+                      <IconPackageImport size={12} /> Sobrestock +{formatearNumero(excesoPorItem.get(it.item_id)!, 1)} {it.unidad}
                     </p>
                   ) : (
                     <p className={`text-xs font-medium ${it.cantidad_sugerida > 0 ? 'text-red-400' : 'text-[#56d68a]'}`}>

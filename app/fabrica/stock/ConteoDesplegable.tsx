@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Lock, TrendingUp, AlertTriangle, Trash2, TriangleAlert, PackagePlus } from 'lucide-react'
+import { IconAlertTriangle, IconLoader2, IconLock, IconPackageImport, IconTrash, IconTrendingUp } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import { calcularNecesidadYSugerido, calcularSobrestock, type ModoCalculo, type Redondeo } from '@/lib/fabrica/calculoSugerido'
 import { formatearNumero } from '@/lib/formato'
@@ -115,7 +115,11 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
   const enVuelo = useRef(new Set<Promise<boolean>>())
   const [pendientes, setPendientes] = useState(0)
 
-  const hoyIso = new Date().getDay() || 7
+  // Día de la semana en Argentina (1=lun…7=dom). Con getDay(), entre las 21 y las 24
+  // el servidor (UTC) ya estaba en el día siguiente: error de hidratación y "hoy" mal.
+  const hoyIso = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(
+    new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date()),
+  ) + 1
   const esHoy = hoyIso === definicion.diaSemana
   const cerradoEstaSemana = historial[0]?.semana_desde === conteo.semana_desde
   const rechazoPendiente = !cerradoEstaSemana ? definicion.rechazo : null
@@ -285,13 +289,13 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
 
       {!esHoy && (
         <p className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-950/20 border border-amber-900/40 rounded-lg px-3 py-2">
-          <AlertTriangle size={12} /> Este conteo se hace los {DIA_NOMBRE[definicion.diaSemana]}
+          <IconAlertTriangle size={12} /> Este conteo se hace los {DIA_NOMBRE[definicion.diaSemana]}
         </p>
       )}
 
       {rechazoPendiente && (
         <p className="flex items-start gap-2 text-sm text-red-300 bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2.5">
-          <TriangleAlert size={16} className="shrink-0 mt-0.5 text-red-400" />
+          <IconAlertTriangle size={16} className="shrink-0 mt-0.5 text-red-400" />
           <span>
             Compras descartó este conteo. Corregí lo que esté mal y volvé a cerrarlo.
             {rechazoPendiente.motivoDescarte && (
@@ -304,7 +308,7 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
       {definicion.pideMasas && (
         <Card className="p-4 space-y-3">
           <p className="flex items-center gap-1.5 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">
-            <TrendingUp size={14} /> Proyección {formatearFechaConTurno(conteo.semana_desde, definicion.desdeTurno)} → {formatearFechaConTurno(conteo.semana_hasta, definicion.hastaTurno)}
+            <IconTrendingUp size={14} /> Proyección {formatearFechaConTurno(conteo.semana_desde, definicion.desdeTurno)} → {formatearFechaConTurno(conteo.semana_hasta, definicion.hastaTurno)}
           </p>
           <div>
             <label className="flex items-center text-xs text-[#888] mb-1">
@@ -323,13 +327,13 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
 
       {faltantesTotal > 0 && (
         <p className="flex items-center gap-1.5 text-xs text-red-400 px-1">
-          <AlertTriangle size={12} /> {faltantesTotal} ítem{faltantesTotal > 1 ? 's' : ''} por debajo de la necesidad
+          <IconAlertTriangle size={12} /> {faltantesTotal} ítem{faltantesTotal > 1 ? 's' : ''} por debajo de la necesidad
         </p>
       )}
 
       {sobrantes.length > 0 && (
         <p className="flex items-center gap-1.5 text-xs text-warning px-1">
-          <PackagePlus size={12} /> {sobrantes.length} ítem{sobrantes.length > 1 ? 's' : ''} con sobrestock: se le avisa a Compras al cerrar
+          <IconPackageImport size={12} /> {sobrantes.length} ítem{sobrantes.length > 1 ? 's' : ''} con sobrestock: se le avisa a Compras al cerrar
         </p>
       )}
 
@@ -358,7 +362,7 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
                 <p className="text-[10px] text-[#888] font-medium">Sin contar</p>
               ) : sobra ? (
                 <p className="flex items-center gap-1 text-[10px] text-warning font-semibold">
-                  <PackagePlus size={10} /> Sobrestock +{formatearNumero(calc!.exceso!, 1)} {i.unidad}
+                  <IconPackageImport size={10} /> Sobrestock +{formatearNumero(calc!.exceso!, 1)} {i.unidad}
                 </p>
               ) : calc?.aDemanda ? (
                 <p className="text-[10px] text-[#888] font-medium">
@@ -367,7 +371,7 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
               ) : (calc?.necesidad ?? 0) > 0 && (
                 falta ? (
                   <p className="flex items-center gap-1 text-[10px] text-red-400 font-medium">
-                    <AlertTriangle size={10} /> sugerido {calc?.sugeridoUnidades}
+                    <IconAlertTriangle size={10} /> sugerido {calc?.sugeridoUnidades}
                   </p>
                 ) : (
                   <p className="flex items-center gap-1 text-[10px] text-[#56d68a] font-medium">
@@ -386,8 +390,8 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
         className="w-full flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 text-black font-['Syne'] font-bold text-sm py-3.5 rounded-xl transition-all disabled:opacity-50"
       >
         {pendientes > 0
-          ? <><Loader2 size={16} className="animate-spin" /> Guardando lo contado…</>
-          : <><Lock size={16} /> Cerrar control y pedir a Compras</>}
+          ? <><IconLoader2 size={16} className="animate-spin" /> Guardando lo contado…</>
+          : <><IconLock size={16} /> Cerrar control y pedir a Compras</>}
       </button>
 
       <Modal open={confirmando} onClose={() => !cerrando && setConfirmando(false)} title={`Cerrar control — ${definicion.nombre}`} accent="red">
@@ -407,7 +411,7 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
         {sobrantes.length > 0 && (
           <div className="mt-3 rounded-lg border border-warning bg-warning-bg px-3 py-2.5">
             <p className="flex items-center gap-1.5 text-sm font-medium text-warning">
-              <PackagePlus size={14} /> Vas a avisar a Compras que sobran:
+              <IconPackageImport size={14} /> Vas a avisar a Compras que sobran:
             </p>
             <ul className="mt-1 space-y-0.5 text-sm text-text">
               {sobrantes.map(i => (
@@ -445,7 +449,7 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
           onClick={() => setEliminando(true)}
           className="flex items-center gap-1 text-xs text-[#666] hover:text-red-400 transition-colors"
         >
-          <Trash2 size={12} /> Eliminar conteo
+          <IconTrash size={12} /> Eliminar conteo
         </button>
       </div>
 
