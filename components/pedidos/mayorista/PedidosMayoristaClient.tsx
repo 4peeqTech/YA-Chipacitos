@@ -18,7 +18,7 @@ import HojaPreparacion from './HojaPreparacion'
 import { leerVistos, marcarVisto, mensajesSinLeer, notificarNavegador, sonarAviso } from './utiles'
 import { prepararSonido } from '@/lib/sonido'
 
-// Pantalla del mayorista (/fabrica/pedidos): tablero Nuevos / En preparación /
+// Pantalla del mayorista (/mayorista/pedidos): tablero Nuevos / En preparación /
 // En camino, historial paginado y hoja de preparación. Mantiene lo del
 // tablero viejo: realtime con reconexión y resincronización, sonido,
 // notificación del navegador, título que parpadea y PushToggle.

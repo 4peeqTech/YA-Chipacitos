@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import PedidosMayoristaClient from '@/components/pedidos/mayorista/PedidosMayoristaClient'
 import type { Pedido, Producto } from '@/lib/types'
 
-export default async function FabricaPedidosPage() {
+export default async function MayoristaPedidosPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -21,8 +21,8 @@ export default async function FabricaPedidosPage() {
     supabase.rpc('pedidos_inicio_version'),
   ])
 
-  // Pedidos es de mayorista/admin — supervisor_fabrica no entra (ver nav en app/fabrica/layout.tsx).
-  if (!['admin', 'mayorista'].includes(profile?.rol ?? '')) redirect('/fabrica/stock')
+  // Pedidos es de mayorista/admin (el layout ya lo controla; esto cubre un acceso directo).
+  if (!['admin', 'mayorista'].includes(profile?.rol ?? '')) redirect('/login')
 
   const sucursales = [...new Set((locales ?? []).map(l => l.local_nombre as string))].sort((a, b) => a.localeCompare(b, 'es'))
 

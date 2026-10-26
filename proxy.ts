@@ -29,6 +29,15 @@ export async function proxy(request: NextRequest) {
     })
   }
 
+  // El mayorista se mudó a /mayorista (25-10). Las direcciones viejas (favoritos,
+  // notificaciones ya mandadas) redirigen conservando el resto y la query (?pedido=).
+  const mudado = pathname.match(/^\/fabrica\/(pedidos|catalogo)(\/.*)?$/)
+  if (mudado) {
+    const destino = request.nextUrl.clone()
+    destino.pathname = `/mayorista/${mudado[1]}${mudado[2] ?? ''}`
+    return NextResponse.redirect(destino)
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   try {
@@ -124,8 +133,8 @@ export async function proxy(request: NextRequest) {
       local: ['/local', '/ayuda'],
       deposito: ['/deposito', '/ayuda'],
       supervisor_fabrica: ['/fabrica', '/ayuda'],
-      mayorista: ['/fabrica/pedidos', '/fabrica/catalogo', '/ayuda'],
-      admin: ['/admin', '/local', '/deposito', '/fabrica', '/ayuda'],
+      mayorista: ['/mayorista', '/ayuda'],
+      admin: ['/admin', '/local', '/deposito', '/fabrica', '/mayorista', '/ayuda'],
     }
 
     if (rol) {
