@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
-import { Users } from 'lucide-react'
+import { IconUsers } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
 
 export default async function FabricaPersonalPage() {
@@ -25,7 +25,7 @@ export default async function FabricaPersonalPage() {
           {operarios.map(op => (
             <Card key={op.id} className={`p-4 flex items-center gap-3 ${!op.activo ? 'opacity-50' : ''}`}>
               <div className="w-10 h-10 shrink-0 rounded-xl bg-[#1a1a1a] flex items-center justify-center text-[#e8c547]">
-                <Users size={18} />
+                <IconUsers size={18} />
               </div>
               <p className="flex-1 min-w-0 text-sm font-semibold text-[#f0f0f0] truncate">{op.nombre}</p>
               <span className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border shrink-0 ${

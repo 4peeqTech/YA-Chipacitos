@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Undo2, Recycle, Trash2, Save, MessageSquareText } from 'lucide-react'
+import { IconArrowBackUp, IconDeviceFloppy, IconMessage, IconRecycle, IconTrash } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import SelectorDia from '@/components/fabrica/SelectorDia'
 import Card from '@/components/ui/Card'
@@ -188,7 +188,7 @@ export default function DevolucionClient({
     <div className="w-full px-4 py-4 lg:px-8 lg:py-6 space-y-4 max-w-2xl mx-auto">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-['Syne'] font-bold text-[#f0f0f0]">
-          <Undo2 size={20} className="text-[#e8c547]" /> Devolución
+          <IconArrowBackUp size={20} className="text-[#e8c547]" /> Devolución
         </h1>
         <p className="text-[#888] text-xs mt-0.5">Producto devuelto — reinsertá la masa o registrá la pérdida.</p>
       </div>
@@ -258,7 +258,7 @@ export default function DevolucionClient({
                   destino === 'reinsercion' ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-[#1a1a1a] text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'
                 }`}
               >
-                <Recycle size={18} /> Reinserción
+                <IconRecycle size={18} /> Reinserción
               </button>
               <button
                 type="button"
@@ -267,7 +267,7 @@ export default function DevolucionClient({
                   destino === 'perdida' ? 'bg-[#e8c547] text-black border-[#e8c547]' : 'bg-[#1a1a1a] text-[#888] border-[#2a2a2a] hover:text-[#f0f0f0]'
                 }`}
               >
-                <Trash2 size={18} /> Pérdida
+                <IconTrash size={18} /> Pérdida
               </button>
             </div>
             {destino === 'reinsercion' && (
@@ -321,7 +321,7 @@ export default function DevolucionClient({
         disabled={guardando || !motivo}
         className="w-full flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 text-black font-['Syne'] font-bold text-sm py-3.5 rounded-xl transition-all disabled:opacity-40"
       >
-        <Save size={16} /> {guardando ? 'Guardando...' : 'Guardar devolución'}
+        <IconDeviceFloppy size={16} /> {guardando ? 'Guardando...' : 'Guardar devolución'}
       </button>
 
       <div className="space-y-2 pt-2">
@@ -336,9 +336,9 @@ export default function DevolucionClient({
               <div key={d.id} onClick={() => setDetalle(d)} className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-[#1a1a1a] transition-colors">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f0] font-medium flex items-center gap-1.5">
-                    {d.destino === 'reinsercion' ? <Recycle size={13} className="text-[#666]" /> : <Trash2 size={13} className="text-[#666]" />}
+                    {d.destino === 'reinsercion' ? <IconRecycle size={13} className="text-[#666]" /> : <IconTrash size={13} className="text-[#666]" />}
                     {d.saborNombre ? `${d.tamanioNombre} · ${d.saborNombre}` : d.motivoNombre}
-                    {d.notas && <MessageSquareText size={13} className="text-[#e8c547] shrink-0" />}
+                    {d.notas && <IconMessage size={13} className="text-[#e8c547] shrink-0" />}
                   </p>
                   <p className="text-xs text-[#666] mt-0.5">
                     {d.saborNombre
@@ -351,7 +351,7 @@ export default function DevolucionClient({
                   aria-label="Eliminar"
                   className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-red-400 rounded-lg hover:bg-[#1a1a1a] transition-colors"
                 >
-                  <Trash2 size={15} />
+                  <IconTrash size={15} />
                 </button>
               </div>
             ))}
@@ -380,7 +380,7 @@ export default function DevolucionClient({
               <span className="font-semibold">{new Date(detalle.fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}</span> · {detalle.motivoNombre}
             </p>
             <p className="text-sm text-[#888] flex items-center gap-1.5">
-              {detalle.destino === 'reinsercion' ? <Recycle size={14} /> : <Trash2 size={14} />}
+              {detalle.destino === 'reinsercion' ? <IconRecycle size={14} /> : <IconTrash size={14} />}
               {detalle.destino === 'reinsercion' ? 'Reinserción' : 'Pérdida'}
               {detalle.cantidadKg != null && ` · ${detalle.cantidadKg} kg`}
             </p>

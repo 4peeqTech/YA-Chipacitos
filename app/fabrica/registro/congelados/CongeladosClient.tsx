@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Snowflake, Repeat, Trash2, Pencil, ArrowRight, Save, X as XIcon } from 'lucide-react'
+import { IconArrowRight, IconDeviceFloppy, IconPencil, IconRepeat, IconSnowflake, IconTrash, IconX } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import SelectorDia from '@/components/fabrica/SelectorDia'
 import Card from '@/components/ui/Card'
@@ -176,7 +176,7 @@ export default function CongeladosClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-['Syne'] font-bold text-[#f0f0f0]">
-            <Snowflake size={20} className="text-[#e8c547]" /> Congelados
+            <IconSnowflake size={20} className="text-[#e8c547]" /> Congelados
           </h1>
           <p className="text-[#888] text-xs mt-0.5">{editingId ? 'editando carga' : 'nueva carga'}</p>
         </div>
@@ -185,7 +185,7 @@ export default function CongeladosClient({
             onClick={resetFormulario}
             className="flex items-center gap-1 text-xs font-medium text-[#888] hover:text-[#f0f0f0] px-2.5 py-1.5 rounded-full border border-[#2a2a2a] transition-colors"
           >
-            <XIcon size={12} /> Cancelar
+            <IconX size={12} /> Cancelar
           </button>
         )}
       </div>
@@ -249,7 +249,7 @@ export default function CongeladosClient({
             onClick={repetirUltima}
             className="flex items-center justify-center gap-1.5 px-4 py-3.5 rounded-xl text-sm font-semibold text-[#888] hover:text-[#f0f0f0] border border-[#2a2a2a] transition-colors"
           >
-            <Repeat size={15} /> Repetir última
+            <IconRepeat size={15} /> Repetir última
           </button>
         )}
         <button
@@ -257,7 +257,7 @@ export default function CongeladosClient({
           disabled={guardando || !operarioId}
           className="flex-1 flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 text-black font-['Syne'] font-bold text-sm py-3.5 rounded-xl transition-all disabled:opacity-40"
         >
-          <Save size={16} /> {guardando ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Guardar carga'}
+          <IconDeviceFloppy size={16} /> {guardando ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Guardar carga'}
         </button>
       </div>
 
@@ -270,7 +270,7 @@ export default function CongeladosClient({
             href="/fabrica/registro/produccion"
             className="flex items-center gap-1 text-[11px] font-medium text-[#888] hover:text-[#e8c547] transition-colors shrink-0"
           >
-            Ver producción <ArrowRight size={11} />
+            Ver producción <IconArrowRight size={11} />
           </Link>
         </div>
         {congelados.length === 0 ? (
@@ -281,7 +281,7 @@ export default function CongeladosClient({
               <div key={c.id} className="px-4 py-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f0] font-medium flex items-center gap-1.5">
-                    <Snowflake size={13} className="text-[#666]" />
+                    <IconSnowflake size={13} className="text-[#666]" />
                     {nombreTamanio(c.tamanioId)} · {nombreSabor(c.saborId)}
                   </p>
                   <p className="text-xs text-[#666] mt-0.5">
@@ -294,14 +294,14 @@ export default function CongeladosClient({
                   aria-label="Editar"
                   className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-[#e8c547] rounded-lg hover:bg-[#1a1a1a] transition-colors"
                 >
-                  <Pencil size={15} />
+                  <IconPencil size={15} />
                 </button>
                 <button
                   onClick={() => setAEliminar(c)}
                   aria-label="Eliminar"
                   className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-red-400 rounded-lg hover:bg-[#1a1a1a] transition-colors"
                 >
-                  <Trash2 size={15} />
+                  <IconTrash size={15} />
                 </button>
               </div>
             ))}

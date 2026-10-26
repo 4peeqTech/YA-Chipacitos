@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckCircle2, TriangleAlert, XCircle, Target } from 'lucide-react'
+import { IconAlertTriangle, IconCircleCheck, IconCircleX, IconTarget } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
 import type { CumplimientoSemana } from '@/lib/fabrica/reportes'
 
@@ -20,10 +20,10 @@ function formatMasas(n: number) {
 }
 
 function estadoCumplimiento(pct: number | null) {
-  if (pct == null) return { label: 'Sin proyección', tone: 'text-[#666]', Icon: Target }
-  if (pct >= 90) return { label: `${pct.toFixed(0)}% cumplido`, tone: 'text-[#56d68a]', Icon: CheckCircle2 }
-  if (pct >= 70) return { label: `${pct.toFixed(0)}% cumplido`, tone: 'text-amber-400', Icon: TriangleAlert }
-  return { label: `${pct.toFixed(0)}% cumplido`, tone: 'text-red-400', Icon: XCircle }
+  if (pct == null) return { label: 'Sin proyección', tone: 'text-[#666]', Icon: IconTarget }
+  if (pct >= 90) return { label: `${pct.toFixed(0)}% cumplido`, tone: 'text-[#56d68a]', Icon: IconCircleCheck }
+  if (pct >= 70) return { label: `${pct.toFixed(0)}% cumplido`, tone: 'text-amber-400', Icon: IconAlertTriangle }
+  return { label: `${pct.toFixed(0)}% cumplido`, tone: 'text-red-400', Icon: IconCircleX }
 }
 
 function Fila({

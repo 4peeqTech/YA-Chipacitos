@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
+import { IconArrowDown, IconArrowUp, IconSelector } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
 import { ordenarProduccionFilas, type ColumnaProduccion, type ProduccionFila } from '@/lib/fabrica/reportes'
 import { rendimientoFeculaMasa } from '@/lib/fabrica/rendimiento'
@@ -66,7 +66,7 @@ export default function ProduccionTabla({ filas }: { filas: ProduccionFila[] }) 
           <tr className="border-b border-[#2a2a2a]">
             {COLUMNAS.map(c => {
               const activa = columna === c.key
-              const Icon = !activa ? ChevronsUpDown : asc ? ArrowUp : ArrowDown
+              const Icon = !activa ? IconSelector : asc ? IconArrowUp : IconArrowDown
               return (
                 <th key={c.key} className={`px-3 py-2.5 font-semibold text-xs ${c.numerica ? 'text-right' : 'text-left'}`}>
                   <button

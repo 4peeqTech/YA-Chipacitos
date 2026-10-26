@@ -2,10 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import {
-  Factory, Repeat, Trash2, Pencil, ArrowRight,
-  Package, Snowflake, Save, X as XIcon,
-} from 'lucide-react'
+import { IconArrowRight, IconBuildingFactory2, IconDeviceFloppy, IconPackage, IconPencil, IconRepeat, IconSnowflake, IconTrash, IconX } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import { masaDesdeFecula } from '@/lib/fabrica/rendimiento'
 import SelectorDia from '@/components/fabrica/SelectorDia'
@@ -39,7 +36,10 @@ export interface ProduccionTurno {
 }
 
 function turnoActualPorHora(): Turno {
-  return new Date().getHours() < 13 ? 'manana' : 'tarde'
+  // Hora de Argentina fija: el servidor (Vercel) corre en UTC y, con getHours(), el
+  // turno del render del servidor no coincidía con el del navegador (error de hidratación).
+  const hora = Number(new Intl.DateTimeFormat('es-AR', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date()))
+  return hora < 13 ? 'manana' : 'tarde'
 }
 
 const chipBase = 'px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border'
@@ -222,7 +222,7 @@ export default function ProduccionClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-['Syne'] font-bold text-[#f0f0f0]">
-            <Factory size={20} className="text-[#e8c547]" /> Producción
+            <IconBuildingFactory2 size={20} className="text-[#e8c547]" /> Producción
           </h1>
           <p className="text-[#888] text-xs mt-0.5">{editingId ? 'editando carga' : 'nueva carga'}</p>
         </div>
@@ -231,7 +231,7 @@ export default function ProduccionClient({
             onClick={resetFormulario}
             className="flex items-center gap-1 text-xs font-medium text-[#888] hover:text-[#f0f0f0] px-2.5 py-1.5 rounded-full border border-[#2a2a2a] transition-colors"
           >
-            <XIcon size={12} /> Cancelar
+            <IconX size={12} /> Cancelar
           </button>
         )}
       </div>
@@ -262,10 +262,10 @@ export default function ProduccionClient({
           <p className="text-xs text-[#888] mb-1.5">Destino</p>
           <div className="flex gap-2">
             <Chip active={destino === 'masa_locales'} onClick={() => setDestino('masa_locales')}>
-              <span className="flex items-center gap-1.5"><Package size={13} /> Masa a locales</span>
+              <span className="flex items-center gap-1.5"><IconPackage size={13} /> Masa a locales</span>
             </Chip>
             <Chip active={destino === 'congelado_embolsado'} onClick={() => setDestino('congelado_embolsado')}>
-              <span className="flex items-center gap-1.5"><Snowflake size={13} /> Congelado</span>
+              <span className="flex items-center gap-1.5"><IconSnowflake size={13} /> Congelado</span>
             </Chip>
           </div>
         </div>
@@ -320,7 +320,7 @@ export default function ProduccionClient({
             onClick={repetirUltima}
             className="flex items-center justify-center gap-1.5 px-4 py-3.5 rounded-xl text-sm font-semibold text-[#888] hover:text-[#f0f0f0] border border-[#2a2a2a] transition-colors"
           >
-            <Repeat size={15} /> Repetir última
+            <IconRepeat size={15} /> Repetir última
           </button>
         )}
         <button
@@ -328,7 +328,7 @@ export default function ProduccionClient({
           disabled={guardando || !operarioId}
           className="flex-1 flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 text-black font-['Syne'] font-bold text-sm py-3.5 rounded-xl transition-all disabled:opacity-40"
         >
-          <Save size={16} /> {guardando ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Guardar carga'}
+          <IconDeviceFloppy size={16} /> {guardando ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Guardar carga'}
         </button>
       </div>
 
@@ -342,7 +342,7 @@ export default function ProduccionClient({
               href="/fabrica/registro/congelados"
               className="flex items-center gap-1 text-[11px] font-medium text-[#888] hover:text-[#e8c547] transition-colors shrink-0"
             >
-              Ver congelados <ArrowRight size={11} />
+              Ver congelados <IconArrowRight size={11} />
             </Link>
           )}
         </div>
@@ -354,7 +354,7 @@ export default function ProduccionClient({
               <div key={p.id} className="px-4 py-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f0] font-medium flex items-center gap-1.5">
-                    {p.destino === 'congelado_embolsado' ? <Snowflake size={13} className="text-[#666]" /> : <Package size={13} className="text-[#666]" />}
+                    {p.destino === 'congelado_embolsado' ? <IconSnowflake size={13} className="text-[#666]" /> : <IconPackage size={13} className="text-[#666]" />}
                     {p.saborNombre}
                   </p>
                   <p className="text-xs text-[#666] mt-0.5">
@@ -368,14 +368,14 @@ export default function ProduccionClient({
                   aria-label="Editar"
                   className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-[#e8c547] rounded-lg hover:bg-[#1a1a1a] transition-colors"
                 >
-                  <Pencil size={15} />
+                  <IconPencil size={15} />
                 </button>
                 <button
                   onClick={() => setAEliminar(p)}
                   aria-label="Eliminar"
                   className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-red-400 rounded-lg hover:bg-[#1a1a1a] transition-colors"
                 >
-                  <Trash2 size={15} />
+                  <IconTrash size={15} />
                 </button>
               </div>
             ))}

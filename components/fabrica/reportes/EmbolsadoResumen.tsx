@@ -1,17 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { CalendarDays, Package, IceCreamCone, Ruler, User } from 'lucide-react'
+import { IconCalendar, IconIceCream, IconPackage, IconRuler, IconUser } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
 import { agruparEmbolsado, ordenarResumen, ordenInicial, type AgrupacionEmbolsado, type EmbolsadoFila, type OrdenResumen } from '@/lib/fabrica/reportes'
 import OrdenSelector from './OrdenSelector'
 
 const DIMENSIONES: { key: AgrupacionEmbolsado; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
-  { key: 'fecha', label: 'Día', icon: CalendarDays },
-  { key: 'presentacionNombre', label: 'Presentación', icon: Package },
-  { key: 'saborNombre', label: 'Sabor', icon: IceCreamCone },
-  { key: 'tamanioNombre', label: 'Tamaño', icon: Ruler },
-  { key: 'operarioNombre', label: 'Operario', icon: User },
+  { key: 'fecha', label: 'Día', icon: IconCalendar },
+  { key: 'presentacionNombre', label: 'Presentación', icon: IconPackage },
+  { key: 'saborNombre', label: 'Sabor', icon: IconIceCream },
+  { key: 'tamanioNombre', label: 'Tamaño', icon: IconRuler },
+  { key: 'operarioNombre', label: 'Operario', icon: IconUser },
 ]
 
 function formatClave(dimension: AgrupacionEmbolsado, clave: string) {
