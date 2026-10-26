@@ -21,8 +21,8 @@ export default async function MayoristaPedidosPage() {
     supabase.rpc('pedidos_inicio_version'),
   ])
 
-  // Pedidos es de mayorista/admin (el layout ya lo controla; esto cubre un acceso directo).
-  if (!['admin', 'mayorista'].includes(profile?.rol ?? '')) redirect('/login')
+  // Pedidos es del mayorista (el layout ya lo controla; esto cubre un acceso directo).
+  if (profile?.rol !== 'mayorista') redirect('/login')
 
   const sucursales = [...new Set((locales ?? []).map(l => l.local_nombre as string))].sort((a, b) => a.localeCompare(b, 'es'))
 

@@ -5,7 +5,7 @@ import {
   Package, Link2, Users, Shield, ClipboardList, CreditCard, Factory,
   Truck, ShoppingBasket, ListTodo, Boxes,
 } from 'lucide-react'
-import { IconPackages, IconTruckDelivery } from '@tabler/icons-react'
+import { IconTruckDelivery } from '@tabler/icons-react'
 
 export interface Modulo {
   key: string
@@ -29,9 +29,9 @@ export const MODULOS: Modulo[] = [
   { key: 'resumen',           label: 'Resumen por local',  icon: <BarChart3 size={16} />, href: '/admin/resumen',           section: 'Gastos' },
   { key: 'fudo',               label: 'Fudo / Caja',        icon: <Landmark size={16} />, href: '/admin/fudo',              section: 'Gastos' },
 
-  // Las pantallas del mayorista (/mayorista). Solo admin: los roles con módulos no entran a /mayorista.
-  { key: 'mayorista_pedidos',  label: 'Pedidos de locales', icon: <IconTruckDelivery size={16} />, href: '/mayorista/pedidos',  section: 'Mayorista', soloAdmin: true },
-  { key: 'mayorista_catalogo', label: 'Catálogo y stock',   icon: <IconPackages size={16} />,      href: '/mayorista/catalogo', section: 'Mayorista', soloAdmin: true },
+  // Pedidos de los locales al mayorista, solo para consultar (26-10). El tablero y el
+  // stock son del rol mayorista en /mayorista; el catálogo, en Parámetros → Catálogo.
+  { key: 'pedidos_locales', label: 'Pedidos de locales', icon: <IconTruckDelivery size={16} />, href: '/admin/pedidos', section: 'Mayorista', soloAdmin: true },
   { key: 'importar',     label: 'Sincronizar',  icon: <RefreshCw size={16} />, href: '/admin/importar',     section: 'Mayorista' },
   { key: 'posberry',     label: 'Ventas Posberry', icon: <TrendingUp size={16} />, href: '/admin/posberry',     section: 'Mayorista' },
   { key: 'conciliacion', label: 'Conciliación',   icon: <BarChart3 size={16} />, href: '/admin/conciliacion', section: 'Mayorista' },

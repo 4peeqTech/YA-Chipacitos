@@ -20,6 +20,8 @@ interface Props {
   enVivo?: boolean
   /** Ocupa todo el alto disponible (panel del chat): la lista crece y el campo queda abajo. */
   llenar?: boolean
+  /** Sin campo para escribir (el admin mira la conversación entre el local y el mayorista). */
+  soloLectura?: boolean
 }
 
 const ROL_LABEL: Record<string, string> = {
@@ -34,7 +36,7 @@ function agregar(prev: PedidoMensaje[], m: PedidoMensaje) {
   return prev.some(x => x.id === m.id) ? prev : ordenar([...prev, m])
 }
 
-export default function ChatPedido({ pedidoId, mensajesIniciales, usuarioId, enVivo = true, llenar = false }: Props) {
+export default function ChatPedido({ pedidoId, mensajesIniciales, usuarioId, enVivo = true, llenar = false, soloLectura = false }: Props) {
   const [mensajes, setMensajes] = useState<PedidoMensaje[]>(() => ordenar(mensajesIniciales ?? []))
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -92,6 +94,7 @@ export default function ChatPedido({ pedidoId, mensajesIniciales, usuarioId, enV
       {llenar && mensajes.length === 0 && (
         <p className="flex flex-1 items-center justify-center text-center text-sm text-muted">Todavía no hay mensajes. Escribí el primero.</p>
       )}
+      {soloLectura && !llenar && mensajes.length === 0 && !error && <p className="text-sm text-muted">No hubo mensajes en este pedido.</p>}
       {mensajes.length > 0 && (
         <div ref={listaRef} className={`space-y-1.5 overflow-y-auto overscroll-contain ${llenar ? 'min-h-0 flex-1' : 'max-h-48'}`}>
           {mensajes.map(m => {
@@ -119,7 +122,7 @@ export default function ChatPedido({ pedidoId, mensajesIniciales, usuarioId, enV
         </p>
       )}
 
-      <div className="flex gap-1.5">
+      {!soloLectura && <div className="flex gap-1.5">
         <input
           value={texto}
           onChange={e => setTexto(e.target.value)}
@@ -137,7 +140,7 @@ export default function ChatPedido({ pedidoId, mensajesIniciales, usuarioId, enV
         >
           <Send size={14} />
         </button>
-      </div>
+      </div>}
     </div>
   )
 }

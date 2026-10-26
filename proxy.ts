@@ -134,7 +134,8 @@ export async function proxy(request: NextRequest) {
       deposito: ['/deposito', '/ayuda'],
       supervisor_fabrica: ['/fabrica', '/ayuda'],
       mayorista: ['/mayorista', '/ayuda'],
-      admin: ['/admin', '/local', '/deposito', '/fabrica', '/mayorista', '/ayuda'],
+      // /mayorista es solo del mayorista (26-10): el admin consulta los pedidos en /admin/pedidos.
+      admin: ['/admin', '/local', '/deposito', '/fabrica', '/ayuda'],
     }
 
     if (rol) {

@@ -15,7 +15,8 @@ export default async function MayoristaLayout({ children }: { children: React.Re
   const { data: profile } = await supabase
     .from('profiles').select('nombre, rol, modulos_permitidos').eq('id', user.id).single()
 
-  if (!['mayorista', 'admin'].includes(profile?.rol ?? '')) redirect('/login')
+  // Solo el mayorista (26-10): el admin consulta los pedidos en /admin/pedidos.
+  if (profile?.rol !== 'mayorista') redirect('/login')
 
   const navItems = [
     { href: '/mayorista/pedidos',  label: 'Pedidos',  icon: <IconTruckDelivery size={20} /> },

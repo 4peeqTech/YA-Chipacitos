@@ -11,6 +11,7 @@ import EstadoPedidoBadge from '@/components/pedidos/compartido/EstadoPedidoBadge
 import ItemsPedido from '@/components/pedidos/compartido/ItemsPedido'
 import HistorialEventos from '@/components/pedidos/compartido/HistorialEventos'
 import BotonChat from '@/components/pedidos/compartido/BotonChat'
+import ChatPedido from '@/components/pedidos/compartido/ChatPedido'
 import { MarcaVersionAnterior } from '@/components/pedidos/compartido/AvisoVersionAnterior'
 import { esCerrado, esEditable, formatoCantidad } from '@/lib/pedidos/estados'
 import {
@@ -33,11 +34,13 @@ interface Props {
   sinLeer: number
   /** Se abrió el chat: lo que había quedó leído. */
   onChatVisto: () => void
+  /** Reporte del admin: sin editar, enviar ni cancelar, y el chat sin poder escribir. */
+  soloLectura?: boolean
 }
 
 const seccion = 'text-2xs font-semibold uppercase tracking-wider text-faint'
 
-export default function DetallePedidoModal({ pedido, eventos, productos, usuarioId, onClose, onRecargar, toast, sinLeer, onChatVisto }: Props) {
+export default function DetallePedidoModal({ pedido, eventos, productos, usuarioId, onClose, onRecargar, toast, sinLeer, onChatVisto, soloLectura = false }: Props) {
   // Los ítems se congelan al empezar a editar: el realtime puede traer el
   // pedido actualizado (por ejemplo, el propio guardado) a mitad de camino.
   const [itemsEdicion, setItemsEdicion] = useState<PedidoItem[] | null>(null)
@@ -49,7 +52,7 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
   const { confirmar, dialog } = useConfirm()
 
   const items = pedido.pedido_items ?? []
-  const editable = esEditable(pedido.estado)
+  const editable = !soloLectura && esEditable(pedido.estado)
   const editando = editable && itemsEdicion !== null
   const salen = items.filter(i => cantidadAEnviar(i) > 0)
 
@@ -171,9 +174,17 @@ export default function DetallePedidoModal({ pedido, eventos, productos, usuario
           </div>
 
           <div className="space-y-4 min-w-0">
-            <BotonChat key={pedido.id} pedidoId={pedido.id} usuarioId={usuarioId}
-              titulo={`Chat con ${pedido.local_nombre}`} mensajes={pedido.pedido_mensajes ?? []}
-              sinLeer={sinLeer} onVisto={onChatVisto} enVivo={!esCerrado(pedido.estado)} />
+            {soloLectura ? (
+              <section className="space-y-2">
+                <h4 className={seccion}>Chat entre el local y el mayorista</h4>
+                <ChatPedido key={pedido.id} pedidoId={pedido.id} usuarioId={usuarioId}
+                  mensajesIniciales={pedido.pedido_mensajes ?? []} enVivo={!esCerrado(pedido.estado)} soloLectura />
+              </section>
+            ) : (
+              <BotonChat key={pedido.id} pedidoId={pedido.id} usuarioId={usuarioId}
+                titulo={`Chat con ${pedido.local_nombre}`} mensajes={pedido.pedido_mensajes ?? []}
+                sinLeer={sinLeer} onVisto={onChatVisto} enVivo={!esCerrado(pedido.estado)} />
+            )}
             <section className="space-y-2">
               <h4 className={seccion}>Movimientos</h4>
               {eventos ? <HistorialEventos eventos={eventos} /> : (
