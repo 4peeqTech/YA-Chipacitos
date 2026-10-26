@@ -1,14 +1,24 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Layers3, Palette, Ruler } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import {
+  IconBuildingFactory2, IconDownload, IconLayersSubtract, IconPackage, IconPlus, IconSearch, IconTrash, IconUpload,
+} from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import { Producto, TipoProducto, DestinoProducto } from '@/lib/types'
-import Card from '@/components/ui/Card'
 import HelpTooltip from '@/components/ui/HelpTooltip'
+import Modal from '@/components/ui/Modal'
+import SearchInput from '@/components/ui/SearchInput'
+import EmptyState from '@/components/ui/EmptyState'
+import { useConfirm } from '@/components/ui/ConfirmDialog'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { Puntos } from '@/components/ui/Cargando'
 import SelectorIcono from '@/components/pedidos/SelectorIcono'
-import { estiloProducto } from '@/lib/pedidos/categorias'
+import { estiloProducto, ordenCategoria } from '@/lib/pedidos/categorias'
+
+// Catálogo de productos (admin). Grilla de tarjetas por categoría: cada producto se
+// reconoce por su ícono; se toca la tarjeta para editarlo. "Agregar" y el CSV quedan
+// arriba, siempre a mano (antes había que bajar hasta el final de la lista).
 
 interface Parametro { id: string; nombre: string }
 interface PresentacionParametro extends Parametro { pesoKg: number }
@@ -34,54 +44,59 @@ const CATEGORIAS = [
   'Vasos Café Ya!',
 ]
 
+const SIN_CATEGORIA = 'Sin categoría'
+
 const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto, categoria: '', precio: '', codigo: '', presentacion_id: '', sabor_id: '', tamanio_id: '', icono: '' }
+type FormProducto = typeof FORM_VACIO
 
 function mensajeErrorProducto(error: { code?: string; message: string }) {
   if (error.code === '23505') return 'Ya existe un producto con esa combinación de presentación, sabor y tamaño.'
   return error.message || 'No se pudo guardar el producto.'
 }
 
-export default function AdminCatalogoClient({ productosIniciales, mapeos, sabores, presentaciones, tamanios }: Props) {
-  const mapeosPorProductoId = mapeos.reduce<Record<string, string[]>>((acc, m) => {
-    if (m.producto_id) {
-      if (!acc[m.producto_id]) acc[m.producto_id] = []
-      acc[m.producto_id].push(m.nombre_posberry)
-    }
+const campo = 'w-full rounded-field border border-border bg-surface2 px-3 py-2 text-sm text-text focus:border-accent focus:outline-none'
+const etiqueta = 'mb-1.5 block text-xs font-medium text-muted'
+
+// sabores, presentaciones y tamanios llegan para la terna (oculta por ahora).
+export default function AdminCatalogoClient({ productosIniciales, mapeos }: Props) {
+  const mapeosPorProductoId = useMemo(() => mapeos.reduce<Record<string, string[]>>((acc, m) => {
+    if (m.producto_id) (acc[m.producto_id] ??= []).push(m.nombre_posberry)
     return acc
-  }, {})
+  }, {}), [mapeos])
   const [productos, setProductos] = useState(productosIniciales)
   const [tab, setTab] = useState<DestinoProducto>('fabrica')
-  const [modalNuevo, setModalNuevo] = useState(false)
-  const [editando, setEditando] = useState<Producto | null>(null)
-  const [form, setForm] = useState(FORM_VACIO)
-  const [formEdit, setFormEdit] = useState({ nombre: '', descripcion: '', unidad: '', categoria: '', precio: '', codigo: '', presentacion_id: '', sabor_id: '', tamanio_id: '', icono: '' })
+  const [busqueda, setBusqueda] = useState('')
+  const [categoria, setCategoria] = useState<string | null>(null)
+  // null = cerrado; 'nuevo' = agregar; Producto = editar ese.
+  const [modal, setModal] = useState<'nuevo' | Producto | null>(null)
+  const [form, setForm] = useState<FormProducto>(FORM_VACIO)
   const [guardando, setGuardando] = useState(false)
   const [errorForm, setErrorForm] = useState<string | null>(null)
-  const [eliminando, setEliminando] = useState<Producto | null>(null)
   const [importando, setImportando] = useState(false)
   const [importMsg, setImportMsg] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const inputCsvRef = useRef<HTMLInputElement>(null)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const toast = useToasts()
+  const { confirmar, dialog } = useConfirm()
 
+  const delTab = productos.filter(p => p.destino === tab)
+  const activos = delTab.filter(p => p.activo).length
+  const esFabrica = tab === 'fabrica'
+  const nombreTipo = esFabrica ? 'producto' : 'insumo'
+
+  // ── CSV (igual que antes) ──────────────────────────────────────────────
   function csvCell(v: string | number | null | undefined) {
     return `"${String(v ?? '').replace(/"/g, '""')}"`
   }
 
   function descargarCSV() {
     const cabecera = ['codigo', 'nombre', 'descripcion', 'unidad', 'tipo', 'destino', 'categoria', 'precio', 'activo']
-    const filas = filtrados.map(p => [
-      csvCell(p.codigo),
-      csvCell(p.nombre),
-      csvCell(p.descripcion),
-      csvCell(p.unidad),
-      csvCell(p.tipo),
-      csvCell(p.destino),
-      csvCell(p.categoria),
-      csvCell(p.precio),
-      csvCell(p.activo ? 'true' : 'false'),
+    const filas = delTab.map(p => [
+      csvCell(p.codigo), csvCell(p.nombre), csvCell(p.descripcion), csvCell(p.unidad), csvCell(p.tipo),
+      csvCell(p.destino), csvCell(p.categoria), csvCell(p.precio), csvCell(p.activo ? 'true' : 'false'),
     ].join(','))
     const csv = [cabecera.map(csvCell).join(','), ...filas].join('\r\n')
+    // BOM: así Excel abre bien los acentos.
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -127,14 +142,13 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
     try {
       const text = await file.text()
       const rows = parsearCSV(text).filter(r => r.nombre)
-
       let creados = 0, actualizados = 0, errores = 0
       for (const row of rows) {
         const payload = {
           nombre: row.nombre,
           descripcion: row.descripcion || null,
           unidad: row.unidad || 'unidad',
-          tipo: (row.tipo as TipoProducto) || (tab === 'fabrica' ? 'producto' : 'insumo'),
+          tipo: (row.tipo as TipoProducto) || (esFabrica ? 'producto' : 'insumo'),
           destino: (row.destino as DestinoProducto) || tab,
           categoria: row.categoria || null,
           precio: row.precio ? parseFloat(row.precio.replace(',', '.')) : null,
@@ -160,9 +174,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
     if (inputCsvRef.current) inputCsvRef.current.value = ''
   }
 
-  const filtrados = productos.filter(p => p.destino === tab)
-  const activos = filtrados.filter(p => p.activo).length
-
+  // ── Acciones ───────────────────────────────────────────────────────────
   async function toggleActivo(producto: Producto) {
     const { data, error } = await supabase
       .from('productos').update({ activo: !producto.activo }).eq('id', producto.id).select().single()
@@ -170,373 +182,337 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos, sabore
     else if (error) toast.error(`No se pudo ${producto.activo ? 'desactivar' : 'activar'} ${producto.nombre}. Probá de nuevo.`)
   }
 
-  async function agregar() {
-    if (!form.nombre) return
-    setGuardando(true)
+  function abrirNuevo() {
+    setForm({ ...FORM_VACIO, destino: tab, tipo: esFabrica ? 'producto' : 'insumo', categoria: categoria && categoria !== SIN_CATEGORIA ? categoria : '' })
     setErrorForm(null)
-    const { data, error } = await supabase
-      .from('productos').insert({
-        ...form,
-        precio: form.precio ? parseFloat(form.precio.replace(',', '.')) : null,
-        codigo: form.codigo ? parseInt(form.codigo) : null,
-        presentacion_id: form.presentacion_id || null,
-        sabor_id: form.sabor_id || null,
-        tamanio_id: form.tamanio_id || null,
-        icono: form.icono || null,
-        activo: true,
-      }).select().single()
-    if (data) { setProductos(prev => [...prev, data]); setModalNuevo(false); setForm({ ...FORM_VACIO, destino: tab, tipo: tab === 'fabrica' ? 'producto' : 'insumo' }) }
-    else if (error) setErrorForm(mensajeErrorProducto(error))
-    setGuardando(false)
+    setModal('nuevo')
   }
 
   function abrirEdicion(p: Producto) {
-    setEditando(p)
+    setForm({
+      nombre: p.nombre, descripcion: p.descripcion ?? '', unidad: p.unidad, tipo: p.tipo, destino: p.destino,
+      categoria: p.categoria ?? '', precio: p.precio != null ? String(p.precio) : '', codigo: p.codigo != null ? String(p.codigo) : '',
+      presentacion_id: p.presentacion_id ?? '', sabor_id: p.sabor_id ?? '', tamanio_id: p.tamanio_id ?? '', icono: p.icono ?? '',
+    })
     setErrorForm(null)
-    setFormEdit({
-      nombre: p.nombre, descripcion: p.descripcion ?? '', unidad: p.unidad, categoria: p.categoria ?? '',
-      precio: p.precio != null ? String(p.precio) : '', codigo: p.codigo != null ? String(p.codigo) : '',
-      presentacion_id: p.presentacion_id ?? '', sabor_id: p.sabor_id ?? '', tamanio_id: p.tamanio_id ?? '',
-      icono: p.icono ?? '',
+    setModal(p)
+  }
+
+  function cerrarModal() { if (!guardando) setModal(null) }
+
+  async function guardar() {
+    if (!form.nombre.trim() || !modal) return
+    setGuardando(true)
+    setErrorForm(null)
+    const comunes = {
+      nombre: form.nombre.trim(), descripcion: form.descripcion.trim() || null, unidad: form.unidad,
+      categoria: form.categoria || null,
+      precio: form.precio ? parseFloat(form.precio.replace(',', '.')) : null,
+      codigo: form.codigo ? parseInt(form.codigo) : null,
+      presentacion_id: form.presentacion_id || null,
+      sabor_id: form.sabor_id || null,
+      tamanio_id: form.tamanio_id || null,
+      icono: form.icono || null,
+    }
+    const { data, error } = modal === 'nuevo'
+      ? await supabase.from('productos').insert({ ...comunes, tipo: form.tipo, destino: form.destino, activo: true }).select().single()
+      : await supabase.from('productos').update(comunes).eq('id', modal.id).select().single()
+    setGuardando(false)
+    if (error || !data) { setErrorForm(mensajeErrorProducto(error ?? { message: '' })); return }
+    setProductos(prev => modal === 'nuevo' ? [...prev, data] : prev.map(p => p.id === data.id ? data : p))
+    toast.success(modal === 'nuevo' ? `${data.nombre} agregado.` : `${data.nombre} guardado.`)
+    setModal(null)
+  }
+
+  function pedirEliminar(p: Producto) {
+    confirmar({
+      titulo: `Eliminar ${p.nombre}`,
+      mensaje: 'Se borra del catálogo. Si ya tiene pedidos no se puede borrar: en ese caso, desactivalo.',
+      textoConfirmar: 'Sí, eliminar',
+      peligroso: true,
+      onConfirmar: async () => {
+        setGuardando(true)
+        const { error } = await supabase.from('productos').delete().eq('id', p.id)
+        setGuardando(false)
+        if (!error) {
+          setProductos(prev => prev.filter(x => x.id !== p.id))
+          setModal(null)
+          toast.success(`${p.nombre} eliminado.`)
+        } else if (error.code === '23503') {
+          // FK: el producto ya aparece en pedidos (u otra tabla), borrarlo rompería ese historial.
+          toast.error(`${p.nombre} ya tiene pedidos cargados y no se puede borrar. Desactivalo para que no se pueda pedir más.`)
+        } else {
+          toast.error(`No se pudo eliminar ${p.nombre}. Probá de nuevo.`)
+        }
+      },
     })
   }
 
-  async function guardarEdicion() {
-    if (!editando || !formEdit.nombre) return
-    setGuardando(true)
-    setErrorForm(null)
-    const { data, error } = await supabase
-      .from('productos')
-      .update({
-        nombre: formEdit.nombre, descripcion: formEdit.descripcion, unidad: formEdit.unidad,
-        categoria: formEdit.categoria || null,
-        precio: formEdit.precio ? parseFloat(formEdit.precio.replace(',', '.')) : null,
-        codigo: formEdit.codigo ? parseInt(formEdit.codigo) : null,
-        presentacion_id: formEdit.presentacion_id || null,
-        sabor_id: formEdit.sabor_id || null,
-        tamanio_id: formEdit.tamanio_id || null,
-        icono: formEdit.icono || null,
-      })
-      .eq('id', editando.id).select().single()
-    if (data) { setProductos(prev => prev.map(p => p.id === data.id ? data : p)); setEditando(null) }
-    else if (error) setErrorForm(mensajeErrorProducto(error))
-    setGuardando(false)
-  }
+  // ── Filtros y grupos ───────────────────────────────────────────────────
+  const categoriasTab = useMemo(
+    () => [...new Set(delTab.map(p => p.categoria || SIN_CATEGORIA))]
+      .sort((a, b) => ordenCategoria(a) - ordenCategoria(b) || a.localeCompare(b, 'es')),
+    [delTab],
+  )
+  const q = busqueda.trim().toLowerCase()
+  const visibles = delTab.filter(p =>
+    (!categoria || (p.categoria || SIN_CATEGORIA) === categoria) &&
+    (!q || p.nombre.toLowerCase().includes(q) || (p.codigo != null && String(p.codigo).includes(q))),
+  )
+  const grupos = categoriasTab
+    .map(c => ({
+      categoria: c,
+      productos: visibles.filter(p => (p.categoria || SIN_CATEGORIA) === c)
+        .sort((a, b) => (a.codigo ?? Infinity) - (b.codigo ?? Infinity) || a.nombre.localeCompare(b.nombre, 'es')),
+    }))
+    .filter(g => g.productos.length > 0)
 
-  async function eliminarProducto() {
-    if (!eliminando) return
-    setGuardando(true)
-    const { error } = await supabase.from('productos').delete().eq('id', eliminando.id)
-    if (!error) {
-      setProductos(prev => prev.filter(p => p.id !== eliminando.id))
-      toast.success(`${eliminando.nombre} eliminado.`)
-    } else if (error.code === '23503') {
-      // FK: el producto ya aparece en pedidos (u otra tabla), borrarlo rompería ese historial.
-      toast.error(`${eliminando.nombre} ya tiene pedidos cargados y no se puede borrar. Desactivalo para que no se pueda pedir más.`)
-    } else {
-      toast.error(`No se pudo eliminar ${eliminando.nombre}. Probá de nuevo.`)
-    }
-    setEliminando(null)
-    setGuardando(false)
-  }
-
-  function abrirNuevo() {
-    setForm({ ...FORM_VACIO, destino: tab, tipo: tab === 'fabrica' ? 'producto' : 'insumo' })
-    setErrorForm(null)
-    setModalNuevo(true)
-  }
-
-  function nombreParametro(lista: Parametro[], id: string | null) {
-    return lista.find(x => x.id === id)?.nombre ?? null
-  }
-
-  function TernaSelects({ value, onChange }: { value: { presentacion_id: string; sabor_id: string; tamanio_id: string }; onChange: (v: Partial<typeof value>) => void }) {
-    return (
-      <div className="rounded-xl bg-[#161616] border border-[#2a2a2a] p-3 space-y-2.5">
-        <p className="flex items-center gap-1.5 text-xs font-semibold text-[#e8c547] uppercase tracking-wider">
-          <Layers3 size={13} /> Terna de producto terminado
-          <HelpTooltip text="Solo para productos que salen del embolsado de Fábrica (Fase 4/5). Al asignar la misma combinación que carga una línea de embolsado, ese producto empieza a sumar stock terminado automáticamente." />
-        </p>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="flex items-center gap-1 text-[10px] text-[#888] mb-1"><Layers3 size={11} /> Presentación</label>
-            <select value={value.presentacion_id} onChange={e => onChange({ presentacion_id: e.target.value })}
-              className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-2 text-xs text-[#f0f0f0] focus:outline-none focus:border-[#e8c547]">
-              <option value="">Sin asignar</option>
-              {presentaciones.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="flex items-center gap-1 text-[10px] text-[#888] mb-1"><Palette size={11} /> Sabor</label>
-            <select value={value.sabor_id} onChange={e => onChange({ sabor_id: e.target.value })}
-              className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-2 text-xs text-[#f0f0f0] focus:outline-none focus:border-[#e8c547]">
-              <option value="">Sin asignar</option>
-              {sabores.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="flex items-center gap-1 text-[10px] text-[#888] mb-1"><Ruler size={11} /> Tamaño</label>
-            <select value={value.tamanio_id} onChange={e => onChange({ tamanio_id: e.target.value })}
-              className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-2 text-xs text-[#f0f0f0] focus:outline-none focus:border-[#e8c547]">
-              <option value="">Sin asignar</option>
-              {tamanios.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-            </select>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const editando = modal && modal !== 'nuevo' ? modal : null
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="font-['Syne'] font-bold text-xl text-[#f0f0f0]">Catálogo de productos</h1>
-        <p className="text-xs text-[#888] mt-1">Gestioná los productos y insumos disponibles para pedidos.</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2">
-        {(['fabrica', 'deposito'] as DestinoProducto[]).map(d => (
-          <button
-            key={d}
-            onClick={() => setTab(d)}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${tab === d ? 'bg-[#e8c547] text-black' : 'bg-[#1a1a1a] text-[#888] hover:text-[#f0f0f0]'}`}
-          >
-            {d === 'fabrica' ? '🚚 Fábrica' : '📦 Depósito'}
-          </button>
-        ))}
-      </div>
-
-      {/* CSV */}
-      <div className="flex gap-2 flex-wrap items-center">
-        <button onClick={descargarCSV}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-xs text-[#e8c547] hover:border-[#e8c547]/40 transition-colors">
-          ↓ Descargar CSV
-        </button>
-        <label className={`flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-xs text-[#f0f0f0] hover:border-[#e8c547]/40 transition-colors cursor-pointer ${importando ? 'opacity-50 pointer-events-none' : ''}`}>
-          ↑ {importando ? 'Importando...' : 'Subir CSV'}
-          <input ref={inputCsvRef} type="file" accept=".csv" className="hidden" onChange={subirCSV} />
-        </label>
-        {importMsg && (
-          <span className={`text-xs ${importMsg.tipo === 'ok' ? 'text-[#56d68a]' : 'text-red-400'}`}>
-            {importMsg.texto}
-          </span>
-        )}
-      </div>
-
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[11px] font-semibold text-[#e8c547] uppercase tracking-wider">
-            {tab === 'fabrica' ? 'Productos' : 'Insumos'} · {tab === 'fabrica' ? 'Fábrica' : 'Depósito'}
-          </p>
-          <span className="text-[11px] text-[#888]">{activos} activos de {filtrados.length}</span>
-        </div>
-        <Card>
-          {filtrados.length === 0 ? (
-            <p className="text-xs text-[#888] text-center py-6">Sin {tab === 'fabrica' ? 'productos' : 'insumos'} en el catálogo.</p>
-          ) : (
-            filtrados.map((p, i) => (
-              <div key={p.id} className={`flex items-center gap-2 px-3 py-3 ${i < filtrados.length - 1 ? 'border-b border-[#2a2a2a]' : ''}`}>
-                {tab === 'fabrica' && <IconoFila producto={p} />}
-                {p.codigo != null && (
-                  <span className="shrink-0 w-8 text-center text-[11px] font-bold text-[#e8c547] bg-[#e8c547]/10 rounded-md py-0.5">{p.codigo}</span>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-medium ${p.activo ? 'text-[#f0f0f0]' : 'text-[#555]'}`}>{p.nombre}</p>
-                  <p className="text-[11px] text-[#555] mt-0.5 flex flex-wrap items-center gap-1">
-                    <span>{p.unidad}</span>
-                    {p.categoria ? <span className="px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#e8c547] text-[10px] font-medium">{p.categoria}</span> : null}
-                    {p.precio != null ? <span className="text-[#56d68a]">${p.precio.toLocaleString('es-AR')}</span> : null}
-                    {p.descripcion ? <span>· {p.descripcion}</span> : null}
-                  </p>
-                  {/* Terna presentación/sabor/tamaño — oculta junto con Fase 5/6 de Fábrica, no entregadas todavía.
-                  {p.presentacion_id && (
-                    <p className="mt-1 flex items-center gap-1 text-[10px] text-[#888]">
-                      <Layers3 size={10} className="text-[#e8c547]" />
-                      {[nombreParametro(presentaciones, p.presentacion_id), nombreParametro(sabores, p.sabor_id), nombreParametro(tamanios, p.tamanio_id)].filter(Boolean).join(' · ')}
-                    </p>
-                  )}
-                  */}
-                  {(mapeosPorProductoId[p.id] || []).length > 0 && (
-                    <p className="text-[10px] text-[#555] mt-0.5 flex flex-wrap gap-1">
-                      <span className="text-[#444]">Posberry:</span>
-                      {mapeosPorProductoId[p.id].map(n => (
-                        <span key={n} className="px-1.5 py-0.5 rounded bg-[#1a1a1a] border border-[#2a2a2a] text-[#777]">{n}</span>
-                      ))}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => abrirEdicion(p)}
-                  className="text-[#444] hover:text-[#e8c547] transition-colors text-xs px-1.5 py-1 rounded shrink-0"
-                  title="Editar"
-                >
-                  ✏️
-                </button>
-                <button
-                  onClick={() => setEliminando(p)}
-                  className="text-[#444] hover:text-red-500 transition-colors text-xs px-1.5 py-1 rounded shrink-0"
-                  title="Eliminar"
-                >
-                  🗑️
-                </button>
-                <button
-                  onClick={() => toggleActivo(p)}
-                  className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${p.activo ? 'bg-[#e8c547]' : 'bg-[#2a2a2a]'}`}
-                >
-                  <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full shadow transition-all ${p.activo ? 'right-[3px] bg-black' : 'left-[3px] bg-[#888]'}`} />
-                </button>
-              </div>
-            ))
-          )}
-        </Card>
-      </div>
-
-      <button
-        onClick={abrirNuevo}
-        className="w-full border border-dashed border-[#e8c547]/30 text-[#e8c547] rounded-lg py-2.5 text-xs font-medium hover:bg-[#e8c547]/5 transition-colors"
-      >
-        + Agregar {tab === 'fabrica' ? 'producto' : 'insumo'}
-      </button>
-
-      {modalNuevo && (
-        <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50">
-          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-t-2xl w-full max-w-lg p-5 space-y-3 max-h-[90dvh] overflow-y-auto">
-            <h3 className="font-['Syne'] font-bold text-sm text-[#f0f0f0]">
-              Nuevo {tab === 'fabrica' ? 'producto' : 'insumo'} · {tab === 'fabrica' ? 'Fábrica' : 'Depósito'}
-            </h3>
-            {[
-              { label: 'Código', key: 'codigo', placeholder: '1', type: 'number' },
-              { label: 'Nombre *', key: 'nombre', placeholder: tab === 'fabrica' ? 'Chipacitos clásicos' : 'Harina de mandioca 1kg', type: 'text' },
-              { label: 'Descripción', key: 'descripcion', placeholder: 'Descripción opcional', type: 'text' },
-              { label: 'Unidad', key: 'unidad', placeholder: 'unidad, kg, bolsa...', type: 'text' },
-              { label: 'Precio', key: 'precio', placeholder: '0.00', type: 'number' },
-            ].map(({ label, key, placeholder, type }) => (
-              <div key={key}>
-                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">{label}</label>
-                <input type={type} value={(form as Record<string, string>)[key]}
-                  onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                  placeholder={placeholder} min={type === 'number' ? '0' : undefined} step={key === 'precio' ? '0.01' : '1'} />
-              </div>
-            ))}
-            <div>
-              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Categoría</label>
-              <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
-                className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2 text-xs text-[#f0f0f0] focus:outline-none focus:border-[#e8c547]">
-                <option value="">Sin categoría</option>
-                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            {tab === 'fabrica' && (
-              <div>
-                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Ícono</label>
-                <SelectorIcono valor={form.icono} onCambiar={icono => setForm(f => ({ ...f, icono }))}
-                  nombre={form.nombre} categoria={form.categoria || null} />
-              </div>
-            )}
-            {/* Terna presentación/sabor/tamaño — oculta junto con Fase 5/6 de Fábrica, no entregadas todavía.
-            {tab === 'fabrica' && (
-              <TernaSelects value={form} onChange={v => setForm(f => ({ ...f, ...v }))} />
-            )}
-            */}
-            {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => setModalNuevo(false)}
-                className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-xs font-medium text-[#888] hover:text-[#f0f0f0]">
-                Cancelar
-              </button>
-              <button onClick={agregar} disabled={guardando || !form.nombre}
-                className="flex-1 py-2.5 bg-[#e8c547] text-black rounded-xl text-xs font-['Syne'] font-bold disabled:opacity-40">
-                {guardando ? 'Guardando...' : 'Agregar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {eliminando && (
-        <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50">
-          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-red-500 rounded-t-2xl w-full max-w-lg p-5 space-y-3">
-            <h3 className="font-['Syne'] font-bold text-sm text-[#f0f0f0]">Eliminar producto</h3>
-            <p className="text-xs text-[#888]">
-              ¿Estás seguro que querés eliminar <span className="text-[#f0f0f0] font-medium">{eliminando.nombre}</span>? Esta acción no se puede deshacer.
-            </p>
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => setEliminando(null)}
-                className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-xs font-medium text-[#888] hover:text-[#f0f0f0]">
-                Cancelar
-              </button>
-              <button onClick={eliminarProducto} disabled={guardando}
-                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-xs font-['Syne'] font-bold disabled:opacity-40 hover:bg-red-500 transition-colors">
-                {guardando ? 'Eliminando...' : 'Eliminar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editando && (
-        <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50">
-          <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e8c547] rounded-t-2xl w-full max-w-lg p-5 space-y-3 max-h-[90dvh] overflow-y-auto">
-            <h3 className="font-['Syne'] font-bold text-sm text-[#f0f0f0]">Editar producto</h3>
-            {[
-              { label: 'Código', key: 'codigo', type: 'number' },
-              { label: 'Nombre *', key: 'nombre', type: 'text' },
-              { label: 'Descripción', key: 'descripcion', type: 'text' },
-              { label: 'Unidad', key: 'unidad', type: 'text' },
-              { label: 'Precio', key: 'precio', type: 'number' },
-            ].map(({ label, key, type }) => (
-              <div key={key}>
-                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">{label}</label>
-                <input type={type} value={(formEdit as Record<string, string>)[key]}
-                  onChange={e => setFormEdit(f => ({ ...f, [key]: e.target.value }))}
-                  min={type === 'number' ? '0' : undefined} step={key === 'precio' ? '0.01' : '1'} />
-              </div>
-            ))}
-            <div>
-              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Categoría</label>
-              <select value={formEdit.categoria} onChange={e => setFormEdit(f => ({ ...f, categoria: e.target.value }))}
-                className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2 text-xs text-[#f0f0f0] focus:outline-none focus:border-[#e8c547]">
-                <option value="">Sin categoría</option>
-                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            {editando.destino === 'fabrica' && (
-              <div>
-                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Ícono</label>
-                <SelectorIcono valor={formEdit.icono} onCambiar={icono => setFormEdit(f => ({ ...f, icono }))}
-                  nombre={formEdit.nombre} categoria={formEdit.categoria || null} />
-              </div>
-            )}
-            {/* Terna presentación/sabor/tamaño — oculta junto con Fase 5/6 de Fábrica, no entregadas todavía.
-            {editando.destino === 'fabrica' && (
-              <TernaSelects value={formEdit} onChange={v => setFormEdit(f => ({ ...f, ...v }))} />
-            )}
-            */}
-            {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => setEditando(null)}
-                className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-xs font-medium text-[#888] hover:text-[#f0f0f0]">
-                Cancelar
-              </button>
-              <button onClick={guardarEdicion} disabled={guardando || !formEdit.nombre}
-                className="flex-1 py-2.5 bg-[#e8c547] text-black rounded-xl text-xs font-['Syne'] font-bold disabled:opacity-40">
-                {guardando ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
+
+      {/* Encabezado: título y acciones siempre a mano */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-['Syne'] text-xl font-bold text-text">Catálogo de productos</h1>
+          <p className="mt-1 text-xs text-muted">Los productos de fábrica (los que piden los locales) y los insumos de depósito.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={descargarCSV} title="Descargar CSV"
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-medium text-muted hover:border-accent/50 hover:text-text">
+            <IconDownload size={15} aria-hidden /> <span className="hidden sm:inline">Descargar</span> CSV
+          </button>
+          <label title="Subir CSV"
+            className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-medium text-muted hover:border-accent/50 hover:text-text ${importando ? 'pointer-events-none opacity-60' : ''}`}>
+            {importando ? <><Puntos /> Importando</> : <><IconUpload size={15} aria-hidden /> <span className="hidden sm:inline">Subir</span> CSV</>}
+            <input ref={inputCsvRef} type="file" accept=".csv" className="hidden" onChange={subirCSV} />
+          </label>
+          <button type="button" onClick={abrirNuevo}
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-bold text-black hover:opacity-90">
+            <IconPlus size={16} aria-hidden /> Agregar {nombreTipo}
+          </button>
+        </div>
+      </div>
+      {importMsg && (
+        <p role="status" className={`text-xs ${importMsg.tipo === 'ok' ? 'text-success' : 'text-brand-red'}`}>{importMsg.texto}</p>
+      )}
+
+      {/* Fábrica / Depósito + búsqueda */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="tablist" aria-label="Catálogo" className="flex shrink-0 gap-1 rounded-xl border border-border bg-surface p-1">
+          {(['fabrica', 'deposito'] as DestinoProducto[]).map(d => {
+            const activa = tab === d
+            const Icono = d === 'fabrica' ? IconBuildingFactory2 : IconPackage
+            const n = productos.filter(p => p.destino === d).length
+            return (
+              <button key={d} type="button" role="tab" aria-selected={activa}
+                onClick={() => { setTab(d); setCategoria(null) }}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${activa ? 'bg-accent text-black' : 'text-muted hover:bg-surface2 hover:text-text'}`}>
+                <Icono size={15} aria-hidden /> {d === 'fabrica' ? 'Fábrica' : 'Depósito'}
+                <span className={`rounded-full px-1.5 text-2xs font-bold ${activa ? 'bg-black/15' : 'bg-surface2'}`}>{n}</span>
+              </button>
+            )
+          })}
+        </div>
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre o código…" className="min-w-[12rem] flex-1" />
+        <span className="text-xs text-faint">{activos} activos de {delTab.length}</span>
+      </div>
+
+      {/* Categorías */}
+      {categoriasTab.length > 1 && (
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Categoría">
+          {categoriasTab.map(c => {
+            const activa = categoria === c
+            return (
+              <button key={c} type="button" aria-pressed={activa} onClick={() => setCategoria(activa ? null : c)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${activa ? 'border-accent bg-accent text-black' : 'border-border bg-surface2 text-muted hover:text-text'}`}>
+                {c}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Grilla por categoría */}
+      {grupos.length === 0 ? (
+        <div className="rounded-card border border-border bg-surface">
+          <EmptyState icono={IconSearch}
+            titulo={delTab.length === 0 ? `Todavía no hay ${nombreTipo}s en el catálogo` : 'No hay productos con esa búsqueda'}
+            descripcion={delTab.length === 0 ? `Tocá "Agregar ${nombreTipo}" para cargar el primero.` : 'Probá con otra palabra o sacá el filtro de categoría.'} />
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {grupos.map(g => (
+            <section key={g.categoria} aria-label={g.categoria} className="space-y-2.5">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                {g.categoria} <span className="font-normal normal-case tracking-normal text-faint">· {g.productos.length}</span>
+              </h2>
+              <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                {g.productos.map(p => (
+                  <TarjetaProducto key={p.id} producto={p} esFabrica={esFabrica} posberry={mapeosPorProductoId[p.id]?.length ?? 0}
+                    onAbrir={() => abrirEdicion(p)} onToggle={() => toggleActivo(p)} />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {/* Agregar / editar */}
+      <Modal open={modal !== null} onClose={cerrarModal} size="lg"
+        title={editando ? `Editar ${nombreTipo}` : `Nuevo ${nombreTipo} · ${esFabrica ? 'Fábrica' : 'Depósito'}`}>
+        <form onSubmit={e => { e.preventDefault(); guardar() }} className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[8rem_1fr]">
+            <label className="block">
+              <span className={etiqueta}>Código</span>
+              <input type="number" min="0" step="1" inputMode="numeric" value={form.codigo}
+                onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))} className={campo} placeholder="1" />
+            </label>
+            <label className="block">
+              <span className={etiqueta}>Nombre *</span>
+              <input type="text" required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+                className={campo} placeholder={esFabrica ? 'MASA CLÁSICO Kg.' : 'Harina de mandioca 1 kg'} autoFocus={modal === 'nuevo'} />
+            </label>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label className="block">
+              <span className={etiqueta}>Categoría</span>
+              <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))} className={campo}>
+                <option value="">Sin categoría</option>
+                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className={etiqueta}>Unidad</span>
+              <input type="text" value={form.unidad} onChange={e => setForm(f => ({ ...f, unidad: e.target.value }))}
+                className={campo} placeholder="Kg., unidad, bolsa…" />
+            </label>
+            <label className="block">
+              <span className={etiqueta}>Precio</span>
+              <input type="text" inputMode="decimal" value={form.precio} onChange={e => setForm(f => ({ ...f, precio: e.target.value }))}
+                className={campo} placeholder="0,00" />
+            </label>
+          </div>
+          <label className="block">
+            <span className={etiqueta}>Descripción</span>
+            <input type="text" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
+              className={campo} placeholder="Opcional" />
+          </label>
+
+          {form.destino === 'fabrica' && (
+            <div>
+              <span className={etiqueta}>Ícono</span>
+              <SelectorIcono valor={form.icono} onCambiar={icono => setForm(f => ({ ...f, icono }))}
+                nombre={form.nombre} categoria={form.categoria || null} />
+            </div>
+          )}
+
+          {editando && (mapeosPorProductoId[editando.id] ?? []).length > 0 && (
+            <div>
+              <span className={etiqueta}>En Posberry se vende como</span>
+              <div className="flex flex-wrap gap-1">
+                {mapeosPorProductoId[editando.id].map(n => (
+                  <span key={n} className="rounded-md border border-border bg-surface2 px-2 py-0.5 text-2xs text-muted">{n}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Terna presentación/sabor/tamaño — oculta junto con Fase 5/6 de Fábrica, no entregadas todavía.
+          {form.destino === 'fabrica' && <TernaSelects value={form} onChange={v => setForm(f => ({ ...f, ...v }))} presentaciones={presentaciones} sabores={sabores} tamanios={tamanios} />}
+          */}
+
+          {errorForm && <p role="alert" className="text-xs text-brand-red">{errorForm}</p>}
+
+          <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center">
+            {editando && (
+              <button type="button" onClick={() => pedirEliminar(editando)} disabled={guardando}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted hover:border-brand-red/50 hover:text-brand-red disabled:opacity-40 sm:mr-auto">
+                <IconTrash size={16} aria-hidden /> Eliminar
+              </button>
+            )}
+            <button type="button" onClick={cerrarModal} disabled={guardando}
+              className={`rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted hover:text-text ${editando ? '' : 'sm:ml-auto'}`}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={guardando || !form.nombre.trim()}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-black hover:opacity-90 disabled:opacity-40">
+              {guardando ? <><Puntos /> Guardando</> : editando ? 'Guardar' : `Agregar ${nombreTipo}`}
+            </button>
+          </div>
+        </form>
+      </Modal>
+      {/* Después del modal del producto: la confirmación de eliminar tiene que quedar encima. */}
+      {dialog}
     </div>
   )
 }
 
-function IconoFila({ producto }: { producto: Producto }) {
-  const { icono: Icono, clase } = estiloProducto(producto)
+// La terna (presentación/sabor/tamaño) está oculta hasta las fases 5/6 de Fábrica;
+// se deja el componente para volver a mostrarla sin rehacerlo.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function TernaSelects({ value, onChange, presentaciones, sabores, tamanios }: {
+  value: { presentacion_id: string; sabor_id: string; tamanio_id: string }
+  onChange: (v: Partial<{ presentacion_id: string; sabor_id: string; tamanio_id: string }>) => void
+  presentaciones: Parametro[]
+  sabores: Parametro[]
+  tamanios: Parametro[]
+}) {
   return (
-    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${clase} ${producto.activo ? '' : 'opacity-50'}`} aria-hidden>
-      <Icono size={15} />
-    </span>
+    <div className="space-y-2.5 rounded-xl border border-border bg-surface2 p-3">
+      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent">
+        <IconLayersSubtract size={13} /> Terna de producto terminado
+        <HelpTooltip text="Solo para productos que salen del embolsado de Fábrica (Fase 4/5). Al asignar la misma combinación que carga una línea de embolsado, ese producto empieza a sumar stock terminado automáticamente." />
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {([['presentacion_id', 'Presentación', presentaciones], ['sabor_id', 'Sabor', sabores], ['tamanio_id', 'Tamaño', tamanios]] as const).map(([k, l, lista]) => (
+          <label key={k} className="block">
+            <span className="mb-1 block text-2xs text-muted">{l}</span>
+            <select value={value[k]} onChange={e => onChange({ [k]: e.target.value })} className={campo}>
+              <option value="">Sin asignar</option>
+              {lista.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+            </select>
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function TarjetaProducto({ producto: p, esFabrica, posberry, onAbrir, onToggle }: {
+  producto: Producto
+  esFabrica: boolean
+  posberry: number
+  onAbrir: () => void
+  onToggle: () => void
+}) {
+  const { icono: Icono, clase } = esFabrica ? estiloProducto(p) : { icono: IconPackage, clase: 'bg-zinc-400/15 text-zinc-300' }
+  const detalle = [p.unidad, p.precio != null ? `$ ${p.precio.toLocaleString('es-AR')}` : null].filter(Boolean).join(' · ')
+  return (
+    <li className="relative">
+      {/* Toda la tarjeta abre la edición; el interruptor de activo va aparte, encima. */}
+      <button type="button" onClick={onAbrir} aria-label={`Editar ${p.nombre}`}
+        className={`flex h-full w-full flex-col gap-2 rounded-card border border-border bg-surface p-3 text-left transition-colors hover:border-accent/60 ${p.activo ? '' : 'opacity-60'}`}>
+        <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${clase}`} aria-hidden>
+          <Icono size={20} />
+        </span>
+        <span className="min-w-0">
+          {p.codigo != null && <span className="block text-xs font-bold tabular-nums text-accent">#{p.codigo}</span>}
+          <span className="line-clamp-2 text-sm font-semibold leading-snug text-text">{p.nombre}</span>
+        </span>
+        <span className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-muted">
+          {detalle && <span>{detalle}</span>}
+          {posberry > 0 && <span className="text-faint">Posberry: {posberry}</span>}
+          {!p.activo && <span className="font-semibold text-warning">Inactivo</span>}
+        </span>
+      </button>
+      <button type="button" role="switch" aria-checked={p.activo} onClick={onToggle}
+        aria-label={`${p.nombre}: ${p.activo ? 'activo' : 'inactivo'}`} title={p.activo ? 'Activo (tocá para desactivar)' : 'Inactivo (tocá para activar)'}
+        className={`absolute right-3 top-3 h-6 w-11 rounded-full transition-colors ${p.activo ? 'bg-success' : 'bg-border'}`}>
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] ${p.activo ? 'left-[22px]' : 'left-0.5'}`} />
+      </button>
+    </li>
   )
 }
