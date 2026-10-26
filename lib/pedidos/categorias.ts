@@ -121,6 +121,17 @@ export function iconoAutomatico(p: { nombre: string; categoria: string | null })
   return (p.categoria && CATEGORIAS[p.categoria]?.icono) || null
 }
 
+/**
+ * De dónde sale el ícono automático, para explicarlo en pantalla: "por la
+ * categoría Productos Ya!" (congelados, o el nombre no dice nada reconocible) o
+ * "por el nombre". null = no hay (va el genérico).
+ */
+export function motivoIconoAutomatico(p: { nombre: string; categoria: string | null }): 'categoria' | 'nombre' | null {
+  if (p.categoria && CONGELADOS.has(p.categoria)) return 'categoria'
+  if (PALABRAS.some(([re]) => re.test(normalizar(p.nombre)))) return 'nombre'
+  return p.categoria && CATEGORIAS[p.categoria] ? 'categoria' : null
+}
+
 export interface EstiloProducto {
   icono: Icon
   clase: string

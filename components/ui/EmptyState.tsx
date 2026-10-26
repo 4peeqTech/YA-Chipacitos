@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react'
-import type { LucideIcon } from 'lucide-react'
+import type { ComponentType, ReactNode } from 'react'
 
 /** Vacío obligatorio de listados — pasar un mensaje distinto para "sin datos" vs
  * "sin resultados por filtros" (ver DoD #6); antes era un <p> de texto plano copiado ~20 veces. */
@@ -9,7 +8,8 @@ export default function EmptyState({
   descripcion,
   accion,
 }: {
-  icono: LucideIcon
+  /** Ícono de lucide o de Tabler (la librería de la app desde el 23-10). */
+  icono: ComponentType<{ size?: number | string; className?: string }>
   titulo: string
   descripcion?: string
   accion?: ReactNode
