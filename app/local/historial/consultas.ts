@@ -4,7 +4,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Pedido } from '@/lib/types'
 
-export const SELECT_PEDIDO = '*, pedido_items(*)'
+// Los mensajes van para el "N sin leer" de la tarjeta.
+export const SELECT_PEDIDO = '*, pedido_items(*), pedido_mensajes(*)'
 export const ESTADOS_EN_CURSO = ['pendiente', 'preparando', 'enviado'] as const
 export const ESTADOS_CERRADOS = ['recibido', 'cancelado'] as const
 export const PAGINA = 20

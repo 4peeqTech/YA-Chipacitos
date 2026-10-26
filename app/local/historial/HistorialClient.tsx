@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarDays, ChevronRight, ClipboardList, Pencil, Plus, SearchX, TriangleAlert, Truck } from 'lucide-react'
+import { IconMessageCircle } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
-import type { Pedido, PedidoEvento } from '@/lib/types'
+import type { Pedido, PedidoEvento, PedidoMensaje } from '@/lib/types'
 import { useRefrescarAlVolver } from '@/lib/hooks/useRefrescarAlVolver'
 import SearchInput from '@/components/ui/SearchInput'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
@@ -14,6 +15,7 @@ import { Chip } from '@/components/ui/Chip'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/ProveedorUI'
 import EstadoPedidoBadge from '@/components/pedidos/compartido/EstadoPedidoBadge'
+import { contarSinLeer, leerVistos } from '@/components/pedidos/compartido/BotonChat'
 import AvisoVersionAnterior, { MarcaVersionAnterior } from '@/components/pedidos/compartido/AvisoVersionAnterior'
 import DetallePedido from './DetallePedido'
 import { buscarPedidosCerrados } from './acciones'
@@ -99,6 +101,10 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
   }
   const [pedidoSuelto, setPedidoSuelto] = useState<Pedido | null>(null)
   const [versionEventos, setVersionEventos] = useState<Record<string, number>>({})
+  // Hasta cuándo se vio el chat de cada pedido (lo guarda el chat del detalle en este
+  // dispositivo). null hasta leerlo: así no aparece "sin leer" de más al cargar.
+  const [vistos, setVistos] = useState<Record<string, number> | null>(null)
+  useEffect(() => { setVistos(leerVistos()) }, []) // eslint-disable-line react-hooks/set-state-in-effect -- localStorage: solo en el navegador
 
   const estadoCerrados: FiltroCerrados = filtro === 'recibido' || filtro === 'cancelado' ? filtro : 'todos'
   const clave = `${estadoCerrados}|${q.trim()}|${desde}|${hasta}`
@@ -203,6 +209,16 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
         // El número de "en camino" del menú lo arma el layout.
         if (ev.tipo === 'enviado' || ev.tipo === 'recibido' || ev.tipo === 'recibido_con_diferencias') router.refresh()
       })
+      // Mensajes nuevos para el "sin leer" de las tarjetas. La tabla no tiene local_id
+      // para filtrar acá: RLS solo manda los de mis pedidos, y se suman a los cargados.
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedido_mensajes' }, payload => {
+        if (!activo) return
+        const m = payload.new as PedidoMensaje
+        const agregar = (p: Pedido) => p.id !== m.pedido_id || (p.pedido_mensajes ?? []).some(x => x.id === m.id)
+          ? p : { ...p, pedido_mensajes: [...(p.pedido_mensajes ?? []), m] }
+        setEnCurso(prev => prev.map(agregar))
+        setCerrados(prev => prev.map(agregar))
+      })
       .subscribe(estado => { if (activo && estado === 'CHANNEL_ERROR') router.refresh() })
     return () => { activo = false; supabase.removeChannel(canal) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,6 +252,7 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
 
   function cerrarDetalle() {
     setAbierto(null)
+    setVistos(leerVistos()) // si se abrió el chat, la tarjeta deja de marcar "sin leer"
     // Que recargar la página no lo vuelva a abrir. replaceState (integrado al router de
     // Next) saca el ?pedido= sin volver a pedir la página: router.replace la releía entera
     // y en el tablero la dirección quedaba sin cambiar.
@@ -330,6 +347,7 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
             <TarjetaPedido
               key={p.id}
               pedido={p}
+              sinLeer={vistos ? contarSinLeer(p.pedido_mensajes ?? [], usuarioId, vistos[p.id] ?? 0) : 0}
               onAbrir={() => setAbierto({ id: p.id, modo: 'detalle' })}
             />
           ))}
@@ -362,7 +380,7 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
   )
 }
 
-function TarjetaPedido({ pedido, onAbrir }: { pedido: Pedido; onAbrir: () => void }) {
+function TarjetaPedido({ pedido, sinLeer, onAbrir }: { pedido: Pedido; sinLeer: number; onAbrir: () => void }) {
   const cambio = fabricaCambio(pedido)
   const n = cantidadProductos(pedido)
   const enCamino = pedido.estado === 'enviado'
@@ -389,8 +407,14 @@ function TarjetaPedido({ pedido, onAbrir }: { pedido: Pedido; onAbrir: () => voi
         </div>
       </div>
 
-      {(cambio || pedido.recepcion_con_diferencias || pedido.version_anterior || pedido.cierre_automatico) && (
+      {(sinLeer > 0 || cambio || pedido.recepcion_con_diferencias || pedido.version_anterior || pedido.cierre_automatico) && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
+          {sinLeer > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-accent-bg px-2 py-0.5 text-2xs font-semibold text-accent">
+              <IconMessageCircle size={11} aria-hidden />
+              {sinLeer === 1 ? '1 mensaje sin leer' : `${sinLeer} mensajes sin leer`}
+            </span>
+          )}
           {cambio && (
             <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-2xs font-semibold text-warning">
               <Pencil size={11} aria-hidden />
