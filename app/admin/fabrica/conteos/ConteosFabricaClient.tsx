@@ -48,7 +48,8 @@ function formatearFecha(fecha: string) {
 }
 
 function formatearFechaHora(iso: string) {
-  return new Date(iso).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  // Hora de Argentina fija: sin timeZone, el servidor (UTC) y el navegador mostraban horas distintas.
+  return new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 export default function ConteosFabricaClient({ conteosIniciales }: { conteosIniciales: ConteoHistorial[] }) {

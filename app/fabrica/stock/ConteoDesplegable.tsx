@@ -108,7 +108,11 @@ export default function ConteoDesplegable({ definicion, usuarioId, umbralSobrest
   const [borrando, setBorrando] = useState(false)
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
-  const hoyIso = new Date().getDay() || 7
+  // Día de la semana en Argentina (1=lun…7=dom). Con getDay(), entre las 21 y las 24
+  // el servidor (UTC) ya estaba en el día siguiente: error de hidratación y "hoy" mal.
+  const hoyIso = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(
+    new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date()),
+  ) + 1
   const esHoy = hoyIso === definicion.diaSemana
   const cerradoEstaSemana = historial[0]?.semana_desde === conteo.semana_desde
   const rechazoPendiente = !cerradoEstaSemana ? definicion.rechazo : null
