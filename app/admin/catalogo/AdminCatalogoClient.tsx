@@ -46,7 +46,7 @@ const CATEGORIAS = [
 
 const SIN_CATEGORIA = 'Sin categoría'
 
-const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto, categoria: '', precio: '', codigo: '', presentacion_id: '', sabor_id: '', tamanio_id: '', icono: '' }
+const FORM_VACIO = { nombre: '', descripcion: '', unidad: 'unidad', tipo: 'producto' as TipoProducto, destino: 'fabrica' as DestinoProducto, categoria: '', precio: '', codigo: '', presentacion_id: '', sabor_id: '', tamanio_id: '', icono: '', activo: true }
 type FormProducto = typeof FORM_VACIO
 
 function mensajeErrorProducto(error: { code?: string; message: string }) {
@@ -67,6 +67,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
   const [tab, setTab] = useState<DestinoProducto>('fabrica')
   const [busqueda, setBusqueda] = useState('')
   const [categoria, setCategoria] = useState<string | null>(null)
+  const [estado, setEstado] = useState<'todos' | 'activos' | 'inactivos'>('todos')
   // null = cerrado; 'nuevo' = agregar; Producto = editar ese.
   const [modal, setModal] = useState<'nuevo' | Producto | null>(null)
   const [form, setForm] = useState<FormProducto>(FORM_VACIO)
@@ -175,13 +176,6 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
   }
 
   // ── Acciones ───────────────────────────────────────────────────────────
-  async function toggleActivo(producto: Producto) {
-    const { data, error } = await supabase
-      .from('productos').update({ activo: !producto.activo }).eq('id', producto.id).select().single()
-    if (data) setProductos(prev => prev.map(p => p.id === data.id ? data : p))
-    else if (error) toast.error(`No se pudo ${producto.activo ? 'desactivar' : 'activar'} ${producto.nombre}. Probá de nuevo.`)
-  }
-
   function abrirNuevo() {
     setForm({ ...FORM_VACIO, destino: tab, tipo: esFabrica ? 'producto' : 'insumo', categoria: categoria && categoria !== SIN_CATEGORIA ? categoria : '' })
     setErrorForm(null)
@@ -193,6 +187,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
       nombre: p.nombre, descripcion: p.descripcion ?? '', unidad: p.unidad, tipo: p.tipo, destino: p.destino,
       categoria: p.categoria ?? '', precio: p.precio != null ? String(p.precio) : '', codigo: p.codigo != null ? String(p.codigo) : '',
       presentacion_id: p.presentacion_id ?? '', sabor_id: p.sabor_id ?? '', tamanio_id: p.tamanio_id ?? '', icono: p.icono ?? '',
+      activo: p.activo,
     })
     setErrorForm(null)
     setModal(p)
@@ -213,14 +208,16 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
       sabor_id: form.sabor_id || null,
       tamanio_id: form.tamanio_id || null,
       icono: form.icono || null,
+      activo: form.activo,
     }
     const { data, error } = modal === 'nuevo'
-      ? await supabase.from('productos').insert({ ...comunes, tipo: form.tipo, destino: form.destino, activo: true }).select().single()
+      ? await supabase.from('productos').insert({ ...comunes, tipo: form.tipo, destino: form.destino }).select().single()
       : await supabase.from('productos').update(comunes).eq('id', modal.id).select().single()
     setGuardando(false)
     if (error || !data) { setErrorForm(mensajeErrorProducto(error ?? { message: '' })); return }
     setProductos(prev => modal === 'nuevo' ? [...prev, data] : prev.map(p => p.id === data.id ? data : p))
-    toast.success(modal === 'nuevo' ? `${data.nombre} agregado.` : `${data.nombre} guardado.`)
+    const cambioEstado = modal !== 'nuevo' && modal.activo !== data.activo
+    toast.success(modal === 'nuevo' ? `${data.nombre} agregado.` : cambioEstado ? `${data.nombre} ${data.activo ? 'activado' : 'desactivado'}.` : `${data.nombre} guardado.`)
     setModal(null)
   }
 
@@ -256,6 +253,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
   )
   const q = busqueda.trim().toLowerCase()
   const visibles = delTab.filter(p =>
+    (estado === 'todos' || p.activo === (estado === 'activos')) &&
     (!categoria || (p.categoria || SIN_CATEGORIA) === categoria) &&
     (!q || p.nombre.toLowerCase().includes(q) || (p.codigo != null && String(p.codigo).includes(q))),
   )
@@ -317,7 +315,17 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
           })}
         </div>
         <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre o código…" className="min-w-[12rem] flex-1" />
-        <span className="text-xs text-faint">{activos} activos de {delTab.length}</span>
+        <div role="group" aria-label="Estado" className="flex shrink-0 gap-1 rounded-xl border border-border bg-surface p-1">
+          {([['todos', 'Todos', delTab.length], ['activos', 'Activos', activos], ['inactivos', 'Inactivos', delTab.length - activos]] as const).map(([valor, texto, n]) => {
+            const activa = estado === valor
+            return (
+              <button key={valor} type="button" aria-pressed={activa} onClick={() => setEstado(valor)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${activa ? 'bg-surface2 text-text' : 'text-muted hover:text-text'}`}>
+                {texto} <span className="text-2xs text-faint tabular-nums">{n}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Categorías */}
@@ -340,7 +348,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
         <div className="rounded-card border border-border bg-surface">
           <EmptyState icono={IconSearch}
             titulo={delTab.length === 0 ? `Todavía no hay ${nombreTipo}s en el catálogo` : 'No hay productos con esa búsqueda'}
-            descripcion={delTab.length === 0 ? `Tocá "Agregar ${nombreTipo}" para cargar el primero.` : 'Probá con otra palabra o sacá el filtro de categoría.'} />
+            descripcion={delTab.length === 0 ? `Tocá "Agregar ${nombreTipo}" para cargar el primero.` : 'Probá con otra palabra o sacá los filtros de estado y categoría.'} />
         </div>
       ) : (
         <div className="space-y-6">
@@ -352,7 +360,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
               <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
                 {g.productos.map(p => (
                   <TarjetaProducto key={p.id} producto={p} esFabrica={esFabrica} posberry={mapeosPorProductoId[p.id]?.length ?? 0}
-                    onAbrir={() => abrirEdicion(p)} onToggle={() => toggleActivo(p)} />
+                    onAbrir={() => abrirEdicion(p)} />
                 ))}
               </ul>
             </section>
@@ -400,6 +408,28 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
             <input type="text" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
               className={campo} placeholder="Opcional" />
           </label>
+
+          <div>
+            <span className={etiqueta}>Estado</span>
+            <div role="radiogroup" aria-label="Estado" className="inline-flex gap-1 rounded-xl border border-border bg-surface2 p-1">
+              {([true, false] as const).map(valor => {
+                const elegido = form.activo === valor
+                return (
+                  <button key={String(valor)} type="button" role="radio" aria-checked={elegido}
+                    onClick={() => setForm(f => ({ ...f, activo: valor }))}
+                    className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
+                      elegido ? valor ? 'bg-green-bg text-success' : 'bg-warning-bg text-warning' : 'text-muted hover:text-text'
+                    }`}>
+                    {valor ? 'Activo' : 'Inactivo'}
+                  </button>
+                )
+              })}
+            </div>
+            {/* En fábrica es el mismo dato que el "Con stock / Sin stock" del mayorista. */}
+            {!form.activo && form.destino === 'fabrica' && (
+              <p className="mt-1.5 text-2xs text-muted">Los locales lo ven como &quot;Sin stock por ahora&quot; y no lo pueden pedir.</p>
+            )}
+          </div>
 
           {form.destino === 'fabrica' && (
             <div>
@@ -481,37 +511,37 @@ function TernaSelects({ value, onChange, presentaciones, sabores, tamanios }: {
   )
 }
 
-function TarjetaProducto({ producto: p, esFabrica, posberry, onAbrir, onToggle }: {
+// La tarjeta solo muestra el estado; se activa o desactiva desde la edición
+// (antes había un interruptor en la tarjeta y se cambiaba con un toque sin querer).
+function TarjetaProducto({ producto: p, esFabrica, posberry, onAbrir }: {
   producto: Producto
   esFabrica: boolean
   posberry: number
   onAbrir: () => void
-  onToggle: () => void
 }) {
   const { icono: Icono, clase } = esFabrica ? estiloProducto(p) : { icono: IconPackage, clase: 'bg-zinc-400/15 text-zinc-300' }
   const detalle = [p.unidad, p.precio != null ? `$ ${p.precio.toLocaleString('es-AR')}` : null].filter(Boolean).join(' · ')
+  const atenuado = p.activo ? '' : 'opacity-60'
   return (
-    <li className="relative">
-      {/* Toda la tarjeta abre la edición; el interruptor de activo va aparte, encima. */}
-      <button type="button" onClick={onAbrir} aria-label={`Editar ${p.nombre}`}
-        className={`flex h-full w-full flex-col gap-2 rounded-card border border-border bg-surface p-3 text-left transition-colors hover:border-accent/60 ${p.activo ? '' : 'opacity-60'}`}>
-        <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${clase}`} aria-hidden>
-          <Icono size={20} />
+    <li>
+      <button type="button" onClick={onAbrir} aria-label={`Editar ${p.nombre} (${p.activo ? 'activo' : 'inactivo'})`}
+        className="flex h-full w-full flex-col gap-2 rounded-card border border-border bg-surface p-3 text-left transition-colors hover:border-accent/60">
+        <span className="flex items-start justify-between gap-2">
+          <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${clase} ${atenuado}`} aria-hidden>
+            <Icono size={20} />
+          </span>
+          <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${p.activo ? 'bg-green-bg text-success' : 'bg-warning-bg text-warning'}`}>
+            {p.activo ? 'Activo' : 'Inactivo'}
+          </span>
         </span>
-        <span className="min-w-0">
+        <span className={`min-w-0 ${atenuado}`}>
           {p.codigo != null && <span className="block text-xs font-bold tabular-nums text-accent">#{p.codigo}</span>}
           <span className="line-clamp-2 text-sm font-semibold leading-snug text-text">{p.nombre}</span>
         </span>
-        <span className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-muted">
+        <span className={`mt-auto flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-muted ${atenuado}`}>
           {detalle && <span>{detalle}</span>}
           {posberry > 0 && <span className="text-faint">Posberry: {posberry}</span>}
-          {!p.activo && <span className="font-semibold text-warning">Inactivo</span>}
         </span>
-      </button>
-      <button type="button" role="switch" aria-checked={p.activo} onClick={onToggle}
-        aria-label={`${p.nombre}: ${p.activo ? 'activo' : 'inactivo'}`} title={p.activo ? 'Activo (tocá para desactivar)' : 'Inactivo (tocá para activar)'}
-        className={`absolute right-3 top-3 h-6 w-11 rounded-full transition-colors ${p.activo ? 'bg-success' : 'bg-border'}`}>
-        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] ${p.activo ? 'left-[22px]' : 'left-0.5'}`} />
       </button>
     </li>
   )
