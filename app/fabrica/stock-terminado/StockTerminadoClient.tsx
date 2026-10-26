@@ -1,10 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import {
-  Warehouse, Search, SlidersHorizontal, History, Factory, Truck,
-  ClipboardCheck, ArrowUpRight, ArrowDownRight, PackageX, Boxes,
-} from 'lucide-react'
+import { IconAdjustmentsHorizontal, IconArrowDownRight, IconArrowUpRight, IconBoxMultiple, IconBuildingFactory2, IconBuildingWarehouse, IconClipboardCheck, IconHistory, IconPackageOff, IconSearch, IconTruck } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
@@ -36,10 +33,10 @@ export interface Movimiento {
 }
 
 const TIPO_INFO: Record<TipoMovimiento, { label: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = {
-  produccion_embolsado: { label: 'Producción', icon: Factory },
-  salida_pedido: { label: 'Salida a pedido', icon: Truck },
-  ajuste_pedido: { label: 'Ajuste por remito', icon: ClipboardCheck },
-  ajuste_manual: { label: 'Ajuste manual', icon: SlidersHorizontal },
+  produccion_embolsado: { label: 'Producción', icon: IconBuildingFactory2 },
+  salida_pedido: { label: 'Salida a pedido', icon: IconTruck },
+  ajuste_pedido: { label: 'Ajuste por remito', icon: IconClipboardCheck },
+  ajuste_manual: { label: 'Ajuste manual', icon: IconAdjustmentsHorizontal },
 }
 
 function formatKg(kg: number) {
@@ -53,7 +50,8 @@ function bultosEquivalentes(cantidadKg: number, pesoKg: number) {
 }
 
 function formatFecha(iso: string) {
-  return new Date(iso).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  // Hora de Argentina fija: sin timeZone, el servidor (UTC) y el navegador mostraban horas distintas.
+  return new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 export default function StockTerminadoClient({
@@ -123,7 +121,7 @@ export default function StockTerminadoClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-['Syne'] font-bold text-[#f0f0f0]">
-            <Warehouse size={20} className="text-[#e8c547]" /> Stock terminado
+            <IconBuildingWarehouse size={20} className="text-[#e8c547]" /> Stock terminado
           </h1>
           <p className="text-[#888] text-xs mt-0.5">
             {items.length} producto{items.length !== 1 ? 's' : ''} con terna asignada · {formatKg(totalKg)} en total
@@ -132,7 +130,7 @@ export default function StockTerminadoClient({
       </div>
 
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666] pointer-events-none" />
+        <IconSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666] pointer-events-none" />
         <input
           type="text"
           placeholder="Buscar producto, sabor o presentación..."
@@ -144,7 +142,7 @@ export default function StockTerminadoClient({
 
       {filtrados.length === 0 ? (
         <Card className="p-8 text-center space-y-2">
-          <PackageX size={28} className="mx-auto text-[#444]" />
+          <IconPackageOff size={28} className="mx-auto text-[#444]" />
           <p className="text-sm text-[#888]">
             {items.length === 0
               ? 'Todavía no hay productos con terna asignada. Se configuran en Admin → Catálogo.'
@@ -160,7 +158,7 @@ export default function StockTerminadoClient({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f0] font-medium truncate">{item.nombre}</p>
                   <p className="text-xs text-[#666] mt-0.5 flex items-center gap-1">
-                    <Boxes size={11} /> {item.presentacionNombre} · {item.saborNombre} · {item.tamanioNombre}
+                    <IconBoxMultiple size={11} /> {item.presentacionNombre} · {item.saborNombre} · {item.tamanioNombre}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
@@ -172,7 +170,7 @@ export default function StockTerminadoClient({
                   aria-label="Ajustar stock"
                   className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-[#e8c547] rounded-lg hover:bg-[#1a1a1a] transition-colors"
                 >
-                  <SlidersHorizontal size={15} />
+                  <IconAdjustmentsHorizontal size={15} />
                 </button>
               </div>
             )
@@ -182,7 +180,7 @@ export default function StockTerminadoClient({
 
       <div className="space-y-2 pt-2">
         <p className="flex items-center gap-1.5 text-xs font-semibold text-[#888] uppercase tracking-wider px-1">
-          <History size={14} /> Movimientos recientes
+          <IconHistory size={14} /> Movimientos recientes
         </p>
         {movimientos.length === 0 ? (
           <p className="text-sm text-[#666] px-1">Todavía no hay movimientos de stock terminado.</p>
@@ -202,7 +200,7 @@ export default function StockTerminadoClient({
                     <p className="text-[11px] text-[#666]">{info.label} · {formatFecha(m.createdAt)}</p>
                   </div>
                   <span className={`flex items-center gap-0.5 text-xs font-semibold shrink-0 ${positivo ? 'text-[#56d68a]' : 'text-red-400'}`}>
-                    {positivo ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                    {positivo ? <IconArrowUpRight size={12} /> : <IconArrowDownRight size={12} />}
                     {formatKg(Math.abs(m.deltaKg))}
                   </span>
                 </div>

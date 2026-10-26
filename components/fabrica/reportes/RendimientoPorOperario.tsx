@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Gauge } from 'lucide-react'
+import { IconGauge } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import { calcularRendimientoPorOperario, type ProduccionFila } from '@/lib/fabrica/reportes'
@@ -34,7 +34,7 @@ export default function RendimientoPorOperario({ filas }: { filas: ProduccionFil
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-[#f0f0f0] font-medium truncate">{r.operarioNombre}</p>
               <p className="flex items-center gap-1 text-sm text-[#e8c547] font-semibold shrink-0">
-                <Gauge size={14} />
+                <IconGauge size={14} />
                 {r.rendimiento != null ? r.rendimiento.toLocaleString('es-AR', { maximumFractionDigits: 2 }) : '—'}
               </p>
             </div>

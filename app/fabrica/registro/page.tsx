@@ -1,11 +1,11 @@
 import Link from 'next/link'
-import { Factory, Snowflake, Undo2, ArrowRight } from 'lucide-react'
+import { IconArrowBackUp, IconArrowRight, IconBuildingFactory2, IconSnowflake } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
 
 const TARJETAS = [
-  { href: '/fabrica/registro/produccion', label: 'Producción', descripcion: 'Cargar fécula y masa por turno', Icon: Factory },
-  { href: '/fabrica/registro/congelados', label: 'Congelados', descripcion: 'Cargar presentaciones de producto congelado', Icon: Snowflake },
-  { href: '/fabrica/registro/devolucion', label: 'Devolución', descripcion: 'Registrar producto devuelto, con reinserción o pérdida', Icon: Undo2 },
+  { href: '/fabrica/registro/produccion', label: 'Producción', descripcion: 'Cargar fécula y masa por turno', Icon: IconBuildingFactory2 },
+  { href: '/fabrica/registro/congelados', label: 'Congelados', descripcion: 'Cargar presentaciones de producto congelado', Icon: IconSnowflake },
+  { href: '/fabrica/registro/devolucion', label: 'Devolución', descripcion: 'Registrar producto devuelto, con reinserción o pérdida', Icon: IconArrowBackUp },
 ] as const
 
 export default function FabricaRegistroPage() {
@@ -27,7 +27,7 @@ export default function FabricaRegistroPage() {
                 <p className="text-sm font-semibold text-[#f0f0f0]">{label}</p>
                 <p className="text-xs text-[#888] mt-0.5">{descripcion}</p>
               </div>
-              <ArrowRight size={16} className="text-[#666] shrink-0" />
+              <IconArrowRight size={16} className="text-[#666] shrink-0" />
             </Card>
           </Link>
         ))}

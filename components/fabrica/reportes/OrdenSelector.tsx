@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowDownUp } from 'lucide-react'
+import { IconArrowsSort } from '@tabler/icons-react'
 import type { OrdenResumen } from '@/lib/fabrica/reportes'
 
 // Selector "Ordenar por" de las listas de reportes. Las opciones de fecha solo
@@ -16,7 +16,7 @@ export default function OrdenSelector({
 }) {
   return (
     <label className="flex items-center gap-2 text-xs text-[#888] px-1">
-      <ArrowDownUp size={13} className="shrink-0" />
+      <IconArrowsSort size={13} className="shrink-0" />
       <span className="shrink-0">Ordenar por</span>
       <select
         value={orden}

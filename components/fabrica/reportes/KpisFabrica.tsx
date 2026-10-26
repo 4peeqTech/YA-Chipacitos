@@ -1,6 +1,6 @@
 'use client'
 
-import { Package, Wheat, Gauge, Snowflake, Undo2 } from 'lucide-react'
+import { IconArrowBackUp, IconGauge, IconPackage, IconSnowflake, IconWheat } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
 import type { KpisFabrica as KpisFabricaData } from '@/lib/fabrica/reportes'
 
@@ -22,17 +22,17 @@ function Tile({ icon: Icon, label, value }: { icon: React.ComponentType<{ size?:
 export default function KpisFabrica({ kpis }: { kpis: KpisFabricaData }) {
   return (
     <div className="grid grid-cols-3 gap-2">
-      <Tile icon={Package} label="Masa" value={formatKg(kpis.masaKg)} />
-      <Tile icon={Wheat} label="Fécula" value={formatKg(kpis.feculaKg)} />
+      <Tile icon={IconPackage} label="Masa" value={formatKg(kpis.masaKg)} />
+      <Tile icon={IconWheat} label="Fécula" value={formatKg(kpis.feculaKg)} />
       <Tile
-        icon={Gauge}
+        icon={IconGauge}
         label="Rendimiento"
         value={kpis.rendimiento != null ? kpis.rendimiento.toLocaleString('es-AR', { maximumFractionDigits: 2 }) : '—'}
       />
-      <Tile icon={Snowflake} label="Congelados" value={formatKg(kpis.congeladosKg)} />
-      <Tile icon={Undo2} label="Devuelto" value={formatKg(kpis.devueltoKg)} />
+      <Tile icon={IconSnowflake} label="Congelados" value={formatKg(kpis.congeladosKg)} />
+      <Tile icon={IconArrowBackUp} label="Devuelto" value={formatKg(kpis.devueltoKg)} />
       <Tile
-        icon={Undo2}
+        icon={IconArrowBackUp}
         label="% devolución"
         value={kpis.pctDevolucionSobreProducido != null ? `${kpis.pctDevolucionSobreProducido.toFixed(1)}%` : '—'}
       />

@@ -1,19 +1,19 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { CalendarDays, ArrowDownUp, Undo2, IceCreamCone, Ruler, Package, Recycle, MessageSquareText } from 'lucide-react'
+import { IconArrowBackUp, IconArrowsSort, IconCalendar, IconIceCream, IconMessage, IconPackage, IconRecycle, IconRuler } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
 import { agruparDevoluciones, ordenarResumen, ordenInicial, type AgrupacionDevolucion, type DevolucionFila, type OrdenResumen } from '@/lib/fabrica/reportes'
 import OrdenSelector from './OrdenSelector'
 
 const DIMENSIONES: { key: AgrupacionDevolucion; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
-  { key: 'fecha', label: 'Día', icon: CalendarDays },
-  { key: 'motivoNombre', label: 'Motivo', icon: Undo2 },
-  { key: 'destino', label: 'Destino', icon: Recycle },
-  { key: 'saborNombre', label: 'Sabor', icon: IceCreamCone },
-  { key: 'tamanioNombre', label: 'Tamaño', icon: Ruler },
-  { key: 'presentacionNombre', label: 'Presentación', icon: Package },
+  { key: 'fecha', label: 'Día', icon: IconCalendar },
+  { key: 'motivoNombre', label: 'Motivo', icon: IconArrowBackUp },
+  { key: 'destino', label: 'Destino', icon: IconRecycle },
+  { key: 'saborNombre', label: 'Sabor', icon: IconIceCream },
+  { key: 'tamanioNombre', label: 'Tamaño', icon: IconRuler },
+  { key: 'presentacionNombre', label: 'Presentación', icon: IconPackage },
 ]
 
 function formatKg(kg: number) {
@@ -106,7 +106,7 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
               onClick={() => setFechaDesc(v => !v)}
               className="flex items-center gap-1.5 text-xs text-[#888] hover:text-[#f0f0f0] transition-colors"
             >
-              <ArrowDownUp size={13} /> {fechaDesc ? 'Más recientes primero' : 'Más antiguas primero'}
+              <IconArrowsSort size={13} /> {fechaDesc ? 'Más recientes primero' : 'Más antiguas primero'}
             </button>
           </div>
           <Card className="divide-y divide-[#1a1a1a] overflow-hidden">
@@ -118,9 +118,9 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f0] font-medium flex items-center gap-1.5 truncate">
-                    {d.destino === 'reinsercion' ? <Recycle size={13} className="text-[#666] shrink-0" /> : <Package size={13} className="text-[#666] shrink-0" />}
+                    {d.destino === 'reinsercion' ? <IconRecycle size={13} className="text-[#666] shrink-0" /> : <IconPackage size={13} className="text-[#666] shrink-0" />}
                     <span className="truncate">{d.saborNombre !== 'Sin detalle' ? `${d.tamanioNombre} · ${d.saborNombre}` : d.motivoNombre}</span>
-                    {d.notas && <MessageSquareText size={12} className="text-[#e8c547] shrink-0" />}
+                    {d.notas && <IconMessage size={12} className="text-[#e8c547] shrink-0" />}
                   </p>
                   <p className="text-xs text-[#666] mt-0.5">{formatFecha(d.fecha)} · {formatKg(d.cantidadKg)} · {d.motivoNombre}</p>
                 </div>
@@ -137,7 +137,7 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
               <span className="font-semibold">{formatFecha(detalle.fecha)}</span> · {detalle.motivoNombre}
             </p>
             <p className="text-sm text-[#888] flex items-center gap-1.5">
-              {detalle.destino === 'reinsercion' ? <Recycle size={14} /> : <Package size={14} />}
+              {detalle.destino === 'reinsercion' ? <IconRecycle size={14} /> : <IconPackage size={14} />}
               {detalle.destino === 'reinsercion' ? 'Reinserción' : 'Pérdida'} · {formatKg(detalle.cantidadKg)}
             </p>
             {detalle.saborNombre !== 'Sin detalle' && (

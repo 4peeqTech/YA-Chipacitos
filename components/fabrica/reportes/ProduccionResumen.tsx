@@ -1,17 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { CalendarDays, Sun, User, IceCreamCone, LayoutList, Table2 } from 'lucide-react'
+import { IconCalendar, IconIceCream, IconLayoutList, IconSun, IconTable, IconUser } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
 import { agruparProduccion, ordenarResumen, ordenInicial, type AgrupacionProduccion, type OrdenResumen, type ProduccionFila } from '@/lib/fabrica/reportes'
 import OrdenSelector from './OrdenSelector'
 import ProduccionTabla from './ProduccionTabla'
 
 const DIMENSIONES: { key: AgrupacionProduccion; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
-  { key: 'fecha', label: 'Día', icon: CalendarDays },
-  { key: 'turno', label: 'Turno', icon: Sun },
-  { key: 'operarioNombre', label: 'Operario', icon: User },
-  { key: 'saborNombre', label: 'Sabor', icon: IceCreamCone },
+  { key: 'fecha', label: 'Día', icon: IconCalendar },
+  { key: 'turno', label: 'Turno', icon: IconSun },
+  { key: 'operarioNombre', label: 'Operario', icon: IconUser },
+  { key: 'saborNombre', label: 'Sabor', icon: IconIceCream },
 ]
 
 function formatKg(kg: number) {
@@ -43,7 +43,7 @@ export default function ProduccionResumen({ filas }: { filas: ProduccionFila[] }
 
   const switchVista = (
     <div className="flex gap-1 p-1 rounded-xl bg-[#1a1a1a] w-fit">
-      {([['resumen', 'Resumen', LayoutList], ['tabla', 'Tabla', Table2]] as const).map(([key, label, Icon]) => (
+      {([['resumen', 'Resumen', IconLayoutList], ['tabla', 'Tabla', IconTable]] as const).map(([key, label, Icon]) => (
         <button
           key={key}
           onClick={() => setVista(key)}
