@@ -30,8 +30,13 @@ interface Props {
 
 const CLAVE_VISTOS = 'pedidos-chat-vistos'
 
+/** Hasta cuándo se vio el chat de cada pedido en este dispositivo (la lista del local lo usa para sus tarjetas). */
+export function leerVistos(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(CLAVE_VISTOS) || '{}') as Record<string, number> } catch { return {} }
+}
+
 function leerVisto(pedidoId: string): number {
-  try { return (JSON.parse(localStorage.getItem(CLAVE_VISTOS) || '{}') as Record<string, number>)[pedidoId] ?? 0 } catch { return 0 }
+  return leerVistos()[pedidoId] ?? 0
 }
 
 function guardarVisto(pedidoId: string) {
@@ -42,7 +47,7 @@ function guardarVisto(pedidoId: string) {
 }
 
 /** Mensajes de la otra parte posteriores a la última vez que se vio el chat o a mi último mensaje. */
-function contarSinLeer(mensajes: PedidoMensaje[], usuarioId: string, vistoEn: number): number {
+export function contarSinLeer(mensajes: PedidoMensaje[], usuarioId: string, vistoEn: number): number {
   let desde = vistoEn
   for (const m of mensajes) if (m.autor_id === usuarioId) desde = Math.max(desde, new Date(m.created_at).getTime())
   return mensajes.filter(m => m.autor_id !== usuarioId && new Date(m.created_at).getTime() > desde).length

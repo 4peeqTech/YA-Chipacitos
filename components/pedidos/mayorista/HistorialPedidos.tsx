@@ -3,16 +3,18 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, History, TriangleAlert } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import type { Pedido } from '@/lib/types'
+import type { EstadoPedido, Pedido } from '@/lib/types'
 import EmptyState from '@/components/ui/EmptyState'
 import { SkeletonTabla } from '@/components/ui/Skeleton'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import EstadoPedidoBadge from '@/components/pedidos/compartido/EstadoPedidoBadge'
 import AvisoVersionAnterior, { MarcaVersionAnterior } from '@/components/pedidos/compartido/AvisoVersionAnterior'
+import { ORDEN_ESTADOS, etiquetaEstado } from '@/lib/pedidos/estados'
 import { fechaCorta } from './utiles'
 
-// Recibidos y cancelados, paginados en la base con range().
+// Recibidos y cancelados, paginados en la base con range(). Con `todosLosEstados`
+// (reporte del admin) trae también los que están en curso y suma el filtro de estado.
 
 const POR_PAGINA = 20
 
@@ -23,6 +25,7 @@ interface Props {
   /** Sube cuando cambia algo afuera (un pedido se cerró) para volver a leer la página. */
   version: number
   onAbrir: (pedido: Pedido) => void
+  todosLosEstados?: boolean
 }
 
 // Fin del día en Argentina (UTC-3): el filtro "hasta" incluye ese día entero.
@@ -30,10 +33,11 @@ function finDelDia(fecha: string) {
   return `${fecha}T23:59:59.999-03:00`
 }
 
-export default function HistorialPedidos({ destino, sucursales, inicioVersion, version, onAbrir }: Props) {
+export default function HistorialPedidos({ destino, sucursales, inicioVersion, version, onAbrir, todosLosEstados = false }: Props) {
   const [supabase] = useState(() => createClient())
   const [pagina, setPagina] = useState(0)
   const [sucursal, setSucursal] = useState('todas')
+  const [estado, setEstado] = useState<EstadoPedido | 'todos'>('todos')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [filas, setFilas] = useState<Pedido[] | null>(null)
@@ -46,7 +50,7 @@ export default function HistorialPedidos({ destino, sucursales, inicioVersion, v
       .from('pedidos')
       .select('*, pedido_items(*), pedido_mensajes(*)', { count: 'exact' })
       .eq('destino', destino)
-      .in('estado', ['recibido', 'cancelado'])
+      .in('estado', estado !== 'todos' ? [estado] : todosLosEstados ? ORDEN_ESTADOS : ['recibido', 'cancelado'])
     if (sucursal !== 'todas') q = q.eq('local_nombre', sucursal)
     if (desde) q = q.gte('created_at', `${desde}T00:00:00-03:00`)
     if (hasta) q = q.lte('created_at', finDelDia(hasta))
@@ -64,10 +68,10 @@ export default function HistorialPedidos({ destino, sucursales, inicioVersion, v
         setTotal(count ?? 0)
       })
     return () => { vigente = false }
-  }, [supabase, destino, sucursal, desde, hasta, pagina, version])
+  }, [supabase, destino, sucursal, estado, todosLosEstados, desde, hasta, pagina, version])
 
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA))
-  const hayFiltros = sucursal !== 'todas' || !!desde || !!hasta
+  const hayFiltros = sucursal !== 'todas' || estado !== 'todos' || !!desde || !!hasta
 
   function cambiarFiltro(f: () => void) {
     f()
@@ -81,14 +85,21 @@ export default function HistorialPedidos({ destino, sucursales, inicioVersion, v
 
       <div className="flex flex-wrap items-center gap-2">
         <select value={sucursal} onChange={e => cambiarFiltro(() => setSucursal(e.target.value))} aria-label="Sucursal"
-          className="bg-surface2 border border-border text-text rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accent">
+          className="w-full sm:w-auto bg-surface2 border border-border text-text rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accent">
           <option value="todas">Todas las sucursales</option>
           {sucursales.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <DateRangeInputs desde={desde} hasta={hasta}
+        {todosLosEstados && (
+          <select value={estado} onChange={e => cambiarFiltro(() => setEstado(e.target.value as EstadoPedido | 'todos'))} aria-label="Estado"
+            className="w-full sm:w-auto bg-surface2 border border-border text-text rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accent">
+            <option value="todos">Todos los estados</option>
+            {ORDEN_ESTADOS.map(e => <option key={e} value={e}>{etiquetaEstado(e)}</option>)}
+          </select>
+        )}
+        <DateRangeInputs desde={desde} hasta={hasta} className="min-w-0 [&_input]:min-w-0 [&_input]:flex-1"
           onChangeDesde={v => cambiarFiltro(() => setDesde(v))} onChangeHasta={v => cambiarFiltro(() => setHasta(v))} />
         <ClearFiltersButton visible={hayFiltros}
-          onClick={() => cambiarFiltro(() => { setSucursal('todas'); setDesde(''); setHasta('') })} />
+          onClick={() => cambiarFiltro(() => { setSucursal('todas'); setEstado('todos'); setDesde(''); setHasta('') })} />
       </div>
 
       {error && (
@@ -98,8 +109,8 @@ export default function HistorialPedidos({ destino, sucursales, inicioVersion, v
       {filas === null ? <SkeletonTabla filas={6} columnas={4} /> : filas.length === 0 ? (
         <div className="rounded-card border border-border bg-surface">
           <EmptyState icono={History}
-            titulo={hayFiltros ? 'No hay pedidos con esos filtros' : 'Todavía no hay pedidos cerrados'}
-            descripcion={hayFiltros ? 'Probá con otra sucursal u otras fechas.' : 'Acá van a aparecer los recibidos y los cancelados.'} />
+            titulo={hayFiltros ? 'No hay pedidos con esos filtros' : todosLosEstados ? 'Todavía no hay pedidos' : 'Todavía no hay pedidos cerrados'}
+            descripcion={hayFiltros ? 'Probá con otra sucursal, otro estado u otras fechas.' : todosLosEstados ? 'Acá van a aparecer los pedidos de los locales al mayorista.' : 'Acá van a aparecer los recibidos y los cancelados.'} />
         </div>
       ) : (
         <div className="rounded-card border border-border bg-surface divide-y divide-border overflow-hidden">
