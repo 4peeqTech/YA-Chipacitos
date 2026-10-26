@@ -27,7 +27,7 @@ type Evento = 'creado' | 'editado' | 'enviado' | 'cancelado' | 'recibido' | 'men
 const EVENTOS: Evento[] = ['creado', 'editado', 'enviado', 'cancelado', 'recibido', 'mensaje']
 
 const ROL_DESTINO: Record<string, string> = { fabrica: 'mayorista', deposito: 'deposito' }
-const URL_DESTINO: Record<string, string> = { fabrica: '/fabrica/pedidos', deposito: '/deposito/pedidos' }
+const URL_DESTINO: Record<string, string> = { fabrica: '/mayorista/pedidos', deposito: '/deposito/pedidos' }
 const URL_LOCAL = '/local/historial'
 const NOMBRE_DESTINO: Record<string, string> = { fabrica: 'El mayorista', deposito: 'Depósito' }
 

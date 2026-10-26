@@ -64,6 +64,6 @@ En **qa.yachipacitos.com.ar**, con las cuentas de prueba (`docs/qa-credenciales-
 - `qa-deposito`: su pantalla funciona como antes. Al local ya no le aparece depósito.
 - `qa-fabrica` (supervisor): Registro, Stock, etc., igual que antes.
 - `qa-admin`, en **Catálogo**: intentá borrar un producto que ya tiene pedidos. Tiene que avisar que no se puede y que lo desactives.
-- **Ayuda**: las secciones **Locales** y **Pedidos a fábrica** describen las pantallas nuevas (el Catálogo con **Con stock | Sin stock**), y **Administración → Catálogo** explica cómo elegir el ícono.
+- **Ayuda**: las secciones **Locales** y **Mayorista** describen las pantallas nuevas (el Catálogo con **Con stock | Sin stock**), y **Administración → Catálogo** explica cómo elegir el ícono.
 
 Si algo no anda como dice acá, anotá el paso y la cuenta y lo corrijo.

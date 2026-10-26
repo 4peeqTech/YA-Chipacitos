@@ -2,10 +2,10 @@ import { Truck } from 'lucide-react'
 import type { SeccionManual } from '../tipos'
 
 // Los pedidos de los locales a fábrica y el catálogo de productos elaborados
-// los maneja el rol Mayorista (pantalla /fabrica/pedidos).
+// los maneja el rol Mayorista (pantalla /mayorista/pedidos).
 export const mayorista: SeccionManual = {
   slug: 'mayorista',
-  titulo: 'Pedidos a fábrica',
+  titulo: 'Mayorista',
   icono: Truck,
   area: 'dia-a-dia',
   roles: ['mayorista'],
@@ -13,6 +13,7 @@ export const mayorista: SeccionManual = {
   resumen: 'Los pedidos de los locales: prepararlos, ajustarlos antes de mandar, despacharlos y hablar con el local.',
   actualizado: '2026-10-25',
   novedades: [
+    { fecha: '2026-10-25', texto: 'Tu sección ahora se llama **Mayorista** (antes decía Fábrica) y tiene su propio menú: **Pedidos** y **Catálogo**. Si tenías guardada la dirección vieja, te lleva sola a la nueva.' },
     { fecha: '2026-10-25', texto: 'Los avisos se prenden o apagan desde la **campana** (ya no queda el cartel arriba) y tocar una notificación abre ese pedido. El sonido ahora anda en Safari.' },
     { fecha: '2026-10-23', texto: 'Cada producto tiene **su propio ícono** (masa, queso, jamón…), el mismo que ven los locales al pedir.' },
     { fecha: '2026-10-22', texto: '**Catálogo** nuevo: cada producto tiene **Con stock | Sin stock**, con la opción actual resaltada. Cuando algo se termina, tocás **Sin stock** y los locales lo ven en gris.' },
