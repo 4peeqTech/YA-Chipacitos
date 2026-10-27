@@ -20,7 +20,7 @@ export default async function SolicitudesPage({
       .from('compras_solicitudes')
       // compras_pedidos: los que generó cada solicitud convertida. Embebidos, se
       // traen solo los de las solicitudes listadas (sin un tope de filas aparte).
-      .select('*, fabrica_conteos(semana_desde, semana_hasta, masas_proyectadas), compras_solicitud_items(*), compras_pedidos(id, numero, proveedores(nombre))')
+      .select('*, fabrica_conteos(semana_desde, semana_hasta, masas_proyectadas, fuera_de_dia, motivo_fuera_de_dia), compras_solicitud_items(*), compras_pedidos(id, numero, proveedores(nombre))')
       .order('created_at', { ascending: false }),
     // Todos: una línea de un proveedor archivado tiene que mostrarlo (B3, E19).
     supabase.from('proveedores').select('id, nombre, estado').order('nombre'),

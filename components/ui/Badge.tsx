@@ -27,6 +27,15 @@ export function BadgeOk() {
   return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-green-bg text-success">OK</span>
 }
 
+/** Conteo cerrado en un día distinto al de su lista. El motivo va en el title (desktop); en celular mostralo aparte. */
+export function BadgeFueraDeDia({ motivo }: { motivo?: string | null }) {
+  return (
+    <span title={motivo ?? undefined} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-amber-400/15 text-amber-400 whitespace-nowrap">
+      Fuera de día
+    </span>
+  )
+}
+
 export function BadgeDiff() {
   return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-danger-bg text-brand-red">Diferencia</span>
 }

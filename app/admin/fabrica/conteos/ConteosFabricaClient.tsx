@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Ban, ClipboardCheck, FileText, PackagePlus, User } from 'lucide-react'
+import { IconCalendarX } from '@tabler/icons-react'
 import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
 import type { ModoCalculo, Redondeo } from '@/lib/fabrica/calculoSugerido'
@@ -17,6 +18,7 @@ import { IconoRenderer } from '@/components/ui/IconoPicker'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import { useToast } from '@/components/ui/ProveedorUI'
 import LinkEntidad from '@/components/ui/LinkEntidad'
+import { BadgeFueraDeDia } from '@/components/ui/Badge'
 import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { MODO_LABEL, REDONDEO_LABEL } from '@/lib/estados'
 import DiferenciasConteo from './DiferenciasConteo'
@@ -37,7 +39,12 @@ interface ConteoHistorial {
   solicitud_estado: string | null
   diferencias_pendientes: number | null
   diferencias_resueltas: number | null
+  fuera_de_dia: boolean | null
+  motivo_fuera_de_dia: string | null
+  definicion_dia_semana: number | null
 }
+
+const DIA_NOMBRE = ['', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
 interface DetalleItem {
   id: string
@@ -194,6 +201,7 @@ export default function ConteosFabricaClient({
         <span className="flex items-center gap-2 font-medium">
           <IconoRenderer nombre={c.definicion_icono} size={16} className="text-accent shrink-0" />
           {c.definicion_nombre}
+          {c.fuera_de_dia && <BadgeFueraDeDia motivo={c.motivo_fuera_de_dia} />}
         </span>
       ),
       ordenar: c => c.definicion_nombre ?? '',
@@ -279,6 +287,16 @@ export default function ConteosFabricaClient({
                 </LinkEntidad>
               )}
             </div>
+
+            {abierto.fuera_de_dia && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-sm text-text">
+                <IconCalendarX size={16} className="shrink-0 mt-0.5 text-amber-400" />
+                <p>
+                  Se cerró fuera de día{abierto.definicion_dia_semana ? <> (esta lista se hace los {DIA_NOMBRE[abierto.definicion_dia_semana]})</> : null}.
+                  {abierto.motivo_fuera_de_dia && <span className="block text-muted mt-0.5">Motivo: {abierto.motivo_fuera_de_dia}</span>}
+                </p>
+              </div>
+            )}
 
             {descartado && (
               <p className="flex items-center gap-2 rounded-xl border border-border bg-surface2 px-4 py-2.5 text-sm text-text">

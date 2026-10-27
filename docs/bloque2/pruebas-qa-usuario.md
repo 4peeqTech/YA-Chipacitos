@@ -386,6 +386,22 @@ En **https://qa.yachipacitos.com.ar**, una vez mergeado B5 a `qa`, con `qa-admin
 
 ---
 
+## 10b. Conteo fuera de día (pedido de Marcos, 27-10)
+
+En **https://qa.yachipacitos.com.ar**. Usá una lista que **no** se haga hoy (en Fábrica › Stock, la que muestre el aviso ámbar).
+
+1. **Aviso.** Con `qa-fabrica`, en Fábrica › Stock la lista dice "Hoy no es <día>: podés cerrar el conteo igual, pero queda registrado como fuera de día".
+2. **Motivo obligatorio.** Tocá **Cerrar control y pedir a Compras**: el cartel pide "¿Por qué lo cerrás hoy?" y **Cerrar y pedir** queda apagado hasta que escribas algo (con solo espacios sigue apagado).
+3. **Cerrar.** Escribí un motivo y cerrá. Esperado: "Conteo cerrado. Se avisó a Compras." y en el **Historial** de abajo la fila con la etiqueta **Fuera de día** y el motivo.
+4. **Compras.** Con `qa-admin`:
+   - En la campanita llega "📅 Conteo <lista> fuera de día" con el día que le toca y el motivo. Tocalo: abre la solicitud.
+   - En Compras › Solicitudes, la solicitud tiene la etiqueta **Fuera de día**; adentro, "Fábrica cerró este conteo fuera de su día. Motivo: …".
+   - En admin › Fábrica › Conteos, la fila tiene la etiqueta y, al abrirla, el recuadro ámbar con el día de la lista y el motivo.
+5. **En su día no marca nada.** Cerrá (o mirá en el historial) un conteo de una lista que se hace hoy: sin etiqueta, sin pedir motivo y sin aviso a Marcos.
+6. **Celular (375 px).** El cartel de cierre con el motivo entra sin scroll horizontal y la etiqueta no rompe la fila del historial.
+
+---
+
 ## 11. Gastos (solo para vos: sigue "a definir" con Marcos)
 
 La sección se rehízo el 30-09 con el sistema de diseño. Probala para saber cómo está, pero **no se la muestres a Marcos hasta definir Gastos con él**.

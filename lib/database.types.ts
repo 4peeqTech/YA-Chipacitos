@@ -2334,9 +2334,11 @@ export type Database = {
           descartado_por: string | null
           estado: string
           fecha: string
+          fuera_de_dia: boolean
           id: string
           masas_proyectadas: number
           motivo_descarte: string | null
+          motivo_fuera_de_dia: string | null
           notas: string | null
           semana_desde: string
           semana_hasta: string
@@ -2351,9 +2353,11 @@ export type Database = {
           descartado_por?: string | null
           estado?: string
           fecha: string
+          fuera_de_dia?: boolean
           id?: string
           masas_proyectadas?: number
           motivo_descarte?: string | null
+          motivo_fuera_de_dia?: string | null
           notas?: string | null
           semana_desde: string
           semana_hasta: string
@@ -2368,9 +2372,11 @@ export type Database = {
           descartado_por?: string | null
           estado?: string
           fecha?: string
+          fuera_de_dia?: boolean
           id?: string
           masas_proyectadas?: number
           motivo_descarte?: string | null
+          motivo_fuera_de_dia?: string | null
           notas?: string | null
           semana_desde?: string
           semana_hasta?: string
@@ -4463,6 +4469,7 @@ export type Database = {
         Row: {
           cerrado_en: string | null
           cerrado_por_nombre: string | null
+          definicion_dia_semana: number | null
           definicion_icono: string | null
           definicion_id: string | null
           definicion_nombre: string | null
@@ -4470,8 +4477,10 @@ export type Database = {
           diferencias_resueltas: number | null
           estado: string | null
           fecha: string | null
+          fuera_de_dia: boolean | null
           id: string | null
           masas_proyectadas: number | null
+          motivo_fuera_de_dia: string | null
           semana_desde: string | null
           semana_hasta: string | null
           solicitud_estado: string | null

@@ -66,6 +66,7 @@ export const fabricaConteos: SeccionManual = {
             { situacion: 'Un insumo sale con sobrestock y no debería', camino: 'Revisá la cantidad que cargaste y las masas proyectadas antes de cerrar. Si ya cerraste, pedile a Compras que descarte la solicitud y volvé a contar.' },
             { situacion: 'La Sal, la Leche o el Pategrás se acumulan y no avisa nada', camino: 'Están marcados como que se piden a demanda: no avisan salvo que tengan un tope. Pedile a Compras que le cargue un **Stock máximo** en la ficha del insumo; desde el próximo conteo, si lo pasás, avisa.' },
             { situacion: 'Un insumo nunca avisa sobrestock', camino: 'Puede que le falte la unidad de compra o la receta. Compras lo ve avisado en **Insumos**.' },
+            { situacion: 'Hay que adelantar (o atrasar) un conteo porque ese día no va a haber nadie', camino: 'Cerralo igual cualquier día. Al cerrar te pide el **motivo**: es obligatorio y queda registrado como "Fuera de día" en el historial y en la solicitud de Compras, y le llega un aviso a Marcos. El día que le tocaba, ese conteo ya figura cerrado.' },
           ],
         },
       ],

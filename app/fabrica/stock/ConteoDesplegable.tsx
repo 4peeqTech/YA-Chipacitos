@@ -58,6 +58,8 @@ export interface ConteoHistorial {
   semana_hasta: string
   masas_proyectadas: number
   cerrado_en: string | null
+  fuera_de_dia: boolean
+  motivo_fuera_de_dia: string | null
 }
 
 export interface DefinicionConDatos {
@@ -108,6 +110,7 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
   const [eliminando, setEliminando] = useState(false)
   const [cerrando, setCerrando] = useState(false)
   const [borrando, setBorrando] = useState(false)
+  const [motivoFueraDeDia, setMotivoFueraDeDia] = useState('')
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   // Guardados programados (debounce) y en vuelo: "Cerrar" espera a que terminen,
   // así lo último que se cargó entra al cierre y no queda "sin contar".
@@ -218,6 +221,19 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
       setCerrando(false)
       return
     }
+    // Fuera de día el motivo va al borrador antes del cierre: la base marca la
+    // excepción al cerrar y corta si falta (20261027180000).
+    if (!esHoy) {
+      const { error: errMotivo } = await supabase
+        .from('fabrica_conteos')
+        .update({ motivo_fuera_de_dia: motivoFueraDeDia.trim() })
+        .eq('id', conteo.id)
+      if (errMotivo) {
+        toast.error(mensajeError(errMotivo, 'No se guardó el motivo'))
+        setCerrando(false)
+        return
+      }
+    }
     const { data: solicitudId, error } = await supabase.rpc('cerrar_conteo_fabrica', { p_conteo_id: conteo.id })
     if (error) {
       toast.error(mensajeError(error, 'No se pudo cerrar el conteo'))
@@ -289,7 +305,8 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
 
       {!esHoy && (
         <p className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-950/20 border border-amber-900/40 rounded-lg px-3 py-2">
-          <IconAlertTriangle size={12} /> Este conteo se hace los {DIA_NOMBRE[definicion.diaSemana]}
+          <IconAlertTriangle size={12} className="shrink-0" />
+          Hoy no es {DIA_NOMBRE[definicion.diaSemana]}: podés cerrar el conteo igual, pero queda registrado como fuera de día.
         </p>
       )}
 
@@ -420,11 +437,30 @@ export default function ConteoDesplegable({ definicion, umbralSobrestock }: { de
             </ul>
           </div>
         )}
+        {!esHoy && (
+          <div className="mt-3">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-amber-400">
+              <IconAlertTriangle size={14} /> Este conteo se hace los {DIA_NOMBRE[definicion.diaSemana]}
+            </p>
+            <label htmlFor={`motivo-fuera-${definicion.id}`} className="block text-xs text-[#888] mt-1 mb-1">
+              ¿Por qué lo cerrás hoy? Queda registrado y le avisamos a Marcos.
+            </label>
+            <textarea
+              id={`motivo-fuera-${definicion.id}`}
+              value={motivoFueraDeDia}
+              onChange={e => setMotivoFueraDeDia(e.target.value)}
+              disabled={cerrando}
+              placeholder="Ej: Adelantamos el conteo porque mañana no hay nadie"
+              rows={2}
+              className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] transition-colors disabled:opacity-40 resize-none"
+            />
+          </div>
+        )}
         <div className="flex gap-2 pt-4">
           <button onClick={() => setConfirmando(false)} disabled={cerrando} className="flex-1 py-2.5 border border-[#2a2a2a] rounded-xl text-sm font-medium text-[#888] hover:text-[#f0f0f0] transition-colors disabled:opacity-40">
             Cancelar
           </button>
-          <button onClick={confirmarCierre} disabled={cerrando || pendientes > 0} className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold disabled:opacity-40 transition-colors">
+          <button onClick={confirmarCierre} disabled={cerrando || pendientes > 0 || (!esHoy && !motivoFueraDeDia.trim())} className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold disabled:opacity-40 transition-colors">
             {cerrando ? 'Cerrando...' : pendientes > 0 ? 'Guardando…' : 'Cerrar y pedir'}
           </button>
         </div>

@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
 import { IconoRenderer } from '@/components/ui/IconoPicker'
+import { BadgeFueraDeDia } from '@/components/ui/Badge'
 import type { ConteoHistorial } from './ConteoDesplegable'
 
 export interface HistorialGlobalItem extends ConteoHistorial {
@@ -77,7 +78,11 @@ export default function HistorialGlobal({ historial }: { historial: HistorialGlo
                   {c.definicionNombre} · {formatearFechaCorta(c.semana_desde)} → {formatearFechaCorta(c.semana_hasta)}
                 </p>
                 {c.pideMasas && <p className="text-xs text-[#666] mt-0.5">{c.masas_proyectadas} masas proyectadas</p>}
+                {c.fuera_de_dia && c.motivo_fuera_de_dia && (
+                  <p className="text-xs text-amber-400/80 mt-0.5 truncate">Fuera de día: {c.motivo_fuera_de_dia}</p>
+                )}
               </div>
+              {c.fuera_de_dia && <BadgeFueraDeDia motivo={c.motivo_fuera_de_dia} />}
               <IconChevronRight size={16} className="text-[#666] shrink-0" />
             </button>
           ))}

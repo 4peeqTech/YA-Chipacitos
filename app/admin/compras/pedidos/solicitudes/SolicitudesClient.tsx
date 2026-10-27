@@ -6,6 +6,8 @@ import {
   Inbox, ClipboardList, TrendingUp, Truck, ChevronRight,
   Ban, Send, History, Scale, PackageMinus, PackagePlus, Undo2, ClipboardCheck,
 } from 'lucide-react'
+import { IconCalendarX } from '@tabler/icons-react'
+import { BadgeFueraDeDia } from '@/components/ui/Badge'
 import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
@@ -26,6 +28,8 @@ interface ConteoRef {
   semana_desde: string
   semana_hasta: string
   masas_proyectadas: number
+  fuera_de_dia: boolean
+  motivo_fuera_de_dia: string | null
 }
 
 interface SolicitudItem {
@@ -361,7 +365,10 @@ export default function SolicitudesClient({
                   {s.tipo === 'base' ? <ClipboardList size={18} /> : <TrendingUp size={18} />}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#f0f0f0] font-medium truncate">{origenSolicitud(s)}</p>
+                  <p className="flex items-center gap-2 text-sm text-[#f0f0f0] font-medium min-w-0">
+                    <span className="truncate">{origenSolicitud(s)}</span>
+                    {s.fabrica_conteos?.fuera_de_dia && <BadgeFueraDeDia motivo={s.fabrica_conteos.motivo_fuera_de_dia} />}
+                  </p>
                   <p className="text-xs text-[#666] mt-0.5">{new Date(s.created_at).toLocaleDateString('es-AR')} · {s.compras_solicitud_items.length} ítems</p>
                 </div>
                 {contarSobrestock(s) > 0 && (
@@ -408,6 +415,15 @@ export default function SolicitudesClient({
                   >
                     <ClipboardCheck size={13} /> Ver el conteo
                   </LinkEntidad>
+                )}
+                {abierta.fabrica_conteos.fuera_de_dia && (
+                  <p className="basis-full flex items-start gap-1.5 text-sm text-amber-400">
+                    <IconCalendarX size={16} className="shrink-0 mt-0.5" />
+                    <span>
+                      Fábrica cerró este conteo fuera de su día.
+                      {abierta.fabrica_conteos.motivo_fuera_de_dia && <span className="text-[#ccc]"> Motivo: {abierta.fabrica_conteos.motivo_fuera_de_dia}</span>}
+                    </span>
+                  </p>
                 )}
               </div>
             )}

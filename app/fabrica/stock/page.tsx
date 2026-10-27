@@ -143,7 +143,7 @@ export default async function FabricaStockPage() {
   const { data: historialData } = definiciones.length
     ? await supabase
         .from('fabrica_conteos')
-        .select('id, fecha, semana_desde, semana_hasta, masas_proyectadas, cerrado_en, definicion_id')
+        .select('id, fecha, semana_desde, semana_hasta, masas_proyectadas, cerrado_en, fuera_de_dia, motivo_fuera_de_dia, definicion_id')
         .in('definicion_id', definiciones.map(d => d.id))
         .eq('estado', 'cerrado')
         .order('cerrado_en', { ascending: false })
