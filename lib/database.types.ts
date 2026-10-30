@@ -3604,6 +3604,309 @@ export type Database = {
         }
         Relationships: []
       }
+      nomenclador_categorias: {
+        Row: {
+          activo: boolean
+          created_at: string
+          id: string
+          nombre: string
+          orden: number
+          tipo: string | null
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          id?: string
+          nombre: string
+          orden?: number
+          tipo?: string | null
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          id?: string
+          nombre?: string
+          orden?: number
+          tipo?: string | null
+        }
+        Relationships: []
+      }
+      nomenclador_codigo_secuencias: {
+        Row: {
+          prefijo: string
+          ultimo: number
+        }
+        Insert: {
+          prefijo: string
+          ultimo?: number
+        }
+        Update: {
+          prefijo?: string
+          ultimo?: number
+        }
+        Relationships: []
+      }
+      nomenclador_componentes: {
+        Row: {
+          cantidad: number | null
+          componente_id: string
+          id: string
+          item_id: string
+          merma_pct: number | null
+          notas: string | null
+          orden: number
+          unidad: string | null
+        }
+        Insert: {
+          cantidad?: number | null
+          componente_id: string
+          id?: string
+          item_id: string
+          merma_pct?: number | null
+          notas?: string | null
+          orden?: number
+          unidad?: string | null
+        }
+        Update: {
+          cantidad?: number | null
+          componente_id?: string
+          id?: string
+          item_id?: string
+          merma_pct?: number | null
+          notas?: string | null
+          orden?: number
+          unidad?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nomenclador_componentes_componente_id_fkey"
+            columns: ["componente_id"]
+            isOneToOne: false
+            referencedRelation: "nomenclador_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nomenclador_componentes_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "nomenclador_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nomenclador_externos: {
+        Row: {
+          activo: boolean
+          codigo: string
+          created_at: string
+          id: string
+          item_id: string | null
+          nombre: string
+          notas: string | null
+          origen: string
+          sistema: string
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          codigo: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          nombre: string
+          notas?: string | null
+          origen?: string
+          sistema: string
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          codigo?: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          nombre?: string
+          notas?: string | null
+          origen?: string
+          sistema?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nomenclador_externos_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "nomenclador_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nomenclador_items: {
+        Row: {
+          a_revisar: boolean
+          categoria_id: string | null
+          clave_importacion: string | null
+          codigo: string
+          created_at: string
+          created_by: string | null
+          estado: string
+          id: string
+          nombre: string
+          nombres_alternativos: string[]
+          notas: string | null
+          presentacion_id: string | null
+          rinde_cantidad: number | null
+          sabor_id: string | null
+          tipo: string
+          unidad_base: string | null
+          updated_at: string
+          updated_by: string | null
+          variante_de: string | null
+        }
+        Insert: {
+          a_revisar?: boolean
+          categoria_id?: string | null
+          clave_importacion?: string | null
+          codigo: string
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          id?: string
+          nombre: string
+          nombres_alternativos?: string[]
+          notas?: string | null
+          presentacion_id?: string | null
+          rinde_cantidad?: number | null
+          sabor_id?: string | null
+          tipo: string
+          unidad_base?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          variante_de?: string | null
+        }
+        Update: {
+          a_revisar?: boolean
+          categoria_id?: string | null
+          clave_importacion?: string | null
+          codigo?: string
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          id?: string
+          nombre?: string
+          nombres_alternativos?: string[]
+          notas?: string | null
+          presentacion_id?: string | null
+          rinde_cantidad?: number | null
+          sabor_id?: string | null
+          tipo?: string
+          unidad_base?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          variante_de?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nomenclador_items_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "nomenclador_categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nomenclador_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nomenclador_items_presentacion_id_fkey"
+            columns: ["presentacion_id"]
+            isOneToOne: false
+            referencedRelation: "nomenclador_presentaciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nomenclador_items_sabor_id_fkey"
+            columns: ["sabor_id"]
+            isOneToOne: false
+            referencedRelation: "nomenclador_sabores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nomenclador_items_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nomenclador_items_variante_de_fkey"
+            columns: ["variante_de"]
+            isOneToOne: false
+            referencedRelation: "nomenclador_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nomenclador_presentaciones: {
+        Row: {
+          activo: boolean
+          cantidad: number | null
+          created_at: string
+          id: string
+          nombre: string
+          orden: number
+          unidad: string | null
+        }
+        Insert: {
+          activo?: boolean
+          cantidad?: number | null
+          created_at?: string
+          id?: string
+          nombre: string
+          orden?: number
+          unidad?: string | null
+        }
+        Update: {
+          activo?: boolean
+          cantidad?: number | null
+          created_at?: string
+          id?: string
+          nombre?: string
+          orden?: number
+          unidad?: string | null
+        }
+        Relationships: []
+      }
+      nomenclador_sabores: {
+        Row: {
+          activo: boolean
+          created_at: string
+          id: string
+          nombre: string
+          nombres_alternativos: string[]
+          orden: number
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          id?: string
+          nombre: string
+          nombres_alternativos?: string[]
+          orden?: number
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          id?: string
+          nombre?: string
+          nombres_alternativos?: string[]
+          orden?: number
+        }
+        Relationships: []
+      }
       notificaciones: {
         Row: {
           created_at: string | null
@@ -3641,6 +3944,54 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pedido_eventos: {
+        Row: {
+          autor_id: string | null
+          autor_nombre: string | null
+          autor_rol: string | null
+          created_at: string
+          detalle: Json
+          id: string
+          pedido_id: string
+          tipo: string
+        }
+        Insert: {
+          autor_id?: string | null
+          autor_nombre?: string | null
+          autor_rol?: string | null
+          created_at?: string
+          detalle?: Json
+          id?: string
+          pedido_id: string
+          tipo: string
+        }
+        Update: {
+          autor_id?: string | null
+          autor_nombre?: string | null
+          autor_rol?: string | null
+          created_at?: string
+          detalle?: Json
+          id?: string
+          pedido_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedido_eventos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedido_eventos_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
             referencedColumns: ["id"]
           },
         ]
@@ -3699,54 +4050,6 @@ export type Database = {
           },
         ]
       }
-      pedido_eventos: {
-        Row: {
-          autor_id: string | null
-          autor_nombre: string | null
-          autor_rol: string | null
-          created_at: string
-          detalle: Json
-          id: string
-          pedido_id: string
-          tipo: string
-        }
-        Insert: {
-          autor_id?: string | null
-          autor_nombre?: string | null
-          autor_rol?: string | null
-          created_at?: string
-          detalle?: Json
-          id?: string
-          pedido_id: string
-          tipo: string
-        }
-        Update: {
-          autor_id?: string | null
-          autor_nombre?: string | null
-          autor_rol?: string | null
-          created_at?: string
-          detalle?: Json
-          id?: string
-          pedido_id?: string
-          tipo?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pedido_eventos_autor_id_fkey"
-            columns: ["autor_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pedido_eventos_pedido_id_fkey"
-            columns: ["pedido_id"]
-            isOneToOne: false
-            referencedRelation: "pedidos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       pedido_mensajes: {
         Row: {
           autor_id: string | null
@@ -3776,6 +4079,13 @@ export type Database = {
           texto?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pedido_mensajes_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pedido_mensajes_pedido_id_fkey"
             columns: ["pedido_id"]
@@ -3850,6 +4160,13 @@ export type Database = {
           version_anterior?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "pedidos_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pedidos_local_id_fkey"
             columns: ["local_id"]
@@ -3931,8 +4248,8 @@ export type Database = {
           codigo: number | null
           created_at: string | null
           descripcion: string | null
-          icono: string | null
           destino: string
+          icono: string | null
           id: string
           nombre: string
           precio: number | null
@@ -3948,8 +4265,8 @@ export type Database = {
           codigo?: number | null
           created_at?: string | null
           descripcion?: string | null
-          icono?: string | null
           destino: string
+          icono?: string | null
           id?: string
           nombre: string
           precio?: number | null
@@ -3965,8 +4282,8 @@ export type Database = {
           codigo?: number | null
           created_at?: string | null
           descripcion?: string | null
-          icono?: string | null
           destino?: string
+          icono?: string | null
           id?: string
           nombre?: string
           precio?: number | null
@@ -5523,6 +5840,20 @@ export type Database = {
         }[]
       }
       _compras_pesos_txt: { Args: { p: number }; Returns: string }
+      _nomenclador_mensaje_constraint: {
+        Args: { p_constraint: string }
+        Returns: string
+      }
+      _nomenclador_prefijo: { Args: { p_tipo: string }; Returns: string }
+      _nomenclador_siguiente_codigo: {
+        Args: { p_tipo: string }
+        Returns: string
+      }
+      _pedido_estado_label: { Args: { p_estado: string }; Returns: string }
+      _pedido_evento: {
+        Args: { p_detalle?: Json; p_pedido_id: string; p_tipo: string }
+        Returns: undefined
+      }
       _proveedores_referencias: {
         Args: { p_proveedor_id: string }
         Returns: Json
@@ -5972,6 +6303,47 @@ export type Database = {
         }
         Returns: undefined
       }
+      nomenclador_archivar_item: {
+        Args: { p_archivar?: boolean; p_item_id: string }
+        Returns: undefined
+      }
+      nomenclador_asignar_externo: {
+        Args: { p_externo_id: string; p_item_id: string }
+        Returns: undefined
+      }
+      nomenclador_generar_variantes: {
+        Args: {
+          p_base: Json
+          p_presentaciones: string[]
+          p_sabores: string[]
+          p_simular?: boolean
+        }
+        Returns: Json
+      }
+      nomenclador_guardar_componentes: {
+        Args: {
+          p_componentes?: Json
+          p_item_id: string
+          p_rinde_cantidad?: number
+        }
+        Returns: undefined
+      }
+      nomenclador_guardar_externo: {
+        Args: { p_datos?: Json; p_externo_id?: string }
+        Returns: string
+      }
+      nomenclador_guardar_item: {
+        Args: { p_datos?: Json; p_item_id?: string }
+        Returns: Json
+      }
+      nomenclador_guardar_parametro: {
+        Args: { p_datos?: Json; p_id?: string; p_tabla: string }
+        Returns: string
+      }
+      nomenclador_marcar_revisado: {
+        Args: { p_ids: string[]; p_revisado?: boolean }
+        Returns: number
+      }
       pedido_cancelar: {
         Args: { p_motivo?: string; p_pedido_id: string }
         Returns: undefined
@@ -6011,6 +6383,7 @@ export type Database = {
       }
       tiene_acceso_compras: { Args: never; Returns: boolean }
       tiene_acceso_fabrica: { Args: never; Returns: boolean }
+      tiene_acceso_nomenclador: { Args: never; Returns: boolean }
       tiene_lectura_conteos: { Args: never; Returns: boolean }
     }
     Enums: {
