@@ -5,7 +5,7 @@ import {
   Package, Link2, Users, Shield, ClipboardList, CreditCard, Factory,
   Truck, ShoppingBasket, ListTodo, Boxes, ReceiptText, BellRing,
 } from 'lucide-react'
-import { IconTruckDelivery } from '@tabler/icons-react'
+import { IconBooks, IconTruckDelivery } from '@tabler/icons-react'
 
 export interface Modulo {
   key: string
@@ -46,6 +46,7 @@ export const MODULOS: Modulo[] = [
   { key: 'integraciones_ventas', label: 'Ventas',     icon: <Receipt size={16} />, href: '/admin/integraciones/ventas', section: 'Integraciones' },
   { key: 'integraciones_cajas',  label: 'Cajas Fudo', icon: <Landmark size={16} />, href: '/admin/integraciones/cajas',  section: 'Integraciones' },
 
+  { key: 'nomenclador',  label: 'Nomenclador',     icon: <IconBooks size={16} />, href: '/admin/nomenclador',  section: 'Parámetros' },
   { key: 'catalogo',     label: 'Catálogo de productos', icon: <Package size={16} />, href: '/admin/catalogo',     section: 'Parámetros' },
   { key: 'mapeos',       label: 'Mapeo productos', icon: <Link2 size={16} />, href: '/admin/mapeos',       section: 'Parámetros' },
   { key: 'usuarios',     label: 'Usuarios',        icon: <Users size={16} />, href: '/admin/usuarios',     section: 'Parámetros' },
