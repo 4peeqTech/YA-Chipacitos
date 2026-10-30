@@ -2,7 +2,7 @@
 
 Catálogo único de todo lo que maneja YA! Chipacitos: materia prima, insumos, semielaborados, productos, presentaciones de venta y combos. Cada ítem tiene un código interno, sus códigos de Posberry y Fudo y, si corresponde, su receta.
 
-Estado: **definición de alcance** (2026-10-29). Objetivo: **lunes 09-11** tener el MVP presentado a Marcos y definido el camino con Posberry.
+Estado: **en construcción**. T0, T1 y T2 están hechos (30-10). Objetivo: **lunes 09-11** tener el MVP presentado a Marcos y definido el camino con Posberry.
 
 ## Fuentes
 
@@ -13,6 +13,18 @@ Las planillas originales están en `docs/nomenclador/fuentes/`, **solo en la má
 | `nomenclador-marcos-2026-10.xlsx` | Marcos | Tres listas sueltas, sin cruce entre ellas: Posberry mayorista (~68 códigos), Fudo (~120 IDs) y "Materia prima e insumos pedidos" (~66 nombres sin código) |
 | `costeo-y-precios-v2.1.xlsx` | Nico (consultor de administración) | Insumos con presentación y precio, recetas por variedad, estructura por kg, costo total, listas de precios por canal, descuentos y simulador |
 | `resultado-mensual-v1.16.xlsx` | Nico | Resultado económico mensual de la fábrica y de cada sucursal, registro de gastos con plan de cuentas, ventas por canal y pendientes |
+
+## Carga inicial
+
+La depuración del Excel de Marcos se arma en dos pasos, y los dos trabajan sobre `fuentes/`, que está fuera de git.
+
+1. **Armar los CSV:** `python -I docs/nomenclador/fuentes/armar_depuracion.py` lee el Excel y escribe `sabores.csv`, `presentaciones.csv`, `items.csv` y `externos.csv`. Las reglas de la depuración están dentro de ese script: qué código va a qué ítem, qué se une, qué se descarta y qué queda sin mapear.
+2. **Cargar en la base:** `node scripts/nomenclador/importar.mjs` lee los CSV y carga en la base a la que apunta `.env.local`.
+   - Se niega a correr contra prod, salvo que se pase `--prod`.
+   - Se puede volver a correr: crea solo lo que falta y no pisa lo que se editó en la app.
+   - Todo lo que crea queda "a revisar".
+
+Criterio principal de la depuración: **una misma bolsa vendida por varios canales es un solo ítem.** Por ejemplo, "Chipá Clásicos · 1/2 kg congelado" junta los códigos de Mayorista, SuperMAX, Fudo, Fudo -10% y PedidosYa. Lo vendido por kg a granel apunta directo al producto terminado.
 
 ## Decisiones tomadas (2026-10-29)
 
@@ -123,7 +135,7 @@ Orden propuesto:
 
 ## Preguntas abiertas
 
-- [ ] La tercera lista del Excel de Marcos ("Materia prima e insumos pedidos"): ¿es lo que compra la fábrica o lo que piden los locales?
+- [x] La tercera lista del Excel de Marcos son los insumos que compra la fábrica: coincide con los insumos de Compras en prod (T0).
 - [ ] Combos de Fudo: ¿hace falta su composición? Default: tipo combo con composición opcional, sin descontar stock.
 - [ ] Consumo de los locales (café, leche, vasos): fuera del MVP. ¿Entra más adelante?
 - [ ] Código interno: prefijo + número vs legible. Consultar con Marcos.
