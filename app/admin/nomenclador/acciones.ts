@@ -220,7 +220,7 @@ const Generar = z.object({
   simular: z.boolean(),
 })
 const FilaGenerada = z.object({
-  accion: z.enum(['crear', 'existe']),
+  accion: z.enum(['crear', 'existe', 'conflicto']),
   tipo: z.string(),
   nombre: z.string(),
   codigo: z.string().optional(),

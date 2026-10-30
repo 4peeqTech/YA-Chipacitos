@@ -99,6 +99,7 @@ const presId = await parametros('nomenclador_presentaciones', presentaciones, f 
 // Categorías en el orden en que aparecen; el tipo solo si todos sus ítems son del mismo.
 const cats = []
 for (const it of items) {
+  if (!it.categoria) continue
   const c = cats.find(x => x.nombre === it.categoria)
   if (!c) cats.push({ nombre: it.categoria, tipos: new Set([it.tipo]) })
   else c.tipos.add(it.tipo)
@@ -136,15 +137,17 @@ for (const pasada of [false, true]) {
 }
 console.log(`nomenclador_items: ${nuevos.size} creados, ${items.length - nuevos.size} ya estaban`)
 
-// Composición de las presentaciones nuevas: producto base × cantidad, cuando la
+// Composición de las presentaciones que todavía no tienen ninguna (también las
+// de una corrida anterior que se cortó): producto base × cantidad, cuando la
 // unidad de la presentación coincide con la del producto base. Las recetas no
-// se cargan (se completan con Marcos).
+// se cargan (se completan con Marcos). Si alguien ya la editó en la app, no se toca.
+const conComposicion = new Set((await q(db.from('nomenclador_componentes').select('item_id'), 'leer componentes')).map(c => c.item_id))
 const porClave = new Map(items.map(i => [i.clave, i]))
 const presPorNombre = new Map(presentaciones.map(p => [clave(p.nombre), p]))
 let compuestos = 0
-for (const c of nuevos) {
-  const it = porClave.get(c)
-  if (!it.variante_de || !it.presentacion) continue
+for (const it of items) {
+  const c = it.clave
+  if (!it.variante_de || !it.presentacion || conComposicion.has(itemId.get(c))) continue
   const p = presPorNombre.get(clave(it.presentacion))
   if (!p.cantidad || p.unidad !== porClave.get(it.variante_de).unidad_base) continue
   await q(db.from('nomenclador_componentes').insert({

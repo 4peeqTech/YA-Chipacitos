@@ -42,7 +42,7 @@ export default function ItemModal({
     saborId: item?.sabor_id ?? '',
     presentacionId: item?.presentacion_id ?? '',
     varianteDe: item?.variante_de ?? '',
-    unidadBase: (item?.unidad_base ?? 'kg') as Unidad | '',
+    unidadBase: (item ? item.unidad_base ?? '' : 'kg') as Unidad | '',
     notas: item?.notas ?? '',
   })
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm(f => ({ ...f, [k]: v }))
@@ -177,7 +177,7 @@ export default function ItemModal({
             </Field>
             <Field label="Unidad base" obligatorio={!UNIDAD_OPCIONAL.includes(form.tipo)} ayuda="En la que se cuenta el stock y las recetas.">
               <Select value={form.unidadBase} onChange={e => set('unidadBase', e.target.value as Unidad | '')}>
-                {UNIDAD_OPCIONAL.includes(form.tipo) && <option value="">Sin unidad</option>}
+                <option value="">{UNIDAD_OPCIONAL.includes(form.tipo) ? 'Sin unidad' : 'Elegí una unidad'}</option>
                 {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
               </Select>
             </Field>

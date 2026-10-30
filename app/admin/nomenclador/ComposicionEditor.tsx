@@ -9,7 +9,7 @@ import { TIPO_INFO, UNIDADES, type ItemNom, type ComponenteNom, type Unidad } fr
 import { CodigoChip, botonPrimario, botonSecundario } from './comun'
 import { guardarComposicion } from './acciones'
 
-interface Linea { key: number; componenteId: string; cantidad: string; unidad: Unidad | ''; merma: string }
+interface Linea { key: number; componenteId: string; cantidad: string; unidad: Unidad | ''; merma: string; notas: string | null }
 
 const num = (s: string) => (s.trim() ? Number(s.replace(',', '.')) : null)
 
@@ -28,29 +28,36 @@ export default function ComposicionEditor({
   const [lineas, setLineas] = useState<Linea[]>(() => iniciales.map((c, i) => ({
     key: i, componenteId: c.componente_id,
     cantidad: c.cantidad != null ? String(c.cantidad) : '', unidad: c.unidad ?? '',
-    merma: c.merma_pct != null ? String(c.merma_pct) : '',
+    merma: c.merma_pct != null ? String(c.merma_pct) : '', notas: c.notas,
   })))
   const [rinde, setRinde] = useState(item.rinde_cantidad != null ? String(item.rinde_cantidad) : '')
   const [sigKey, setSigKey] = useState(iniciales.length)
 
   const porId = new Map(items.map(i => [i.id, i]))
   // Conceptos y archivados no pueden ser componentes (la base lo rechaza igual).
+  // Un componente ya cargado que después se archivó se sigue mostrando (marcado),
+  // para que se vea y se pueda quitar; la base no deja agregar archivados nuevos.
+  const yaCargados = new Set(iniciales.map(c => c.componente_id))
   const opciones = items
-    .filter(i => i.id !== item.id && i.tipo !== 'concepto' && i.estado === 'activo')
-    .map(i => ({ value: i.id, label: `${i.codigo} · ${i.nombre}`, grupo: TIPO_INFO[i.tipo].plural }))
+    .filter(i => i.id !== item.id && i.tipo !== 'concepto' && (i.estado === 'activo' || yaCargados.has(i.id)))
+    .map(i => ({
+      value: i.id,
+      label: `${i.codigo} · ${i.nombre}${i.estado === 'archivado' ? ' (archivado)' : ''}`,
+      grupo: TIPO_INFO[i.tipo].plural,
+    }))
 
   const cambiar = (key: number, cambios: Partial<Linea>) =>
     setLineas(ls => ls.map(l => (l.key === key ? { ...l, ...cambios } : l)))
 
   function agregar() {
-    setLineas(ls => [...ls, { key: sigKey, componenteId: '', cantidad: '', unidad: '', merma: '' }])
+    setLineas(ls => [...ls, { key: sigKey, componenteId: '', cantidad: '', unidad: '', merma: '', notas: null }])
     setSigKey(k => k + 1)
   }
 
   function guardar() {
     const vacias = lineas.filter(l => !l.componenteId)
     if (vacias.length) { toast.error('Elegí el ítem de cada línea o quitá las vacías.'); return }
-    const datos = lineas.map(l => ({ componenteId: l.componenteId, cantidad: num(l.cantidad), unidad: l.unidad || null, mermaPct: num(l.merma), notas: null }))
+    const datos = lineas.map(l => ({ componenteId: l.componenteId, cantidad: num(l.cantidad), unidad: l.unidad || null, mermaPct: num(l.merma), notas: l.notas }))
     if (datos.some(d => (d.cantidad != null && !Number.isFinite(d.cantidad)) || (d.mermaPct != null && !Number.isFinite(d.mermaPct)))) {
       toast.error('Las cantidades y la merma tienen que ser números.'); return
     }

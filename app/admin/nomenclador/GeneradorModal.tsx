@@ -49,6 +49,7 @@ export default function GeneradorModal({ datos, onCerrar, onCreados }: {
   }
 
   const aCrear = vista?.filter(f => f.accion === 'crear').length ?? 0
+  const conflictos = vista?.filter(f => f.accion === 'conflicto').length ?? 0
 
   return (
     <Modal open onClose={onCerrar} size="xl" pantallaCompletaMobile title="Generar variantes">
@@ -92,13 +93,15 @@ export default function GeneradorModal({ datos, onCerrar, onCreados }: {
         {vista && (
           <div className="rounded-xl border border-border">
             <p className="border-b border-border px-3 py-2 text-sm">
-              <strong className="text-text">{aCrear}</strong> para crear · <span className="text-muted">{vista.length - aCrear} ya existen</span>
+              <strong className="text-text">{aCrear}</strong> para crear · <span className="text-muted">{vista.length - aCrear - conflictos} ya existen</span>
+              {conflictos > 0 && <span className="text-warning"> · {conflictos} con el nombre ocupado por otro ítem (no se crean)</span>}
             </p>
             <ul className="max-h-64 divide-y divide-border overflow-y-auto text-sm">
               {vista.map((f, i) => (
                 <li key={i} className={`flex items-center gap-3 px-3 py-1.5 ${f.accion === 'existe' ? 'text-muted' : ''}`}>
-                  <span className={`w-14 shrink-0 text-2xs font-semibold uppercase ${f.accion === 'crear' ? 'text-success' : 'text-faint'}`}>
-                    {f.accion === 'crear' ? 'Nuevo' : 'Existe'}
+                  <span className={`w-16 shrink-0 text-2xs font-semibold uppercase ${f.accion === 'crear' ? 'text-success' : f.accion === 'conflicto' ? 'text-warning' : 'text-faint'}`}
+                    title={f.accion === 'conflicto' ? 'Ya hay otro ítem activo con este nombre que no está vinculado a este producto y presentación.' : undefined}>
+                    {f.accion === 'crear' ? 'Nuevo' : f.accion === 'conflicto' ? 'Conflicto' : 'Existe'}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{f.nombre}</span>
                   {f.codigo && <span className="shrink-0 font-mono text-xs">{f.codigo}</span>}
