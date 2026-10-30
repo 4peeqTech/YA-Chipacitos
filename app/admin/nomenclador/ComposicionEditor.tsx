@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from 'react'
 import { IconPlus, IconTrash, IconArrowUpRight } from '@tabler/icons-react'
-import { Input, Select } from '@/components/ui/Field'
-import SelectBuscador from '@/components/ui/SelectBuscador'
+import { Input } from '@/components/ui/Field'
+import ListaBuscable from '@/components/ui/ListaBuscable'
 import { useToast } from '@/components/ui/ProveedorUI'
-import { TIPO_INFO, UNIDADES, type ItemNom, type ComponenteNom, type Unidad } from '@/lib/nomenclador/tipos'
-import { CodigoChip, botonPrimario, botonSecundario } from './comun'
+import { UNIDADES, type ItemNom, type ComponenteNom, type Unidad } from '@/lib/nomenclador/tipos'
+import { botonPrimario, botonSecundario, opcionesItems } from './comun'
 import { guardarComposicion } from './acciones'
 
 interface Linea { key: number; componenteId: string; cantidad: string; unidad: Unidad | ''; merma: string; notas: string | null }
@@ -38,13 +38,8 @@ export default function ComposicionEditor({
   // Un componente ya cargado que después se archivó se sigue mostrando (marcado),
   // para que se vea y se pueda quitar; la base no deja agregar archivados nuevos.
   const yaCargados = new Set(iniciales.map(c => c.componente_id))
-  const opciones = items
-    .filter(i => i.id !== item.id && i.tipo !== 'concepto' && (i.estado === 'activo' || yaCargados.has(i.id)))
-    .map(i => ({
-      value: i.id,
-      label: `${i.codigo} · ${i.nombre}${i.estado === 'archivado' ? ' (archivado)' : ''}`,
-      grupo: TIPO_INFO[i.tipo].plural,
-    }))
+  const opciones = opcionesItems(items.filter(i =>
+    i.id !== item.id && i.tipo !== 'concepto' && (i.estado === 'activo' || yaCargados.has(i.id))))
 
   const cambiar = (key: number, cambios: Partial<Linea>) =>
     setLineas(ls => ls.map(l => (l.key === key ? { ...l, ...cambios } : l)))
@@ -92,14 +87,8 @@ export default function ComposicionEditor({
           return (
             <li key={l.key} className="grid grid-cols-[1fr_auto] gap-2 rounded-xl border border-border p-2 sm:grid-cols-[minmax(0,1fr)_6rem_7rem_5.5rem_auto] sm:items-center">
               <div className="col-span-2 flex items-center gap-2 sm:col-span-1">
-                {comp && <CodigoChip codigo={comp.codigo} tipo={comp.tipo} />}
-                <SelectBuscador
-                  value={l.componenteId}
-                  onChange={v => cambiar(l.key, { componenteId: v, unidad: porId.get(v)?.unidad_base ?? '' })}
-                  placeholderVacio="Elegí un ítem…"
-                  opciones={opciones}
-                  className="min-w-0 flex-1"
-                />
+                <ListaBuscable value={l.componenteId} onChange={v => cambiar(l.key, { componenteId: v, unidad: porId.get(v)?.unidad_base ?? '' })}
+                  placeholder="Elegí un ítem…" aria-label="Componente" opciones={opciones} className="min-w-0 flex-1" />
                 {comp && (
                   <button onClick={() => onAbrir(comp.id)} title="Abrir su ficha" className="rounded-lg p-2 text-muted hover:text-text">
                     <IconArrowUpRight size={16} />
@@ -107,10 +96,8 @@ export default function ComposicionEditor({
                 )}
               </div>
               <Input inputMode="decimal" value={l.cantidad} onChange={e => cambiar(l.key, { cantidad: e.target.value })} placeholder="Cantidad" aria-label="Cantidad" />
-              <Select value={l.unidad} onChange={e => cambiar(l.key, { unidad: e.target.value as Unidad | '' })} aria-label="Unidad">
-                <option value="">Unidad</option>
-                {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-              </Select>
+              <ListaBuscable value={l.unidad} onChange={v => cambiar(l.key, { unidad: v as Unidad | '' })} vacio="Unidad" aria-label="Unidad"
+                opciones={UNIDADES.map(u => ({ value: u, label: u }))} />
               <Input inputMode="decimal" value={l.merma} onChange={e => cambiar(l.key, { merma: e.target.value })} placeholder="Merma %" aria-label="Merma %" />
               <button onClick={() => setLineas(ls => ls.filter(x => x.key !== l.key))} aria-label="Quitar componente"
                 className="justify-self-end rounded-lg p-2 text-muted hover:bg-danger-bg hover:text-brand-red">

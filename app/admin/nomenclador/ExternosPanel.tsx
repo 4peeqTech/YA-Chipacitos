@@ -7,12 +7,12 @@ import SearchInput from '@/components/ui/SearchInput'
 import DataTable, { type Columna } from '@/components/ui/DataTable'
 import EmptyState from '@/components/ui/EmptyState'
 import { Chip, SegmentedControl } from '@/components/ui/Chip'
-import { Field, Input, Select } from '@/components/ui/Field'
-import SelectBuscador from '@/components/ui/SelectBuscador'
+import { Field, Input } from '@/components/ui/Field'
+import ListaBuscable from '@/components/ui/ListaBuscable'
 import { useToast } from '@/components/ui/ProveedorUI'
 import { SISTEMAS, SISTEMA_LABEL, normalizar, type ExternoNom, type Sistema } from '@/lib/nomenclador/tipos'
 import type { DatosNomenclador } from './NomencladorClient'
-import { ItemLinea, botonPrimario, botonSecundario } from './comun'
+import { ItemLinea, botonPrimario, botonSecundario, opcionesItems } from './comun'
 import { asignarExterno, crearExterno } from './acciones'
 
 export default function ExternosPanel({ datos, onAbrirItem }: { datos: DatosNomenclador; onAbrirItem: (id: string) => void }) {
@@ -87,10 +87,8 @@ export default function ExternosPanel({ datos, onAbrirItem }: { datos: DatosNome
   )
 }
 
-function opcionesItems(datos: DatosNomenclador) {
-  return datos.items
-    .filter(i => i.estado === 'activo')
-    .map(i => ({ value: i.id, label: `${i.codigo} · ${i.nombre}` }))
+function opcionesActivos(datos: DatosNomenclador) {
+  return opcionesItems(datos.items.filter(i => i.estado === 'activo'))
 }
 
 function AsignarModal({ externo, datos, onCerrar, onAbrirItem }: {
@@ -122,7 +120,7 @@ function AsignarModal({ externo, datos, onCerrar, onAbrirItem }: {
           </button>
         )}
         <Field label="Ítem del nomenclador">
-          <SelectBuscador value={destino} onChange={setDestino} placeholderVacio="Buscar ítem…" opciones={opcionesItems(datos)} />
+          <ListaBuscable value={destino} onChange={setDestino} placeholder="Elegí un ítem…" aria-label="Ítem" opciones={opcionesActivos(datos)} />
         </Field>
         <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row">
           {externo.item_id && (
@@ -158,9 +156,8 @@ function NuevoExternoModal({ datos, onCerrar }: { datos: DatosNomenclador; onCer
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Sistema" obligatorio>
-            <Select value={form.sistema} onChange={e => setForm(f => ({ ...f, sistema: e.target.value as Sistema }))}>
-              {SISTEMAS.map(s => <option key={s} value={s}>{SISTEMA_LABEL[s]}</option>)}
-            </Select>
+            <ListaBuscable value={form.sistema} onChange={v => setForm(f => ({ ...f, sistema: v as Sistema }))} aria-label="Sistema"
+              opciones={SISTEMAS.map(s => ({ value: s, label: SISTEMA_LABEL[s] }))} />
           </Field>
           <Field label="Código" obligatorio>
             <Input value={form.codigo} onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))} maxLength={40} />
@@ -170,7 +167,7 @@ function NuevoExternoModal({ datos, onCerrar }: { datos: DatosNomenclador; onCer
           </Field>
         </div>
         <Field label="Ítem del nomenclador" ayuda="Se puede dejar sin mapear y asignarlo después.">
-          <SelectBuscador value={form.itemId} onChange={v => setForm(f => ({ ...f, itemId: v }))} placeholderVacio="Sin mapear" opciones={opcionesItems(datos)} />
+          <ListaBuscable value={form.itemId} onChange={v => setForm(f => ({ ...f, itemId: v }))} vacio="Sin mapear" aria-label="Ítem" opciones={opcionesActivos(datos)} />
         </Field>
         <div className="flex justify-end border-t border-border pt-4">
           <button onClick={crear} disabled={pendiente} className={botonPrimario}>Crear código</button>
