@@ -122,7 +122,7 @@ function AsignarModal({ externo, datos, onCerrar, onAbrirItem }: {
           </button>
         )}
         <Field label="Ítem del nomenclador">
-          <SelectBuscador value={destino} onChange={setDestino} placeholder="Buscar ítem…" opciones={opcionesItems(datos)} />
+          <SelectBuscador value={destino} onChange={setDestino} placeholderVacio="Buscar ítem…" opciones={opcionesItems(datos)} />
         </Field>
         <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row">
           {externo.item_id && (
@@ -170,7 +170,7 @@ function NuevoExternoModal({ datos, onCerrar }: { datos: DatosNomenclador; onCer
           </Field>
         </div>
         <Field label="Ítem del nomenclador" ayuda="Se puede dejar sin mapear y asignarlo después.">
-          <SelectBuscador value={form.itemId} onChange={v => setForm(f => ({ ...f, itemId: v }))} placeholder="Sin mapear" opciones={opcionesItems(datos)} />
+          <SelectBuscador value={form.itemId} onChange={v => setForm(f => ({ ...f, itemId: v }))} placeholderVacio="Sin mapear" opciones={opcionesItems(datos)} />
         </Field>
         <div className="flex justify-end border-t border-border pt-4">
           <button onClick={crear} disabled={pendiente} className={botonPrimario}>Crear código</button>

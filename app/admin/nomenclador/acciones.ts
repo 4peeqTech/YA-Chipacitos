@@ -174,3 +174,78 @@ export async function guardarParametro(entrada: z.input<typeof Parametro>): Prom
     return fallo(e, 'No se pudo guardar.')
   }
 }
+
+const Componente = z.object({
+  componenteId: z.uuid({ message: 'Elegí el ítem de cada componente.' }),
+  cantidad: z.number().finite().gt(0, 'Las cantidades tienen que ser mayores a 0.').nullable(),
+  unidad: z.enum(UNIDADES).nullable(),
+  mermaPct: z.number().finite().min(0, 'La merma no puede ser negativa.').lt(100, 'La merma tiene que ser menor a 100%.').nullable(),
+  notas: z.string().trim().max(500).nullable(),
+})
+const Composicion = z.object({
+  itemId: id,
+  rinde: z.number().finite().gt(0, 'El rendimiento tiene que ser mayor a 0.').nullable(),
+  componentes: z.array(Componente).max(100, 'Demasiados componentes.'),
+})
+
+// Reemplaza la composición completa. Tipos, ciclos y archivados los valida la base.
+export async function guardarComposicion(entrada: z.input<typeof Composicion>): Promise<Resultado<null>> {
+  const parsed = Composicion.safeParse(entrada)
+  if (!parsed.success) return fallo(null, primerError(parsed.error, 'Revisá los componentes.'))
+  const ids = parsed.data.componentes.map(c => c.componenteId)
+  if (new Set(ids).size !== ids.length) return fallo(null, 'Hay un componente repetido: juntalos en una sola línea.')
+  try {
+    const supabase = await createClientTipado()
+    const { error } = await supabase.rpc('nomenclador_guardar_componentes', {
+      p_item_id: parsed.data.itemId,
+      p_rinde_cantidad: parsed.data.rinde as number,
+      p_componentes: parsed.data.componentes.map(c => ({
+        componente_id: c.componenteId, cantidad: c.cantidad, unidad: c.unidad, merma_pct: c.mermaPct, notas: c.notas,
+      })),
+    })
+    refresh()
+    if (error) return fallo(error, 'No se pudo guardar la composición.')
+    return ok(null)
+  } catch (e) {
+    return fallo(e, 'No se pudo guardar la composición.')
+  }
+}
+
+const Generar = z.object({
+  nombre: z.string().trim().min(1, 'Escribí el nombre del producto base (ej. "Chipá").').max(80),
+  categoriaId: idOpcional,
+  unidadBase: z.enum(UNIDADES),
+  sabores: z.array(id).min(1, 'Elegí al menos un sabor.'),
+  presentaciones: z.array(id).min(1, 'Elegí al menos una presentación.'),
+  simular: z.boolean(),
+})
+const FilaGenerada = z.object({
+  accion: z.enum(['crear', 'existe']),
+  tipo: z.string(),
+  nombre: z.string(),
+  codigo: z.string().optional(),
+  id: z.string().optional(),
+})
+export type FilaGenerador = z.infer<typeof FilaGenerada>
+
+export async function generarVariantes(entrada: z.input<typeof Generar>): Promise<Resultado<FilaGenerador[]>> {
+  const parsed = Generar.safeParse(entrada)
+  if (!parsed.success) return fallo(null, primerError(parsed.error, 'Revisá los datos del generador.'))
+  const d = parsed.data
+  try {
+    const supabase = await createClientTipado()
+    const { data, error } = await supabase.rpc('nomenclador_generar_variantes', {
+      p_base: { nombre: d.nombre, categoria_id: d.categoriaId, unidad_base: d.unidadBase },
+      p_sabores: d.sabores,
+      p_presentaciones: d.presentaciones,
+      p_simular: d.simular,
+    })
+    if (!d.simular) refresh()
+    if (error) return fallo(error, 'No se pudieron generar las variantes.')
+    const res = z.array(FilaGenerada).safeParse(data)
+    if (!res.success) return fallo(null, 'No pudimos leer el resultado. Recargá la página.')
+    return ok(res.data)
+  } catch (e) {
+    return fallo(e, 'No se pudieron generar las variantes.')
+  }
+}

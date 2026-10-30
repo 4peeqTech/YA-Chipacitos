@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { IconBooks, IconListDetails, IconPlugConnected, IconAdjustmentsHorizontal, IconPlus, IconChecks } from '@tabler/icons-react'
+import { IconBooks, IconListDetails, IconPlugConnected, IconAdjustmentsHorizontal, IconPlus, IconChecks, IconWand, IconX } from '@tabler/icons-react'
 import PageHeader from '@/components/ui/PageHeader'
 import Pestanas, { panelDe } from '@/components/ui/Pestanas'
 import SearchInput from '@/components/ui/SearchInput'
@@ -19,6 +19,7 @@ import { CodigoChip, BadgeRevisar, BadgeArchivado, botonPrimario, botonSecundari
 import ItemModal from './ItemModal'
 import ExternosPanel from './ExternosPanel'
 import ParametrosPanel from './ParametrosPanel'
+import GeneradorModal from './GeneradorModal'
 import { marcarRevisado } from './acciones'
 
 export interface DatosNomenclador {
@@ -38,6 +39,9 @@ export default function NomencladorClient(datos: DatosNomenclador) {
   // Ficha abierta: un ítem, "nuevo" o nada. La clave fuerza un form limpio en cada apertura.
   const [ficha, setFicha] = useState<{ id: string | null; n: number } | null>(null)
   const sinMapear = datos.externos.filter(e => e.activo && !e.item_id).length
+  const [generando, setGenerando] = useState(false)
+  // Ids que acaba de crear el generador: la lista se filtra en ellos.
+  const [recientes, setRecientes] = useState<string[] | null>(null)
 
   function abrirItem(id: string | null) {
     setFicha(f => ({ id, n: (f?.n ?? 0) + 1 }))
@@ -50,9 +54,14 @@ export default function NomencladorClient(datos: DatosNomenclador) {
         titulo="Nomenclador"
         descripcion="Todo lo que se compra, se produce y se vende, con su código y sus códigos de Posberry y Fudo."
         acciones={tab === 'items' && (
-          <button onClick={() => abrirItem(null)} className={botonPrimario}>
-            <IconPlus size={16} /> Nuevo ítem
-          </button>
+          <>
+            <button onClick={() => setGenerando(true)} className={botonSecundario}>
+              <IconWand size={16} /> Generar variantes
+            </button>
+            <button onClick={() => abrirItem(null)} className={botonPrimario}>
+              <IconPlus size={16} /> Nuevo ítem
+            </button>
+          </>
         )}
       />
 
@@ -69,7 +78,7 @@ export default function NomencladorClient(datos: DatosNomenclador) {
       />
 
       <div {...panelDe(ID_BASE, 'items')} hidden={tab !== 'items'}>
-        <ItemsPanel datos={datos} onAbrir={abrirItem} />
+        <ItemsPanel datos={datos} onAbrir={abrirItem} recientes={recientes} onQuitarRecientes={() => setRecientes(null)} />
       </div>
       <div {...panelDe(ID_BASE, 'externos')} hidden={tab !== 'externos'}>
         <ExternosPanel datos={datos} onAbrirItem={abrirItem} />
@@ -78,6 +87,13 @@ export default function NomencladorClient(datos: DatosNomenclador) {
         <ParametrosPanel datos={datos} />
       </div>
 
+      {generando && (
+        <GeneradorModal
+          datos={datos}
+          onCerrar={() => setGenerando(false)}
+          onCreados={ids => { if (ids.length) setRecientes(ids) }}
+        />
+      )}
       {ficha && (
         <ItemModal
           key={ficha.n}
@@ -91,7 +107,12 @@ export default function NomencladorClient(datos: DatosNomenclador) {
   )
 }
 
-function ItemsPanel({ datos, onAbrir }: { datos: DatosNomenclador; onAbrir: (id: string | null) => void }) {
+function ItemsPanel({ datos, onAbrir, recientes, onQuitarRecientes }: {
+  datos: DatosNomenclador
+  onAbrir: (id: string | null) => void
+  recientes: string[] | null
+  onQuitarRecientes: () => void
+}) {
   const { items, externos, categorias, sabores } = datos
   const toast = useToast()
   const confirmar = useConfirmar()
@@ -135,6 +156,7 @@ function ItemsPanel({ datos, onAbrir }: { datos: DatosNomenclador; onAbrir: (id:
   const filtrados = useMemo(() => {
     const q = normalizar(busqueda.trim())
     return items.filter(i =>
+      (!recientes || recientes.includes(i.id)) &&
       (verArchivados ? i.estado === 'archivado' : i.estado === 'activo') &&
       (tipo === 'todos' || i.tipo === tipo) &&
       (categoria === 'todas' || i.categoria_id === categoria) &&
@@ -142,7 +164,7 @@ function ItemsPanel({ datos, onAbrir }: { datos: DatosNomenclador; onAbrir: (id:
       (!soloRevisar || i.a_revisar) &&
       (!soloSinCodigos || !externosPorItem.has(i.id)) &&
       (!q || q.split(/\s+/).every(p => indice.get(i.id)!.includes(p))))
-  }, [items, busqueda, tipo, categoria, sabor, soloRevisar, soloSinCodigos, verArchivados, externosPorItem, indice])
+  }, [items, recientes, busqueda, tipo, categoria, sabor, soloRevisar, soloSinCodigos, verArchivados, externosPorItem, indice])
 
   const aRevisar = items.filter(i => i.estado === 'activo' && i.a_revisar).length
   const revisablesVisibles = filtrados.filter(i => i.a_revisar)
@@ -240,6 +262,11 @@ function ItemsPanel({ datos, onAbrir }: { datos: DatosNomenclador; onAbrir: (id:
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {recientes && (
+          <button onClick={onQuitarRecientes} className="flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-black">
+            Recién generados · {recientes.length} <IconX size={14} />
+          </button>
+        )}
         <Chip active={soloRevisar} onClick={() => setSoloRevisar(v => !v)}>A revisar · {aRevisar}</Chip>
         <Chip active={soloSinCodigos} onClick={() => setSoloSinCodigos(v => !v)}>Sin códigos externos</Chip>
         <Chip active={verArchivados} onClick={() => setVerArchivados(v => !v)}>Archivados</Chip>

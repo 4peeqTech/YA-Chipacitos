@@ -14,6 +14,7 @@ import {
 import type { DatosNomenclador } from './NomencladorClient'
 import { CodigoChip, BadgeRevisar, BadgeArchivado, ItemLinea, botonPrimario, botonSecundario, botonPeligro } from './comun'
 import { guardarItem, archivarItem, marcarRevisado, asignarExterno } from './acciones'
+import ComposicionEditor from './ComposicionEditor'
 
 type Tab = 'datos' | 'externos' | 'composicion'
 const ID_BASE = 'ficha-item'
@@ -199,9 +200,8 @@ export default function ItemModal({
                 <SelectBuscador
                   value={form.varianteDe}
                   onChange={v => set('varianteDe', v)}
-                  placeholder="Sin producto base"
-                  opciones={[{ value: '', label: 'Sin producto base' },
-                    ...productosBase.map(p => ({ value: p.id, label: `${p.codigo} · ${p.nombre}` }))]}
+                  placeholderVacio="Sin producto base"
+                  opciones={productosBase.map(p => ({ value: p.id, label: `${p.codigo} · ${p.nombre}` }))}
                 />
               </Field>
             </div>
@@ -254,7 +254,7 @@ export default function ItemModal({
               <SelectBuscador
                 value=""
                 onChange={v => v && asignar(v, item.id)}
-                placeholder={sinMapear.length ? 'Buscar código de Posberry o Fudo…' : 'No hay códigos sin mapear'}
+                placeholderVacio={sinMapear.length ? 'Buscar código de Posberry o Fudo…' : 'No hay códigos sin mapear'}
                 disabled={!sinMapear.length || pendiente}
                 opciones={sinMapear.map(e => ({ value: e.id, label: `${e.codigo} · ${e.nombre}`, grupo: SISTEMA_LABEL[e.sistema] }))}
               />
@@ -262,39 +262,12 @@ export default function ItemModal({
           </div>
         )}
 
-        {/* Composición: lectura (la edición llega en T4) */}
+        {/* Composición */}
         {item && (
           <div {...panelDe(ID_BASE, 'composicion')} hidden={tab !== 'composicion'} className="space-y-5">
             {SIN_COMPOSICION.includes(item.tipo)
               ? <p className="text-sm text-muted">{TIPO_INFO[item.tipo].plural} no llevan composición.</p>
-              : (
-                <section>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent-fg">
-                    Se hace con{item.rinde_cantidad != null && ` · rinde ${item.rinde_cantidad} ${item.unidad_base ?? ''}`}
-                  </h3>
-                  {seHaceCon.length === 0
-                    ? <p className="text-sm text-muted">Todavía no tiene componentes cargados.</p>
-                    : (
-                      <ul className="divide-y divide-border rounded-xl border border-border">
-                        {seHaceCon.map(c => {
-                          const comp = porId.get(c.componente_id)
-                          if (!comp) return null
-                          return (
-                            <li key={c.componente_id}>
-                              <button onClick={() => onAbrirOtro(comp.id)} className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-surface2">
-                                <ItemLinea item={comp} />
-                                <span className="ml-auto shrink-0 text-muted">
-                                  {c.cantidad != null ? `${c.cantidad} ${c.unidad ?? ''}` : 'sin cantidad'}
-                                  {c.merma_pct != null && ` · merma ${c.merma_pct}%`}
-                                </span>
-                              </button>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )}
-                </section>
-              )}
+              : <ComposicionEditor item={item} items={items} componentes={componentes} onAbrir={onAbrirOtro} />}
             {(seUsaEn.length > 0 || variantes.length > 0) && (
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent-fg">Se usa en</h3>
