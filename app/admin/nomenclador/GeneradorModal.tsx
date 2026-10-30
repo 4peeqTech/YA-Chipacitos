@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react'
 import { IconEye, IconWand } from '@tabler/icons-react'
 import Modal from '@/components/ui/Modal'
-import { Field, Input, Select } from '@/components/ui/Field'
+import { Field, Input } from '@/components/ui/Field'
+import ListaBuscable from '@/components/ui/ListaBuscable'
 import { Chip } from '@/components/ui/Chip'
 import { useToast } from '@/components/ui/ProveedorUI'
 import { UNIDADES, type Unidad } from '@/lib/nomenclador/tipos'
@@ -63,15 +64,12 @@ export default function GeneradorModal({ datos, onCerrar, onCreados }: {
             <Input value={nombre} onChange={e => { setNombre(e.target.value); setVista(null) }} maxLength={80} />
           </Field>
           <Field label="Categoría">
-            <Select value={categoriaId} onChange={e => { setCategoriaId(e.target.value); setVista(null) }}>
-              <option value="">Sin categoría</option>
-              {datos.categorias.filter(c => c.activo).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </Select>
+            <ListaBuscable value={categoriaId} onChange={v => { setCategoriaId(v); setVista(null) }} vacio="Sin categoría" aria-label="Categoría"
+              opciones={datos.categorias.filter(c => c.activo).map(c => ({ value: c.id, label: c.nombre }))} />
           </Field>
           <Field label="Unidad del producto">
-            <Select value={unidadBase} onChange={e => { setUnidadBase(e.target.value as Unidad); setVista(null) }}>
-              {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-            </Select>
+            <ListaBuscable value={unidadBase} onChange={v => { setUnidadBase(v as Unidad); setVista(null) }} aria-label="Unidad del producto"
+              opciones={UNIDADES.map(u => ({ value: u, label: u }))} />
           </Field>
         </div>
 

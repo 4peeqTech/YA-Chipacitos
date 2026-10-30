@@ -3,7 +3,8 @@
 import { useState, useTransition, type ComponentType } from 'react'
 import { IconCategory2, IconCheese, IconPackage, IconPlus } from '@tabler/icons-react'
 import Modal from '@/components/ui/Modal'
-import { Field, Input, Select, Textarea } from '@/components/ui/Field'
+import { Field, Input, Textarea } from '@/components/ui/Field'
+import ListaBuscable from '@/components/ui/ListaBuscable'
 import { useToast } from '@/components/ui/ProveedorUI'
 import { TIPOS, TIPO_INFO, UNIDADES, type TipoItem, type Unidad } from '@/lib/nomenclador/tipos'
 import type { DatosNomenclador } from './NomencladorClient'
@@ -126,10 +127,8 @@ function ParametroModal({ editando, datos, onCerrar }: { editando: Editando; dat
         </Field>
         {tabla === 'categoria' && (
           <Field label="Solo para el tipo" ayuda="Opcional: limita la categoría a un tipo de ítem al filtrar.">
-            <Select value={tipo} onChange={e => setTipo(e.target.value as TipoItem | '')}>
-              <option value="">Cualquier tipo</option>
-              {TIPOS.map(t => <option key={t} value={t}>{TIPO_INFO[t].label}</option>)}
-            </Select>
+            <ListaBuscable value={tipo} onChange={v => setTipo(v as TipoItem | '')} vacio="Cualquier tipo" aria-label="Tipo"
+              opciones={TIPOS.map(t => ({ value: t, label: TIPO_INFO[t].label }))} />
           </Field>
         )}
         {tabla === 'sabor' && (
@@ -143,10 +142,8 @@ function ParametroModal({ editando, datos, onCerrar }: { editando: Editando; dat
               <Input inputMode="decimal" value={cantidad} onChange={e => setCantidad(e.target.value)} placeholder="0,5" />
             </Field>
             <Field label="Unidad">
-              <Select value={unidad} onChange={e => setUnidad(e.target.value as Unidad | '')}>
-                <option value="">—</option>
-                {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-              </Select>
+              <ListaBuscable value={unidad} onChange={v => setUnidad(v as Unidad | '')} vacio="—" aria-label="Unidad"
+                opciones={UNIDADES.map(u => ({ value: u, label: u }))} />
             </Field>
           </div>
         )}

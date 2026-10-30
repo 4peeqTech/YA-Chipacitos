@@ -4,15 +4,15 @@ import { useMemo, useState, useTransition } from 'react'
 import { IconForms, IconPlugConnected, IconHierarchy2, IconArchive, IconRestore, IconCheck, IconX, IconAlertTriangle } from '@tabler/icons-react'
 import Modal from '@/components/ui/Modal'
 import Pestanas, { panelDe } from '@/components/ui/Pestanas'
-import { Field, Input, Select, Textarea } from '@/components/ui/Field'
-import SelectBuscador from '@/components/ui/SelectBuscador'
+import { Field, Input, Textarea } from '@/components/ui/Field'
+import ListaBuscable from '@/components/ui/ListaBuscable'
 import { useToast, useConfirmar } from '@/components/ui/ProveedorUI'
 import {
   TIPOS, TIPO_INFO, UNIDADES, SISTEMA_LABEL, SIN_COMPOSICION, UNIDAD_OPCIONAL,
   type TipoItem, type Unidad,
 } from '@/lib/nomenclador/tipos'
 import type { DatosNomenclador } from './NomencladorClient'
-import { CodigoChip, BadgeRevisar, BadgeArchivado, ItemLinea, botonPrimario, botonSecundario, botonPeligro } from './comun'
+import { CodigoChip, BadgeRevisar, BadgeArchivado, ItemLinea, botonPrimario, botonSecundario, botonPeligro, opcionesItems } from './comun'
 import { guardarItem, archivarItem, marcarRevisado, asignarExterno } from './acciones'
 import ComposicionEditor from './ComposicionEditor'
 
@@ -154,9 +154,8 @@ export default function ItemModal({
         <div {...panelDe(ID_BASE, 'datos')} hidden={tab !== 'datos'} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Tipo" obligatorio ayuda={!tipoEditable ? 'Ya está revisado: el tipo (y el código) quedan fijos.' : undefined}>
-              <Select value={form.tipo} disabled={!tipoEditable} onChange={e => set('tipo', e.target.value as TipoItem)}>
-                {TIPOS.map(t => <option key={t} value={t}>{TIPO_INFO[t].label} ({TIPO_INFO[t].prefijo})</option>)}
-              </Select>
+              <ListaBuscable value={form.tipo} disabled={!tipoEditable} onChange={v => set('tipo', v as TipoItem)} aria-label="Tipo"
+                opciones={TIPOS.map(t => ({ value: t, label: TIPO_INFO[t].label, prefijo: <span className={`rounded px-1.5 font-mono text-2xs font-semibold ${TIPO_INFO[t].color}`}>{TIPO_INFO[t].prefijo}</span> }))} />
             </Field>
             <Field label="Nombre" obligatorio>
               <Input value={form.nombre} onChange={e => set('nombre', e.target.value)} maxLength={160} />
@@ -170,39 +169,28 @@ export default function ItemModal({
           )}
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Categoría">
-              <Select value={form.categoriaId} onChange={e => set('categoriaId', e.target.value)}>
-                <option value="">Sin categoría</option>
-                {categorias.filter(c => c.activo || c.id === form.categoriaId).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </Select>
+              <ListaBuscable value={form.categoriaId} onChange={v => set('categoriaId', v)} vacio="Sin categoría" aria-label="Categoría"
+                opciones={categorias.filter(c => c.activo || c.id === form.categoriaId).map(c => ({ value: c.id, label: c.nombre }))} />
             </Field>
             <Field label="Unidad base" obligatorio={!UNIDAD_OPCIONAL.includes(form.tipo)} ayuda="En la que se cuenta el stock y las recetas.">
-              <Select value={form.unidadBase} onChange={e => set('unidadBase', e.target.value as Unidad | '')}>
-                <option value="">{UNIDAD_OPCIONAL.includes(form.tipo) ? 'Sin unidad' : 'Elegí una unidad'}</option>
-                {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-              </Select>
+              <ListaBuscable value={form.unidadBase} onChange={v => set('unidadBase', v as Unidad | '')} aria-label="Unidad base"
+                vacio={UNIDAD_OPCIONAL.includes(form.tipo) ? 'Sin unidad' : null} placeholder="Elegí una unidad"
+                opciones={UNIDADES.map(u => ({ value: u, label: u }))} />
             </Field>
             <Field label="Sabor">
-              <Select value={form.saborId} onChange={e => set('saborId', e.target.value)}>
-                <option value="">Sin sabor</option>
-                {sabores.filter(s => s.activo || s.id === form.saborId).map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </Select>
+              <ListaBuscable value={form.saborId} onChange={v => set('saborId', v)} vacio="Sin sabor" aria-label="Sabor"
+                opciones={sabores.filter(s => s.activo || s.id === form.saborId).map(s => ({ value: s.id, label: s.nombre, buscar: s.nombres_alternativos.join(' ') }))} />
             </Field>
           </div>
           {(form.tipo === 'presentacion' || form.presentacionId || form.varianteDe) && (
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Presentación">
-                <Select value={form.presentacionId} onChange={e => set('presentacionId', e.target.value)}>
-                  <option value="">Sin presentación</option>
-                  {presentaciones.filter(p => p.activo || p.id === form.presentacionId).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                </Select>
+                <ListaBuscable value={form.presentacionId} onChange={v => set('presentacionId', v)} vacio="Sin presentación" aria-label="Presentación"
+                  opciones={presentaciones.filter(p => p.activo || p.id === form.presentacionId).map(p => ({ value: p.id, label: p.nombre, descripcion: p.cantidad != null ? `${p.cantidad} ${p.unidad}` : undefined }))} />
               </Field>
               <Field label="Producto base" ayuda="El producto terminado del que sale esta presentación.">
-                <SelectBuscador
-                  value={form.varianteDe}
-                  onChange={v => set('varianteDe', v)}
-                  placeholderVacio="Sin producto base"
-                  opciones={productosBase.map(p => ({ value: p.id, label: `${p.codigo} · ${p.nombre}` }))}
-                />
+                <ListaBuscable value={form.varianteDe} onChange={v => set('varianteDe', v)} vacio="Sin producto base" aria-label="Producto base"
+                  opciones={opcionesItems(productosBase)} />
               </Field>
             </div>
           )}
@@ -251,13 +239,11 @@ export default function ItemModal({
                 </ul>
               )}
             <Field label="Asignar un código sin mapear" ayuda="Para mover un código que ya tiene ítem, quitalo primero desde su ítem o desde Códigos externos.">
-              <SelectBuscador
-                value=""
-                onChange={v => v && asignar(v, item.id)}
-                placeholderVacio={sinMapear.length ? 'Buscar código de Posberry o Fudo…' : 'No hay códigos sin mapear'}
+              <ListaBuscable value="" onChange={v => v && asignar(v, item.id)} aria-label="Código sin mapear"
+                placeholder={sinMapear.length ? 'Elegí un código de Posberry o Fudo…' : 'No hay códigos sin mapear'}
                 disabled={!sinMapear.length || pendiente}
-                opciones={sinMapear.map(e => ({ value: e.id, label: `${e.codigo} · ${e.nombre}`, grupo: SISTEMA_LABEL[e.sistema] }))}
-              />
+                opciones={sinMapear.map(e => ({ value: e.id, label: e.nombre, grupo: SISTEMA_LABEL[e.sistema], buscar: e.codigo,
+                  prefijo: <span className="w-10 shrink-0 font-mono text-xs text-muted">{e.codigo}</span> }))} />
             </Field>
           </div>
         )}

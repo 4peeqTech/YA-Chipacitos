@@ -8,7 +8,7 @@ import SearchInput from '@/components/ui/SearchInput'
 import DataTable, { type Columna } from '@/components/ui/DataTable'
 import EmptyState from '@/components/ui/EmptyState'
 import { Chip } from '@/components/ui/Chip'
-import { Select } from '@/components/ui/Field'
+import ListaBuscable from '@/components/ui/ListaBuscable'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useToast, useConfirmar } from '@/components/ui/ProveedorUI'
 import {
@@ -247,18 +247,12 @@ function ItemsPanel({ datos, onAbrir, recientes, onQuitarRecientes }: {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar por código, nombre o código de Posberry / Fudo" className="min-w-60 flex-1" />
-        <Select value={tipo} onChange={e => setTipo(e.target.value as TipoItem | 'todos')} className="w-auto" aria-label="Tipo">
-          <option value="todos">Todos los tipos</option>
-          {TIPOS.map(t => <option key={t} value={t}>{TIPO_INFO[t].plural}</option>)}
-        </Select>
-        <Select value={categoria} onChange={e => setCategoria(e.target.value)} className="w-auto" aria-label="Categoría">
-          <option value="todas">Todas las categorías</option>
-          {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-        </Select>
-        <Select value={sabor} onChange={e => setSabor(e.target.value)} className="w-auto" aria-label="Sabor">
-          <option value="todos">Todos los sabores</option>
-          {sabores.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-        </Select>
+        <ListaBuscable value={tipo === 'todos' ? '' : tipo} onChange={v => setTipo((v || 'todos') as TipoItem | 'todos')} vacio="Todos los tipos"
+          aria-label="Tipo" className="w-full sm:w-52" opciones={TIPOS.map(t => ({ value: t, label: TIPO_INFO[t].plural }))} />
+        <ListaBuscable value={categoria === 'todas' ? '' : categoria} onChange={v => setCategoria(v || 'todas')} vacio="Todas las categorías"
+          aria-label="Categoría" className="w-full sm:w-56" opciones={categorias.map(c => ({ value: c.id, label: c.nombre }))} />
+        <ListaBuscable value={sabor === 'todos' ? '' : sabor} onChange={v => setSabor(v || 'todos')} vacio="Todos los sabores"
+          aria-label="Sabor" className="w-full sm:w-52" opciones={sabores.map(s => ({ value: s.id, label: s.nombre, buscar: s.nombres_alternativos.join(' ') }))} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

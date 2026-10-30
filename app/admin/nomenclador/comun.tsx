@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import type { OpcionLista } from '@/components/ui/ListaBuscable'
 import { TIPO_INFO, type ItemNom, type TipoItem } from '@/lib/nomenclador/tipos'
 
 /** El código interno es la seña del nomenclador: monoespaciado y con el color del tipo. */
@@ -40,3 +41,14 @@ export const botonSecundario =
   'flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-surface2 px-4 py-2 text-sm font-medium text-text transition-colors hover:border-accent disabled:opacity-50 sm:min-h-9'
 export const botonPeligro =
   'flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-brand-red/40 px-4 py-2 text-sm font-medium text-brand-red transition-colors hover:bg-danger-bg disabled:opacity-50 sm:min-h-9'
+
+/** Ítems como opciones de ListaBuscable: chip del código, agrupados por tipo y buscables por código y alternativos. */
+export function opcionesItems(items: ItemNom[]): OpcionLista[] {
+  return items.map(i => ({
+    value: i.id,
+    label: i.nombre + (i.estado === 'archivado' ? ' (archivado)' : ''),
+    grupo: TIPO_INFO[i.tipo].plural,
+    buscar: `${i.codigo} ${i.nombres_alternativos.join(' ')}`,
+    prefijo: <CodigoChip codigo={i.codigo} tipo={i.tipo} />,
+  }))
+}
