@@ -18,3 +18,13 @@ export async function consultarCatalogosPago(supabase: Cliente): Promise<{ cajas
   const formasPago = activas(formas)
   return { cajas: activas(cajas), formasPago: formasPago.length ? formasPago : [...FORMAS_PAGO] }
 }
+
+/** Locales a los que se imputa un gasto (locales_config, activos, en su orden). */
+export async function consultarLocales(supabase: Cliente): Promise<string[]> {
+  const { data } = await supabase
+    .from('locales_config')
+    .select('sucursal, activo')
+    .order('orden')
+    .order('sucursal')
+  return (data ?? []).filter(l => l.activo !== false).map(l => l.sucursal)
+}

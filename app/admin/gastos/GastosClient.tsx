@@ -38,6 +38,7 @@ export default function GastosClient({
   proveedores,
   cajas,
   formasPago,
+  localesCarga,
   pedidoDeFactura,
   gastoInicial,
 }: {
@@ -45,6 +46,8 @@ export default function GastosClient({
   proveedores: { id: string; nombre: string; estado: string }[]
   cajas: string[]
   formasPago: string[]
+  /** Los locales activos para cargar un gasto (locales_config). */
+  localesCarga: string[]
   pedidoDeFactura: Record<string, string>
   gastoInicial?: string
 }) {
@@ -252,6 +255,7 @@ export default function GastosClient({
             proveedores={proveedores}
             cajas={cajas}
             formasPago={formasPago}
+            locales={localesCarga}
             onCambios={setConCambios}
             onListo={cerrarYa}
             onCancelar={cerrar}

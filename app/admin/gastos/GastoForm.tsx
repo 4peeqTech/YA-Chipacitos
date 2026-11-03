@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/client'
 import { BUCKET_COMPROBANTES, rutaComprobante } from '@/lib/gastos/comprobante'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { hoyISO } from '@/lib/fechas'
-import { LOCALES, RUBROS, RUBROS_CATEGORIAS } from '@/lib/gastos-constants'
+import { RUBROS, RUBROS_CATEGORIAS } from '@/lib/gastos-constants'
 import {
   bloqueoFactura, formInicial, hayCambios, motivoNoEliminar, validarGasto,
   type CampoGasto, type FormGasto, type GastoVista,
@@ -118,6 +118,7 @@ export default function GastoForm({
   proveedores,
   cajas,
   formasPago,
+  locales,
   onCambios,
   onListo,
   onCancelar,
@@ -128,6 +129,8 @@ export default function GastoForm({
   proveedores: { id: string; nombre: string; estado: string }[]
   cajas: string[]
   formasPago: string[]
+  /** Activos (locales_config); el del gasto se muestra aunque esté inactivo. */
+  locales: string[]
   onCambios: (hay: boolean) => void
   onListo: () => void
   onCancelar: () => void
@@ -292,8 +295,8 @@ export default function GastoForm({
             className={`${controlClass} min-h-11 ${marca('local')}`}
           >
             <option value="">Elegí el local…</option>
-            {LOCALES.map(l => <option key={l} value={l}>{l}</option>)}
-            {form.local && !(LOCALES as readonly string[]).includes(form.local) && <option value={form.local}>{form.local}</option>}
+            {locales.map(l => <option key={l} value={l}>{l}</option>)}
+            {form.local && !locales.includes(form.local) && <option value={form.local}>{form.local}</option>}
           </select>
         </Field>
         <Field label="Proveedor">

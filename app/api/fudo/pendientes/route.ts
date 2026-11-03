@@ -18,6 +18,7 @@ export async function GET() {
     .from('locales_config')
     .select('sucursal')
     .eq('activo', true)
+    .eq('tiene_fudo', true)
 
   if (!locales?.length) return NextResponse.json({ items: [], errores: [] })
 

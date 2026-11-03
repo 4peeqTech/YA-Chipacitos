@@ -10,16 +10,26 @@ const fila = (p: Partial<GastoFila>): GastoFila => ({
   proveedor_id: 'p1', proveedor_nombre: 'Huevo Campo', monto: 1000, forma_pago: 'Transferencia',
   estado: 'Pendiente de pago', observaciones: null, comprobante_url: null, fecha_pago: null, caja: null,
   created_at: null, creado_por_nombre: null, pagado_por_nombre: null,
-  factura_id: null, factura_numero: null, factura_pedido_numero: null, ...p,
+  factura_id: null, factura_numero: null, factura_pedido_numero: null,
+  origen: 'manual', fecha_vencimiento: null, vencido: false, pagado: 0, saldo: null, pagos: 0, adjuntos: 0,
+  ultimo_pago_forma: null, fudo_id: null, fudo_categoria: null, fudo_proveedor: null, fudo_estado: null,
+  fudo_revisar: false, fudo_sincronizado_en: null, recurrente_id: null, periodo: null, a_confirmar: false, ...p,
 })
 
 const gastos = armarGastos([
   fila({}),
-  fila({ id: 'g2', fecha: '2026-09-20', estado: 'Pagado', fecha_pago: '2026-09-21', monto: 500.5, local: 'YA! GOYA', proveedor_nombre: null }),
+  fila({ id: 'g2', fecha: '2026-09-20', estado: 'Pagado', fecha_pago: '2026-09-21', monto: 500.5, pagado: 500.5, local: 'YA! GOYA', proveedor_nombre: null }),
   fila({ id: 'g3', fecha: '2026-08-30', monto: 200, factura_id: 'f1', factura_numero: '0007-1', factura_pedido_numero: 15 }),
-  fila({ id: 'g4', fecha: '2026-08-15', estado: 'Pagado', fecha_pago: '2026-09-02', monto: 300 }),
+  fila({ id: 'g4', fecha: '2026-08-15', estado: 'Pagado', fecha_pago: '2026-09-02', monto: 300, pagado: 300 }),
   fila({ id: null }),
 ])
+// F1: pago parcial y anulado.
+const conParcial = armarGastos([
+  fila({}),
+  fila({ id: 'g5', estado: 'Parcial', monto: 1000, pagado: 400, saldo: 600 }),
+  fila({ id: 'g6', estado: 'Anulado', monto: 700 }),
+])
+const rp = resumirGastos(conParcial, '2026-09-01', '2026-09-30')
 const sep = { desde: '2026-09-01', hasta: '2026-09-30' }
 const r = resumirGastos(gastos, sep.desde, sep.hasta)
 const base = { estado: 'todos' as const, local: '', busqueda: '', ...sep }
@@ -70,6 +80,12 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'comprobante: URL de otro lado', real: rutaComprobante('https://otro.com/a.png'), esperado: null },
   { nombre: 'comprobante: vacío', real: rutaComprobante(null), esperado: null },
   { nombre: 'días desde', real: diasDesde('2026-08-31', '2026-09-30'), esperado: 30 },
+  { nombre: 'saldo sin dato de la vista: monto - pagado', real: gastos.find(g => g.id === 'g1')?.saldo, esperado: 1000 },
+  { nombre: 'parcial: el pendiente suma el saldo', real: rp.pendiente, esperado: 1600 },
+  { nombre: 'anulado no es pendiente', real: rp.pendientesCount, esperado: 2 },
+  { nombre: 'anulado no suma en el período', real: rp.totalPeriodo, esperado: 2000 },
+  { nombre: 'parcial: se paga por el saldo', real: pendienteDeGasto(conParcial.find(g => g.id === 'g5')!).monto, esperado: 600 },
+  { nombre: 'filtro pagados no trae anulados', real: filtrarGastos(conParcial, { ...base, estado: 'pagados', desde: '', hasta: '' }).length, esperado: 0 },
 ]
 
 let fallas = 0

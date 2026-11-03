@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
     .from('locales_config')
     .select('sucursal')
     .eq('activo', true)
+    .eq('tiene_fudo', true)
 
   let cajasInfoDisponible = false
 

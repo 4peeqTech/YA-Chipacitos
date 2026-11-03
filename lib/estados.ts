@@ -58,6 +58,7 @@ export const ESTADOS = {
     'Pendiente de pago': { label: 'Pendiente de pago', tono: 'peligro' },
     'Parcial':            { label: 'Parcial',           tono: 'alerta' },
     'Pagado':              { label: 'Pagado',            tono: 'exito' },
+    'Anulado':             { label: 'Anulado',           tono: 'neutro' },
   },
   // Estados tal como los devuelve Fudo (Gastos › Fudo / Caja). cancelado y ok
   // son nuestros: Fudo los marca con un booleano, no con un estado.

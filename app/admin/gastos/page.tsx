@@ -1,7 +1,7 @@
 import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import GastosClient from './GastosClient'
-import { consultarCatalogosPago } from './datos'
+import { consultarCatalogosPago, consultarLocales } from './datos'
 
 export const metadata = {
   title: 'Gastos | YA! Chipacitos',
@@ -19,12 +19,13 @@ export default async function GastosPage({
 
   const { gasto } = await searchParams
 
-  const [{ data: gastos }, { data: proveedores }, catalogos] = await Promise.all([
+  const [{ data: gastos }, { data: proveedores }, catalogos, locales] = await Promise.all([
     // La vista pide es_admin(): cualquier otro rol recibe una lista vacía.
     supabase.from('v_gastos').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false }),
     // Todos: un gasto de un proveedor archivado tiene que mostrarlo (B3, E19).
     supabase.from('proveedores').select('id, nombre, estado').order('nombre'),
     consultarCatalogosPago(supabase),
+    consultarLocales(supabase),
   ])
 
   // Para linkear el pedido de los gastos que salieron de una factura (v_gastos
@@ -44,6 +45,7 @@ export default async function GastosPage({
       proveedores={proveedores ?? []}
       cajas={catalogos.cajas}
       formasPago={catalogos.formasPago}
+      localesCarga={locales}
       pedidoDeFactura={pedidoDeFactura}
       gastoInicial={gasto}
     />

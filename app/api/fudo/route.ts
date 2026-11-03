@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     .select('sucursal')
     .eq('sucursal', sucursal)
     .eq('activo', true)
+    .eq('tiene_fudo', true)
     .single()
 
   if (configError || !localConfig) {

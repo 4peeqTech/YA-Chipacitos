@@ -8,10 +8,12 @@ import type { Database } from '@/lib/database.types'
 export type GastoFila = Database['public']['Views']['v_gastos']['Row']
 export type FudoPagadoFila = Database['public']['Views']['v_fudo_gastos_pagados']['Row']
 
-export type EstadoGasto = 'Pendiente de pago' | 'Parcial' | 'Pagado'
+// El estado lo calcula la base con la suma de pagos vigentes (gastos_pagos).
+// 'Anulado': un gasto de Fudo que se canceló allá; no suma en ningún total.
+export type EstadoGasto = 'Pendiente de pago' | 'Parcial' | 'Pagado' | 'Anulado'
 
 export function aEstadoGasto(v: string | null): EstadoGasto {
-  return v === 'Pagado' || v === 'Parcial' ? v : 'Pendiente de pago'
+  return v === 'Pagado' || v === 'Parcial' || v === 'Anulado' ? v : 'Pendiente de pago'
 }
 
 /** Un gasto con los null de la vista ya resueltos. */
@@ -24,9 +26,16 @@ export interface GastoVista {
   proveedorId: string | null
   proveedor: string | null
   monto: number
+  /** Suma de los pagos vigentes. */
+  pagado: number
+  /** Lo que falta pagar. */
+  saldo: number
   formaPago: string
   estado: EstadoGasto
   observaciones: string
+  fechaVencimiento: string | null
+  vencido: boolean
+  /** Del último pago vigente. */
   fechaPago: string | null
   caja: string | null
   comprobanteUrl: string | null
@@ -41,6 +50,8 @@ export function armarGastos(filas: GastoFila[], pedidoDeFactura: Record<string, 
   const res: GastoVista[] = []
   for (const g of filas) {
     if (!g.id) continue
+    const monto = Number(g.monto ?? 0)
+    const pagado = Number(g.pagado ?? 0)
     res.push({
       id: g.id,
       fecha: g.fecha ?? '',
@@ -49,10 +60,14 @@ export function armarGastos(filas: GastoFila[], pedidoDeFactura: Record<string, 
       categoria: g.categoria ?? '',
       proveedorId: g.proveedor_id,
       proveedor: g.proveedor_nombre,
-      monto: Number(g.monto ?? 0),
+      monto,
+      pagado,
+      saldo: g.saldo == null ? redondear(Math.max(monto - pagado, 0)) : Number(g.saldo),
       formaPago: g.forma_pago ?? '',
       estado: aEstadoGasto(g.estado),
       observaciones: g.observaciones ?? '',
+      fechaVencimiento: g.fecha_vencimiento,
+      vencido: g.vencido ?? false,
       fechaPago: g.fecha_pago,
       caja: g.caja,
       comprobanteUrl: g.comprobante_url,
@@ -71,7 +86,7 @@ export function armarGastos(filas: GastoFila[], pedidoDeFactura: Record<string, 
   return res.sort((a, b) => b.fecha.localeCompare(a.fecha))
 }
 
-export const pendiente = (g: Pick<GastoVista, 'estado'>) => g.estado !== 'Pagado'
+export const pendiente = (g: Pick<GastoVista, 'estado'>) => g.estado === 'Pendiente de pago' || g.estado === 'Parcial'
 
 // ---------------------------------------------------------------------------
 // Lista de Gastos: filtros y totales.
@@ -104,7 +119,7 @@ export function coincideBusqueda(g: GastoVista, busqueda: string): boolean {
 export function filtrarGastos(gastos: GastoVista[], f: FiltrosGastos): GastoVista[] {
   return gastos.filter(g =>
     enRango(g.fecha, f.desde, f.hasta)
-    && (f.estado === 'todos' || (f.estado === 'pendientes' ? pendiente(g) : !pendiente(g)))
+    && (f.estado === 'todos' || (f.estado === 'pendientes' ? pendiente(g) : g.estado === 'Pagado'))
     && (!f.local || g.local === f.local)
     && coincideBusqueda(g, f.busqueda))
 }
@@ -122,9 +137,9 @@ export interface ResumenGastos {
 
 export function resumirGastos(gastos: GastoVista[], desde: string, hasta: string): ResumenGastos {
   const pendientes = gastos.filter(pendiente)
-  const delPeriodo = gastos.filter(g => enRango(g.fecha, desde, hasta))
+  const delPeriodo = gastos.filter(g => g.estado !== 'Anulado' && enRango(g.fecha, desde, hasta))
   return {
-    pendiente: redondear(pendientes.reduce((s, g) => s + g.monto, 0)),
+    pendiente: redondear(pendientes.reduce((s, g) => s + g.saldo, 0)),
     pendientesCount: pendientes.length,
     pagadoPeriodo: redondear(gastos
       .filter(g => g.estado === 'Pagado' && enRango(g.fechaPago, desde, hasta))
@@ -243,7 +258,8 @@ export function pendienteDeGasto(g: GastoVista): PendienteVista {
     fecha: g.fecha,
     titulo: g.proveedor ?? g.categoria,
     detalle: g.proveedor ? g.categoria : (g.observaciones || null),
-    monto: g.monto,
+    // Lo que falta: un gasto pagado en parte se paga por el saldo.
+    monto: g.saldo,
     formaPago: g.formaPago || null,
     gasto: g,
   }

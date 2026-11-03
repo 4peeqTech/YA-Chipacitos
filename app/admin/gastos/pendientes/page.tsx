@@ -12,7 +12,7 @@ export default async function PendientesPage() {
 
   // Los de Fudo los trae el cliente (API externa, lenta): la página no espera por ellos.
   const [{ data: gastos }, { data: pagadosFudo }, catalogos] = await Promise.all([
-    supabase.from('v_gastos').select('*').neq('estado', 'Pagado').order('fecha'),
+    supabase.from('v_gastos').select('*').in('estado', ['Pendiente de pago', 'Parcial']).order('fecha'),
     supabase.from('v_fudo_gastos_pagados').select('*').order('created_at', { ascending: false }).limit(200),
     consultarCatalogosPago(supabase),
   ])

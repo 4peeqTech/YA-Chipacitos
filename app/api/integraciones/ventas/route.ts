@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   const hasta = searchParams.get('hasta') ?? hoy
 
   const [{ data: locales }, { data: ventasPosberry, error: posberryError }] = await Promise.all([
-    supabase.from('locales_config').select('sucursal').eq('activo', true),
+    supabase.from('locales_config').select('sucursal').eq('activo', true).eq('tiene_fudo', true),
     supabase
       .from('ventas_posberry')
       .select('local_id, local_nombre, fecha, producto_nombre, cantidad, importe, profiles(local_nombre)')

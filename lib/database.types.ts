@@ -3414,58 +3414,79 @@ export type Database = {
       }
       gastos: {
         Row: {
-          caja: string | null
-          categoria: string
-          comprobante_url: string | null
+          a_confirmar: boolean
+          categoria: string | null
           created_at: string | null
           created_by: string | null
           estado: string
           fecha: string
-          fecha_pago: string | null
+          fecha_vencimiento: string | null
           forma_pago: string
+          fudo_categoria: string | null
+          fudo_estado: string | null
+          fudo_id: string | null
+          fudo_proveedor: string | null
+          fudo_revisar: boolean
+          fudo_sincronizado_en: string | null
           id: string
           local: string
           monto: number
           observaciones: string | null
-          pagado_por: string | null
+          origen: string
+          periodo: string | null
           proveedor_id: string | null
-          rubro: string
+          recurrente_id: string | null
+          rubro: string | null
         }
         Insert: {
-          caja?: string | null
-          categoria: string
-          comprobante_url?: string | null
+          a_confirmar?: boolean
+          categoria?: string | null
           created_at?: string | null
           created_by?: string | null
           estado?: string
           fecha?: string
-          fecha_pago?: string | null
+          fecha_vencimiento?: string | null
           forma_pago: string
+          fudo_categoria?: string | null
+          fudo_estado?: string | null
+          fudo_id?: string | null
+          fudo_proveedor?: string | null
+          fudo_revisar?: boolean
+          fudo_sincronizado_en?: string | null
           id?: string
           local: string
           monto: number
           observaciones?: string | null
-          pagado_por?: string | null
+          origen?: string
+          periodo?: string | null
           proveedor_id?: string | null
-          rubro: string
+          recurrente_id?: string | null
+          rubro?: string | null
         }
         Update: {
-          caja?: string | null
-          categoria?: string
-          comprobante_url?: string | null
+          a_confirmar?: boolean
+          categoria?: string | null
           created_at?: string | null
           created_by?: string | null
           estado?: string
           fecha?: string
-          fecha_pago?: string | null
+          fecha_vencimiento?: string | null
           forma_pago?: string
+          fudo_categoria?: string | null
+          fudo_estado?: string | null
+          fudo_id?: string | null
+          fudo_proveedor?: string | null
+          fudo_revisar?: boolean
+          fudo_sincronizado_en?: string | null
           id?: string
           local?: string
           monto?: number
           observaciones?: string | null
-          pagado_por?: string | null
+          origen?: string
+          periodo?: string | null
           proveedor_id?: string | null
-          rubro?: string
+          recurrente_id?: string | null
+          rubro?: string | null
         }
         Relationships: [
           {
@@ -3476,17 +3497,152 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "gastos_pagado_por_fkey"
-            columns: ["pagado_por"]
+            foreignKeyName: "gastos_local_fkey"
+            columns: ["local"]
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            referencedRelation: "locales_config"
+            referencedColumns: ["sucursal"]
           },
           {
             foreignKeyName: "gastos_proveedor_id_fkey"
             columns: ["proveedor_id"]
             isOneToOne: false
             referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gastos_adjuntos: {
+        Row: {
+          created_at: string
+          gasto_id: string
+          id: string
+          nombre: string
+          ruta: string
+          subido_por: string | null
+          tamano: number | null
+          tipo: string | null
+        }
+        Insert: {
+          created_at?: string
+          gasto_id: string
+          id?: string
+          nombre: string
+          ruta: string
+          subido_por?: string | null
+          tamano?: number | null
+          tipo?: string | null
+        }
+        Update: {
+          created_at?: string
+          gasto_id?: string
+          id?: string
+          nombre?: string
+          ruta?: string
+          subido_por?: string | null
+          tamano?: number | null
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gastos_adjuntos_gasto_id_fkey"
+            columns: ["gasto_id"]
+            isOneToOne: false
+            referencedRelation: "gastos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_adjuntos_gasto_id_fkey"
+            columns: ["gasto_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_adjuntos_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gastos_pagos: {
+        Row: {
+          anulado_en: string | null
+          anulado_motivo: string | null
+          anulado_por: string | null
+          caja: string | null
+          comprobante_url: string | null
+          created_at: string
+          fecha: string
+          forma_pago: string
+          fudo_payment_id: string | null
+          gasto_id: string
+          id: string
+          monto: number
+          origen: string
+          registrado_por: string | null
+        }
+        Insert: {
+          anulado_en?: string | null
+          anulado_motivo?: string | null
+          anulado_por?: string | null
+          caja?: string | null
+          comprobante_url?: string | null
+          created_at?: string
+          fecha: string
+          forma_pago: string
+          fudo_payment_id?: string | null
+          gasto_id: string
+          id?: string
+          monto: number
+          origen?: string
+          registrado_por?: string | null
+        }
+        Update: {
+          anulado_en?: string | null
+          anulado_motivo?: string | null
+          anulado_por?: string | null
+          caja?: string | null
+          comprobante_url?: string | null
+          created_at?: string
+          fecha?: string
+          forma_pago?: string
+          fudo_payment_id?: string | null
+          gasto_id?: string
+          id?: string
+          monto?: number
+          origen?: string
+          registrado_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gastos_pagos_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_pagos_gasto_id_fkey"
+            columns: ["gasto_id"]
+            isOneToOne: false
+            referencedRelation: "gastos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_pagos_gasto_id_fkey"
+            columns: ["gasto_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_pagos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3541,26 +3697,43 @@ export type Database = {
       locales_config: {
         Row: {
           activo: boolean | null
+          caja_default: string | null
           created_at: string | null
           id: string
+          orden: number
           sucursal: string
+          tiene_fudo: boolean
           updated_at: string | null
         }
         Insert: {
           activo?: boolean | null
+          caja_default?: string | null
           created_at?: string | null
           id?: string
+          orden?: number
           sucursal: string
+          tiene_fudo?: boolean
           updated_at?: string | null
         }
         Update: {
           activo?: boolean | null
+          caja_default?: string | null
           created_at?: string | null
           id?: string
+          orden?: number
           sucursal?: string
+          tiene_fudo?: boolean
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "locales_config_caja_default_fkey"
+            columns: ["caja_default"]
+            isOneToOne: false
+            referencedRelation: "cajas"
+            referencedColumns: ["nombre"]
+          },
+        ]
       }
       locales_facturacion: {
         Row: {
@@ -5607,6 +5780,8 @@ export type Database = {
       }
       v_gastos: {
         Row: {
+          a_confirmar: boolean | null
+          adjuntos: number | null
           caja: string | null
           categoria: string | null
           comprobante_url: string | null
@@ -5618,22 +5793,94 @@ export type Database = {
           factura_pedido_numero: number | null
           fecha: string | null
           fecha_pago: string | null
+          fecha_vencimiento: string | null
           forma_pago: string | null
+          fudo_categoria: string | null
+          fudo_estado: string | null
+          fudo_id: string | null
+          fudo_proveedor: string | null
+          fudo_revisar: boolean | null
+          fudo_sincronizado_en: string | null
           id: string | null
           local: string | null
           monto: number | null
           observaciones: string | null
+          origen: string | null
+          pagado: number | null
           pagado_por_nombre: string | null
+          pagos: number | null
+          periodo: string | null
           proveedor_id: string | null
           proveedor_nombre: string | null
+          recurrente_id: string | null
           rubro: string | null
+          saldo: number | null
+          ultimo_pago_forma: string | null
+          vencido: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "gastos_local_fkey"
+            columns: ["local"]
+            isOneToOne: false
+            referencedRelation: "locales_config"
+            referencedColumns: ["sucursal"]
+          },
           {
             foreignKeyName: "gastos_proveedor_id_fkey"
             columns: ["proveedor_id"]
             isOneToOne: false
             referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_gastos_pagos: {
+        Row: {
+          anulado_en: string | null
+          anulado_motivo: string | null
+          anulado_por: string | null
+          anulado_por_nombre: string | null
+          caja: string | null
+          comprobante_url: string | null
+          created_at: string | null
+          fecha: string | null
+          forma_pago: string | null
+          fudo_payment_id: string | null
+          gasto_id: string | null
+          id: string | null
+          monto: number | null
+          origen: string | null
+          registrado_por: string | null
+          registrado_por_nombre: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gastos_pagos_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_pagos_gasto_id_fkey"
+            columns: ["gasto_id"]
+            isOneToOne: false
+            referencedRelation: "gastos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_pagos_gasto_id_fkey"
+            columns: ["gasto_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_pagos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -6224,12 +6471,27 @@ export type Database = {
         }
         Returns: string
       }
+      gastos_agregar_adjunto: {
+        Args: {
+          p_gasto_id?: string
+          p_nombre?: string
+          p_ruta?: string
+          p_tamano?: number
+          p_tipo?: string
+        }
+        Returns: string
+      }
+      gastos_anular_pago: {
+        Args: { p_motivo?: string; p_pago_id?: string }
+        Returns: undefined
+      }
       gastos_deshacer_pago: { Args: { p_id?: string }; Returns: undefined }
       gastos_eliminar: { Args: { p_id?: string }; Returns: undefined }
       gastos_guardar: {
         Args: {
           p_categoria?: string
           p_fecha?: string
+          p_fecha_vencimiento?: string
           p_forma_pago?: string
           p_id?: string
           p_local?: string
@@ -6241,6 +6503,8 @@ export type Database = {
         }
         Returns: string
       }
+      gastos_quitar_adjunto: { Args: { p_id?: string }; Returns: string }
+      gastos_recalcular_estado: { Args: { p_id: string }; Returns: string }
       gastos_registrar_pago: {
         Args: {
           p_caja?: string
@@ -6248,8 +6512,9 @@ export type Database = {
           p_fecha_pago?: string
           p_forma_pago?: string
           p_id?: string
+          p_monto?: number
         }
-        Returns: undefined
+        Returns: string
       }
       generar_solicitud_base: { Args: never; Returns: string }
       get_user_rol: { Args: never; Returns: string }
