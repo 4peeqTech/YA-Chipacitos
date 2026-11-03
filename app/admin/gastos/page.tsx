@@ -35,7 +35,8 @@ export default async function GastosPage({
   // Una página que ya no existe (se borraron gastos, o la URL es vieja): a la última.
   if (lista.filas.length === 0 && lista.cantidad > 0 && filtros.pagina > 1) {
     const ultima = Math.ceil(lista.cantidad / POR_PAGINA)
-    redirect(`/admin/gastos?${paramsDeFiltros({ ...filtros, pagina: ultima }, hoy)}`)
+    const qs = paramsDeFiltros({ ...filtros, pagina: ultima }, hoy)
+    redirect(qs ? `/admin/gastos?${qs}` : '/admin/gastos')
   }
 
   // El gasto que pide el link (?gasto=) puede no estar en esta página.
