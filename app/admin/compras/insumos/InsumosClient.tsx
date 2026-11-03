@@ -14,6 +14,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import SearchInput from '@/components/ui/SearchInput'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { Chip, SegmentedControl } from '@/components/ui/Chip'
+import ListaBuscable from '@/components/ui/ListaBuscable'
 import HelpTooltip from '@/components/ui/HelpTooltip'
 import LinkEntidad from '@/components/ui/LinkEntidad'
 import { useToast } from '@/components/ui/ProveedorUI'
@@ -133,6 +134,8 @@ export default function InsumosClient({
   const [soloADemanda, setSoloADemanda] = useState(false)
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | 'todas'>('todas')
   const [busqueda, setBusqueda] = useState('')
+  // '' = todos los proveedores (pedido de Marcos, 02-11).
+  const [proveedorFiltro, setProveedorFiltro] = useState('')
   // Se guarda el id, no la fila: después de cada acción refresh() trae los datos nuevos.
   const [abiertoId, setAbiertoId] = useState<string | null>(
     insumoInicial && items.some(i => i.id === insumoInicial) ? insumoInicial : null)
@@ -170,19 +173,44 @@ export default function InsumosClient({
   const activos = items.filter(i => i.estado === 'activo').length
   const archivados = items.length - activos
 
+  // El buscador encuentra por el nombre del insumo o por el de cualquiera de sus
+  // proveedores activos, sin distinguir acentos y con varias palabras.
   const filtrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase()
+    const palabras = normalizar(busqueda.trim()).split(/\s+/).filter(Boolean)
+    const nombreProv = new Map(proveedores.map(p => [p.id, p.nombre]))
     return items
-      .filter(i =>
-        (filtro === 'todos' || i.estado === filtro) &&
-        (categoriaFiltro === 'todas' || i.categoria_id === categoriaFiltro) &&
-        (!q || i.nombre.toLowerCase().includes(q)) &&
-        (!soloADemanda || i.a_demanda))
+      .filter(i => {
+        const susProveedores = i.compras_item_proveedores.filter(p => p.activo)
+        const texto = normalizar([i.nombre, ...susProveedores.map(p => nombreProv.get(p.proveedor_id) ?? '')].join(' '))
+        return (filtro === 'todos' || i.estado === filtro) &&
+          (categoriaFiltro === 'todas' || i.categoria_id === categoriaFiltro) &&
+          (!proveedorFiltro || susProveedores.some(p => p.proveedor_id === proveedorFiltro)) &&
+          palabras.every(p => texto.includes(p)) &&
+          (!soloADemanda || i.a_demanda)
+      })
       .sort((a, b) => a.nombre.localeCompare(b.nombre))
-  }, [items, filtro, categoriaFiltro, busqueda, soloADemanda])
+  }, [items, proveedores, filtro, categoriaFiltro, proveedorFiltro, busqueda, soloADemanda])
 
-  const hayFiltros = !!busqueda || categoriaFiltro !== 'todas' || filtro !== 'activo' || soloADemanda
-  function limpiarFiltros() { setBusqueda(''); setCategoriaFiltro('todas'); setFiltro('activo'); setSoloADemanda(false) }
+  // Solo los proveedores que tienen algún insumo (en Proveedores también están los de Gastos).
+  const opcionesProveedor = useMemo(() => {
+    const cuenta = new Map<string, number>()
+    for (const i of items) {
+      for (const p of i.compras_item_proveedores) {
+        if (p.activo) cuenta.set(p.proveedor_id, (cuenta.get(p.proveedor_id) ?? 0) + 1)
+      }
+    }
+    return proveedores
+      .filter(p => cuenta.has(p.id))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+      .map(p => ({
+        value: p.id,
+        label: p.nombre,
+        descripcion: `${cuenta.get(p.id)} ${cuenta.get(p.id) === 1 ? 'insumo' : 'insumos'}${p.activo ? '' : ' · archivado'}`,
+      }))
+  }, [items, proveedores])
+
+  const hayFiltros = !!busqueda || categoriaFiltro !== 'todas' || !!proveedorFiltro || filtro !== 'activo' || soloADemanda
+  function limpiarFiltros() { setBusqueda(''); setCategoriaFiltro('todas'); setProveedorFiltro(''); setFiltro('activo'); setSoloADemanda(false) }
 
   function abrirCrear() {
     setAbiertoId(null)
@@ -471,7 +499,15 @@ export default function InsumosClient({
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
-          <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar insumo..." className="w-full sm:w-64" />
+          <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar insumo o proveedor..." className="w-full sm:w-64" />
+          <ListaBuscable
+            value={proveedorFiltro}
+            onChange={setProveedorFiltro}
+            opciones={opcionesProveedor}
+            vacio="Todos los proveedores"
+            aria-label="Proveedor"
+            className="w-full sm:w-60"
+          />
           <SegmentedControl<FiltroEstado>
             opciones={[
               { value: 'activo', label: 'Activos' },
@@ -541,4 +577,9 @@ export default function InsumosClient({
       )}
     </div>
   )
+}
+
+/** Minúsculas y sin acentos: "global" encuentra "GLOBAL", "jamon" encuentra "Jamón". */
+function normalizar(s: string) {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
