@@ -1,21 +1,19 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { CheckCircle2, FileText, Loader2, Paperclip, X } from 'lucide-react'
+import { IconCircleCheck, IconFileText, IconPaperclip, IconX } from '@tabler/icons-react'
 import Modal from '@/components/ui/Modal'
 import DatePicker from '@/components/ui/DatePicker'
+import InputNumero from '@/components/ui/InputNumero'
 import { ChipGroup } from '@/components/ui/Chip'
+import { Puntos } from '@/components/ui/Cargando'
 import { Field, controlClass } from '@/components/ui/Field'
-import { createClient } from '@/lib/supabase/client'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import { hoyISO } from '@/lib/fechas'
 import { mensajeError } from '@/lib/errores'
-import { BUCKET_COMPROBANTES } from '@/lib/gastos/comprobante'
+import { MAX_MB_ARCHIVO, TIPOS_ARCHIVO, subirArchivoGasto } from './archivos'
 
 const botonSecundario = 'presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50'
-
-const MAX_MB = 10
-const TIPOS_COMPROBANTE = 'image/jpeg,image/png,image/webp,application/pdf'
 
 export interface DatosPago {
   fechaPago: string
@@ -23,6 +21,8 @@ export interface DatosPago {
   caja: string
   /** Ruta del archivo en el bucket (privado): se abre con un link firmado. */
   comprobanteUrl: string | null
+  /** null = todo lo que falta. */
+  monto: number | null
 }
 
 /** Lo que se muestra del gasto que se paga: vale para uno de la app o de Fudo. */
@@ -33,28 +33,17 @@ export interface ResumenAPagar {
   detalle: string | null
   local: string
   fecha: string
+  /** Lo que falta pagar. */
   monto: number
+  /** Si ya se pagó una parte: el total del gasto. */
+  montoTotal?: number
   origen: 'app' | 'fudo'
 }
 
 /**
- * Sube el comprobante y devuelve su ruta. El bucket es privado: una URL
- * pública no abriría; se guarda la ruta y se firma al mostrarlo.
- */
-async function subirComprobante(clave: string, archivo: File): Promise<string> {
-  const supabase = createClient()
-  const ext = (archivo.name.split('.').pop() ?? 'bin').toLowerCase()
-  const carpeta = clave.replace(/[^a-zA-Z0-9_-]/g, '_')
-  const path = `gastos/${carpeta}/${Date.now()}.${ext}`
-  const { error } = await supabase.storage.from(BUCKET_COMPROBANTES).upload(path, archivo, { upsert: false })
-  if (error) throw error
-  return path
-}
-
-/**
- * Registrar el pago de un gasto: fecha, forma de pago, caja y comprobante
- * opcional. El comprobante se sube primero; si la subida falla, no se registra
- * nada y el error dice qué pasó.
+ * Registrar un pago: fecha, monto (de la app: puede ser una parte), forma de
+ * pago, caja y comprobante opcional. El comprobante se sube primero; si la
+ * subida falla, no se registra nada y el error dice qué pasó.
  */
 export default function PagoModal({
   gasto,
@@ -75,6 +64,7 @@ export default function PagoModal({
   onCerrar: () => void
 }) {
   const [fechaPago, setFechaPago] = useState(hoyISO())
+  const [monto, setMonto] = useState<number | null>(gasto?.monto ?? null)
   const [formaPago, setFormaPago] = useState(formaPagoInicial && formasPago.includes(formaPagoInicial) ? formaPagoInicial : '')
   const [caja, setCaja] = useState('')
   const [archivo, setArchivo] = useState<File | null>(null)
@@ -83,11 +73,14 @@ export default function PagoModal({
   const [subiendo, setSubiendo] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const ocupado = pendiente || subiendo
+  // Los de Fudo se pagan enteros: el monto lo manda Fudo.
+  const parcial = gasto?.origen === 'app'
+  const montoMal = parcial && (monto == null || monto <= 0 || (gasto != null && monto > gasto.monto))
 
   function elegirArchivo(f: File | null) {
     setError(null)
-    if (f && f.size > MAX_MB * 1024 * 1024) {
-      setError(`El comprobante pesa más de ${MAX_MB} MB. Sacale una foto más liviana o subí un PDF.`)
+    if (f && f.size > MAX_MB_ARCHIVO * 1024 * 1024) {
+      setError(`El comprobante pesa más de ${MAX_MB_ARCHIVO} MB. Sacale una foto más liviana o subí un PDF.`)
       if (input.current) input.current.value = ''
       return
     }
@@ -96,13 +89,13 @@ export default function PagoModal({
 
   async function confirmar() {
     setIntento(true)
-    if (!gasto || !fechaPago || !formaPago || !caja) return
+    if (!gasto || !fechaPago || !formaPago || !caja || montoMal) return
     setError(null)
     let comprobanteUrl: string | null = null
     if (archivo) {
       setSubiendo(true)
       try {
-        comprobanteUrl = await subirComprobante(gasto.clave, archivo)
+        comprobanteUrl = (await subirArchivoGasto(gasto.clave, archivo, 'pago')).ruta
       } catch (e) {
         setError(mensajeError(e, 'No se pudo subir el comprobante. Probá de nuevo o registrá el pago sin él.'))
         setSubiendo(false)
@@ -110,10 +103,11 @@ export default function PagoModal({
       }
       setSubiendo(false)
     }
-    await onConfirmar({ fechaPago, formaPago, caja, comprobanteUrl })
+    // Pagar todo lo que falta viaja como null: si otro pagó una parte en el medio, la base no deja pagar de más.
+    await onConfirmar({ fechaPago, formaPago, caja, comprobanteUrl, monto: parcial && monto !== gasto.monto ? monto : null })
   }
 
-  const falta = intento && (!fechaPago || !formaPago || !caja)
+  const falta = intento && (!fechaPago || !formaPago || !caja || montoMal)
 
   return (
     <Modal open={gasto != null} onClose={ocupado ? () => {} : onCerrar} title="Registrar pago" size="lg" pantallaCompletaMobile>
@@ -129,10 +123,26 @@ export default function PagoModal({
                 {gasto.origen === 'fudo' && <> · de Fudo</>}
               </p>
             </div>
-            <p className="text-xl font-bold tabular-nums text-text">{formatearMonedaExacta(gasto.monto)}</p>
+            <div className="text-right">
+              <p className="text-xl font-bold tabular-nums text-text">{formatearMonedaExacta(gasto.monto)}</p>
+              {gasto.montoTotal != null && gasto.montoTotal !== gasto.monto && (
+                <p className="text-xs text-muted">falta, de <span className="tabular-nums">{formatearMonedaExacta(gasto.montoTotal)}</span></p>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
+            {parcial && (
+              <Field label="Monto del pago" obligatorio ayuda="Si pagás una parte, cambialo: el resto queda pendiente.">
+                <InputNumero
+                  value={monto}
+                  onChange={setMonto}
+                  min={0}
+                  ariaLabel="Monto del pago en pesos"
+                  className={`${controlClass} min-h-11 text-right text-base font-semibold tabular-nums ${intento && montoMal ? 'border-brand-red' : ''}`}
+                />
+              </Field>
+            )}
             <Field label="Fecha del pago" obligatorio>
               <DatePicker
                 ariaLabel="Fecha del pago"
@@ -163,10 +173,10 @@ export default function PagoModal({
             />
           </Field>
 
-          <Field label="Comprobante" ayuda="Opcional. Foto o PDF de hasta 10 MB.">
+          <Field label="Comprobante" ayuda={`Opcional. Foto o PDF de hasta ${MAX_MB_ARCHIVO} MB.`}>
             {archivo ? (
               <div className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-surface2 px-3 py-2">
-                <FileText size={18} className="shrink-0 text-accent-fg" />
+                <IconFileText size={18} className="shrink-0 text-accent-fg" aria-hidden />
                 <span className="min-w-0 flex-1 truncate text-sm text-text">{archivo.name}</span>
                 <button
                   type="button"
@@ -175,17 +185,17 @@ export default function PagoModal({
                   aria-label="Quitar el comprobante"
                   className="presionable flex size-11 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-surface hover:text-brand-red"
                 >
-                  <X size={16} />
+                  <IconX size={16} aria-hidden />
                 </button>
               </div>
             ) : (
               <label className="presionable flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted transition-colors hover:border-accent hover:text-text focus-within:border-accent">
-                <Paperclip size={17} className="shrink-0" />
+                <IconPaperclip size={17} className="shrink-0" aria-hidden />
                 Adjuntar la foto o el PDF del pago
                 <input
                   ref={input}
                   type="file"
-                  accept={TIPOS_COMPROBANTE}
+                  accept={TIPOS_ARCHIVO}
                   className="sr-only"
                   onChange={e => elegirArchivo(e.target.files?.[0] ?? null)}
                 />
@@ -195,7 +205,9 @@ export default function PagoModal({
 
           {falta && (
             <p className="text-sm text-brand-red">
-              {!caja ? 'Elegí de qué caja salió la plata.' : !formaPago ? 'Elegí la forma de pago.' : 'Elegí la fecha del pago.'}
+              {montoMal
+                ? `El monto tiene que ser mayor a $ 0 y no más de ${formatearMonedaExacta(gasto.monto)}.`
+                : !caja ? 'Elegí de qué caja salió la plata.' : !formaPago ? 'Elegí la forma de pago.' : 'Elegí la fecha del pago.'}
             </p>
           )}
           {error && <p className="text-sm text-brand-red">{error}</p>}
@@ -211,7 +223,7 @@ export default function PagoModal({
               disabled={ocupado}
               className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
             >
-              {ocupado ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+              {ocupado ? <Puntos /> : <IconCircleCheck size={16} aria-hidden />}
               {subiendo ? 'Subiendo el comprobante…' : 'Registrar pago'}
             </button>
           </div>

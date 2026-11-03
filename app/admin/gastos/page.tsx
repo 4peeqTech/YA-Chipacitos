@@ -1,7 +1,9 @@
 import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { hoyISOArgentina } from '@/lib/fechas'
+import { POR_PAGINA, leerFiltros, paramsDeFiltros } from '@/lib/gastos/modelo'
 import GastosClient from './GastosClient'
-import { consultarCatalogosPago, consultarLocales } from './datos'
+import { consultarCatalogosPago, consultarGasto, consultarLocales, listarGastos, pedidosDeFacturas } from './datos'
 
 export const metadata = {
   title: 'Gastos | YA! Chipacitos',
@@ -11,43 +13,52 @@ export const metadata = {
 export default async function GastosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ gasto?: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const supabase = await createClientTipado()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { gasto } = await searchParams
+  const params = await searchParams
+  const hoy = hoyISOArgentina()
+  const filtros = leerFiltros(params, hoy)
+  const gastoParam = typeof params.gasto === 'string' ? params.gasto : undefined
 
-  const [{ data: gastos }, { data: proveedores }, catalogos, locales] = await Promise.all([
-    // La vista pide es_admin(): cualquier otro rol recibe una lista vacía.
-    supabase.from('v_gastos').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false }),
+  const [lista, { data: proveedores }, catalogos, locales] = await Promise.all([
+    listarGastos(supabase, filtros),
     // Todos: un gasto de un proveedor archivado tiene que mostrarlo (B3, E19).
     supabase.from('proveedores').select('id, nombre, estado').order('nombre'),
     consultarCatalogosPago(supabase),
     consultarLocales(supabase),
   ])
 
-  // Para linkear el pedido de los gastos que salieron de una factura (v_gastos
-  // trae solo su número). Solo las facturas de estos gastos, en tandas: la
-  // lista de ids va en la URL y no puede crecer sin límite.
-  const facturaIds = [...new Set((gastos ?? []).map(g => g.factura_id).filter((id): id is string => !!id))]
-  const TANDA = 100
-  const tandas = await Promise.all(
-    Array.from({ length: Math.ceil(facturaIds.length / TANDA) }, (_, i) =>
-      supabase.from('compras_facturas').select('id, pedido_id').in('id', facturaIds.slice(i * TANDA, (i + 1) * TANDA))),
-  )
-  const pedidoDeFactura = Object.fromEntries(tandas.flatMap(t => t.data ?? []).map(f => [f.id, f.pedido_id]))
+  // Una página que ya no existe (se borraron gastos, o la URL es vieja): a la última.
+  if (lista.filas.length === 0 && lista.cantidad > 0 && filtros.pagina > 1) {
+    const ultima = Math.ceil(lista.cantidad / POR_PAGINA)
+    redirect(`/admin/gastos?${paramsDeFiltros({ ...filtros, pagina: ultima }, hoy)}`)
+  }
+
+  // El gasto que pide el link (?gasto=) puede no estar en esta página.
+  const gastoSuelto = gastoParam && !lista.filas.some(g => g.id === gastoParam)
+    ? await consultarGasto(supabase, gastoParam)
+    : null
+  const filas = gastoSuelto ? [...lista.filas, gastoSuelto] : lista.filas
 
   return (
     <GastosClient
-      gastos={gastos ?? []}
+      gastos={lista.filas}
+      gastoSuelto={gastoSuelto}
+      cantidad={lista.cantidad}
+      resumen={lista.resumen}
+      filtros={filtros}
+      hoy={hoy}
+      error={lista.error != null}
       proveedores={proveedores ?? []}
       cajas={catalogos.cajas}
       formasPago={catalogos.formasPago}
       localesCarga={locales}
-      pedidoDeFactura={pedidoDeFactura}
-      gastoInicial={gasto}
+      pedidoDeFactura={await pedidosDeFacturas(supabase, filas)}
+      gastoInicial={gastoParam}
     />
   )
 }

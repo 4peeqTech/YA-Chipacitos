@@ -27,6 +27,12 @@ export function hoyISO(): string {
   return aISO(new Date())
 }
 
+/** Hoy en `YYYY-MM-DD` en Argentina: para el servidor, que corre en UTC. */
+export function hoyISOArgentina(): string {
+  // en-CA formatea como YYYY-MM-DD.
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date())
+}
+
 /** Suma días (puede ser negativo) sobre un `YYYY-MM-DD` y devuelve otro `YYYY-MM-DD`. */
 export function sumarDias(fecha: string, dias: number): string {
   const d = desdeISO(fecha)

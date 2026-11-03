@@ -1,7 +1,9 @@
 // Chequeo del modelo de Gastos. Correr con: npx tsx lib/gastos/_check_modelo.ts
+// Los filtros y los totales los calcula la base (docs/gastos/escenarios-f2.sql).
 import {
-  agruparPorLocal, armarGastos, bloqueoFactura, diasDesde, filtrarGastos, filtrarPendientes, formInicial,
-  hayCambios, motivoNoEliminar, pendienteDeFudo, pendienteDeGasto, resumirGastos, validarGasto, type GastoFila,
+  agruparPorLocal, armarGastos, armarPagos, atraso, bloqueoFactura, leerFiltrosPendientes, paramsDePendientes, diasDesde, filtrarPendientes, formInicial,
+  hayCambios, hayFiltros, leerFiltros, leerResumen, mesDe, motivoNoEliminar, paramsDeFiltros,
+  pendienteDeFudo, pendienteDeGasto, validarGasto, type GastoFila, type PagoFila,
 } from './modelo'
 import { rutaComprobante } from './comprobante'
 
@@ -18,74 +20,95 @@ const fila = (p: Partial<GastoFila>): GastoFila => ({
 
 const gastos = armarGastos([
   fila({}),
-  fila({ id: 'g2', fecha: '2026-09-20', estado: 'Pagado', fecha_pago: '2026-09-21', monto: 500.5, pagado: 500.5, local: 'YA! GOYA', proveedor_nombre: null }),
+  fila({ id: 'g2', fecha: '2026-09-20', estado: 'Pagado', fecha_pago: '2026-09-21', monto: 500.5, pagado: 500.5, pagos: 1, local: 'YA! GOYA', proveedor_nombre: null }),
   fila({ id: 'g3', fecha: '2026-08-30', monto: 200, factura_id: 'f1', factura_numero: '0007-1', factura_pedido_numero: 15 }),
-  fila({ id: 'g4', fecha: '2026-08-15', estado: 'Pagado', fecha_pago: '2026-09-02', monto: 300, pagado: 300 }),
+  fila({ id: 'g5', estado: 'Parcial', monto: 1000, pagado: 400, saldo: 600, pagos: 1 }),
+  fila({ id: 'g6', origen: 'fudo', rubro: null, categoria: null }),
   fila({ id: null }),
 ])
-// F1: pago parcial y anulado.
-const conParcial = armarGastos([
-  fila({}),
-  fila({ id: 'g5', estado: 'Parcial', monto: 1000, pagado: 400, saldo: 600 }),
-  fila({ id: 'g6', estado: 'Anulado', monto: 700 }),
-])
-const rp = resumirGastos(conParcial, '2026-09-01', '2026-09-30')
-const sep = { desde: '2026-09-01', hasta: '2026-09-30' }
-const r = resumirGastos(gastos, sep.desde, sep.hasta)
-const base = { estado: 'todos' as const, local: '', busqueda: '', ...sep }
+const g = (id: string) => gastos.find(x => x.id === id)!
+const hoy = '2026-11-03'
 const nuevo = formInicial(null, '2026-09-30', { local: 'YA! FABRICA', formaPago: 'Transferencia' })
 const completo = { ...nuevo, rubro: 'MATERIA PRIMA', categoria: 'HUEVOS', monto: 10 }
-
 const fudo = pendienteDeFudo({ id: 77, sucursal: 'YA! CORDOBA', date: '2026-09-01T10:00:00', description: '', amount: '1500.5', provider: { name: 'Lucas envios' }, expenseCategory: { name: 'Envíos' } })
 
+const porDefecto = leerFiltros({}, hoy)
+const conTodo = leerFiltros({ desde: '2026-10-01', hasta: '2026-10-31', estado: 'pendientes', local: 'YA! GOYA', q: ' huevos ', origen: 'fudo', pagina: '3' }, hoy)
+const pagos = armarPagos([
+  { id: 'p1', gasto_id: 'g5', fecha: '2026-10-01', monto: 100, forma_pago: 'Efectivo', caja: 'Goya', comprobante_url: null, origen: 'app', fudo_payment_id: null, registrado_por: null, registrado_por_nombre: 'Ana', created_at: null, anulado_en: '2026-10-02T10:00:00Z', anulado_por: null, anulado_por_nombre: 'Ana', anulado_motivo: 'duplicado' },
+  { id: 'p2', gasto_id: 'g5', fecha: '2026-10-01', monto: 400, forma_pago: 'Efectivo', caja: 'Goya', comprobante_url: null, origen: 'app', fudo_payment_id: null, registrado_por: null, registrado_por_nombre: 'Ana', created_at: null, anulado_en: null, anulado_por: null, anulado_por_nombre: null, anulado_motivo: null },
+  { id: 'p3', gasto_id: 'g5', fecha: '2026-10-05', monto: 50, forma_pago: 'Efectivo', caja: null, comprobante_url: null, origen: 'fudo', fudo_payment_id: '9', registrado_por: null, registrado_por_nombre: null, created_at: null, anulado_en: null, anulado_por: null, anulado_por_nombre: null, anulado_motivo: null },
+] as PagoFila[])
+
 const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
-  { nombre: 'descarta filas sin id', real: gastos.length, esperado: 4 },
-  { nombre: 'ordena del más nuevo', real: gastos.map(g => g.id).join(), esperado: 'g2,g1,g3,g4' },
-  { nombre: 'factura con código de pedido', real: gastos.find(g => g.id === 'g3')?.factura?.codigoPedido, esperado: 'P-0015' },
-  { nombre: 'pendiente: todo lo que se debe, sin mirar el período', real: r.pendiente, esperado: 1200 },
-  { nombre: 'pendientes count', real: r.pendientesCount, esperado: 2 },
-  { nombre: 'pagado en el período, por fecha de pago', real: r.pagadoPeriodo, esperado: 800.5 },
-  { nombre: 'total del período, por fecha del gasto', real: r.totalPeriodo, esperado: 1500.5 },
-  { nombre: 'filtro período', real: filtrarGastos(gastos, base).map(g => g.id).join(), esperado: 'g2,g1' },
-  { nombre: 'filtro pendientes', real: filtrarGastos(gastos, { ...base, estado: 'pendientes', desde: '', hasta: '' }).map(g => g.id).join(), esperado: 'g1,g3' },
-  { nombre: 'filtro local', real: filtrarGastos(gastos, { ...base, local: 'YA! GOYA' }).length, esperado: 1 },
-  { nombre: 'busca por número de factura', real: filtrarGastos(gastos, { ...base, desde: '', hasta: '', busqueda: '0007' }).map(g => g.id).join(), esperado: 'g3' },
-  { nombre: 'busca por proveedor', real: filtrarGastos(gastos, { ...base, busqueda: 'campo' }).length, esperado: 1 },
-  { nombre: 'form nuevo con defaults', real: `${nuevo.local}|${nuevo.formaPago}|${nuevo.fecha}`, esperado: 'YA! FABRICA|Transferencia|2026-09-30' },
+  { nombre: 'descarta filas sin id', real: gastos.length, esperado: 5 },
+  { nombre: 'factura con código de pedido', real: g('g3').factura?.codigoPedido, esperado: 'P-0015' },
+  { nombre: 'saldo sin dato de la vista: monto - pagado', real: g('g1').saldo, esperado: 1000 },
+  { nombre: 'parcial: se paga por el saldo', real: pendienteDeGasto(g('g5')).monto, esperado: 600 },
+  // Filtros en la URL
+  { nombre: 'mes de hoy', real: `${mesDe(hoy).desde}|${mesDe(hoy).hasta}`, esperado: '2026-11-01|2026-11-30' },
+  { nombre: 'mes con 29 días', real: mesDe('2028-02-10').hasta, esperado: '2028-02-29' },
+  { nombre: 'sin parámetros: el mes de hoy, todo', real: `${porDefecto.desde}|${porDefecto.hasta}|${porDefecto.estado}|${porDefecto.pagina}`, esperado: '2026-11-01|2026-11-30|todos|1' },
+  { nombre: 'sin parámetros no cuenta como filtro', real: hayFiltros(porDefecto, hoy), esperado: false },
+  { nombre: 'sin parámetros: URL vacía', real: paramsDeFiltros(porDefecto, hoy), esperado: '' },
+  { nombre: 'periodo=todo: sin fechas', real: `${leerFiltros({ periodo: 'todo' }, hoy).desde}|${leerFiltros({ periodo: 'todo' }, hoy).hasta}`, esperado: '|' },
+  { nombre: 'todo el período se escribe en la URL', real: paramsDeFiltros({ ...porDefecto, desde: '', hasta: '' }, hoy), esperado: 'periodo=todo' },
+  { nombre: 'lee todos los filtros', real: `${conTodo.estado}|${conTodo.local}|${conTodo.q}|${conTodo.origen}|${conTodo.pagina}`, esperado: 'pendientes|YA! GOYA|huevos|fudo|3' },
+  { nombre: 'ida y vuelta', real: paramsDeFiltros(leerFiltros(Object.fromEntries(new URLSearchParams(paramsDeFiltros(conTodo, hoy))), hoy), hoy), esperado: paramsDeFiltros(conTodo, hoy) },
+  { nombre: 'valores inválidos caen al defecto', real: JSON.stringify(leerFiltros({ estado: 'x', origen: 'y', pagina: '-2', desde: '2026-13' }, hoy)), esperado: JSON.stringify(porDefecto) },
+  { nombre: 'solo "hasta" no completa el desde', real: leerFiltros({ hasta: '2026-10-31' }, hoy).desde, esperado: '' },
+  // Resumen
+  { nombre: 'resumen desde el jsonb', real: JSON.stringify(leerResumen({ pendiente: '10.005', pendientes_count: 2, filtrado_total: null })), esperado: JSON.stringify({ pendiente: 10.01, pendientesCount: 2, pagadoPeriodo: 0, totalPeriodo: 0, gastosPeriodo: 0, filtradoTotal: 0 }) },
+  { nombre: 'resumen vacío', real: leerResumen(null).pendiente, esperado: 0 },
+  // Pagos
+  { nombre: 'pagos: vigentes primero, el más reciente arriba', real: pagos.map(p => p.id).join(), esperado: 'p3,p2,p1' },
+  { nombre: 'pago anulado con motivo', real: pagos.find(p => p.id === 'p1')?.anulado?.motivo, esperado: 'duplicado' },
+  { nombre: 'pago de Fudo', real: pagos[0].origen, esperado: 'fudo' },
+  // Formulario
+  { nombre: 'form nuevo con defaults', real: `${nuevo.local}|${nuevo.formaPago}|${nuevo.fecha}|${nuevo.fechaVencimiento}`, esperado: 'YA! FABRICA|Transferencia|2026-09-30|' },
   { nombre: 'valida rubro', real: validarGasto(nuevo, true)?.campo, esperado: 'rubro' },
   { nombre: 'valida monto 0', real: validarGasto({ ...completo, monto: 0 }, true)?.campo, esperado: 'monto' },
   { nombre: 'completo es válido', real: validarGasto(completo, true), esperado: null },
+  { nombre: 'vencimiento antes de la fecha', real: validarGasto({ ...completo, fechaVencimiento: '2026-09-01' }, true)?.campo, esperado: 'fechaVencimiento' },
+  { nombre: 'vencimiento el mismo día vale', real: validarGasto({ ...completo, fechaVencimiento: '2026-09-30' }, true), esperado: null },
   { nombre: 'ya pagado pide caja', real: validarGasto({ ...completo, yaPagado: true }, true)?.campo, esperado: 'caja' },
   { nombre: 'al editar no pide caja', real: validarGasto({ ...completo, yaPagado: true }, false), esperado: null },
   { nombre: 'sin cambios', real: hayCambios(nuevo, { ...nuevo }), esperado: false },
   { nombre: 'con cambios', real: hayCambios({ ...nuevo, monto: 5 }, nuevo), esperado: true },
-  { nombre: 'bloqueo de factura', real: bloqueoFactura(gastos.find(g => g.id === 'g3') ?? null)?.startsWith('Salió de la factura 0007-1 (P-0015)'), esperado: true },
-  { nombre: 'sin factura no bloquea', real: bloqueoFactura(gastos[0]), esperado: null },
-  { nombre: 'no se elimina si salió de una factura', real: motivoNoEliminar(gastos.find(g => g.id === 'g3')!) != null, esperado: true },
-  { nombre: 'pendiente de la app: título proveedor', real: `${pendienteDeGasto(gastos[1]).titulo}|${pendienteDeGasto(gastos[1]).detalle}`, esperado: 'Huevo Campo|HUEVOS' },
+  { nombre: 'editar trae el vencimiento', real: formInicial({ ...g('g1'), fechaVencimiento: '2026-10-10' }, hoy).fechaVencimiento, esperado: '2026-10-10' },
+  // Candados
+  { nombre: 'bloqueo de factura', real: bloqueoFactura(g('g3'))?.startsWith('Salió de la factura 0007-1 (P-0015)'), esperado: true },
+  { nombre: 'sin factura no bloquea', real: bloqueoFactura(g('g1')), esperado: null },
+  { nombre: 'no se elimina si salió de una factura', real: motivoNoEliminar(g('g3'))?.startsWith('Este gasto salió de la factura'), esperado: true },
+  { nombre: 'no se elimina si viene de Fudo', real: motivoNoEliminar(g('g6'))?.startsWith('Este gasto viene de Fudo'), esperado: true },
+  { nombre: 'no se elimina con pagos', real: motivoNoEliminar(g('g5'))?.startsWith('Este gasto tiene pagos'), esperado: true },
+  { nombre: 'sin pagos se elimina', real: motivoNoEliminar(g('g1')), esperado: null },
+  // Pendientes (de la app y de Fudo)
+  { nombre: 'pendiente de la app: título proveedor', real: `${pendienteDeGasto(g('g1')).titulo}|${pendienteDeGasto(g('g1')).detalle}`, esperado: 'Huevo Campo|HUEVOS' },
   { nombre: 'fudo sin descripción usa el proveedor', real: `${fudo.titulo}|${fudo.detalle}`, esperado: 'Lucas envios|Envíos' },
   { nombre: 'fudo monto string', real: fudo.monto, esperado: 1500.5 },
   { nombre: 'fudo fecha recortada', real: fudo.fecha, esperado: '2026-09-01' },
   { nombre: 'fudo clave con sucursal', real: fudo.clave, esperado: 'fudo:YA! CORDOBA:77' },
   {
     nombre: 'agrupa por local, lo más viejo arriba',
-    real: agruparPorLocal([pendienteDeGasto(gastos[1]), fudo, pendienteDeGasto(gastos[2])]).map(g => `${g.local}:${g.items.map(i => i.fecha).join('/')}`).join(' '),
+    real: agruparPorLocal([pendienteDeGasto(g('g1')), fudo, pendienteDeGasto(g('g3'))]).map(x => `${x.local}:${x.items.map(i => i.fecha).join('/')}`).join(' '),
     esperado: 'YA! CORDOBA:2026-09-01 YA! FABRICA:2026-08-30/2026-09-10',
   },
-  { nombre: 'total del grupo', real: agruparPorLocal([pendienteDeGasto(gastos[1]), pendienteDeGasto(gastos[2])])[0].total, esperado: 1200 },
-  { nombre: 'filtra pendientes por texto', real: filtrarPendientes([fudo, pendienteDeGasto(gastos[1])], { local: '', busqueda: 'lucas', desde: '', hasta: '' }).length, esperado: 1 },
+  { nombre: 'filtra pendientes por texto', real: filtrarPendientes([fudo, pendienteDeGasto(g('g1'))], { local: '', busqueda: 'lucas', desde: '', hasta: '' }).length, esperado: 1 },
+  // Comprobantes
   { nombre: 'comprobante: ruta tal cual', real: rutaComprobante('gastos/app-1/1.png'), esperado: 'gastos/app-1/1.png' },
   { nombre: 'comprobante: URL pública vieja', real: rutaComprobante('https://x.supabase.co/storage/v1/object/public/comprobantes/gastos/g%201/2.pdf'), esperado: 'gastos/g 1/2.pdf' },
   { nombre: 'comprobante: URL firmada', real: rutaComprobante('https://x.supabase.co/storage/v1/object/sign/comprobantes/gastos/a.png?token=abc'), esperado: 'gastos/a.png' },
   { nombre: 'comprobante: URL de otro lado', real: rutaComprobante('https://otro.com/a.png'), esperado: null },
   { nombre: 'comprobante: vacío', real: rutaComprobante(null), esperado: null },
   { nombre: 'días desde', real: diasDesde('2026-08-31', '2026-09-30'), esperado: 30 },
-  { nombre: 'saldo sin dato de la vista: monto - pagado', real: gastos.find(g => g.id === 'g1')?.saldo, esperado: 1000 },
-  { nombre: 'parcial: el pendiente suma el saldo', real: rp.pendiente, esperado: 1600 },
-  { nombre: 'anulado no es pendiente', real: rp.pendientesCount, esperado: 2 },
-  { nombre: 'anulado no suma en el período', real: rp.totalPeriodo, esperado: 2000 },
-  { nombre: 'parcial: se paga por el saldo', real: pendienteDeGasto(conParcial.find(g => g.id === 'g5')!).monto, esperado: 600 },
-  { nombre: 'filtro pagados no trae anulados', real: filtrarGastos(conParcial, { ...base, estado: 'pagados', desde: '', hasta: '' }).length, esperado: 0 },
+  // Atraso y filtros de Pendientes
+  { nombre: 'atraso sin vencimiento: a los 30 días', real: atraso({ fecha: '2026-09-01', vencimiento: null, vencido: false }, '2026-10-05'), esperado: 'hace 34 días' },
+  { nombre: 'atraso sin vencimiento: antes de 30, nada', real: atraso({ fecha: '2026-10-01', vencimiento: null, vencido: false }, '2026-10-05'), esperado: null },
+  { nombre: 'atraso con vencimiento: manda el vencimiento', real: atraso({ fecha: '2026-01-01', vencimiento: '2026-12-10', vencido: false }, '2026-10-05'), esperado: null },
+  { nombre: 'atraso vencido', real: atraso({ fecha: '2026-10-01', vencimiento: '2026-10-03', vencido: true }, '2026-10-05'), esperado: 'venció el 03/10' },
+  { nombre: 'pendientes: orden por defecto, más viejos', real: leerFiltrosPendientes({}).orden, esperado: 'viejos' },
+  { nombre: 'pendientes: ida y vuelta', real: paramsDePendientes(leerFiltrosPendientes({ local: 'YA! GOYA', q: 'luz', orden: 'nuevos', desde: '2026-10-01', hasta: 'x' })), esperado: 'desde=2026-10-01&local=YA%21+GOYA&q=luz&orden=nuevos' },
 ]
 
 let fallas = 0

@@ -1,31 +1,37 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
-  CheckCircle2, FileText, Loader2, Lock, ReceiptText, RotateCcw, Save, Trash2, Wallet,
-} from 'lucide-react'
+  IconCircleCheck, IconCircleX, IconDeviceFloppy, IconFileText, IconLock, IconPaperclip, IconReceipt,
+  IconTrash, IconWallet, IconX,
+} from '@tabler/icons-react'
 import LinkEntidad from '@/components/ui/LinkEntidad'
 import DatePicker from '@/components/ui/DatePicker'
 import InputNumero from '@/components/ui/InputNumero'
 import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
 import EstadoBadge from '@/components/ui/EstadoBadge'
 import { ChipGroup } from '@/components/ui/Chip'
+import { Puntos } from '@/components/ui/Cargando'
 import { Field, controlClass } from '@/components/ui/Field'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
-import { createClient } from '@/lib/supabase/client'
-import { BUCKET_COMPROBANTES, rutaComprobante } from '@/lib/gastos/comprobante'
-import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
+import { formatearFecha, formatearFechaHora, formatearMonedaExacta } from '@/lib/formato'
 import { hoyISO } from '@/lib/fechas'
+import { mensajeError } from '@/lib/errores'
 import { RUBROS, RUBROS_CATEGORIAS } from '@/lib/gastos-constants'
 import {
-  bloqueoFactura, formInicial, hayCambios, motivoNoEliminar, validarGasto,
-  type CampoGasto, type FormGasto, type GastoVista,
+  armarPagos, bloqueoFactura, formInicial, hayCambios, motivoNoEliminar, validarGasto,
+  type AdjuntoFila, type CampoGasto, type FormGasto, type GastoVista, type PagoVista,
 } from '@/lib/gastos/modelo'
-import { deshacerPagoGasto, eliminarGasto, guardarGasto, registrarPagoGasto } from './acciones'
+import {
+  agregarAdjuntoGasto, anularPagoGasto, detalleGasto, eliminarGasto, guardarGasto, quitarAdjuntoGasto,
+  registrarPagoGasto,
+} from './acciones'
+import { MAX_MB_ARCHIVO, TIPOS_ARCHIVO, abrirArchivoGasto, borrarArchivoGasto, subirArchivoGasto } from './archivos'
 import PagoModal, { type DatosPago } from './PagoModal'
 
 const botonPrimario = 'presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50'
 const botonSecundario = 'presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50'
+const botonTexto = 'presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-text hover:bg-surface2 disabled:opacity-50'
 
 /** Categorías del rubro. Un rubro sin categorías (Movimiento interno) usa el rubro como categoría. */
 function categoriasDe(rubro: string): string[] {
@@ -34,82 +40,190 @@ function categoriasDe(rubro: string): string[] {
   return lista.length ? lista : [rubro]
 }
 
-/** Abre el comprobante con un link firmado (el bucket es privado). */
-function VerComprobante({ valor }: { valor: string }) {
+/** Abre un archivo del bucket privado con un link firmado. */
+function BotonArchivo({ valor, texto }: { valor: string; texto: string }) {
   const toast = useToast()
   const [abriendo, setAbriendo] = useState(false)
-  const ruta = rutaComprobante(valor)
-  if (!ruta) return null
-
   async function abrir() {
-    // La pestaña se abre ya, en el click: después del await el navegador la bloquearía.
-    const pestana = window.open('', '_blank')
     setAbriendo(true)
-    const { data, error } = await createClient().storage.from(BUCKET_COMPROBANTES).createSignedUrl(ruta!, 60)
+    const ok = await abrirArchivoGasto(valor)
     setAbriendo(false)
-    if (error || !data?.signedUrl) {
-      pestana?.close()
-      toast.error('No pudimos abrir el comprobante. Puede que se haya borrado: probá de nuevo o subilo otra vez.')
-      return
-    }
-    if (pestana) pestana.location.href = data.signedUrl
-    else window.location.href = data.signedUrl
+    if (!ok) toast.error('No pudimos abrir el archivo. Puede que se haya borrado: probá de nuevo o subilo otra vez.')
   }
-
   return (
-    <button
-      type="button"
-      onClick={abrir}
-      disabled={abriendo}
-      className="mt-1 inline-flex min-h-11 items-center gap-1.5 font-medium text-text underline decoration-accent decoration-2 underline-offset-4 hover:opacity-80 disabled:opacity-50"
-    >
-      {abriendo ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} Ver comprobante
+    <button type="button" onClick={abrir} disabled={abriendo} className={botonTexto}>
+      {abriendo ? <Puntos /> : <IconFileText size={15} aria-hidden />}
+      <span className="truncate underline decoration-accent decoration-2 underline-offset-4">{texto}</span>
     </button>
   )
 }
 
-/** Estado del pago de un gasto existente, con sus acciones. */
-function BloquePago({
-  gasto, pendiente, conCambios, onPagar, onDeshacer,
+/** Un pago del historial. Anular pide el motivo acá mismo. */
+function FilaPago({ pago, ocupado, onAnular }: { pago: PagoVista; ocupado: boolean; onAnular: (motivo: string) => void }) {
+  const [anulando, setAnulando] = useState(false)
+  const [motivo, setMotivo] = useState('')
+  const anulado = pago.anulado
+  return (
+    <li className={`space-y-2 px-4 py-3 ${anulado ? 'opacity-60' : ''}`}>
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        <div className="min-w-0 text-sm">
+          <p className="font-medium text-text">
+            <span className={`tabular-nums ${anulado ? 'line-through' : ''}`}>{formatearMonedaExacta(pago.monto)}</span>
+            <span className="text-muted"> · {pago.fecha ? formatearFecha(pago.fecha) : 'sin fecha'}</span>
+          </p>
+          <p className="text-xs text-muted">
+            {[pago.formaPago, pago.caja && `caja ${pago.caja}`, pago.origen === 'fudo' ? 'desde Fudo' : pago.registradoPor && `por ${pago.registradoPor}`].filter(Boolean).join(' · ')}
+          </p>
+          {anulado && (
+            <p className="text-xs text-muted">
+              Anulado {formatearFechaHora(anulado.en)}{anulado.por && <> por {anulado.por}</>}{anulado.motivo && <>: {anulado.motivo}</>}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          {pago.comprobanteUrl && <BotonArchivo valor={pago.comprobanteUrl} texto="Comprobante" />}
+          {!anulado && pago.origen === 'app' && !anulando && (
+            <button type="button" onClick={() => setAnulando(true)} disabled={ocupado} className={botonTexto}>
+              <IconCircleX size={15} className="text-brand-red" aria-hidden /> Anular
+            </button>
+          )}
+        </div>
+      </div>
+      {/* Al anularse, el pago se queda en la lista: el panel se cierra solo. */}
+      {anulando && !anulado && (
+        <div className="space-y-2 rounded-xl border border-border bg-surface px-3 py-3">
+          <p className="text-sm text-text">El pago deja de sumar y el gasto vuelve a quedar pendiente por ese monto. Queda en el historial.</p>
+          <input
+            aria-label="Motivo de la anulación"
+            value={motivo}
+            onChange={e => setMotivo(e.target.value)}
+            maxLength={300}
+            placeholder="Motivo (opcional): por ejemplo, se cargó dos veces"
+            className={`${controlClass} min-h-11`}
+          />
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => { setAnulando(false); setMotivo('') }} disabled={ocupado} className={botonSecundario}>Cancelar</button>
+            <button
+              type="button"
+              onClick={() => onAnular(motivo)}
+              disabled={ocupado}
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl bg-brand-red px-4 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {ocupado ? <Puntos /> : <IconCircleX size={15} aria-hidden />} Anular pago
+            </button>
+          </div>
+        </div>
+      )}
+    </li>
+  )
+}
+
+/** Estado del pago, botón para registrar y el historial. */
+function SeccionPagos({
+  gasto, pagos, cargando, ocupado, conCambios, onPagar, onAnular,
 }: {
   gasto: GastoVista
-  pendiente: boolean
-  /** Hay cambios sin guardar: pagar cerraría el formulario y los perdería. */
+  pagos: PagoVista[] | null
+  cargando: boolean
+  ocupado: boolean
+  /** Hay cambios sin guardar: pagar los mezclaría con un monto viejo. */
   conCambios: boolean
   onPagar: () => void
-  onDeshacer: () => void
+  onAnular: (pagoId: string, motivo: string) => void
 }) {
-  if (gasto.estado === 'Pagado') {
-    return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface2 px-4 py-3">
-        <div className="min-w-0 text-sm">
-          <p className="flex items-center gap-1.5 font-semibold text-text">
-            <CheckCircle2 size={16} className="shrink-0 text-success" />
-            Pagado{gasto.fechaPago && <> el {formatearFecha(gasto.fechaPago)}</>}
-          </p>
-          <p className="text-muted">
-            {[gasto.formaPago, gasto.caja && `caja ${gasto.caja}`, gasto.pagadoPor && `por ${gasto.pagadoPor}`].filter(Boolean).join(' · ')}
-          </p>
-          {gasto.comprobanteUrl && <VerComprobante valor={gasto.comprobanteUrl} />}
-        </div>
-        <button type="button" onClick={onDeshacer} disabled={pendiente} className={botonSecundario}>
-          <RotateCcw size={15} /> Deshacer pago
-        </button>
-      </div>
-    )
-  }
+  const sePuedePagar = gasto.saldo > 0 && gasto.estado !== 'Anulado'
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface2 px-4 py-3">
-      <div className="text-sm">
-        <EstadoBadge dominio="gastos" estado={gasto.estado} />
-        <p className="mt-1 text-muted">
-          {conCambios ? 'Guardá los cambios antes de registrar el pago.' : 'Cuando lo pagues, registralo acá con la caja y el comprobante.'}
-        </p>
+    <section className="overflow-hidden rounded-xl border border-border bg-surface2" aria-label="Pagos del gasto">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="min-w-0 space-y-1 text-sm">
+          <EstadoBadge dominio="gastos" estado={gasto.estado} />
+          <p className="text-muted">
+            {gasto.estado === 'Anulado'
+              ? 'Se anuló en Fudo: no suma en ningún total.'
+              : gasto.estado === 'Pagado'
+                ? <>Pagado entero: <span className="font-semibold tabular-nums text-text">{formatearMonedaExacta(gasto.monto)}</span></>
+                : gasto.pagado > 0
+                  ? <>Pagado <span className="tabular-nums">{formatearMonedaExacta(gasto.pagado)}</span> de <span className="tabular-nums">{formatearMonedaExacta(gasto.monto)}</span> · falta <span className="font-semibold tabular-nums text-text">{formatearMonedaExacta(gasto.saldo)}</span></>
+                  : <>Falta pagar <span className="font-semibold tabular-nums text-text">{formatearMonedaExacta(gasto.saldo)}</span></>}
+            {gasto.fechaVencimiento && sePuedePagar && (
+              <span className={gasto.vencido ? 'font-semibold text-warning' : ''}>
+                {' · '}{gasto.vencido ? 'venció' : 'vence'} el {formatearFecha(gasto.fechaVencimiento)}
+              </span>
+            )}
+          </p>
+          {sePuedePagar && conCambios && <p className="text-xs text-muted">Guardá los cambios antes de registrar un pago.</p>}
+        </div>
+        {sePuedePagar && (
+          <button type="button" onClick={onPagar} disabled={ocupado || conCambios} className={botonPrimario}>
+            <IconWallet size={16} aria-hidden /> Registrar pago
+          </button>
+        )}
       </div>
-      <button type="button" onClick={onPagar} disabled={pendiente || conCambios} className={botonPrimario}>
-        <Wallet size={16} /> Registrar pago
-      </button>
-    </div>
+      {cargando && !pagos ? (
+        <p className="flex items-center gap-2 border-t border-border px-4 py-3 text-sm text-muted"><Puntos /> Trayendo los pagos</p>
+      ) : pagos && pagos.length > 0 && (
+        <ul className="divide-y divide-border border-t border-border bg-surface" aria-label="Historial de pagos">
+          {pagos.map(p => <FilaPago key={p.id} pago={p} ocupado={ocupado} onAnular={motivo => onAnular(p.id, motivo)} />)}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+/** La factura o el ticket del gasto. En un gasto nuevo se suben al guardar. */
+function SeccionAdjuntos({
+  adjuntos, enEspera, ocupado, onElegir, onQuitar, onQuitarEnEspera,
+}: {
+  adjuntos: AdjuntoFila[]
+  enEspera: File[]
+  ocupado: boolean
+  onElegir: (archivos: File[]) => void
+  onQuitar: (a: AdjuntoFila) => void
+  onQuitarEnEspera: (i: number) => void
+}) {
+  const input = useRef<HTMLInputElement>(null)
+  return (
+    <Field label="Factura o ticket" ayuda={`Opcional. Fotos o PDF de hasta ${MAX_MB_ARCHIVO} MB.`}>
+      <div className="space-y-2">
+        {(adjuntos.length > 0 || enEspera.length > 0) && (
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {adjuntos.map(a => (
+              <li key={a.id} className="flex min-h-11 items-center gap-2 px-2">
+                <span className="min-w-0 flex-1"><BotonArchivo valor={a.ruta} texto={a.nombre} /></span>
+                <button type="button" onClick={() => onQuitar(a)} disabled={ocupado} aria-label={`Quitar ${a.nombre}`}
+                  className="presionable flex size-11 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-surface2 hover:text-brand-red disabled:opacity-50">
+                  <IconTrash size={16} aria-hidden />
+                </button>
+              </li>
+            ))}
+            {enEspera.map((f, i) => (
+              <li key={`${f.name}-${i}`} className="flex min-h-11 items-center gap-3 px-3">
+                <IconFileText size={16} className="shrink-0 text-accent-fg" aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-sm text-text">{f.name}</span>
+                <span className="text-xs text-muted">se sube al guardar</span>
+                <button type="button" onClick={() => onQuitarEnEspera(i)} disabled={ocupado} aria-label={`Quitar ${f.name}`}
+                  className="presionable flex size-11 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-surface2 hover:text-brand-red disabled:opacity-50">
+                  <IconX size={16} aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <label className="presionable flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted transition-colors hover:border-accent hover:text-text focus-within:border-accent">
+          {ocupado ? <Puntos /> : <IconPaperclip size={17} className="shrink-0" aria-hidden />}
+          Adjuntar la factura, el ticket o una foto
+          <input
+            ref={input}
+            type="file"
+            multiple
+            accept={TIPOS_ARCHIVO}
+            disabled={ocupado}
+            className="sr-only"
+            onChange={e => { onElegir([...(e.target.files ?? [])]); if (input.current) input.current.value = '' }}
+          />
+        </label>
+      </div>
+    </Field>
   )
 }
 
@@ -145,12 +259,37 @@ export default function GastoForm({
   const [form, setForm] = useState<FormGasto>(inicial)
   const [intento, setIntento] = useState(false)
   const [pagando, setPagando] = useState(false)
+  const [subiendo, setSubiendo] = useState(false)
+  const [detalle, setDetalle] = useState<{ pagos: PagoVista[]; adjuntos: AdjuntoFila[] } | null>(null)
+  const [cargandoDetalle, setCargandoDetalle] = useState(false)
+  const [errorDetalle, setErrorDetalle] = useState<string | null>(null)
+  const [enEspera, setEnEspera] = useState<File[]>([])
+  const [comprobanteAlta, setComprobanteAlta] = useState<File | null>(null)
+  const ocupado = isPending || subiendo
 
   const esNuevo = gasto == null
   const bloqueo = bloqueoFactura(gasto)
   const problema = validarGasto(form, esNuevo)
   const marca = (c: CampoGasto) => (intento && problema?.campo === c ? 'border-brand-red' : '')
   const categorias = categoriasDe(form.rubro)
+  const conCambios = hayCambios(form, inicial)
+
+  // Pagos y adjuntos: se vuelven a pedir cuando cambian los totales del gasto
+  // (las acciones llaman a refresh() y el gasto llega actualizado).
+  const gastoId = gasto?.id
+  // El error va en línea y no en un toast: el toast cambia en cada render del
+  // proveedor y volvería a disparar la carga.
+  const cargarDetalle = useCallback(async () => {
+    if (!gastoId) return
+    setCargandoDetalle(true)
+    const r = await detalleGasto(gastoId)
+    setCargandoDetalle(false)
+    if (!r.ok) { setErrorDetalle(r.error); return }
+    setErrorDetalle(null)
+    setDetalle({ pagos: armarPagos(r.data.pagos), adjuntos: r.data.adjuntos })
+  }, [gastoId])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarDetalle() }, [cargarDetalle, gasto?.pagado, gasto?.pagos, gasto?.adjuntos])
 
   function cambiar(parcial: Partial<FormGasto>) {
     const nuevo = { ...form, ...parcial }
@@ -160,21 +299,71 @@ export default function GastoForm({
     }
     setForm(nuevo)
     // Fuera del actualizador: avisar al padre durante el render es un error de React.
-    onCambios(hayCambios(nuevo, inicial))
+    onCambios(hayCambios(nuevo, inicial) || enEspera.length > 0)
   }
 
-  // B3 (E19): solo activos, más el del gasto si se archivó (si no, se vería "Sin proveedor").
-  const opcionesProveedor: OpcionSelect[] = [
-    { value: '', label: 'Sin proveedor' },
-    ...proveedores
-      .filter(p => p.estado === 'activo' || p.id === inicial.proveedorId)
-      .map(p => ({ value: p.id, label: p.estado === 'activo' ? p.nombre : `${p.nombre} (archivado)` })),
-  ]
+  function elegirArchivos(archivos: File[]) {
+    const grandes = archivos.filter(f => f.size > MAX_MB_ARCHIVO * 1024 * 1024)
+    if (grandes.length) toast.error(`${grandes.map(f => f.name).join(', ')} pesa${grandes.length > 1 ? 'n' : ''} más de ${MAX_MB_ARCHIVO} MB.`)
+    const ok = archivos.filter(f => f.size <= MAX_MB_ARCHIVO * 1024 * 1024)
+    if (!ok.length) return
+    if (esNuevo) {
+      setEnEspera(prev => [...prev, ...ok])
+      onCambios(true)
+      return
+    }
+    void subirAdjuntos(gasto.id, ok).then(fallas => {
+      if (fallas) toast.error(`No se pudo${fallas > 1 ? 'ieron' : ''} subir ${fallas} archivo${fallas > 1 ? 's' : ''}. Probá de nuevo.`)
+      else toast.success(ok.length > 1 ? 'Archivos adjuntados' : 'Archivo adjuntado')
+    })
+  }
+
+  /** Sube y registra los archivos de un gasto. Devuelve cuántos fallaron. */
+  async function subirAdjuntos(id: string, archivos: File[]): Promise<number> {
+    setSubiendo(true)
+    let fallas = 0
+    for (const f of archivos) {
+      try {
+        const subido = await subirArchivoGasto(id, f, 'adjunto')
+        const r = await agregarAdjuntoGasto({ gastoId: id, ...subido })
+        if (!r.ok) { fallas++; void borrarArchivoGasto(subido.ruta) }
+      } catch {
+        fallas++
+      }
+    }
+    setSubiendo(false)
+    return fallas
+  }
+
+  function quitarAdjunto(a: AdjuntoFila) {
+    confirmar({
+      titulo: 'Quitar el archivo',
+      mensaje: `Se borra "${a.nombre}" de este gasto.`,
+      textoConfirmar: 'Quitar',
+      peligroso: true,
+      onConfirmar: () => startTransition(async () => {
+        const r = await quitarAdjuntoGasto(a.id)
+        if (!r.ok) { toast.error(r.error); return }
+        if (r.data) void borrarArchivoGasto(r.data)
+        toast.success('Archivo quitado')
+      }),
+    })
+  }
 
   function guardar() {
     setIntento(true)
     if (problema) { toast.error(problema.mensaje); return }
     startTransition(async () => {
+      // El comprobante del pago de un alta ya pagada se sube antes de guardar.
+      let comprobanteUrl: string | null = null
+      if (esNuevo && form.yaPagado && comprobanteAlta) {
+        try {
+          comprobanteUrl = (await subirArchivoGasto(`nuevo-${Date.now()}`, comprobanteAlta, 'pago')).ruta
+        } catch (e) {
+          toast.error(mensajeError(e, 'No se pudo subir el comprobante. Probá de nuevo o guardá el gasto sin él.'))
+          return
+        }
+      }
       const r = await guardarGasto({
         id: gasto?.id ?? null,
         fecha: form.fecha,
@@ -185,12 +374,21 @@ export default function GastoForm({
         monto: form.monto ?? 0,
         formaPago: form.formaPago,
         observaciones: form.observaciones.trim() || null,
-        pago: esNuevo && form.yaPagado ? { fechaPago: form.fechaPago, caja: form.caja, comprobanteUrl: null } : null,
+        fechaVencimiento: form.fechaVencimiento || null,
+        pago: esNuevo && form.yaPagado ? { fechaPago: form.fechaPago, caja: form.caja, comprobanteUrl } : null,
       })
-      if (!r.ok) { toast.error(r.error); return }
+      if (!r.ok) {
+        if (comprobanteUrl) void borrarArchivoGasto(comprobanteUrl)
+        toast.error(r.error)
+        return
+      }
       toast.success(esNuevo
         ? (form.yaPagado ? 'Gasto cargado y pagado' : 'Gasto cargado · queda pendiente de pago')
         : 'Cambios guardados')
+      if (esNuevo && enEspera.length) {
+        const fallas = await subirAdjuntos(r.data, enEspera)
+        if (fallas) toast.error(`El gasto se guardó, pero ${fallas} archivo${fallas > 1 ? 's no se pudieron' : ' no se pudo'} subir. Abrilo y adjuntalo de nuevo.`)
+      }
       onListo()
     })
   }
@@ -200,25 +398,17 @@ export default function GastoForm({
     return await new Promise(resolve => startTransition(async () => {
       const r = await registrarPagoGasto({ id: gasto.id, ...datos })
       if (!r.ok) { toast.error(r.error); resolve(false); return }
-      toast.success(`Pago registrado · ${formatearMonedaExacta(gasto.monto)}`)
+      toast.success(`Pago registrado · ${formatearMonedaExacta(datos.monto ?? gasto.saldo)}`)
       setPagando(false)
-      onListo()
       resolve(true)
     }))
   }
 
-  function deshacerPago() {
-    if (!gasto) return
-    confirmar({
-      titulo: 'Deshacer el pago',
-      mensaje: `El gasto de ${formatearMonedaExacta(gasto.monto)} vuelve a quedar pendiente de pago. Se borran la fecha del pago, la caja y el comprobante.`,
-      textoConfirmar: 'Deshacer pago',
-      onConfirmar: () => startTransition(async () => {
-        const r = await deshacerPagoGasto(gasto.id)
-        if (!r.ok) { toast.error(r.error); return }
-        toast.success('El gasto volvió a pendiente de pago')
-        onListo()
-      }),
+  function anularPago(pagoId: string, motivo: string) {
+    startTransition(async () => {
+      const r = await anularPagoGasto(pagoId, motivo.trim() || null)
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success('Pago anulado: quedó en el historial')
     })
   }
 
@@ -240,15 +430,38 @@ export default function GastoForm({
     })
   }
 
+  // B3 (E19): solo activos, más el del gasto si se archivó (si no, se vería "Sin proveedor").
+  const opcionesProveedor: OpcionSelect[] = [
+    { value: '', label: 'Sin proveedor' },
+    ...proveedores
+      .filter(p => p.estado === 'activo' || p.id === inicial.proveedorId)
+      .map(p => ({ value: p.id, label: p.estado === 'activo' ? p.nombre : `${p.nombre} (archivado)` })),
+  ]
+  const sePuedeEliminar = gasto != null && motivoNoEliminar(gasto) == null
+
   return (
     <div className="space-y-5">
       {gasto && (
-        <BloquePago gasto={gasto} pendiente={isPending} conCambios={hayCambios(form, inicial)} onPagar={() => setPagando(true)} onDeshacer={deshacerPago} />
+        <SeccionPagos
+          gasto={gasto}
+          pagos={detalle?.pagos ?? null}
+          cargando={cargandoDetalle}
+          ocupado={ocupado}
+          conCambios={conCambios}
+          onPagar={() => setPagando(true)}
+          onAnular={anularPago}
+        />
+      )}
+      {errorDetalle && (
+        <p className="flex flex-wrap items-center gap-2 text-sm text-brand-red">
+          {errorDetalle}
+          <button type="button" onClick={() => void cargarDetalle()} className={botonTexto}>Reintentar</button>
+        </p>
       )}
 
       {gasto?.factura && (
         <p className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border px-4 py-2.5 text-sm text-text">
-          <ReceiptText size={16} className="shrink-0 text-accent-fg" />
+          <IconReceipt size={16} className="shrink-0 text-accent-fg" aria-hidden />
           Salió de la factura{' '}
           <LinkEntidad entidad={{ tipo: 'factura', id: gasto.factura.id }} className="font-semibold">{gasto.factura.numero}</LinkEntidad>
           {gasto.factura.codigoPedido && (
@@ -274,7 +487,7 @@ export default function GastoForm({
         <Field label="Monto" obligatorio>
           {bloqueo ? (
             <p className="flex min-h-11 items-center gap-2 text-lg font-bold tabular-nums text-text">
-              {formatearMonedaExacta(form.monto ?? 0)} <Lock size={14} className="text-muted" aria-label="Sale de la factura" />
+              {formatearMonedaExacta(form.monto ?? 0)} <IconLock size={14} className="text-muted" aria-label="Sale de la factura" />
             </p>
           ) : (
             <InputNumero
@@ -302,7 +515,7 @@ export default function GastoForm({
         <Field label="Proveedor">
           {bloqueo ? (
             <p className="flex min-h-11 items-center gap-2 text-sm text-text">
-              {gasto?.proveedor ?? 'Sin proveedor'} <Lock size={14} className="text-muted" aria-label="Sale de la factura" />
+              {gasto?.proveedor ?? 'Sin proveedor'} <IconLock size={14} className="text-muted" aria-label="Sale de la factura" />
             </p>
           ) : (
             <SelectBuscador value={form.proveedorId} onChange={proveedorId => cambiar({ proveedorId })} opciones={opcionesProveedor} placeholderVacio="Sin proveedor" />
@@ -333,11 +546,22 @@ export default function GastoForm({
             {form.categoria && !categorias.includes(form.categoria) && <option value={form.categoria}>{form.categoria}</option>}
           </select>
         </Field>
+        <Field label="Vence" ayuda="Opcional. Si vence, Pendientes lo marca cuando pasa la fecha.">
+          <DatePicker
+            ariaLabel="Fecha de vencimiento del gasto"
+            value={form.fechaVencimiento}
+            min={form.fecha || undefined}
+            limpiable
+            placeholder="Sin vencimiento"
+            onChange={fechaVencimiento => cambiar({ fechaVencimiento })}
+            className={`${controlClass} min-h-11 ${marca('fechaVencimiento')}`}
+          />
+        </Field>
       </div>
 
       {bloqueo && <p className="-mt-2 text-xs text-muted">{bloqueo}</p>}
 
-      <Field label="Forma de pago" obligatorio>
+      <Field label="Forma de pago prevista" obligatorio>
         <ChipGroup opciones={formasPago.map(f => ({ value: f, label: f }))} value={form.formaPago} onChange={formaPago => cambiar({ formaPago })} />
       </Field>
 
@@ -353,6 +577,15 @@ export default function GastoForm({
         />
       </Field>
 
+      <SeccionAdjuntos
+        adjuntos={detalle?.adjuntos ?? []}
+        enEspera={enEspera}
+        ocupado={ocupado}
+        onElegir={elegirArchivos}
+        onQuitar={quitarAdjunto}
+        onQuitarEnEspera={i => setEnEspera(prev => prev.filter((_, j) => j !== i))}
+      />
+
       {esNuevo && (
         <div className="space-y-3 rounded-xl border border-border px-4 py-3">
           <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium text-text">
@@ -365,26 +598,55 @@ export default function GastoForm({
             Ya está pagado
           </label>
           {form.yaPagado ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Fecha del pago" obligatorio>
-                <DatePicker
-                  ariaLabel="Fecha del pago"
-                  value={form.fechaPago}
-                  max={hoyISO()}
-                  onChange={fechaPago => cambiar({ fechaPago })}
-                  className={`${controlClass} min-h-11 ${marca('fechaPago')}`}
-                />
-              </Field>
-              <Field label="Caja" obligatorio>
-                <select
-                  aria-label="Caja de la que salió la plata"
-                  value={form.caja}
-                  onChange={e => cambiar({ caja: e.target.value })}
-                  className={`${controlClass} min-h-11 ${marca('caja')}`}
-                >
-                  <option value="">Elegí la caja…</option>
-                  {cajas.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Fecha del pago" obligatorio>
+                  <DatePicker
+                    ariaLabel="Fecha del pago"
+                    value={form.fechaPago}
+                    max={hoyISO()}
+                    onChange={fechaPago => cambiar({ fechaPago })}
+                    className={`${controlClass} min-h-11 ${marca('fechaPago')}`}
+                  />
+                </Field>
+                <Field label="Caja" obligatorio>
+                  <select
+                    aria-label="Caja de la que salió la plata"
+                    value={form.caja}
+                    onChange={e => cambiar({ caja: e.target.value })}
+                    className={`${controlClass} min-h-11 ${marca('caja')}`}
+                  >
+                    <option value="">Elegí la caja…</option>
+                    {cajas.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <Field label="Comprobante del pago" ayuda={`Opcional. Foto o PDF de hasta ${MAX_MB_ARCHIVO} MB.`}>
+                {comprobanteAlta ? (
+                  <div className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-surface2 px-3 py-2">
+                    <IconFileText size={18} className="shrink-0 text-accent-fg" aria-hidden />
+                    <span className="min-w-0 flex-1 truncate text-sm text-text">{comprobanteAlta.name}</span>
+                    <button type="button" onClick={() => setComprobanteAlta(null)} disabled={ocupado} aria-label="Quitar el comprobante"
+                      className="presionable flex size-11 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-surface hover:text-brand-red">
+                      <IconX size={16} aria-hidden />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="presionable flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted transition-colors hover:border-accent hover:text-text focus-within:border-accent">
+                    <IconPaperclip size={17} className="shrink-0" aria-hidden />
+                    Adjuntar la foto o el PDF del pago
+                    <input
+                      type="file"
+                      accept={TIPOS_ARCHIVO}
+                      className="sr-only"
+                      onChange={e => {
+                        const f = e.target.files?.[0] ?? null
+                        if (f && f.size > MAX_MB_ARCHIVO * 1024 * 1024) { toast.error(`El comprobante pesa más de ${MAX_MB_ARCHIVO} MB.`); return }
+                        setComprobanteAlta(f)
+                      }}
+                    />
+                  </label>
+                )}
               </Field>
             </div>
           ) : (
@@ -398,32 +660,34 @@ export default function GastoForm({
       )}
 
       {/* En el celular, Eliminar va al final del contenido y no en el pie fijo, lejos de Guardar. */}
-      {gasto && !gasto.factura && (
+      {sePuedeEliminar && (
         <button
           type="button"
           onClick={eliminar}
-          disabled={isPending}
+          disabled={ocupado}
           className="presionable min-h-11 inline-flex w-full items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-text hover:bg-danger-bg disabled:opacity-50 sm:hidden"
         >
-          <Trash2 size={15} className="text-brand-red" /> Eliminar gasto
+          <IconTrash size={15} className="text-brand-red" aria-hidden /> Eliminar gasto
         </button>
       )}
 
       <div className="sticky bottom-0 -mx-4 border-t border-border bg-surface px-4 py-3 sm:static sm:mx-0 sm:flex sm:items-center sm:bg-transparent sm:px-0 sm:pb-0">
-        {gasto && !gasto.factura && (
+        {sePuedeEliminar && (
           <button
             type="button"
             onClick={eliminar}
-            disabled={isPending}
+            disabled={ocupado}
             className="presionable hidden min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-text hover:bg-danger-bg disabled:opacity-50 sm:mr-auto sm:inline-flex"
           >
-            <Trash2 size={15} className="text-brand-red" /> Eliminar gasto
+            <IconTrash size={15} className="text-brand-red" aria-hidden /> Eliminar gasto
           </button>
         )}
         <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex">
-          <button type="button" onClick={onCancelar} disabled={isPending} className={botonSecundario}>Cancelar</button>
-          <button type="button" onClick={guardar} disabled={isPending} className={botonPrimario}>
-            {isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          <button type="button" onClick={onCancelar} disabled={ocupado} className={botonSecundario}>
+            {esNuevo || conCambios ? 'Cancelar' : 'Cerrar'}
+          </button>
+          <button type="button" onClick={guardar} disabled={ocupado || (!esNuevo && !conCambios)} className={botonPrimario}>
+            {ocupado ? <Puntos /> : esNuevo ? <IconCircleCheck size={16} aria-hidden /> : <IconDeviceFloppy size={16} aria-hidden />}
             {esNuevo ? 'Guardar gasto' : 'Guardar cambios'}
           </button>
         </div>
@@ -432,12 +696,13 @@ export default function GastoForm({
       {gasto && pagando && (
         <PagoModal
           gasto={{
-            clave: `app-${gasto.id}`,
+            clave: gasto.id,
             titulo: gasto.proveedor ?? gasto.categoria,
             detalle: gasto.proveedor ? gasto.categoria : null,
             local: gasto.local,
             fecha: gasto.fecha,
-            monto: gasto.monto,
+            monto: gasto.saldo,
+            montoTotal: gasto.monto,
             origen: 'app',
           }}
           formaPagoInicial={gasto.formaPago}
@@ -451,4 +716,3 @@ export default function GastoForm({
     </div>
   )
 }
-

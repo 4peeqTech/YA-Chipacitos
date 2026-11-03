@@ -6087,6 +6087,7 @@ export type Database = {
         }[]
       }
       _compras_pesos_txt: { Args: { p: number }; Returns: string }
+      _gastos_norm: { Args: { p: string }; Returns: string }
       _nomenclador_mensaje_constraint: {
         Args: { p_constraint: string }
         Returns: string
@@ -6503,6 +6504,76 @@ export type Database = {
         }
         Returns: string
       }
+      gastos_listar: {
+        Args: {
+          p_desde?: string
+          p_estado?: string
+          p_hasta?: string
+          p_local?: string
+          p_orden?: string
+          p_origen?: string
+          p_q?: string
+        }
+        Returns: {
+          a_confirmar: boolean | null
+          adjuntos: number | null
+          caja: string | null
+          categoria: string | null
+          comprobante_url: string | null
+          creado_por_nombre: string | null
+          created_at: string | null
+          estado: string | null
+          factura_id: string | null
+          factura_numero: string | null
+          factura_pedido_numero: number | null
+          fecha: string | null
+          fecha_pago: string | null
+          fecha_vencimiento: string | null
+          forma_pago: string | null
+          fudo_categoria: string | null
+          fudo_estado: string | null
+          fudo_id: string | null
+          fudo_proveedor: string | null
+          fudo_revisar: boolean | null
+          fudo_sincronizado_en: string | null
+          id: string | null
+          local: string | null
+          monto: number | null
+          observaciones: string | null
+          origen: string | null
+          pagado: number | null
+          pagado_por_nombre: string | null
+          pagos: number | null
+          periodo: string | null
+          proveedor_id: string | null
+          proveedor_nombre: string | null
+          recurrente_id: string | null
+          rubro: string | null
+          saldo: number | null
+          ultimo_pago_forma: string | null
+          vencido: boolean | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "v_gastos"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      gastos_pendientes_resumen: {
+        Args: {
+          p_desde?: string
+          p_hasta?: string
+          p_local?: string
+          p_q?: string
+        }
+        Returns: {
+          cantidad: number
+          local: string
+          total: number
+          vencidos: number
+        }[]
+      }
       gastos_quitar_adjunto: { Args: { p_id?: string }; Returns: string }
       gastos_recalcular_estado: { Args: { p_id: string }; Returns: string }
       gastos_registrar_pago: {
@@ -6515,6 +6586,17 @@ export type Database = {
           p_monto?: number
         }
         Returns: string
+      }
+      gastos_resumen: {
+        Args: {
+          p_desde?: string
+          p_estado?: string
+          p_hasta?: string
+          p_local?: string
+          p_origen?: string
+          p_q?: string
+        }
+        Returns: Json
       }
       generar_solicitud_base: { Args: never; Returns: string }
       get_user_rol: { Args: never; Returns: string }
