@@ -767,7 +767,6 @@ export default function GastoForm({
             fecha: gasto.fecha,
             monto: gasto.saldo,
             montoTotal: gasto.monto,
-            origen: 'app',
           }}
           formaPagoInicial={gasto.formaPago}
           cajas={cajas}

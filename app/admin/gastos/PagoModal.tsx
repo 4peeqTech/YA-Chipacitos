@@ -37,7 +37,6 @@ export interface ResumenAPagar {
   monto: number
   /** Si ya se pagó una parte: el total del gasto. */
   montoTotal?: number
-  origen: 'app' | 'fudo'
   /** Un gasto que vino de Fudo (se paga acá, Fudo no se entera). */
   deFudo?: boolean
 }
@@ -75,9 +74,7 @@ export default function PagoModal({
   const [subiendo, setSubiendo] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const ocupado = pendiente || subiendo
-  // Los de Fudo se pagan enteros: el monto lo manda Fudo.
-  const parcial = gasto?.origen === 'app'
-  const montoMal = parcial && (monto == null || monto <= 0 || (gasto != null && monto > gasto.monto))
+  const montoMal = monto == null || monto <= 0 || (gasto != null && monto > gasto.monto)
 
   function elegirArchivo(f: File | null) {
     setError(null)
@@ -106,7 +103,7 @@ export default function PagoModal({
       setSubiendo(false)
     }
     // Pagar todo lo que falta viaja como null: si otro pagó una parte en el medio, la base no deja pagar de más.
-    await onConfirmar({ fechaPago, formaPago, caja, comprobanteUrl, monto: parcial && monto !== gasto.monto ? monto : null })
+    await onConfirmar({ fechaPago, formaPago, caja, comprobanteUrl, monto: monto !== gasto.monto ? monto : null })
   }
 
   const falta = intento && (!fechaPago || !formaPago || !caja || montoMal)
@@ -122,7 +119,7 @@ export default function PagoModal({
                 {gasto.local}
                 {gasto.fecha && <> · del {formatearFecha(gasto.fecha)}</>}
                 {gasto.detalle && <> · {gasto.detalle}</>}
-                {(gasto.origen === 'fudo' || gasto.deFudo) && <> · de Fudo</>}
+                {gasto.deFudo && <> · de Fudo</>}
               </p>
             </div>
             <div className="text-right">
@@ -134,17 +131,15 @@ export default function PagoModal({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {parcial && (
-              <Field label="Monto del pago" obligatorio ayuda="Si pagás una parte, cambialo: el resto queda pendiente.">
-                <InputNumero
-                  value={monto}
-                  onChange={setMonto}
-                  min={0}
-                  ariaLabel="Monto del pago en pesos"
-                  className={`${controlClass} min-h-11 text-right text-base font-semibold tabular-nums ${intento && montoMal ? 'border-brand-red' : ''}`}
-                />
-              </Field>
-            )}
+            <Field label="Monto del pago" obligatorio ayuda="Si pagás una parte, cambialo: el resto queda pendiente.">
+              <InputNumero
+                value={monto}
+                onChange={setMonto}
+                min={0}
+                ariaLabel="Monto del pago en pesos"
+                className={`${controlClass} min-h-11 text-right text-base font-semibold tabular-nums ${intento && montoMal ? 'border-brand-red' : ''}`}
+              />
+            </Field>
             <Field label="Fecha del pago" obligatorio>
               <DatePicker
                 ariaLabel="Fecha del pago"
@@ -213,7 +208,7 @@ export default function PagoModal({
             </p>
           )}
           {error && <p className="text-sm text-brand-red">{error}</p>}
-          {(gasto.origen === 'fudo' || gasto.deFudo) && (
+          {gasto.deFudo && (
             <p className="text-xs text-muted">El pago queda anotado acá. En Fudo el gasto sigue figurando como impago: la app no cambia nada en Fudo.</p>
           )}
 

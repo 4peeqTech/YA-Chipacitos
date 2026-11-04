@@ -33,23 +33,37 @@ export const admin: SeccionManual = {
       ancla: 'gastos',
       titulo: 'Gastos',
       bloques: [
-        { tipo: 'parrafo', texto: 'En **Gastos** registrás y consultás todos los gastos del negocio organizados por local, rubro y categoría.' },
+        { tipo: 'parrafo', texto: 'En **Gastos** está todo lo que se gasta en cada local, venga de donde venga: lo que cargás acá, lo que nace de una factura de proveedor, lo que los locales cargan en **Fudo** y los gastos que se repiten. Los de Fudo y los que se repiten llevan una marca chica; el resto se trabaja igual.' },
         {
           tipo: 'pasos',
           pasos: [
-            { texto: 'Completá los campos: fecha, local, rubro, categoría, proveedor (opcional), monto, forma de pago y estado.' },
-            { texto: 'Los gastos quedan registrados y pueden filtrarse por cualquier campo.' },
+            { texto: 'Tocá **Nuevo gasto** y completá fecha, local, rubro, categoría, proveedor (opcional), monto y forma de pago prevista. Si vence, poné la fecha en **Vence**.' },
+            { texto: 'Si ya está pagado, tildá **Ya está pagado**: pide la fecha del pago, la caja y, si querés, el comprobante.' },
+            { texto: 'En **Factura o ticket** adjuntás las fotos o PDF del gasto (hasta 10 MB cada uno).' },
+            { texto: 'Arriba de la lista elegís el período (por defecto, el mes actual), el estado, el local, el origen y buscás por proveedor, factura o pedido (sin importar las tildes). El link de la página guarda los filtros: lo podés compartir.' },
           ],
         },
-        { tipo: 'parrafo', texto: 'En **Pendientes de pago** ves solo los gastos que todavía no fueron abonados. Podés marcarlos como pagados desde ahí.' },
+        { tipo: 'parrafo', texto: '**Pagos.** Abrí el gasto y tocá **Registrar pago**: fecha, caja, forma de pago, comprobante y monto. Si pagás una parte, cambiá el monto y el gasto queda **Parcial** con lo que falta. Cada pago queda en el historial del gasto; si uno está mal, tocá **Anular** (con un motivo, si querés): deja de sumar pero no se borra.' },
+        { tipo: 'parrafo', texto: '**Gastos de Fudo.** La app trae los gastos que los locales cargan en Fudo al abrir Gastos o Pendientes, con el botón **Actualizar** y una vez por día. Lo que en Fudo está en **Cta. Cte.** entra como pendiente de pago (es deuda con el proveedor); lo pagado en efectivo entra pagado con la caja del local. Acá se clasifican y se pagan; el monto, la fecha y el proveedor se corrigen en Fudo. La app **nunca cambia nada en Fudo**: si pagás acá, en Fudo sigue figurando impago.' },
+        { tipo: 'parrafo', texto: '**Gastos que se repiten** (alquiler, sueldos, servicios): en **Gastos › Que se repiten** cargás el gasto una vez, con el día del mes, y la app lo crea cada mes como pendiente de pago. Si el monto cambia todos los meses (luz, agua), nace con el monto del mes anterior y marcado **monto a confirmar** hasta que lo confirmes o lo corrijas. Si un mes no corresponde, eliminá ese gasto: queda anulado y no se vuelve a generar.' },
+        { tipo: 'parrafo', texto: 'En **Pendientes de pago** está lo que falta pagar, local por local y lo más viejo arriba. Lo atrasado se marca: por su vencimiento si tiene, o a los 30 días si no.' },
         { tipo: 'parrafo', texto: 'En **Resumen por local** ves el total de gastos agrupados por sucursal y período.' },
         {
           tipo: 'estados',
           dominio: 'gastos',
           estados: [
             { estado: 'Pendiente de pago', texto: 'Todavía no se pagó nada.' },
-            { estado: 'Parcial', texto: 'Se pagó una parte.' },
+            { estado: 'Parcial', texto: 'Se pagó una parte: el resto sigue en Pendientes.' },
             { estado: 'Pagado', texto: 'Está saldado.' },
+            { estado: 'Anulado', texto: 'Se canceló en Fudo, o es el mes de un gasto que se repite que se eliminó. No suma en ningún total.' },
+          ],
+        },
+        {
+          tipo: 'queHagoSi',
+          casos: [
+            { situacion: 'Un gasto de Fudo dice "Revisar"', camino: 'Cambió en Fudo después de que lo pagaste acá (se canceló, ya no figura o bajó el monto). Abrilo, mirá los pagos y anulá el que no corresponda.' },
+            { situacion: 'Aparece "no se pudo actualizar" con una sucursal', camino: 'Fudo no respondió para ese local (o sus credenciales no andan). Sus gastos se ven como estaban la última vez. Avisá al admin técnico si sigue.' },
+            { situacion: 'No puedo eliminar un gasto', camino: 'Si salió de una factura, se anula la factura; si viene de Fudo, se anula en Fudo; si tiene pagos, primero anulalos.' },
           ],
         },
       ],
@@ -58,7 +72,7 @@ export const admin: SeccionManual = {
       ancla: 'fudo',
       titulo: 'Fudo / Caja',
       bloques: [
-        { tipo: 'parrafo', texto: 'Consulta de datos de caja sincronizados desde Fudo. Podés ver gastos, ventas y pagos importados, filtrando por tipo y rango de fechas.' },
+        { tipo: 'parrafo', texto: 'Consulta en vivo de Fudo, sucursal por sucursal: gastos, ventas y movimientos de caja, filtrando por tipo y rango de fechas. Solo para mirar: los gastos de Fudo para pagar y clasificar ya están en **Gastos**.' },
         { tipo: 'tip', texto: 'Los datos se traen directamente de la API de Fudo. Si no aparecen datos, verificá la conexión con el admin técnico.' },
       ],
     },

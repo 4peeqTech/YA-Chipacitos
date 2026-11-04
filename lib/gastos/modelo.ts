@@ -1,15 +1,15 @@
-// Modelo de la sección Gastos: armado de filas, filtros, totales, validación del
-// formulario y pendientes de pago (de la app y de Fudo). Funciones puras, sin
-// React ni Supabase: `npx tsx lib/gastos/_check_modelo.ts`.
+// Modelo de la sección Gastos: armado de filas, filtros en la URL, validación de
+// los formularios, pagos, pendientes y gastos que se repiten. Funciones puras,
+// sin React ni Supabase: `npx tsx lib/gastos/_check_modelo.ts`.
 
 import { codigoPedido } from '@/lib/compras/codigos'
 import type { Database } from '@/lib/database.types'
 
 export type GastoFila = Database['public']['Views']['v_gastos']['Row']
-export type FudoPagadoFila = Database['public']['Views']['v_fudo_gastos_pagados']['Row']
 
 // El estado lo calcula la base con la suma de pagos vigentes (gastos_pagos).
-// 'Anulado': un gasto de Fudo que se canceló allá; no suma en ningún total.
+// 'Anulado': cancelado en Fudo, o el mes de un gasto que se repite que se
+// eliminó; no suma en ningún total.
 export type EstadoGasto = 'Pendiente de pago' | 'Parcial' | 'Pagado' | 'Anulado'
 
 export function aEstadoGasto(v: string | null): EstadoGasto {
@@ -430,23 +430,10 @@ export function armarPagos(filas: PagoFila[]): PagoVista[] {
 }
 
 // ---------------------------------------------------------------------------
-// Pendientes de pago: de la app y de Fudo.
+// Pendientes de pago (cualquier origen: todo es un gasto de la base).
 // ---------------------------------------------------------------------------
 
-/** Un gasto de Fudo tal como llega de /api/fudo/pendientes (JSON:API ya normalizado). */
-export interface FudoGastoCrudo {
-  id: string | number
-  sucursal: string
-  date?: string | null
-  description?: string | null
-  amount?: number | string | null
-  expenseCategory?: { name?: string | null } | null
-  provider?: { name?: string | null } | null
-}
-
 export interface PendienteVista {
-  origen: 'app' | 'fudo'
-  /** Única entre las dos fuentes (el id de Fudo se repite entre sucursales). */
   clave: string
   id: string
   local: string
@@ -460,13 +447,12 @@ export interface PendienteVista {
   /** Si tiene vencimiento: lo atrasado se mide por él y no por la fecha del gasto. */
   vencimiento: string | null
   vencido: boolean
-  gasto: GastoVista | null
+  gasto: GastoVista
 }
 
 export function pendienteDeGasto(g: GastoVista): PendienteVista {
   return {
-    origen: 'app',
-    clave: `app:${g.id}`,
+    clave: g.id,
     id: g.id,
     local: g.local,
     fecha: g.fecha,
@@ -478,30 +464,6 @@ export function pendienteDeGasto(g: GastoVista): PendienteVista {
     vencimiento: g.fechaVencimiento,
     vencido: g.vencido,
     gasto: g,
-  }
-}
-
-export function pendienteDeFudo(f: FudoGastoCrudo): PendienteVista {
-  const descripcion = (f.description ?? '').trim()
-  const proveedor = f.provider?.name?.trim() || null
-  const categoria = f.expenseCategory?.name?.trim() || null
-  const titulo = descripcion || proveedor || categoria || 'Gasto de Fudo'
-  const detalle = [proveedor && proveedor !== titulo ? proveedor : null, categoria && categoria !== titulo ? categoria : null]
-    .filter(Boolean).join(' · ') || null
-  const monto = Number(f.amount ?? 0)
-  return {
-    origen: 'fudo',
-    clave: `fudo:${f.sucursal}:${f.id}`,
-    id: String(f.id),
-    local: f.sucursal,
-    fecha: (f.date ?? '').slice(0, 10),
-    titulo,
-    detalle,
-    monto: Number.isFinite(monto) ? monto : 0,
-    formaPago: null,
-    vencimiento: null,
-    vencido: false,
-    gasto: null,
   }
 }
 
@@ -536,35 +498,8 @@ export function paramsDePendientes(f: FiltrosPendientes): string {
   return s.toString()
 }
 
-export interface GrupoLocal {
-  local: string
-  items: PendienteVista[]
-  total: number
-}
-
+/** Más viejo primero (lo que más urge) o más nuevo primero. */
 export type OrdenPendientes = 'viejos' | 'nuevos'
-
-/** Por local (alfabético) y, adentro, por fecha: por defecto lo más viejo arriba, que es lo que más urge. */
-export function agruparPorLocal(items: PendienteVista[], orden: OrdenPendientes = 'viejos'): GrupoLocal[] {
-  const m = new Map<string, PendienteVista[]>()
-  for (const i of items) m.set(i.local, [...(m.get(i.local) ?? []), i])
-  return [...m.entries()]
-    .map(([local, lista]) => ({
-      local,
-      items: [...lista].sort((a, b) => (orden === 'viejos' ? a.fecha.localeCompare(b.fecha) : b.fecha.localeCompare(a.fecha))),
-      total: redondear(lista.reduce((s, i) => s + i.monto, 0)),
-    }))
-    .sort((a, b) => a.local.localeCompare(b.local))
-}
-
-export function filtrarPendientes(items: PendienteVista[], f: { local: string; busqueda: string; desde: string; hasta: string }): PendienteVista[] {
-  const q = f.busqueda.trim().toLowerCase()
-  return items.filter(i =>
-    (!f.local || i.local === f.local)
-    && (!f.desde || i.fecha >= f.desde)
-    && (!f.hasta || i.fecha <= f.hasta)
-    && (!q || [i.titulo, i.detalle, i.local].some(v => (v ?? '').toLowerCase().includes(q))))
-}
 
 /** Días desde la fecha del gasto: lo viejo se marca. */
 export function diasDesde(fecha: string, hoy: string): number {

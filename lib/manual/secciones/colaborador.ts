@@ -4,10 +4,10 @@ import type { SeccionManual } from '../tipos'
 /** Descripción corta de cada módulo, para "Módulos disponibles para vos". */
 export const MODULO_AYUDA: Record<string, { titulo: string; desc: string }> = {
   dashboard:         { titulo: 'Dashboard',          desc: 'Resumen del día: pedidos activos y accesos rápidos a los módulos habilitados.' },
-  gastos:            { titulo: 'Gastos',             desc: 'Registro y consulta de gastos por local, rubro y categoría.' },
-  gastos_pendientes: { titulo: 'Pendientes de pago', desc: 'Lista de gastos que todavía no fueron abonados. Podés marcarlos como pagados.' },
+  gastos:            { titulo: 'Gastos',             desc: 'Todos los gastos de cada local (los cargados acá, los de facturas, los de Fudo y los que se repiten): cargarlos, pagarlos (también en partes) y adjuntar la factura.' },
+  gastos_pendientes: { titulo: 'Pendientes de pago', desc: 'Lo que falta pagar, local por local y lo más viejo arriba. Desde ahí registrás el pago.' },
   resumen:           { titulo: 'Resumen por local',  desc: 'Total de gastos agrupados por sucursal y período.' },
-  fudo:              { titulo: 'Fudo / Caja',        desc: 'Datos de caja importados desde Fudo: gastos, ventas y pagos.' },
+  fudo:              { titulo: 'Fudo / Caja',        desc: 'Consulta en vivo de Fudo por sucursal: gastos, ventas y movimientos de caja. Solo para mirar.' },
   importar:          { titulo: 'Sincronizar',        desc: 'Importa ventas desde Google Sheets (hoja BD) o un archivo CSV de Posberry.' },
   posberry:          { titulo: 'Ventas Posberry',    desc: 'Tabla completa de ventas de Posberry, incluyendo mayoristas.' },
   conciliacion:      { titulo: 'Conciliación',       desc: 'Compara lo vendido en Posberry versus lo pedido por cada local.' },

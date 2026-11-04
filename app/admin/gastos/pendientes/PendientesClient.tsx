@@ -297,7 +297,6 @@ export default function PendientesClient({
             fecha: pagando.fecha,
             monto: pagando.monto,
             montoTotal: pagando.gasto.monto,
-            origen: 'app',
             deFudo: pagando.gasto.fudo != null,
           }}
           formaPagoInicial={pagando.formaPago}

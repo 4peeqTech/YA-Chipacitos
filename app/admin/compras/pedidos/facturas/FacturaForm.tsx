@@ -213,6 +213,7 @@ export default function FacturaForm({
   stockPorItem,
   diferencias,
   localGasto,
+  localesGasto,
   onCambios,
   onListo,
   onConfirmada,
@@ -231,6 +232,7 @@ export default function FacturaForm({
   diferencias: DiferenciaVista[]
   /** Local con el que viene elegido el gasto al confirmar. */
   localGasto: string
+  localesGasto: string[]
   onCambios: () => void
   onListo: () => void
   /** Después de confirmar: con diferencias, la pantalla deja la factura abierta para resolverlas. */
@@ -1015,6 +1017,7 @@ export default function FacturaForm({
           candidatos={candidatos}
           errorCandidatos={errorCandidatos}
           localDefault={localGasto}
+          locales={localesGasto}
           pendiente={isPending}
           onConfirmar={onConfirmarFinal}
           onCerrar={cerrarConfirmacion}

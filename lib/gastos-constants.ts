@@ -52,30 +52,5 @@ export const RUBROS_CATEGORIAS: Record<string, string[]> = {
 
 export const RUBROS = Object.keys(RUBROS_CATEGORIAS)
 
-export const LOCALES = [
-  'YA! FABRICA',
-  'YA! SAN LORENZO',
-  'YA! PARAGUAY',
-  'YA! IRIGOYEN',
-  'YA! CORDOBA',
-  'YA! ITUZAINGO',
-  'YA! GOYA',
-  'YA! UNIDAD',
-  'CHURROS TUBO',
-]
-
-export const FORMAS_PAGO = [
-  'Transferencia',
-  'Efectivo',
-  'Cheque',
-  'E-Cheq',
-  'Debito automatico',
-  'Tarjeta de credito',
-  'Mixto',
-]
-
-export const ESTADOS_GASTO = [
-  'Pendiente de pago',
-  'Pagado',
-  'Parcial',
-]
+// Locales, formas de pago y cajas salen de la base (locales_config, formas_pago,
+// cajas). Rubros y categorías quedan acá hasta que llegue el plan de cuentas.

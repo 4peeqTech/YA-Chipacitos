@@ -6,7 +6,6 @@ import Modal from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Field, controlClass } from '@/components/ui/Field'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
-import { LOCALES } from '@/lib/gastos-constants'
 import { ResumenImpacto, type NombresInsumo } from '../remitos/RemitoForm'
 import type { ImpactoItem } from '../remitos/modelo'
 import CabeceraFactura from './CabeceraFactura'
@@ -41,6 +40,7 @@ export default function ConfirmarFacturaModal({
   candidatos,
   errorCandidatos,
   localDefault,
+  locales,
   pendiente,
   onConfirmar,
   onCerrar,
@@ -63,6 +63,8 @@ export default function ConfirmarFacturaModal({
   candidatos: GastoCandidato[] | null
   errorCandidatos: string | null
   localDefault: string
+  /** Los locales activos (locales_config); el por defecto se muestra aunque no esté. */
+  locales: string[]
   pendiente: boolean
   onConfirmar: (e: EleccionGasto) => void
   onCerrar: () => void
@@ -217,7 +219,8 @@ export default function ConfirmarFacturaModal({
                       onChange={e => setLocal(e.target.value)}
                       className={`${controlClass} min-h-11`}
                     >
-                      {LOCALES.map(l => <option key={l} value={l}>{l}</option>)}
+                      {locales.map(l => <option key={l} value={l}>{l}</option>)}
+                      {local && !locales.includes(local) && <option value={local}>{local}</option>}
                     </select>
                   </Field>
                 </div>

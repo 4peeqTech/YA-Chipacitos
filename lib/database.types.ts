@@ -3035,59 +3035,6 @@ export type Database = {
           },
         ]
       }
-      fudo_gastos_pagados: {
-        Row: {
-          caja: string
-          comprobante_url: string | null
-          created_at: string
-          descripcion: string | null
-          fecha_gasto: string | null
-          fecha_pago: string
-          forma_pago: string
-          fudo_expense_id: string
-          id: string
-          monto: number
-          pagado_por: string | null
-          sucursal: string
-        }
-        Insert: {
-          caja: string
-          comprobante_url?: string | null
-          created_at?: string
-          descripcion?: string | null
-          fecha_gasto?: string | null
-          fecha_pago: string
-          forma_pago: string
-          fudo_expense_id: string
-          id?: string
-          monto: number
-          pagado_por?: string | null
-          sucursal: string
-        }
-        Update: {
-          caja?: string
-          comprobante_url?: string | null
-          created_at?: string
-          descripcion?: string | null
-          fecha_gasto?: string | null
-          fecha_pago?: string
-          forma_pago?: string
-          fudo_expense_id?: string
-          id?: string
-          monto?: number
-          pagado_por?: string | null
-          sucursal?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fudo_gastos_pagados_pagado_por_fkey"
-            columns: ["pagado_por"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       fudo_ingredientes: {
         Row: {
           categoria_id: string | null
@@ -6108,32 +6055,6 @@ export type Database = {
           },
         ]
       }
-      v_fudo_gastos_pagados: {
-        Row: {
-          caja: string | null
-          comprobante_url: string | null
-          created_at: string | null
-          descripcion: string | null
-          fecha_gasto: string | null
-          fecha_pago: string | null
-          forma_pago: string | null
-          fudo_expense_id: string | null
-          id: string | null
-          monto: number | null
-          pagado_por: string | null
-          pagado_por_nombre: string | null
-          sucursal: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fudo_gastos_pagados_pagado_por_fkey"
-            columns: ["pagado_por"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       v_gastos: {
         Row: {
           a_confirmar: boolean | null
@@ -6884,21 +6805,6 @@ export type Database = {
         Args: { p_fecha: string }
         Returns: boolean
       }
-      fudo_deshacer_pago: { Args: { p_id?: string }; Returns: undefined }
-      fudo_registrar_pago: {
-        Args: {
-          p_caja?: string
-          p_comprobante_url?: string
-          p_descripcion?: string
-          p_fecha_gasto?: string
-          p_fecha_pago?: string
-          p_forma_pago?: string
-          p_fudo_expense_id?: string
-          p_monto?: number
-          p_sucursal?: string
-        }
-        Returns: string
-      }
       gastos_agregar_adjunto: {
         Args: {
           p_gasto_id?: string
@@ -6913,7 +6819,6 @@ export type Database = {
         Args: { p_motivo?: string; p_pago_id?: string }
         Returns: undefined
       }
-      gastos_deshacer_pago: { Args: { p_id?: string }; Returns: undefined }
       gastos_eliminar: { Args: { p_id?: string }; Returns: undefined }
       gastos_fudo_aplicar: {
         Args: {

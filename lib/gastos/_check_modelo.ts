@@ -1,9 +1,9 @@
 // Chequeo del modelo de Gastos. Correr con: npx tsx lib/gastos/_check_modelo.ts
 // Los filtros y los totales los calcula la base (docs/gastos/escenarios-f2.sql).
 import {
-  agruparPorLocal, armarGastos, armarPagos, atraso, bloqueoFactura, leerFiltrosPendientes, paramsDePendientes, diasDesde, filtrarPendientes, formInicial,
+  armarGastos, armarPagos, atraso, bloqueoFactura, leerFiltrosPendientes, paramsDePendientes, diasDesde, formInicial,
   hayCambios, hayFiltros, leerFiltros, leerResumen, mesDe, motivoNoEliminar, paramsDeFiltros,
-  pendienteDeFudo, pendienteDeGasto, validarGasto, formRecurrenteInicial, textoDia, validarRecurrente,
+  pendienteDeGasto, validarGasto, formRecurrenteInicial, textoDia, validarRecurrente,
   type GastoFila, type PagoFila,
 } from './modelo'
 import { rutaComprobante } from './comprobante'
@@ -31,7 +31,6 @@ const g = (id: string) => gastos.find(x => x.id === id)!
 const hoy = '2026-11-03'
 const nuevo = formInicial(null, '2026-09-30', { local: 'YA! FABRICA', formaPago: 'Transferencia' })
 const completo = { ...nuevo, rubro: 'MATERIA PRIMA', categoria: 'HUEVOS', monto: 10 }
-const fudo = pendienteDeFudo({ id: 77, sucursal: 'YA! CORDOBA', date: '2026-09-01T10:00:00', description: '', amount: '1500.5', provider: { name: 'Lucas envios' }, expenseCategory: { name: 'Envíos' } })
 
 const porDefecto = leerFiltros({}, hoy)
 const conTodo = leerFiltros({ desde: '2026-10-01', hasta: '2026-10-31', estado: 'pendientes', local: 'YA! GOYA', q: ' huevos ', origen: 'fudo', pagina: '3' }, hoy)
@@ -84,18 +83,9 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'no se elimina si viene de Fudo', real: motivoNoEliminar(g('g6'))?.startsWith('Este gasto viene de Fudo'), esperado: true },
   { nombre: 'no se elimina con pagos', real: motivoNoEliminar(g('g5'))?.startsWith('Este gasto tiene pagos'), esperado: true },
   { nombre: 'sin pagos se elimina', real: motivoNoEliminar(g('g1')), esperado: null },
-  // Pendientes (de la app y de Fudo)
-  { nombre: 'pendiente de la app: título proveedor', real: `${pendienteDeGasto(g('g1')).titulo}|${pendienteDeGasto(g('g1')).detalle}`, esperado: 'Huevo Campo|HUEVOS' },
-  { nombre: 'fudo sin descripción usa el proveedor', real: `${fudo.titulo}|${fudo.detalle}`, esperado: 'Lucas envios|Envíos' },
-  { nombre: 'fudo monto string', real: fudo.monto, esperado: 1500.5 },
-  { nombre: 'fudo fecha recortada', real: fudo.fecha, esperado: '2026-09-01' },
-  { nombre: 'fudo clave con sucursal', real: fudo.clave, esperado: 'fudo:YA! CORDOBA:77' },
-  {
-    nombre: 'agrupa por local, lo más viejo arriba',
-    real: agruparPorLocal([pendienteDeGasto(g('g1')), fudo, pendienteDeGasto(g('g3'))]).map(x => `${x.local}:${x.items.map(i => i.fecha).join('/')}`).join(' '),
-    esperado: 'YA! CORDOBA:2026-09-01 YA! FABRICA:2026-08-30/2026-09-10',
-  },
-  { nombre: 'filtra pendientes por texto', real: filtrarPendientes([fudo, pendienteDeGasto(g('g1'))], { local: '', busqueda: 'lucas', desde: '', hasta: '' }).length, esperado: 1 },
+  // Pendientes (todo es un gasto de la base)
+  { nombre: 'pendiente: título proveedor', real: `${pendienteDeGasto(g('g1')).titulo}|${pendienteDeGasto(g('g1')).detalle}`, esperado: 'Huevo Campo|HUEVOS' },
+  { nombre: 'pendiente de Fudo: detalle con lo de Fudo', real: pendienteDeGasto(g('g6')).detalle, esperado: 'Sin clasificar' },
   // Comprobantes
   { nombre: 'comprobante: ruta tal cual', real: rutaComprobante('gastos/app-1/1.png'), esperado: 'gastos/app-1/1.png' },
   { nombre: 'comprobante: URL pública vieja', real: rutaComprobante('https://x.supabase.co/storage/v1/object/public/comprobantes/gastos/g%201/2.pdf'), esperado: 'gastos/g 1/2.pdf' },

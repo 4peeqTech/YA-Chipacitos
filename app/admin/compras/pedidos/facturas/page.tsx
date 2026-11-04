@@ -5,6 +5,7 @@ import {
   consultarDiferencias, consultarFacturaItems, consultarFacturas, consultarInsumosFactura,
   consultarLocalGastoDefault, consultarPedidosFactura, consultarPreciosRef,
 } from './datos'
+import { consultarLocales } from '@/app/admin/gastos/datos'
 
 export const metadata = { title: 'Facturas | YA! Chipacitos' }
 
@@ -35,6 +36,7 @@ export default async function FacturasPage({
     { data: stock },
     { data: diferencias },
     localGasto,
+    localesGasto,
   ] = await Promise.all([
     consultarFacturas(supabase),
     consultarFacturaItems(supabase),
@@ -45,6 +47,7 @@ export default async function FacturasPage({
     supabase.from('compras_stock_actual').select('item_id, cantidad'),
     consultarDiferencias(supabase),
     consultarLocalGastoDefault(supabase),
+    consultarLocales(supabase),
   ])
 
   return (
@@ -58,6 +61,7 @@ export default async function FacturasPage({
       stock={stock ?? []}
       diferencias={diferencias ?? []}
       localGasto={localGasto}
+      localesGasto={localesGasto}
       pedidoInicial={pedido}
       facturaInicial={factura}
     />

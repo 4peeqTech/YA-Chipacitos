@@ -51,6 +51,7 @@ export default function FacturasClient({
   stock,
   diferencias,
   localGasto,
+  localesGasto,
   pedidoInicial,
   facturaInicial,
 }: {
@@ -64,6 +65,8 @@ export default function FacturasClient({
   diferencias: DiferenciaFila[]
   /** Local con el que viene elegido el gasto al confirmar. */
   localGasto: string
+  /** Los locales a los que se puede imputar el gasto (locales_config). */
+  localesGasto: string[]
   pedidoInicial?: string
   facturaInicial?: string
 }) {
@@ -345,6 +348,7 @@ export default function FacturasClient({
             stockPorItem={stockPorItem}
             diferencias={facturaAbierta ? diferenciasPorFactura.get(facturaAbierta.id) ?? [] : []}
             localGasto={localGasto}
+            localesGasto={localesGasto}
             onCambios={() => setConCambios(true)}
             onListo={cerrarYa}
             onConfirmada={(id, dif) => {

@@ -192,19 +192,6 @@ export async function masPendientes(entrada: z.input<typeof MasPendientes>): Pro
   }
 }
 
-export async function deshacerPagoGasto(id: string): Promise<Resultado<null>> {
-  if (!z.uuid().safeParse(id).success) return fallo(null, 'No encontramos el gasto. Recargá la página.')
-  try {
-    const supabase = await createClientTipado()
-    const { error } = await supabase.rpc('gastos_deshacer_pago', { p_id: id })
-    refresh()
-    if (error) return fallo(error, 'No se pudo deshacer el pago.')
-    return ok(null)
-  } catch (e) {
-    return fallo(e, 'No se pudo deshacer el pago.')
-  }
-}
-
 export async function eliminarGasto(id: string): Promise<Resultado<null>> {
   if (!z.uuid().safeParse(id).success) return fallo(null, 'No encontramos el gasto. Recargá la página.')
   try {
@@ -215,52 +202,6 @@ export async function eliminarGasto(id: string): Promise<Resultado<null>> {
     return ok(null)
   } catch (e) {
     return fallo(e, 'No se pudo eliminar el gasto.')
-  }
-}
-
-const PagoFudo = Pago.extend({
-  fudoExpenseId: Texto,
-  sucursal: Texto,
-  descripcion: z.string().nullable(),
-  monto: z.number(),
-  fechaGasto: z.iso.date().nullable(),
-})
-
-export async function registrarPagoFudo(entrada: z.input<typeof PagoFudo>): Promise<Resultado<null>> {
-  const p = PagoFudo.safeParse(entrada)
-  if (!p.success) return fallo(null, 'Revisá el pago: hacen falta la fecha, la forma de pago y la caja.')
-  const d = p.data
-  try {
-    const supabase = await createClientTipado()
-    const { error } = await supabase.rpc('fudo_registrar_pago', {
-      p_fudo_expense_id: d.fudoExpenseId,
-      p_sucursal: d.sucursal,
-      p_descripcion: d.descripcion ?? undefined,
-      p_monto: d.monto,
-      p_fecha_gasto: d.fechaGasto ?? undefined,
-      p_fecha_pago: d.fechaPago,
-      p_forma_pago: d.formaPago,
-      p_caja: d.caja,
-      p_comprobante_url: d.comprobanteUrl ?? undefined,
-    })
-    refresh()
-    if (error) return fallo(error, 'No se pudo registrar el pago.')
-    return ok(null)
-  } catch (e) {
-    return fallo(e, 'No se pudo registrar el pago.')
-  }
-}
-
-export async function deshacerPagoFudo(id: string): Promise<Resultado<null>> {
-  if (!z.uuid().safeParse(id).success) return fallo(null, 'No encontramos ese pago. Recargá la página.')
-  try {
-    const supabase = await createClientTipado()
-    const { error } = await supabase.rpc('fudo_deshacer_pago', { p_id: id })
-    refresh()
-    if (error) return fallo(error, 'No se pudo deshacer el pago.')
-    return ok(null)
-  } catch (e) {
-    return fallo(e, 'No se pudo deshacer el pago.')
   }
 }
 

@@ -108,10 +108,11 @@ begin
   e := pg_temp.err(format('select gastos_eliminar(%L)', v_id));
   insert into _r (caso, ok, detalle) values ('10 eliminar con pagos rechazado', e like 'Este gasto tiene pagos%', e);
 
-  -- 11. Deshacer (pantalla anterior): todos los pagos anulados, pendiente
-  perform gastos_deshacer_pago(v_id);
+  -- 11. Anular el pago que queda: pendiente, con los dos en el historial
+  -- (gastos_deshacer_pago, que anulaba todos juntos, se borró en F5).
+  perform gastos_anular_pago(v_p2, 'prueba');
   select * into g from v_gastos where id = v_id;
-  insert into _r (caso, ok, detalle) values ('11 deshacer pago: Pendiente, sin pagos vigentes, historial de 2',
+  insert into _r (caso, ok, detalle) values ('11 anular el último pago: Pendiente, sin pagos vigentes, historial de 2',
     g.estado = 'Pendiente de pago' and g.pagos = 0 and g.fecha_pago is null
       and (select count(*) from gastos_pagos where gasto_id = v_id) = 2,
     g.estado);
