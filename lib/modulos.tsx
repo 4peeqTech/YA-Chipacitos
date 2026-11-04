@@ -5,7 +5,7 @@ import {
   Package, Link2, Users, Shield, ClipboardList, CreditCard, Factory,
   Truck, ShoppingBasket, ListTodo, Boxes,
 } from 'lucide-react'
-import { IconTruckDelivery } from '@tabler/icons-react'
+import { IconClipboardCheck, IconTruckDelivery } from '@tabler/icons-react'
 
 export interface Modulo {
   key: string
@@ -59,6 +59,10 @@ export const MODULOS: Modulo[] = [
   { key: 'fabrica-stock-terminado', label: 'Stock terminado', icon: <Boxes size={16} />,       href: '/admin/fabrica/stock-terminado', section: 'Fábrica', soloAdmin: true },
   { key: 'fabrica-conteos',    label: 'Conteos',    icon: <ClipboardList size={16} />, href: '/admin/fabrica/conteos',    section: 'Fábrica' },
   { key: 'fabrica_parametros', label: 'Parámetros', icon: <Factory size={16} />,       href: '/admin/fabrica/parametros', section: 'Fábrica', soloAdmin: true },
+
+  // Checklist del Supervisor de locales (04-11). La RLS de las tablas supervision_*
+  // mira este mismo key (puede_supervisar()).
+  { key: 'supervision', label: 'Supervisión de locales', icon: <IconClipboardCheck size={16} />, href: '/admin/supervision' },
 
   { key: 'tareas', label: 'Tareas', icon: <ListTodo size={16} />, href: '/tareas' },
 ]
