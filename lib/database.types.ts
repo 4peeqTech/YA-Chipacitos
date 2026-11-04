@@ -4667,6 +4667,186 @@ export type Database = {
         }
         Relationships: []
       }
+      supervision_bloques: {
+        Row: {
+          activo: boolean
+          id: string
+          orden: number
+          referencia: string
+          titulo: string
+        }
+        Insert: {
+          activo?: boolean
+          id: string
+          orden?: number
+          referencia?: string
+          titulo: string
+        }
+        Update: {
+          activo?: boolean
+          id?: string
+          orden?: number
+          referencia?: string
+          titulo?: string
+        }
+        Relationships: []
+      }
+      supervision_items: {
+        Row: {
+          activo: boolean
+          bloque_id: string
+          id: string
+          orden: number
+          texto: string
+        }
+        Insert: {
+          activo?: boolean
+          bloque_id: string
+          id: string
+          orden?: number
+          texto: string
+        }
+        Update: {
+          activo?: boolean
+          bloque_id?: string
+          id?: string
+          orden?: number
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supervision_items_bloque_id_fkey"
+            columns: ["bloque_id"]
+            isOneToOne: false
+            referencedRelation: "supervision_bloques"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supervision_sucursales: {
+        Row: {
+          activo: boolean
+          id: string
+          local_config_id: string | null
+          nombre: string
+          orden: number
+          zona: string
+        }
+        Insert: {
+          activo?: boolean
+          id: string
+          local_config_id?: string | null
+          nombre: string
+          orden?: number
+          zona: string
+        }
+        Update: {
+          activo?: boolean
+          id?: string
+          local_config_id?: string | null
+          nombre?: string
+          orden?: number
+          zona?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supervision_sucursales_local_config_id_fkey"
+            columns: ["local_config_id"]
+            isOneToOne: false
+            referencedRelation: "locales_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supervision_visitas: {
+        Row: {
+          anterior_fecha: string | null
+          anterior_id: string | null
+          cierre: string | null
+          creado_por: string | null
+          created_at: string
+          encargado: string | null
+          estado: string
+          fecha: string
+          id: string
+          obs_general: string
+          obs_previas: Json
+          pendientes_previos: string[]
+          respuestas: Json
+          resumen: Json | null
+          sucursal_id: string
+          supervisor_nombre: string
+          updated_at: string
+        }
+        Insert: {
+          anterior_fecha?: string | null
+          anterior_id?: string | null
+          cierre?: string | null
+          creado_por?: string | null
+          created_at?: string
+          encargado?: string | null
+          estado?: string
+          fecha?: string
+          id?: string
+          obs_general?: string
+          obs_previas?: Json
+          pendientes_previos?: string[]
+          respuestas?: Json
+          resumen?: Json | null
+          sucursal_id: string
+          supervisor_nombre: string
+          updated_at?: string
+        }
+        Update: {
+          anterior_fecha?: string | null
+          anterior_id?: string | null
+          cierre?: string | null
+          creado_por?: string | null
+          created_at?: string
+          encargado?: string | null
+          estado?: string
+          fecha?: string
+          id?: string
+          obs_general?: string
+          obs_previas?: Json
+          pendientes_previos?: string[]
+          respuestas?: Json
+          resumen?: Json | null
+          sucursal_id?: string
+          supervisor_nombre?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supervision_visitas_anterior_id_fkey"
+            columns: ["anterior_id"]
+            isOneToOne: false
+            referencedRelation: "supervision_visitas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervision_visitas_anterior_id_fkey"
+            columns: ["anterior_id"]
+            isOneToOne: false
+            referencedRelation: "supervision_visitas_items"
+            referencedColumns: ["visita_id"]
+          },
+          {
+            foreignKeyName: "supervision_visitas_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervision_visitas_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "supervision_sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tarea_adjuntos: {
         Row: {
           autor_id: string | null
@@ -4955,6 +5135,32 @@ export type Database = {
       }
     }
     Views: {
+      supervision_visitas_items: {
+        Row: {
+          bloque: string | null
+          cumplimiento_pct: number | null
+          encargado: string | null
+          estado: string | null
+          fecha: string | null
+          item: string | null
+          item_id: string | null
+          observacion: string | null
+          resultado: string | null
+          sucursal: string | null
+          sucursal_id: string | null
+          supervisor: string | null
+          visita_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supervision_visitas_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "supervision_sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_compras_conteos_historial: {
         Row: {
           cerrado_en: string | null
@@ -6719,6 +6925,7 @@ export type Database = {
       }
       proveedores_impacto: { Args: { p_id: string }; Returns: Json }
       puede_operar_destino: { Args: { p_destino: string }; Returns: boolean }
+      puede_supervisar: { Args: never; Returns: boolean }
       puede_ver_pedido: { Args: { p_pedido_id: string }; Returns: boolean }
       recalcular_conciliacion: {
         Args: { p_fecha: string; p_local_id: string }
