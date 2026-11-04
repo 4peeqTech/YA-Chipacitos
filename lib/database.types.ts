@@ -3423,6 +3423,7 @@ export type Database = {
           fecha_vencimiento: string | null
           forma_pago: string
           fudo_categoria: string | null
+          fudo_descripcion: string | null
           fudo_estado: string | null
           fudo_id: string | null
           fudo_proveedor: string | null
@@ -3448,6 +3449,7 @@ export type Database = {
           fecha_vencimiento?: string | null
           forma_pago: string
           fudo_categoria?: string | null
+          fudo_descripcion?: string | null
           fudo_estado?: string | null
           fudo_id?: string | null
           fudo_proveedor?: string | null
@@ -3473,6 +3475,7 @@ export type Database = {
           fecha_vencimiento?: string | null
           forma_pago?: string
           fudo_categoria?: string | null
+          fudo_descripcion?: string | null
           fudo_estado?: string | null
           fudo_id?: string | null
           fudo_proveedor?: string | null
@@ -3564,6 +3567,54 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      gastos_fudo_sync: {
+        Row: {
+          creado_en: string
+          ejecutado_por: string | null
+          error: string | null
+          id: string
+          local: string
+          ok: boolean
+          origen: string
+          resumen: Json | null
+        }
+        Insert: {
+          creado_en?: string
+          ejecutado_por?: string | null
+          error?: string | null
+          id?: string
+          local: string
+          ok: boolean
+          origen: string
+          resumen?: Json | null
+        }
+        Update: {
+          creado_en?: string
+          ejecutado_por?: string | null
+          error?: string | null
+          id?: string
+          local?: string
+          ok?: boolean
+          origen?: string
+          resumen?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gastos_fudo_sync_ejecutado_por_fkey"
+            columns: ["ejecutado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_fudo_sync_local_fkey"
+            columns: ["local"]
+            isOneToOne: false
+            referencedRelation: "locales_config"
+            referencedColumns: ["sucursal"]
           },
         ]
       }
@@ -6002,6 +6053,7 @@ export type Database = {
           fecha_vencimiento: string | null
           forma_pago: string | null
           fudo_categoria: string | null
+          fudo_descripcion: string | null
           fudo_estado: string | null
           fudo_id: string | null
           fudo_proveedor: string | null
@@ -6293,6 +6345,7 @@ export type Database = {
         }[]
       }
       _compras_pesos_txt: { Args: { p: number }; Returns: string }
+      _gastos_fudo_puede: { Args: never; Returns: boolean }
       _gastos_norm: { Args: { p: string }; Returns: string }
       _nomenclador_mensaje_constraint: {
         Args: { p_constraint: string }
@@ -6694,6 +6747,28 @@ export type Database = {
       }
       gastos_deshacer_pago: { Args: { p_id?: string }; Returns: undefined }
       gastos_eliminar: { Args: { p_id?: string }; Returns: undefined }
+      gastos_fudo_aplicar: {
+        Args: {
+          p_completo?: boolean
+          p_items?: Json
+          p_local?: string
+          p_origen?: string
+        }
+        Returns: Json
+      }
+      gastos_fudo_estado: {
+        Args: never
+        Returns: {
+          local: string
+          ultimo_error: string
+          ultimo_intento: string
+          ultimo_ok: string
+        }[]
+      }
+      gastos_fudo_registrar_error: {
+        Args: { p_error?: string; p_local?: string; p_origen?: string }
+        Returns: undefined
+      }
       gastos_guardar: {
         Args: {
           p_categoria?: string
@@ -6737,6 +6812,7 @@ export type Database = {
           fecha_vencimiento: string | null
           forma_pago: string | null
           fudo_categoria: string | null
+          fudo_descripcion: string | null
           fudo_estado: string | null
           fudo_id: string | null
           fudo_proveedor: string | null

@@ -3,7 +3,9 @@ import { redirect } from 'next/navigation'
 import { hoyISOArgentina } from '@/lib/fechas'
 import { POR_PAGINA, leerFiltros, paramsDeFiltros } from '@/lib/gastos/modelo'
 import GastosClient from './GastosClient'
-import { consultarCatalogosPago, consultarGasto, consultarLocales, listarGastos, pedidosDeFacturas } from './datos'
+import {
+  consultarCatalogosPago, consultarEstadoFudo, consultarGasto, consultarLocales, listarGastos, pedidosDeFacturas,
+} from './datos'
 
 export const metadata = {
   title: 'Gastos | YA! Chipacitos',
@@ -24,12 +26,13 @@ export default async function GastosPage({
   const filtros = leerFiltros(params, hoy)
   const gastoParam = typeof params.gasto === 'string' ? params.gasto : undefined
 
-  const [lista, { data: proveedores }, catalogos, locales] = await Promise.all([
+  const [lista, { data: proveedores }, catalogos, locales, fudo] = await Promise.all([
     listarGastos(supabase, filtros),
     // Todos: un gasto de un proveedor archivado tiene que mostrarlo (B3, E19).
     supabase.from('proveedores').select('id, nombre, estado').order('nombre'),
     consultarCatalogosPago(supabase),
     consultarLocales(supabase),
+    consultarEstadoFudo(supabase),
   ])
 
   // Una página que ya no existe (se borraron gastos, o la URL es vieja): a la última.
@@ -60,6 +63,7 @@ export default async function GastosPage({
       localesCarga={locales}
       pedidoDeFactura={await pedidosDeFacturas(supabase, filas)}
       gastoInicial={gastoParam}
+      fudo={fudo}
     />
   )
 }

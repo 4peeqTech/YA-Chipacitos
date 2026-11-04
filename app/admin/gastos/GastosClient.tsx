@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  IconAlertTriangle, IconCalendarStats, IconChevronLeft, IconChevronRight, IconClock, IconCoin, IconPlus,
-  IconReceipt, IconWallet,
+  IconAlertTriangle, IconBuildingStore, IconCalendarStats, IconChevronLeft, IconChevronRight, IconClock, IconCoin,
+  IconPlus, IconReceipt, IconRefresh, IconWallet,
 } from '@tabler/icons-react'
 import PageHeader from '@/components/ui/PageHeader'
 import AyudaLink from '@/components/ui/AyudaLink'
@@ -19,14 +19,15 @@ import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { ChipGroup } from '@/components/ui/Chip'
 import { Puntos } from '@/components/ui/Cargando'
 import { controlClass } from '@/components/ui/Field'
-import { useConfirmar } from '@/components/ui/ProveedorUI'
+import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import LinkEntidad from '@/components/ui/LinkEntidad'
 import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
 import {
   POR_PAGINA, armarGastos, hayFiltros, mesDe, paramsDeFiltros,
-  type FiltroEstadoGasto, type FiltrosLista, type GastoFila, type GastoVista, type ResumenGastos,
+  type FiltroEstadoGasto, type FiltrosLista, type GastoFila, type GastoVista, type OrigenGasto, type ResumenGastos,
 } from '@/lib/gastos/modelo'
+import { useActualizarFudo } from './useActualizarFudo'
 import GastoForm from './GastoForm'
 
 const FILTROS: { value: FiltroEstadoGasto; label: string }[] = [
@@ -38,6 +39,54 @@ const FILTROS: { value: FiltroEstadoGasto; label: string }[] = [
 const botonPagina = 'presionable min-h-11 inline-flex items-center gap-1 rounded-xl border border-border px-3 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-40'
 
 type Abierto = { id: string } | 'nuevo' | null
+
+export interface EstadoFudo {
+  /** GASTOS_FUDO_SYNC=on en este entorno. */
+  activo: boolean
+  locales: { local: string; ultimoOk: string | null; ultimoError: string | null }[]
+}
+
+const ORIGENES: { value: OrigenGasto | ''; label: string }[] = [
+  { value: '', label: 'Todos los orígenes' },
+  { value: 'manual', label: 'Cargados acá' },
+  { value: 'factura', label: 'De facturas' },
+  { value: 'fudo', label: 'De los locales (Fudo)' },
+]
+
+/** "hace 5 min", "hace 2 h", "hace 3 días". */
+function hace(iso: string, ahora: number): string {
+  const min = Math.max(0, Math.round((ahora - Date.parse(iso)) / 60_000))
+  if (min < 1) return 'recién'
+  if (min < 60) return `hace ${min} min`
+  const h = Math.round(min / 60)
+  return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} días`
+}
+
+/** Cuándo se trajeron los gastos de Fudo, qué sucursal no respondió, y el botón para actualizar. */
+function LineaFudo({ fudo, actualizando, onActualizar }: { fudo: EstadoFudo; actualizando: boolean; onActualizar: () => void }) {
+  const [ahora] = useState(() => Date.now())
+  if (!fudo.activo || fudo.locales.length === 0) return null
+  const oks = fudo.locales.map(l => l.ultimoOk).filter((v): v is string => !!v).sort()
+  const masViejo = oks[0]
+  const conError = fudo.locales.filter(l => l.ultimoError)
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+      <span className="inline-flex items-center gap-1.5">
+        <IconBuildingStore size={15} aria-hidden />
+        {masViejo ? <>Gastos de los locales (Fudo) actualizados {hace(masViejo, ahora)}</> : 'Los gastos de los locales (Fudo) todavía no se trajeron'}
+      </span>
+      {conError.length > 0 && (
+        <span className="text-warning" title={conError.map(l => `${l.local}: ${l.ultimoError}`).join('\n')}>
+          · no se pudo actualizar: {conError.map(l => l.local.replace(/^YA! /, '')).join(', ')}
+        </span>
+      )}
+      <button type="button" onClick={onActualizar} disabled={actualizando}
+        className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl px-2 font-semibold text-text hover:bg-surface2 disabled:opacity-60">
+        {actualizando ? <><Puntos /> Actualizando</> : <><IconRefresh size={15} aria-hidden /> Actualizar</>}
+      </button>
+    </div>
+  )
+}
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`
 
@@ -69,7 +118,10 @@ export default function GastosClient({
   localesCarga,
   pedidoDeFactura,
   gastoInicial,
+  fudo,
 }: {
+  /** Estado de la sincronización con Fudo (solo lectura de Fudo). */
+  fudo: EstadoFudo
   /** La página actual, ya filtrada y ordenada por la base. */
   gastos: GastoFila[]
   /** El que pidió ?gasto= cuando no está en la página. */
@@ -97,6 +149,8 @@ export default function GastosClient({
   const [conCambios, setConCambios] = useState(false)
   const quitarParam = useQuitarParams('gasto')
   useAlCambiarParam(gastoInicial, id => abrir({ id }))
+  const toast = useToast()
+  const { actualizando, actualizar } = useActualizarFudo(fudo.activo, toast)
 
   // Todo sale de las props: los filtros cambian la URL y las acciones llaman a
   // refresh(); en los dos casos el servidor vuelve a armar la página.
@@ -163,9 +217,15 @@ export default function GastosClient({
       header: 'Concepto',
       render: g => (
         <span className="block min-w-0">
-          <span className="block break-words font-medium text-text">{g.proveedor ?? g.categoria}</span>
+          <span className="block break-words font-medium text-text">
+            {g.titulo}
+            {g.fudo?.revisar && (
+              <IconAlertTriangle size={14} className="ml-1 inline text-warning" aria-label="Revisar: cambió en Fudo después de pagarlo acá" />
+            )}
+          </span>
           <span className="block text-xs text-muted">
-            {g.proveedor ? g.categoria : g.rubro}
+            {g.fudo && !g.rubro ? <span className="font-semibold text-warning">Sin clasificar</span> : (g.fudo ? g.categoria : g.subtitulo)}
+            {g.fudo && g.subtitulo.includes(' · ') && <> · {g.subtitulo.split(' · ').slice(1).join(' · ')}</>}
             <span className="sm:hidden"> · {g.local} · <span className="tabular-nums">{g.fecha ? formatearFecha(g.fecha) : ''}</span></span>
           </span>
           {g.factura && (
@@ -176,7 +236,17 @@ export default function GastosClient({
         </span>
       ),
     },
-    { key: 'local', header: 'Local', render: g => <span className="whitespace-nowrap">{g.local}</span>, ocultarHasta: 'sm' },
+    {
+      key: 'local',
+      header: 'Local',
+      render: g => (
+        <span className="inline-flex flex-col items-start gap-0.5">
+          <span className="whitespace-nowrap">{g.local}</span>
+          {g.fudo && <span className="rounded-md border border-border px-1.5 text-2xs font-semibold text-muted">Fudo</span>}
+        </span>
+      ),
+      ocultarHasta: 'sm',
+    },
     { key: 'forma', header: 'Forma de pago', render: g => <span className="text-muted">{g.ultimoPagoForma ?? g.formaPago}</span>, ocultarHasta: 'lg' },
     {
       key: 'monto',
@@ -264,10 +334,19 @@ export default function GastosClient({
             {localesCarga.map(l => <option key={l} value={l}>{l}</option>)}
             {filtros.local && !localesCarga.includes(filtros.local) && <option value={filtros.local}>{filtros.local}</option>}
           </select>
+          <select
+            aria-label="Filtrar por origen"
+            value={filtros.origen}
+            onChange={e => ir({ origen: e.target.value as OrigenGasto | '' })}
+            className={`${controlClass} min-h-11 w-full sm:w-52`}
+          >
+            {ORIGENES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
           <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar proveedor, factura o pedido" className="w-full sm:w-72" />
           <ClearFiltersButton visible={conFiltros} onClick={limpiar} />
           {navegando && <span className="inline-flex items-center gap-2 text-sm text-muted" aria-live="polite"><Puntos /> Buscando</span>}
         </div>
+        <LineaFudo fudo={fudo} actualizando={actualizando} onActualizar={() => actualizar(false)} />
       </div>
 
       {error ? (

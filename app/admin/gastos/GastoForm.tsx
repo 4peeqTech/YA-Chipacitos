@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
-  IconCircleCheck, IconCircleX, IconDeviceFloppy, IconFileText, IconLock, IconPaperclip, IconReceipt,
-  IconTrash, IconWallet, IconX,
+  IconAlertTriangle, IconBuildingStore, IconCircleCheck, IconCircleX, IconDeviceFloppy, IconFileText, IconLock,
+  IconPaperclip, IconReceipt, IconTrash, IconWallet, IconX,
 } from '@tabler/icons-react'
 import LinkEntidad from '@/components/ui/LinkEntidad'
 import DatePicker from '@/components/ui/DatePicker'
@@ -268,8 +268,11 @@ export default function GastoForm({
   const ocupado = isPending || subiendo
 
   const esNuevo = gasto == null
+  const deFudo = gasto?.fudo != null
   const bloqueo = bloqueoFactura(gasto)
-  const problema = validarGasto(form, esNuevo)
+  // Un gasto de Fudo: monto, fecha, local y proveedor los manda Fudo.
+  const candado = bloqueo != null || deFudo
+  const problema = validarGasto(form, esNuevo, deFudo)
   const marca = (c: CampoGasto) => (intento && problema?.campo === c ? 'border-brand-red' : '')
   const categorias = categoriasDe(form.rubro)
   const conCambios = hayCambios(form, inicial)
@@ -459,6 +462,26 @@ export default function GastoForm({
         </p>
       )}
 
+      {gasto?.fudo && (
+        <div className="space-y-1 rounded-xl border border-border px-4 py-3 text-sm">
+          <p className="flex flex-wrap items-center gap-x-2 font-medium text-text">
+            <IconBuildingStore size={16} className="shrink-0 text-accent-fg" aria-hidden />
+            Cargado en Fudo de {gasto.local}
+            {gasto.fudo.descripcion && <span className="font-normal text-muted">· {gasto.fudo.descripcion}</span>}
+          </p>
+          <p className="text-xs text-muted">
+            {[gasto.fudo.proveedor && `Proveedor en Fudo: ${gasto.fudo.proveedor}`, gasto.fudo.categoria && `categoría en Fudo: ${gasto.fudo.categoria}`].filter(Boolean).join(' · ')}
+          </p>
+          <p className="text-xs text-muted">Acá se clasifica y se paga. El monto, la fecha y el proveedor se corrigen en Fudo; la app nunca cambia nada allá.</p>
+          {gasto.fudo.revisar && (
+            <p className="flex items-start gap-1.5 pt-1 text-xs font-semibold text-warning">
+              <IconAlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden />
+              Cambió en Fudo después de pagarlo acá (se canceló, ya no figura o bajó el monto). Revisá los pagos.
+            </p>
+          )}
+        </div>
+      )}
+
       {gasto?.factura && (
         <p className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border px-4 py-2.5 text-sm text-text">
           <IconReceipt size={16} className="shrink-0 text-accent-fg" aria-hidden />
@@ -477,17 +500,23 @@ export default function GastoForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Fecha del gasto" obligatorio>
-          <DatePicker
-            ariaLabel="Fecha del gasto"
-            value={form.fecha}
-            onChange={fecha => cambiar({ fecha })}
-            className={`${controlClass} min-h-11 ${marca('fecha')}`}
-          />
+          {deFudo ? (
+            <p className="flex min-h-11 items-center gap-2 text-sm text-text">
+              {formatearFecha(form.fecha)} <IconLock size={14} className="text-muted" aria-label="La manda Fudo" />
+            </p>
+          ) : (
+            <DatePicker
+              ariaLabel="Fecha del gasto"
+              value={form.fecha}
+              onChange={fecha => cambiar({ fecha })}
+              className={`${controlClass} min-h-11 ${marca('fecha')}`}
+            />
+          )}
         </Field>
         <Field label="Monto" obligatorio>
-          {bloqueo ? (
+          {candado ? (
             <p className="flex min-h-11 items-center gap-2 text-lg font-bold tabular-nums text-text">
-              {formatearMonedaExacta(form.monto ?? 0)} <IconLock size={14} className="text-muted" aria-label="Sale de la factura" />
+              {formatearMonedaExacta(form.monto ?? 0)} <IconLock size={14} className="text-muted" aria-label={deFudo ? 'Lo manda Fudo' : 'Sale de la factura'} />
             </p>
           ) : (
             <InputNumero
@@ -501,6 +530,11 @@ export default function GastoForm({
           )}
         </Field>
         <Field label="Local" obligatorio>
+          {deFudo ? (
+            <p className="flex min-h-11 items-center gap-2 text-sm text-text">
+              {form.local} <IconLock size={14} className="text-muted" aria-label="Lo manda Fudo" />
+            </p>
+          ) : (
           <select
             aria-label="Local al que corresponde el gasto"
             value={form.local}
@@ -511,29 +545,30 @@ export default function GastoForm({
             {locales.map(l => <option key={l} value={l}>{l}</option>)}
             {form.local && !locales.includes(form.local) && <option value={form.local}>{form.local}</option>}
           </select>
+          )}
         </Field>
         <Field label="Proveedor">
-          {bloqueo ? (
+          {candado ? (
             <p className="flex min-h-11 items-center gap-2 text-sm text-text">
-              {gasto?.proveedor ?? 'Sin proveedor'} <IconLock size={14} className="text-muted" aria-label="Sale de la factura" />
+              {gasto?.proveedor ?? gasto?.fudo?.proveedor ?? 'Sin proveedor'} <IconLock size={14} className="text-muted" aria-label={deFudo ? 'Lo manda Fudo' : 'Sale de la factura'} />
             </p>
           ) : (
             <SelectBuscador value={form.proveedorId} onChange={proveedorId => cambiar({ proveedorId })} opciones={opcionesProveedor} placeholderVacio="Sin proveedor" />
           )}
         </Field>
-        <Field label="Rubro" obligatorio>
+        <Field label="Rubro" obligatorio={!deFudo}>
           <select
             aria-label="Rubro del gasto"
             value={form.rubro}
             onChange={e => cambiar({ rubro: e.target.value })}
             className={`${controlClass} min-h-11 ${marca('rubro')}`}
           >
-            <option value="">Elegí el rubro…</option>
+            <option value="">{deFudo ? 'Sin clasificar' : 'Elegí el rubro…'}</option>
             {RUBROS.map(r => <option key={r} value={r}>{r}</option>)}
             {form.rubro && !RUBROS.includes(form.rubro) && <option value={form.rubro}>{form.rubro}</option>}
           </select>
         </Field>
-        <Field label="Categoría" obligatorio>
+        <Field label="Categoría" obligatorio={!deFudo || !!form.rubro}>
           <select
             aria-label="Categoría del gasto"
             value={form.categoria}
@@ -561,9 +596,15 @@ export default function GastoForm({
 
       {bloqueo && <p className="-mt-2 text-xs text-muted">{bloqueo}</p>}
 
-      <Field label="Forma de pago prevista" obligatorio>
-        <ChipGroup opciones={formasPago.map(f => ({ value: f, label: f }))} value={form.formaPago} onChange={formaPago => cambiar({ formaPago })} />
-      </Field>
+      {deFudo ? (
+        <Field label="Forma de pago en Fudo">
+          <p className="flex min-h-11 items-center gap-2 text-sm text-text">{form.formaPago} <IconLock size={14} className="text-muted" aria-label="La manda Fudo" /></p>
+        </Field>
+      ) : (
+        <Field label="Forma de pago prevista" obligatorio>
+          <ChipGroup opciones={formasPago.map(f => ({ value: f, label: f }))} value={form.formaPago} onChange={formaPago => cambiar({ formaPago })} />
+        </Field>
+      )}
 
       <Field label="Observaciones">
         <textarea
@@ -697,8 +738,9 @@ export default function GastoForm({
         <PagoModal
           gasto={{
             clave: gasto.id,
-            titulo: gasto.proveedor ?? gasto.categoria,
-            detalle: gasto.proveedor ? gasto.categoria : null,
+            titulo: gasto.titulo,
+            detalle: gasto.subtitulo || null,
+            deFudo,
             local: gasto.local,
             fecha: gasto.fecha,
             monto: gasto.saldo,

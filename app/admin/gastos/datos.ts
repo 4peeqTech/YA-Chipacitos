@@ -1,5 +1,6 @@
 import type { createClientTipado } from '@/lib/supabase/server'
 import { FORMAS_PAGO } from '@/lib/gastos-constants'
+import { sincronizacionActiva } from '@/lib/gastos/fudoSync'
 import {
   POR_PAGINA, leerResumen, type FiltrosLista, type FiltrosPendientes, type GastoFila, type ResumenGastos,
 } from '@/lib/gastos/modelo'
@@ -44,6 +45,15 @@ export async function listarGastos(supabase: Cliente, f: FiltrosLista): Promise<
     cantidad: lista.count ?? 0,
     resumen: leerResumen(resumen.data),
     error: lista.error ?? resumen.error,
+  }
+}
+
+/** Cuándo se trajo Fudo por última vez en cada sucursal, y si está encendida la sincronización. */
+export async function consultarEstadoFudo(supabase: Cliente) {
+  const { data } = await supabase.rpc('gastos_fudo_estado')
+  return {
+    activo: sincronizacionActiva(),
+    locales: (data ?? []).map(l => ({ local: l.local, ultimoOk: l.ultimo_ok, ultimoError: l.ultimo_error })),
   }
 }
 

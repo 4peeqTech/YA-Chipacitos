@@ -15,7 +15,7 @@ const fila = (p: Partial<GastoFila>): GastoFila => ({
   factura_id: null, factura_numero: null, factura_pedido_numero: null,
   origen: 'manual', fecha_vencimiento: null, vencido: false, pagado: 0, saldo: null, pagos: 0, adjuntos: 0,
   ultimo_pago_forma: null, fudo_id: null, fudo_categoria: null, fudo_proveedor: null, fudo_estado: null,
-  fudo_revisar: false, fudo_sincronizado_en: null, recurrente_id: null, periodo: null, a_confirmar: false, ...p,
+  fudo_revisar: false, fudo_sincronizado_en: null, fudo_descripcion: null, recurrente_id: null, periodo: null, a_confirmar: false, ...p,
 })
 
 const gastos = armarGastos([
@@ -102,6 +102,19 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'comprobante: URL de otro lado', real: rutaComprobante('https://otro.com/a.png'), esperado: null },
   { nombre: 'comprobante: vacío', real: rutaComprobante(null), esperado: null },
   { nombre: 'días desde', real: diasDesde('2026-08-31', '2026-09-30'), esperado: 30 },
+  // Gastos de Fudo
+  {
+    nombre: 'Fudo: título con la descripción, abajo "Sin clasificar" y lo de Fudo',
+    real: (() => { const x = armarGastos([fila({ id: 'f1', origen: 'fudo', rubro: null, categoria: null, proveedor_nombre: null, fudo_descripcion: 'Flete', fudo_proveedor: 'Lucas', fudo_categoria: 'Envíos' })])[0]; return `${x.titulo}|${x.subtitulo}` })(),
+    esperado: 'Flete|Sin clasificar · Lucas · Envíos',
+  },
+  {
+    nombre: 'Fudo clasificado: abajo la categoría de la app',
+    real: armarGastos([fila({ id: 'f2', origen: 'fudo', rubro: 'PERSONAL', categoria: 'PERSONAL', proveedor_nombre: null, fudo_descripcion: null, fudo_proveedor: 'Lucas', fudo_categoria: null })])[0].subtitulo,
+    esperado: 'PERSONAL',
+  },
+  { nombre: 'Fudo: se guarda sin clasificar', real: validarGasto({ ...completo, rubro: '', categoria: '' }, false, true), esperado: null },
+  { nombre: 'Fudo: con rubro pide categoría', real: validarGasto({ ...completo, categoria: '' }, false, true)?.campo, esperado: 'categoria' },
   // Atraso y filtros de Pendientes
   { nombre: 'atraso sin vencimiento: a los 30 días', real: atraso({ fecha: '2026-09-01', vencimiento: null, vencido: false }, '2026-10-05'), esperado: 'hace 34 días' },
   { nombre: 'atraso sin vencimiento: antes de 30, nada', real: atraso({ fecha: '2026-10-01', vencimiento: null, vencido: false }, '2026-10-05'), esperado: null },

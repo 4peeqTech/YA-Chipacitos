@@ -38,6 +38,8 @@ export interface ResumenAPagar {
   /** Si ya se pagó una parte: el total del gasto. */
   montoTotal?: number
   origen: 'app' | 'fudo'
+  /** Un gasto que vino de Fudo (se paga acá, Fudo no se entera). */
+  deFudo?: boolean
 }
 
 /**
@@ -120,7 +122,7 @@ export default function PagoModal({
                 {gasto.local}
                 {gasto.fecha && <> · del {formatearFecha(gasto.fecha)}</>}
                 {gasto.detalle && <> · {gasto.detalle}</>}
-                {gasto.origen === 'fudo' && <> · de Fudo</>}
+                {(gasto.origen === 'fudo' || gasto.deFudo) && <> · de Fudo</>}
               </p>
             </div>
             <div className="text-right">
@@ -211,8 +213,8 @@ export default function PagoModal({
             </p>
           )}
           {error && <p className="text-sm text-brand-red">{error}</p>}
-          {gasto.origen === 'fudo' && (
-            <p className="text-xs text-muted">El pago queda anotado acá. En Fudo el gasto sigue figurando como impago.</p>
+          {(gasto.origen === 'fudo' || gasto.deFudo) && (
+            <p className="text-xs text-muted">El pago queda anotado acá. En Fudo el gasto sigue figurando como impago: la app no cambia nada en Fudo.</p>
           )}
 
           <div className="sticky bottom-0 -mx-4 grid grid-cols-2 gap-2 border-t border-border bg-surface px-4 py-3 sm:static sm:mx-0 sm:flex sm:justify-end sm:bg-transparent sm:px-0 sm:pb-0">

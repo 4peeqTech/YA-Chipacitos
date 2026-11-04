@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { hoyISOArgentina } from '@/lib/fechas'
 import { leerFiltrosPendientes, paramsDePendientes } from '@/lib/gastos/modelo'
 import PendientesClient from './PendientesClient'
-import { consultarCatalogosPago, consultarLocales, consultarPendientes } from '../datos'
+import { consultarCatalogosPago, consultarEstadoFudo, consultarLocales, consultarPendientes } from '../datos'
 
 export const metadata = {
   title: 'Pendientes de pago | YA! Chipacitos',
@@ -21,32 +21,34 @@ export default async function PendientesPage({
   const filtros = leerFiltrosPendientes(await searchParams)
   const conFiltros = paramsDePendientes({ ...filtros, orden: 'viejos' }) !== ''
 
-  // Los de Fudo los trae el cliente (API externa, lenta): la página no espera por ellos.
-  const [pendientes, todos, { data: pagadosFudo }, catalogos, locales] = await Promise.all([
+  const [pendientes, todos, catalogos, locales, fudo] = await Promise.all([
     consultarPendientes(supabase, filtros),
-    // El número de arriba es todo lo que se debe, sin filtros (como antes).
-    conFiltros
-      ? supabase.rpc('gastos_pendientes_resumen', {})
-      : Promise.resolve(null),
-    supabase.from('v_fudo_gastos_pagados').select('*').order('created_at', { ascending: false }).limit(200),
+    // Los números de arriba son todo lo que se debe, sin filtros.
+    conFiltros ? supabase.rpc('gastos_pendientes_resumen', {}) : Promise.resolve(null),
     consultarCatalogosPago(supabase),
     consultarLocales(supabase),
+    consultarEstadoFudo(supabase),
   ])
-  const sinFiltro = todos?.data
-    ? { cantidad: todos.data.reduce((s, g) => s + Number(g.cantidad), 0), total: todos.data.reduce((s, g) => s + Number(g.total), 0) }
-    : { cantidad: pendientes.grupos.reduce((s, g) => s + g.cantidad, 0), total: pendientes.grupos.reduce((s, g) => s + g.total, 0) }
+  const filasTotales = todos?.data
+    ? todos.data.map(g => ({ cantidad: Number(g.cantidad), total: Number(g.total), vencidos: Number(g.vencidos) }))
+    : pendientes.grupos
+  const totales = {
+    cantidad: filasTotales.reduce((s, g) => s + g.cantidad, 0),
+    total: Math.round(filasTotales.reduce((s, g) => s + g.total, 0) * 100) / 100,
+    vencidos: filasTotales.reduce((s, g) => s + g.vencidos, 0),
+  }
 
   return (
     <PendientesClient
       grupos={pendientes.grupos}
-      totalApp={sinFiltro}
+      totales={totales}
       filtros={filtros}
       hoy={hoyISOArgentina()}
       error={pendientes.error != null}
-      pagadosFudo={pagadosFudo ?? []}
       cajas={catalogos.cajas}
       formasPago={catalogos.formasPago}
       locales={locales}
+      fudo={fudo}
     />
   )
 }

@@ -16,16 +16,30 @@ export function getFudoCredentials(sucursal: string): { apiKey: string; apiSecre
   return { apiKey, apiSecret }
 }
 
+// El token dura ~24 h y Fudo limita cuántas veces se pide (429 si se pide seguido):
+// se reusa hasta 5 minutos antes de que venza.
+const tokens = new Map<string, { token: string; vence: number }>()
+
 export async function getFudoToken(apiKey: string, apiSecret: string): Promise<string> {
+  const guardado = tokens.get(apiKey)
+  if (guardado && guardado.vence > Date.now()) return guardado.token
   const res = await fetch(FUDO_AUTH_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     body: JSON.stringify({ apiKey, apiSecret }),
     cache: 'no-store',
   })
+  if (res.status === 429) throw new Error('Fudo pidió esperar un rato antes de volver a consultar (429).')
   if (!res.ok) throw new Error(`Fudo auth failed: ${res.status}`)
-  const data = await res.json()
+  const data = await res.json() as { token: string; exp?: number }
+  const vence = typeof data.exp === 'number' ? data.exp * 1000 - 5 * 60_000 : Date.now() + 30 * 60_000
+  tokens.set(apiKey, { token: data.token, vence })
   return data.token
+}
+
+/** Para cuando Fudo rechaza un token guardado (401): el próximo getFudoToken pide uno nuevo. */
+export function olvidarFudoToken(apiKey: string): void {
+  tokens.delete(apiKey)
 }
 
 export async function fudoGet(token: string, path: string): Promise<unknown> {

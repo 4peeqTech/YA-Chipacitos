@@ -19,6 +19,11 @@ export function aEstadoGasto(v: string | null): EstadoGasto {
 /** Un gasto con los null de la vista ya resueltos. */
 export interface GastoVista {
   id: string
+  /** Lo principal (proveedor, o la descripción de Fudo) y lo secundario (categoría). */
+  titulo: string
+  subtitulo: string
+  /** Los datos que manda Fudo, si vino de ahí. */
+  fudo: { descripcion: string | null; categoria: string | null; proveedor: string | null; revisar: boolean } | null
   fecha: string
   local: string
   rubro: string
@@ -50,6 +55,22 @@ export interface GastoVista {
   factura: { id: string; numero: string; codigoPedido: string | null; pedidoId: string | null } | null
 }
 
+/**
+ * Qué se lee primero en una lista. Uno de Fudo: su descripción (o su
+ * proveedor o categoría de Fudo) y, abajo, la categoría de la app o "Sin clasificar".
+ */
+function titulos(g: GastoFila, fudo: GastoVista['fudo']): { titulo: string; subtitulo: string } {
+  if (fudo) {
+    const titulo = g.proveedor_nombre ?? fudo.descripcion ?? fudo.proveedor ?? fudo.categoria ?? 'Gasto de Fudo'
+    const deFudo = [fudo.proveedor, fudo.categoria].filter(v => v && v !== titulo).join(' · ')
+    return { titulo, subtitulo: [g.categoria ?? 'Sin clasificar', deFudo].filter(Boolean).join(' · ') }
+  }
+  return {
+    titulo: g.proveedor_nombre ?? g.categoria ?? '—',
+    subtitulo: (g.proveedor_nombre ? g.categoria : g.rubro) ?? '',
+  }
+}
+
 /** `pedidoDeFactura` (factura → pedido) sirve para linkear el pedido; v_gastos solo trae su número. */
 export function armarGastos(filas: GastoFila[], pedidoDeFactura: Record<string, string> = {}): GastoVista[] {
   const res: GastoVista[] = []
@@ -57,8 +78,13 @@ export function armarGastos(filas: GastoFila[], pedidoDeFactura: Record<string, 
     if (!g.id) continue
     const monto = Number(g.monto ?? 0)
     const pagado = Number(g.pagado ?? 0)
+    const fudo = g.origen === 'fudo'
+      ? { descripcion: g.fudo_descripcion, categoria: g.fudo_categoria, proveedor: g.fudo_proveedor, revisar: g.fudo_revisar ?? false }
+      : null
     res.push({
       id: g.id,
+      ...titulos(g, fudo),
+      fudo,
       fecha: g.fecha ?? '',
       local: g.local ?? '—',
       rubro: g.rubro ?? '',
@@ -254,11 +280,12 @@ export function formInicial(g: GastoVista | null, hoy: string, defaults: { local
 
 export type CampoGasto = 'fecha' | 'local' | 'rubro' | 'categoria' | 'monto' | 'formaPago' | 'fechaVencimiento' | 'fechaPago' | 'caja'
 
-export function validarGasto(f: FormGasto, esNuevo: boolean): { campo: CampoGasto; mensaje: string } | null {
+/** `deFudo`: se puede guardar sin clasificar (entra así de Fudo); si se elige rubro, pide categoría. */
+export function validarGasto(f: FormGasto, esNuevo: boolean, deFudo = false): { campo: CampoGasto; mensaje: string } | null {
   if (!f.fecha) return { campo: 'fecha', mensaje: 'Elegí la fecha del gasto.' }
   if (!f.local) return { campo: 'local', mensaje: 'Elegí el local al que corresponde el gasto.' }
-  if (!f.rubro) return { campo: 'rubro', mensaje: 'Elegí el rubro.' }
-  if (!f.categoria) return { campo: 'categoria', mensaje: 'Elegí la categoría.' }
+  if (!f.rubro && !deFudo) return { campo: 'rubro', mensaje: 'Elegí el rubro.' }
+  if (f.rubro && !f.categoria) return { campo: 'categoria', mensaje: 'Elegí la categoría.' }
   if (f.monto == null || f.monto <= 0) return { campo: 'monto', mensaje: 'Cargá el monto: tiene que ser mayor a $ 0.' }
   if (!f.formaPago) return { campo: 'formaPago', mensaje: 'Elegí la forma de pago.' }
   if (f.fechaVencimiento && f.fechaVencimiento < f.fecha) {
@@ -369,8 +396,8 @@ export function pendienteDeGasto(g: GastoVista): PendienteVista {
     id: g.id,
     local: g.local,
     fecha: g.fecha,
-    titulo: g.proveedor ?? g.categoria,
-    detalle: g.proveedor ? g.categoria : (g.observaciones || null),
+    titulo: g.titulo,
+    detalle: g.fudo ? g.subtitulo : g.proveedor ? g.categoria : (g.observaciones || null),
     // Lo que falta: un gasto pagado en parte se paga por el saldo.
     monto: g.saldo,
     formaPago: g.formaPago || null,
