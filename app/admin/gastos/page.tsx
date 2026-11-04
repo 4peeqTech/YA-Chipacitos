@@ -4,7 +4,8 @@ import { hoyISOArgentina } from '@/lib/fechas'
 import { POR_PAGINA, leerFiltros, paramsDeFiltros } from '@/lib/gastos/modelo'
 import GastosClient from './GastosClient'
 import {
-  consultarCatalogosPago, consultarEstadoFudo, consultarGasto, consultarLocales, listarGastos, pedidosDeFacturas,
+  consultarCatalogosPago, consultarEstadoFudo, consultarGasto, consultarLocales, generarRecurrentes, listarGastos,
+  pedidosDeFacturas,
 } from './datos'
 
 export const metadata = {
@@ -25,6 +26,9 @@ export default async function GastosPage({
   const hoy = hoyISOArgentina()
   const filtros = leerFiltros(params, hoy)
   const gastoParam = typeof params.gasto === 'string' ? params.gasto : undefined
+
+  // Los que se repiten y ya tocan se crean antes de listar.
+  await generarRecurrentes(supabase)
 
   const [lista, { data: proveedores }, catalogos, locales, fudo] = await Promise.all([
     listarGastos(supabase, filtros),

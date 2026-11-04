@@ -132,3 +132,11 @@ export async function consultarLocales(supabase: Cliente): Promise<string[]> {
     .order('sucursal')
   return (data ?? []).filter(l => l.activo !== false).map(l => l.sucursal)
 }
+
+/**
+ * Crea los gastos que se repiten que ya tocan (idempotente). Lo llaman las
+ * pantallas de Gastos al abrirse; si falla, la pantalla igual se muestra.
+ */
+export async function generarRecurrentes(supabase: Cliente): Promise<void> {
+  await supabase.rpc('gastos_generar_recurrentes', {})
+}

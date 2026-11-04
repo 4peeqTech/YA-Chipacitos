@@ -73,6 +73,7 @@ function FilaPendiente({ p, hoy, pendiente, onPagar }: { p: PendienteVista; hoy:
       <div className="ml-auto text-right">
         <p className="whitespace-nowrap text-base font-semibold tabular-nums text-text">{formatearMonedaExacta(p.monto)}</p>
         {g && g.pagado > 0 && <p className="whitespace-nowrap text-2xs text-muted">falta, de <span className="tabular-nums">{formatearMonedaExacta(g.monto)}</span></p>}
+        {g?.recurrente?.aConfirmar && <p className="whitespace-nowrap text-2xs font-semibold text-warning">monto a confirmar</p>}
       </div>
       <button type="button" onClick={() => onPagar(p)} disabled={pendiente} className={`${botonPago} w-full sm:w-auto`}>
         <IconWallet size={15} aria-hidden /> Registrar pago

@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { hoyISOArgentina } from '@/lib/fechas'
 import { leerFiltrosPendientes, paramsDePendientes } from '@/lib/gastos/modelo'
 import PendientesClient from './PendientesClient'
-import { consultarCatalogosPago, consultarEstadoFudo, consultarLocales, consultarPendientes } from '../datos'
+import { consultarCatalogosPago, consultarEstadoFudo, consultarLocales, consultarPendientes, generarRecurrentes } from '../datos'
 
 export const metadata = {
   title: 'Pendientes de pago | YA! Chipacitos',
@@ -20,6 +20,9 @@ export default async function PendientesPage({
 
   const filtros = leerFiltrosPendientes(await searchParams)
   const conFiltros = paramsDePendientes({ ...filtros, orden: 'viejos' }) !== ''
+
+  // Los que se repiten y ya tocan se crean antes de listar.
+  await generarRecurrentes(supabase)
 
   const [pendientes, todos, catalogos, locales, fudo] = await Promise.all([
     consultarPendientes(supabase, filtros),

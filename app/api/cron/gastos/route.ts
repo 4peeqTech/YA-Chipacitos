@@ -19,10 +19,11 @@ function secretCoincide(recibido: string | null, esperado: string): boolean {
   return timingSafeEqual(a, b)
 }
 
-// GET /api/cron/gastos-fudo
-// Vercel Cron, una vez por día (vercel.json): trae los gastos de Fudo de cada
-// sucursal. Solo lee Fudo. Sin GASTOS_FUDO_SYNC=on no hace nada (así en
-// producción no corre aunque el código llegue).
+// GET /api/cron/gastos
+// Vercel Cron, una vez por día (vercel.json):
+//   1. crea los gastos que se repiten que ya tocan (siempre);
+//   2. trae los gastos de Fudo de cada sucursal (solo lee Fudo, y solo con
+//      GASTOS_FUDO_SYNC=on: en producción no corre aunque el código llegue).
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
   if (!secret || secret.length < 16) {
@@ -48,12 +49,14 @@ export async function GET(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false, autoRefreshToken: false } },
   )
+  const { data: recurrentes, error: errorRecurrentes } = await supabase.rpc('gastos_generar_recurrentes', {})
+  if (errorRecurrentes) console.error('[gastos] cron: no se generaron los que se repiten:', errorRecurrentes.message)
   try {
-    const r = await sincronizarFudo(supabase, { origen: 'cron' })
-    console.log('[gastos-fudo] cron:', JSON.stringify(r))
-    return NextResponse.json(r)
+    const fudo = await sincronizarFudo(supabase, { origen: 'cron' })
+    console.log('[gastos] cron:', JSON.stringify({ recurrentes, fudo }))
+    return NextResponse.json({ recurrentes, fudo }, { status: errorRecurrentes ? 500 : 200 })
   } catch (e) {
-    console.error('[gastos-fudo] cron falló:', e)
-    return NextResponse.json({ error: 'Falló la sincronización' }, { status: 500 })
+    console.error('[gastos] cron: falló la sincronización con Fudo:', e)
+    return NextResponse.json({ recurrentes, error: 'Falló la sincronización con Fudo' }, { status: 500 })
   }
 }

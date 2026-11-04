@@ -3513,6 +3513,20 @@ export type Database = {
             referencedRelation: "proveedores"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "gastos_recurrente_fkey"
+            columns: ["recurrente_id"]
+            isOneToOne: false
+            referencedRelation: "gastos_recurrentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_recurrente_fkey"
+            columns: ["recurrente_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos_recurrentes"
+            referencedColumns: ["id"]
+          },
         ]
       }
       gastos_adjuntos: {
@@ -3694,6 +3708,91 @@ export type Database = {
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gastos_recurrentes: {
+        Row: {
+          activo: boolean
+          categoria: string
+          creado_por: string | null
+          created_at: string
+          desde: string
+          dia_del_mes: number
+          dias_para_vencer: number | null
+          forma_pago: string
+          hasta: string | null
+          id: string
+          local: string
+          monto: number
+          monto_variable: boolean
+          nombre: string
+          observaciones: string | null
+          proveedor_id: string | null
+          rubro: string
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          categoria: string
+          creado_por?: string | null
+          created_at?: string
+          desde: string
+          dia_del_mes: number
+          dias_para_vencer?: number | null
+          forma_pago: string
+          hasta?: string | null
+          id?: string
+          local: string
+          monto: number
+          monto_variable?: boolean
+          nombre: string
+          observaciones?: string | null
+          proveedor_id?: string | null
+          rubro: string
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          categoria?: string
+          creado_por?: string | null
+          created_at?: string
+          desde?: string
+          dia_del_mes?: number
+          dias_para_vencer?: number | null
+          forma_pago?: string
+          hasta?: string | null
+          id?: string
+          local?: string
+          monto?: number
+          monto_variable?: boolean
+          nombre?: string
+          observaciones?: string | null
+          proveedor_id?: string | null
+          rubro?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gastos_recurrentes_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_recurrentes_local_fkey"
+            columns: ["local"]
+            isOneToOne: false
+            referencedRelation: "locales_config"
+            referencedColumns: ["sucursal"]
+          },
+          {
+            foreignKeyName: "gastos_recurrentes_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
             referencedColumns: ["id"]
           },
         ]
@@ -6091,6 +6190,20 @@ export type Database = {
             referencedRelation: "proveedores"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "gastos_recurrente_fkey"
+            columns: ["recurrente_id"]
+            isOneToOne: false
+            referencedRelation: "gastos_recurrentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_recurrente_fkey"
+            columns: ["recurrente_id"]
+            isOneToOne: false
+            referencedRelation: "v_gastos_recurrentes"
+            referencedColumns: ["id"]
+          },
         ]
       }
       v_gastos_pagos: {
@@ -6139,6 +6252,56 @@ export type Database = {
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_gastos_recurrentes: {
+        Row: {
+          activo: boolean | null
+          categoria: string | null
+          creado_por: string | null
+          created_at: string | null
+          desde: string | null
+          dia_del_mes: number | null
+          dias_para_vencer: number | null
+          forma_pago: string | null
+          generados: number | null
+          hasta: string | null
+          id: string | null
+          local: string | null
+          monto: number | null
+          monto_variable: boolean | null
+          nombre: string | null
+          observaciones: string | null
+          proveedor_id: string | null
+          proveedor_nombre: string | null
+          proximo: string | null
+          rubro: string | null
+          ultimo_monto: number | null
+          ultimo_periodo: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gastos_recurrentes_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_recurrentes_local_fkey"
+            columns: ["local"]
+            isOneToOne: false
+            referencedRelation: "locales_config"
+            referencedColumns: ["sucursal"]
+          },
+          {
+            foreignKeyName: "gastos_recurrentes_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
             referencedColumns: ["id"]
           },
         ]
@@ -6345,8 +6508,13 @@ export type Database = {
         }[]
       }
       _compras_pesos_txt: { Args: { p: number }; Returns: string }
+      _gastos_dia_del_periodo: {
+        Args: { p_dia: number; p_mes: string }
+        Returns: string
+      }
       _gastos_fudo_puede: { Args: never; Returns: boolean }
       _gastos_norm: { Args: { p: string }; Returns: string }
+      _gastos_puede_sistema: { Args: never; Returns: boolean }
       _nomenclador_mensaje_constraint: {
         Args: { p_constraint: string }
         Returns: string
@@ -6769,6 +6937,7 @@ export type Database = {
         Args: { p_error?: string; p_local?: string; p_origen?: string }
         Returns: undefined
       }
+      gastos_generar_recurrentes: { Args: { p_hasta?: string }; Returns: Json }
       gastos_guardar: {
         Args: {
           p_categoria?: string
@@ -6858,6 +7027,33 @@ export type Database = {
       }
       gastos_quitar_adjunto: { Args: { p_id?: string }; Returns: string }
       gastos_recalcular_estado: { Args: { p_id: string }; Returns: string }
+      gastos_recurrente_activar: {
+        Args: { p_activo?: boolean; p_id?: string }
+        Returns: undefined
+      }
+      gastos_recurrente_eliminar: {
+        Args: { p_id?: string }
+        Returns: undefined
+      }
+      gastos_recurrente_guardar: {
+        Args: {
+          p_categoria?: string
+          p_desde?: string
+          p_dia_del_mes?: number
+          p_dias_para_vencer?: number
+          p_forma_pago?: string
+          p_hasta?: string
+          p_id?: string
+          p_local?: string
+          p_monto?: number
+          p_monto_variable?: boolean
+          p_nombre?: string
+          p_observaciones?: string
+          p_proveedor_id?: string
+          p_rubro?: string
+        }
+        Returns: string
+      }
       gastos_registrar_pago: {
         Args: {
           p_caja?: string

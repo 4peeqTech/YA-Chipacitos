@@ -3,7 +3,8 @@
 import {
   agruparPorLocal, armarGastos, armarPagos, atraso, bloqueoFactura, leerFiltrosPendientes, paramsDePendientes, diasDesde, filtrarPendientes, formInicial,
   hayCambios, hayFiltros, leerFiltros, leerResumen, mesDe, motivoNoEliminar, paramsDeFiltros,
-  pendienteDeFudo, pendienteDeGasto, validarGasto, type GastoFila, type PagoFila,
+  pendienteDeFudo, pendienteDeGasto, validarGasto, formRecurrenteInicial, textoDia, validarRecurrente,
+  type GastoFila, type PagoFila,
 } from './modelo'
 import { rutaComprobante } from './comprobante'
 
@@ -115,6 +116,32 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   },
   { nombre: 'Fudo: se guarda sin clasificar', real: validarGasto({ ...completo, rubro: '', categoria: '' }, false, true), esperado: null },
   { nombre: 'Fudo: con rubro pide categoría', real: validarGasto({ ...completo, categoria: '' }, false, true)?.campo, esperado: 'categoria' },
+  // Gastos que se repiten
+  {
+    nombre: 'recurrente: el título es el nombre de la plantilla',
+    real: (() => { const x = armarGastos([fila({ id: 'r1', origen: 'recurrente', recurrente_id: 'p1', periodo: '2026-10', a_confirmar: true, observaciones: 'Luz Córdoba\nmedidor 2', proveedor_nombre: 'EPEC' })])[0]; return `${x.titulo}|${x.subtitulo}|${x.recurrente?.aConfirmar}` })(),
+    esperado: 'Luz Córdoba|EPEC · HUEVOS|true',
+  },
+  { nombre: 'textoDia: el 31 es el último', real: textoDia(31), esperado: 'el último día de cada mes' },
+  { nombre: 'textoDia: el 30 avisa', real: textoDia(30), esperado: 'el 30 de cada mes (o el último, si el mes es más corto)' },
+  { nombre: 'textoDia: el 10', real: textoDia(10), esperado: 'el 10 de cada mes' },
+  { nombre: 'plantilla nueva: el día de hoy y desde hoy', real: `${formRecurrenteInicial(null, '2026-11-04', 'Transferencia').diaDelMes}|${formRecurrenteInicial(null, '2026-11-04').desde}`, esperado: '4|2026-11-04' },
+  { nombre: 'plantilla: pide nombre', real: validarRecurrente(formRecurrenteInicial(null, '2026-11-04', 'Transferencia'))?.campo, esperado: 'nombre' },
+  {
+    nombre: 'plantilla completa es válida',
+    real: validarRecurrente({ ...formRecurrenteInicial(null, '2026-11-04', 'Transferencia'), nombre: 'Alquiler', local: 'YA! GOYA', rubro: 'SERVICIOS Y ESTRUCTURA', categoria: 'ALQUILER', monto: 100 }),
+    esperado: null,
+  },
+  {
+    nombre: 'plantilla: fin antes del inicio',
+    real: validarRecurrente({ ...formRecurrenteInicial(null, '2026-11-04', 'Transferencia'), nombre: 'A', local: 'L', rubro: 'R', categoria: 'C', monto: 1, hasta: '2026-01-01' })?.campo,
+    esperado: 'hasta',
+  },
+  {
+    nombre: 'plantilla: día 0 inválido',
+    real: validarRecurrente({ ...formRecurrenteInicial(null, '2026-11-04', 'Transferencia'), nombre: 'A', local: 'L', rubro: 'R', categoria: 'C', monto: 1, diaDelMes: 0 })?.campo,
+    esperado: 'diaDelMes',
+  },
   // Atraso y filtros de Pendientes
   { nombre: 'atraso sin vencimiento: a los 30 días', real: atraso({ fecha: '2026-09-01', vencimiento: null, vencido: false }, '2026-10-05'), esperado: 'hace 34 días' },
   { nombre: 'atraso sin vencimiento: antes de 30, nada', real: atraso({ fecha: '2026-10-01', vencimiento: null, vencido: false }, '2026-10-05'), esperado: null },

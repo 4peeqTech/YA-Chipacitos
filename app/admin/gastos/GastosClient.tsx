@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   IconAlertTriangle, IconBuildingStore, IconCalendarStats, IconChevronLeft, IconChevronRight, IconClock, IconCoin,
-  IconPlus, IconReceipt, IconRefresh, IconWallet,
+  IconPlus, IconReceipt, IconRefresh, IconRepeat, IconWallet,
 } from '@tabler/icons-react'
+import Link from 'next/link'
 import PageHeader from '@/components/ui/PageHeader'
 import AyudaLink from '@/components/ui/AyudaLink'
 import Modal from '@/components/ui/Modal'
@@ -51,6 +52,7 @@ const ORIGENES: { value: OrigenGasto | ''; label: string }[] = [
   { value: 'manual', label: 'Cargados acá' },
   { value: 'factura', label: 'De facturas' },
   { value: 'fudo', label: 'De los locales (Fudo)' },
+  { value: 'recurrente', label: 'Que se repiten' },
 ]
 
 /** "hace 5 min", "hace 2 h", "hace 3 días". */
@@ -255,6 +257,7 @@ export default function GastosClient({
       render: g => (
         <span className="inline-flex flex-col items-end gap-0.5">
           <span className="whitespace-nowrap font-semibold tabular-nums text-text">{formatearMonedaExacta(g.monto)}</span>
+          {g.recurrente?.aConfirmar && <span className="whitespace-nowrap text-2xs font-semibold text-warning">monto a confirmar</span>}
           {/* En el celular el estado va debajo del monto. */}
           <span className="md:hidden"><EstadoBadge dominio="gastos" estado={g.estado} /></span>
         </span>
@@ -282,6 +285,12 @@ export default function GastosClient({
         acciones={
           <>
             <AyudaLink seccion="admin" ancla="gastos" />
+            <Link
+              href="/admin/gastos/recurrentes"
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2"
+            >
+              <IconRepeat size={16} aria-hidden /> Que se repiten
+            </Link>
             <button
               type="button"
               onClick={() => abrir('nuevo')}

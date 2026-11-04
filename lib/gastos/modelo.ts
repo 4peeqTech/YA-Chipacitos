@@ -24,6 +24,8 @@ export interface GastoVista {
   subtitulo: string
   /** Los datos que manda Fudo, si vino de ahí. */
   fudo: { descripcion: string | null; categoria: string | null; proveedor: string | null; revisar: boolean } | null
+  /** Generado por un gasto que se repite: su plantilla y si el monto está por confirmar. */
+  recurrente: { id: string; periodo: string | null; aConfirmar: boolean } | null
   fecha: string
   local: string
   rubro: string
@@ -65,10 +67,81 @@ function titulos(g: GastoFila, fudo: GastoVista['fudo']): { titulo: string; subt
     const deFudo = [fudo.proveedor, fudo.categoria].filter(v => v && v !== titulo).join(' · ')
     return { titulo, subtitulo: [g.categoria ?? 'Sin clasificar', deFudo].filter(Boolean).join(' · ') }
   }
+  // Uno que se repite: la primera línea de las observaciones es el nombre de la plantilla.
+  const nombrePlantilla = g.origen === 'recurrente' ? (g.observaciones ?? '').split('\n')[0].trim() : ''
+  if (nombrePlantilla) {
+    return { titulo: nombrePlantilla, subtitulo: [g.proveedor_nombre, g.categoria].filter(Boolean).join(' · ') }
+  }
   return {
     titulo: g.proveedor_nombre ?? g.categoria ?? '—',
     subtitulo: (g.proveedor_nombre ? g.categoria : g.rubro) ?? '',
   }
+}
+
+// ---------------------------------------------------------------------------
+// Gastos que se repiten (plantillas).
+// ---------------------------------------------------------------------------
+
+export type RecurrenteFila = Database['public']['Views']['v_gastos_recurrentes']['Row']
+
+export interface FormRecurrente {
+  nombre: string
+  local: string
+  rubro: string
+  categoria: string
+  proveedorId: string
+  monto: number | null
+  montoVariable: boolean
+  formaPago: string
+  diaDelMes: number | null
+  /** null = sin vencimiento. */
+  diasParaVencer: number | null
+  desde: string
+  /** '' = sin fin. */
+  hasta: string
+  observaciones: string
+}
+
+export function formRecurrenteInicial(r: RecurrenteFila | null, hoy: string, formaPago = ''): FormRecurrente {
+  if (r) {
+    return {
+      nombre: r.nombre ?? '', local: r.local ?? '', rubro: r.rubro ?? '', categoria: r.categoria ?? '',
+      proveedorId: r.proveedor_id ?? '', monto: r.monto == null ? null : Number(r.monto), montoVariable: r.monto_variable ?? false,
+      formaPago: r.forma_pago ?? '', diaDelMes: r.dia_del_mes, diasParaVencer: r.dias_para_vencer,
+      desde: r.desde ?? hoy, hasta: r.hasta ?? '', observaciones: r.observaciones ?? '',
+    }
+  }
+  return {
+    nombre: '', local: '', rubro: '', categoria: '', proveedorId: '', monto: null, montoVariable: false, formaPago,
+    diaDelMes: Number(hoy.slice(8, 10)) || 1, diasParaVencer: null, desde: hoy, hasta: '', observaciones: '',
+  }
+}
+
+export type CampoRecurrente = keyof FormRecurrente
+
+export function validarRecurrente(f: FormRecurrente): { campo: CampoRecurrente; mensaje: string } | null {
+  if (!f.nombre.trim()) return { campo: 'nombre', mensaje: 'Poné un nombre, por ejemplo "Alquiler San Lorenzo".' }
+  if (!f.local) return { campo: 'local', mensaje: 'Elegí el local.' }
+  if (!f.rubro) return { campo: 'rubro', mensaje: 'Elegí el rubro.' }
+  if (!f.categoria) return { campo: 'categoria', mensaje: 'Elegí la categoría.' }
+  if (f.monto == null || f.monto <= 0) return { campo: 'monto', mensaje: 'Cargá el monto: tiene que ser mayor a $ 0.' }
+  if (!f.formaPago) return { campo: 'formaPago', mensaje: 'Elegí la forma de pago.' }
+  if (f.diaDelMes == null || f.diaDelMes < 1 || f.diaDelMes > 31 || !Number.isInteger(f.diaDelMes)) {
+    return { campo: 'diaDelMes', mensaje: 'El día del mes va del 1 al 31.' }
+  }
+  if (f.diasParaVencer != null && (f.diasParaVencer < 0 || f.diasParaVencer > 120 || !Number.isInteger(f.diasParaVencer))) {
+    return { campo: 'diasParaVencer', mensaje: 'Los días para vencer van de 0 a 120.' }
+  }
+  if (!f.desde) return { campo: 'desde', mensaje: 'Elegí desde cuándo se repite.' }
+  if (f.hasta && f.hasta < f.desde) return { campo: 'hasta', mensaje: 'La fecha de fin no puede ser antes del inicio.' }
+  return null
+}
+
+/** "el 10 de cada mes", "el último día de cada mes" (el 31). */
+export function textoDia(dia: number | null): string {
+  if (!dia) return '—'
+  if (dia >= 31) return 'el último día de cada mes'
+  return dia > 28 ? `el ${dia} de cada mes (o el último, si el mes es más corto)` : `el ${dia} de cada mes`
 }
 
 /** `pedidoDeFactura` (factura → pedido) sirve para linkear el pedido; v_gastos solo trae su número. */
@@ -85,6 +158,7 @@ export function armarGastos(filas: GastoFila[], pedidoDeFactura: Record<string, 
       id: g.id,
       ...titulos(g, fudo),
       fudo,
+      recurrente: g.recurrente_id ? { id: g.recurrente_id, periodo: g.periodo, aConfirmar: g.a_confirmar ?? false } : null,
       fecha: g.fecha ?? '',
       local: g.local ?? '—',
       rubro: g.rubro ?? '',

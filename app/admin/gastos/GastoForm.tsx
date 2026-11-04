@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
   IconAlertTriangle, IconBuildingStore, IconCircleCheck, IconCircleX, IconDeviceFloppy, IconFileText, IconLock,
-  IconPaperclip, IconReceipt, IconTrash, IconWallet, IconX,
+  IconPaperclip, IconReceipt, IconRepeat, IconTrash, IconWallet, IconX,
 } from '@tabler/icons-react'
+import Link from 'next/link'
 import LinkEntidad from '@/components/ui/LinkEntidad'
 import DatePicker from '@/components/ui/DatePicker'
 import InputNumero from '@/components/ui/InputNumero'
@@ -276,6 +277,8 @@ export default function GastoForm({
   const marca = (c: CampoGasto) => (intento && problema?.campo === c ? 'border-brand-red' : '')
   const categorias = categoriasDe(form.rubro)
   const conCambios = hayCambios(form, inicial)
+  // Guardar (aunque sea sin cambios) confirma el monto de uno que se repite.
+  const porConfirmar = gasto?.recurrente?.aConfirmar === true
 
   // Pagos y adjuntos: se vuelven a pedir cuando cambian los totales del gasto
   // (las acciones llaman a refresh() y el gasto llega actualizado).
@@ -387,7 +390,7 @@ export default function GastoForm({
       }
       toast.success(esNuevo
         ? (form.yaPagado ? 'Gasto cargado y pagado' : 'Gasto cargado · queda pendiente de pago')
-        : 'Cambios guardados')
+        : porConfirmar && !conCambios ? 'Monto confirmado' : 'Cambios guardados')
       if (esNuevo && enEspera.length) {
         const fallas = await subirAdjuntos(r.data, enEspera)
         if (fallas) toast.error(`El gasto se guardó, pero ${fallas} archivo${fallas > 1 ? 's no se pudieron' : ' no se pudo'} subir. Abrilo y adjuntalo de nuevo.`)
@@ -421,7 +424,9 @@ export default function GastoForm({
     if (motivo) { toast.error(motivo); return }
     confirmar({
       titulo: 'Eliminar gasto',
-      mensaje: `Se borra el gasto de ${formatearMonedaExacta(gasto.monto)} (${gasto.local}, ${formatearFecha(gasto.fecha)}). No se puede deshacer.`,
+      mensaje: gasto.recurrente
+        ? `El gasto de ${formatearMonedaExacta(gasto.monto)} de este mes queda anulado: no suma y no se vuelve a generar. Los meses que vienen siguen.`
+        : `Se borra el gasto de ${formatearMonedaExacta(gasto.monto)} (${gasto.local}, ${formatearFecha(gasto.fecha)}). No se puede deshacer.`,
       textoConfirmar: 'Eliminar',
       peligroso: true,
       onConfirmar: () => startTransition(async () => {
@@ -460,6 +465,23 @@ export default function GastoForm({
           {errorDetalle}
           <button type="button" onClick={() => void cargarDetalle()} className={botonTexto}>Reintentar</button>
         </p>
+      )}
+
+      {gasto?.recurrente && (
+        <div className="space-y-1 rounded-xl border border-border px-4 py-3 text-sm">
+          <p className="flex flex-wrap items-center gap-x-2 font-medium text-text">
+            <IconRepeat size={16} className="shrink-0 text-accent-fg" aria-hidden />
+            Se repite cada mes
+            {gasto.recurrente.periodo && <span className="font-normal text-muted">· {gasto.recurrente.periodo.split('-').reverse().join('/')}</span>}
+            <Link href="/admin/gastos/recurrentes" className="font-normal text-muted underline decoration-accent decoration-2 underline-offset-4">ver la plantilla</Link>
+          </p>
+          {gasto.recurrente.aConfirmar && (
+            <p className="flex items-start gap-1.5 text-xs font-semibold text-warning">
+              <IconAlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden />
+              El monto se copió del mes anterior: confirmalo o corregilo cuando llegue la factura.
+            </p>
+          )}
+        </div>
       )}
 
       {gasto?.fudo && (
@@ -727,9 +749,9 @@ export default function GastoForm({
           <button type="button" onClick={onCancelar} disabled={ocupado} className={botonSecundario}>
             {esNuevo || conCambios ? 'Cancelar' : 'Cerrar'}
           </button>
-          <button type="button" onClick={guardar} disabled={ocupado || (!esNuevo && !conCambios)} className={botonPrimario}>
-            {ocupado ? <Puntos /> : esNuevo ? <IconCircleCheck size={16} aria-hidden /> : <IconDeviceFloppy size={16} aria-hidden />}
-            {esNuevo ? 'Guardar gasto' : 'Guardar cambios'}
+          <button type="button" onClick={guardar} disabled={ocupado || (!esNuevo && !conCambios && !porConfirmar)} className={botonPrimario}>
+            {ocupado ? <Puntos /> : esNuevo || porConfirmar ? <IconCircleCheck size={16} aria-hidden /> : <IconDeviceFloppy size={16} aria-hidden />}
+            {esNuevo ? 'Guardar gasto' : porConfirmar && !conCambios ? 'Confirmar monto' : 'Guardar cambios'}
           </button>
         </div>
       </div>

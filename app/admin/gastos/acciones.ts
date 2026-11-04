@@ -263,3 +263,83 @@ export async function deshacerPagoFudo(id: string): Promise<Resultado<null>> {
     return fallo(e, 'No se pudo deshacer el pago.')
   }
 }
+
+// ---------------------------------------------------------------------------
+// Gastos que se repiten (plantillas).
+// ---------------------------------------------------------------------------
+
+const Recurrente = z.object({
+  id: z.uuid().nullable(),
+  nombre: Texto.max(120),
+  local: Texto,
+  rubro: Texto,
+  categoria: Texto,
+  proveedorId: z.uuid().nullable(),
+  monto: z.number().positive(),
+  montoVariable: z.boolean(),
+  formaPago: Texto,
+  diaDelMes: z.number().int().min(1).max(31),
+  diasParaVencer: z.number().int().min(0).max(120).nullable(),
+  desde: z.iso.date(),
+  hasta: z.iso.date().nullable(),
+  observaciones: z.string().max(500).nullable(),
+})
+
+export async function guardarRecurrente(entrada: z.input<typeof Recurrente>): Promise<Resultado<string>> {
+  const p = Recurrente.safeParse(entrada)
+  if (!p.success) return fallo(null, 'Revisá el gasto que se repite: faltan datos o hay alguno inválido.')
+  const d = p.data
+  try {
+    const supabase = await createClientTipado()
+    const { data, error } = await supabase.rpc('gastos_recurrente_guardar', {
+      p_id: d.id ?? undefined,
+      p_nombre: d.nombre,
+      p_local: d.local,
+      p_rubro: d.rubro,
+      p_categoria: d.categoria,
+      p_proveedor_id: d.proveedorId ?? undefined,
+      p_monto: d.monto,
+      p_monto_variable: d.montoVariable,
+      p_forma_pago: d.formaPago,
+      p_dia_del_mes: d.diaDelMes,
+      p_dias_para_vencer: d.diasParaVencer ?? undefined,
+      p_desde: d.desde,
+      p_hasta: d.hasta ?? undefined,
+      p_observaciones: d.observaciones?.trim() || undefined,
+    })
+    if (error) { refresh(); return fallo(error, 'No se pudo guardar el gasto que se repite.') }
+    // Genera ya lo que corresponda (por ejemplo, el de este mes si el día ya pasó).
+    await supabase.rpc('gastos_generar_recurrentes', {})
+    refresh()
+    return ok(data)
+  } catch (e) {
+    return fallo(e, 'No se pudo guardar el gasto que se repite.')
+  }
+}
+
+export async function activarRecurrente(id: string, activo: boolean): Promise<Resultado<null>> {
+  if (!z.uuid().safeParse(id).success) return fallo(null, 'No encontramos ese gasto que se repite. Recargá la página.')
+  try {
+    const supabase = await createClientTipado()
+    const { error } = await supabase.rpc('gastos_recurrente_activar', { p_id: id, p_activo: activo })
+    if (!error && activo) await supabase.rpc('gastos_generar_recurrentes', {})
+    refresh()
+    if (error) return fallo(error, activo ? 'No se pudo reactivar.' : 'No se pudo pausar.')
+    return ok(null)
+  } catch (e) {
+    return fallo(e, activo ? 'No se pudo reactivar.' : 'No se pudo pausar.')
+  }
+}
+
+export async function eliminarRecurrente(id: string): Promise<Resultado<null>> {
+  if (!z.uuid().safeParse(id).success) return fallo(null, 'No encontramos ese gasto que se repite. Recargá la página.')
+  try {
+    const supabase = await createClientTipado()
+    const { error } = await supabase.rpc('gastos_recurrente_eliminar', { p_id: id })
+    refresh()
+    if (error) return fallo(error, 'No se pudo eliminar.')
+    return ok(null)
+  } catch (e) {
+    return fallo(e, 'No se pudo eliminar.')
+  }
+}

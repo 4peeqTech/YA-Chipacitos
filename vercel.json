@@ -14,7 +14,7 @@
       "schedule": "0 10 * * *"
     },
     {
-      "path": "/api/cron/gastos-fudo",
+      "path": "/api/cron/gastos",
       "schedule": "0 9 * * *"
     }
   ]
