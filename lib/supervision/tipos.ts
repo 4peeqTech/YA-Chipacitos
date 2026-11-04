@@ -6,6 +6,8 @@ export type Resultado = 'C' | 'NC' | 'NA'
 export interface Respuesta {
   r?: Resultado | null
   obs?: string
+  /** No cumple puesto al cerrar la visita porque el ítem quedó sin responder. */
+  auto?: boolean
 }
 
 /** { idItem: { r, obs } } — los IDs son los del catálogo (p1, l1, …). */
@@ -40,6 +42,8 @@ export interface ResumenVisita {
   noCumple: number
   na: number
   sinResp: number
+  /** De los No cumple, cuántos se marcaron solos al cerrar (sin responder). */
+  sinResponder?: number
   bloques: Record<string, number | null>
 }
 

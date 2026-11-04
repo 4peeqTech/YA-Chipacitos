@@ -1,3 +1,4 @@
+import { IconEqual, IconTrendingDown, IconTrendingUp } from '@tabler/icons-react'
 import { nivelCumplimiento, textoPct } from '@/lib/supervision/calculos'
 import { COLOR_NIVEL } from '@/lib/supervision/formato'
 
@@ -22,6 +23,20 @@ export function BarraCumplimiento({ titulo, pct }: { titulo: string; pct: number
         <div className={`h-full rounded-full ${nivel ? COLOR_NIVEL[nivel].fondo : ''}`} style={{ width: `${pct ?? 0}%` }} />
       </div>
     </div>
+  )
+}
+
+/** Diferencia en puntos contra la visita anterior: ↑ verde, ↓ rojo, = gris. */
+export function Tendencia({ dif, className = '' }: { dif: number | null; className?: string }) {
+  if (dif == null) return null
+  const Icono = dif > 0 ? IconTrendingUp : dif < 0 ? IconTrendingDown : IconEqual
+  const color = dif > 0 ? 'text-success' : dif < 0 ? 'text-brand-red' : 'text-muted'
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-bold tabular-nums ${color} ${className}`}
+      title="Diferencia con la visita anterior de la sucursal">
+      <Icono size={14} aria-hidden />{dif > 0 ? `+${dif}` : dif < 0 ? `−${-dif}` : '='}
+      <span className="sr-only"> puntos contra la visita anterior</span>
+    </span>
   )
 }
 

@@ -1,143 +1,224 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { IconAlertTriangle, IconChartBar, IconClipboardCheck, IconDownload, IconPercentage } from '@tabler/icons-react'
+import Link from 'next/link'
+import {
+  IconAlertTriangle, IconCalendar, IconCalendarOff, IconChartBar, IconClipboardCheck, IconDownload, IconPercentage,
+} from '@tabler/icons-react'
 import EmptyState from '@/components/ui/EmptyState'
 import KpiCard from '@/components/ui/KpiCard'
-import SelectBuscador from '@/components/ui/SelectBuscador'
-import { aCsv, analizar, filasCsv, nivelCumplimiento, textoPct } from '@/lib/supervision/calculos'
-import { COLOR_NIVEL, fechaCorta, fechaHora } from '@/lib/supervision/formato'
+import Modal from '@/components/ui/Modal'
+import {
+  PERIODOS, aCsv, analizar, diferenciaPuntos, filasCsv, filtrarVisitas, nivelCumplimiento, rangoAnterior, rangoPeriodo,
+  sinVisitarDesde, textoPct, type NivelCumplimiento, type Periodo,
+} from '@/lib/supervision/calculos'
+import { fechaHora } from '@/lib/supervision/formato'
 import type { BloqueSupervision, SucursalSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
-import { opcionesSucursal } from './ListaVisitas'
-import { BarraCumplimiento, Tarjeta } from './ui'
+import { ChipFiltro, OPCIONES_NIVEL } from './Filtros'
+import { Tarjeta } from './ui'
 
 interface Props {
   sucursales: SucursalSupervision[]
   bloques: BloqueSupervision[]
   visitas: VisitaSupervision[]
+  ahora: number
 }
 
-const EJE = { fill: '#888', fontSize: 11 }
-const colorPct = (p: number | null) => (p == null ? '#444' : COLOR_NIVEL[nivelCumplimiento(p)!].hex)
+const INICIAL = { periodo: '90d' as Periodo, zona: 'todas', supervisor: 'todos', bloque: 'todos', nivel: 'todos' }
 
-export default function AnalisisSupervision({ sucursales, bloques, visitas }: Props) {
-  const [filtro, setFiltro] = useState('todas')
-  const nombre = (id: string) => sucursales.find(s => s.id === id)?.nombre ?? id
-  const a = useMemo(() => analizar(visitas, bloques, filtro), [visitas, bloques, filtro])
+// Celdas del mapa: fondo suave y número en el color del nivel.
+const CELDA: Record<NivelCumplimiento, string> = {
+  alto: 'bg-success/20 text-success',
+  medio: 'bg-accent/20 text-accent',
+  bajo: 'bg-brand-red/20 text-brand-red',
+}
+
+/** "Stock, depósito y cadena de frío" → "Stock". */
+const corto = (titulo: string) => titulo.split(' ')[0].replace(/[,.]$/, '')
+
+export default function AnalisisSupervision({ sucursales, bloques, visitas, ahora }: Props) {
+  const [f, setF] = useState(INICIAL)
+  const [celda, setCelda] = useState<{ visita: VisitaSupervision; bloque: BloqueSupervision; sucursal: string } | null>(null)
+  const cambiar = (k: keyof typeof INICIAL) => (v: string) => setF(prev => ({ ...prev, [k]: v }))
+
+  const zonas = useMemo(() => [...new Set(sucursales.map(s => s.zona))], [sucursales])
+  const supervisores = useMemo(() => [...new Set(visitas.map(v => v.supervisor_nombre))].sort((a, b) => a.localeCompare(b, 'es')), [visitas])
+  const sucursalesZona = useMemo(() => sucursales.filter(s => f.zona === 'todas' || s.zona === f.zona), [sucursales, f.zona])
   const textoItem = useMemo(() => new Map(bloques.flatMap(b => b.items.map(i => [i.id, { texto: i.texto, bloque: b.titulo }]))), [bloques])
-  const hayCerradas = visitas.some(v => v.estado === 'cerrada')
+  const columnas = f.bloque === 'todos' ? bloques : bloques.filter(b => b.id === f.bloque)
 
-  const porSucursal = sucursales
-    .map(s => { const v = a.ultimas.find(u => u.sucursal_id === s.id); return v ? { nombre: s.nombre, pct: a.resumenes.get(v.id)!.pct } : null })
-    .filter((x): x is { nombre: string; pct: number | null } => !!x)
-  const evolucion = a.cerradas.map(v => ({ fecha: fechaCorta(v.fecha), pct: a.resumenes.get(v.id)?.pct ?? null }))
+  const rango = rangoPeriodo(f.periodo, ahora)
+  const filtrar = (r: typeof rango) => filtrarVisitas(visitas, { rango: r, zona: f.zona, supervisor: f.supervisor }, sucursales, bloques)
+  const enPeriodo = filtrar(rango)
+  const opciones = { bloqueId: f.bloque === 'todos' ? undefined : f.bloque, nivel: f.nivel as 'todos' | NivelCumplimiento }
+  const a = analizar(enPeriodo, bloques, sucursalesZona, opciones)
+  const rAnt = rangoAnterior(rango, ahora)
+  const promedioAnterior = rAnt ? analizar(filtrar(rAnt), bloques, sucursalesZona, opciones).promedio : null
+  const difPromedio = diferenciaPuntos(a.promedio, promedioAnterior)
+  const sinVisitar = sinVisitarDesde(visitas, sucursalesZona, ahora)
+  const nombres = (ss: SucursalSupervision[]) => ss.map(s => s.nombre).join(', ')
 
   function descargar() {
-    const lista = visitas.filter(v => filtro === 'todas' || v.sucursal_id === filtro)
-    const blob = new Blob([aCsv(filasCsv(lista, bloques, nombre, fechaHora))], { type: 'text/csv;charset=utf-8' })
+    const nombre = (id: string) => sucursales.find(s => s.id === id)?.nombre ?? id
+    const blob = new Blob([aCsv(filasCsv(enPeriodo, bloques, nombre, fechaHora))], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `supervision-locales-${new Date().toISOString().slice(0, 10)}.csv`
+    link.download = `supervision-locales-${new Date(ahora).toISOString().slice(0, 10)}.csv`
     document.body.appendChild(link)
     link.click()
     link.remove()
     setTimeout(() => URL.revokeObjectURL(url), 2000)
   }
 
+  const hayFiltros = JSON.stringify(f) !== JSON.stringify(INICIAL)
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <SelectBuscador value={filtro} onChange={v => setFiltro(v || 'todas')} opciones={opcionesSucursal(sucursales)}
-          placeholder="Sucursal" className="min-w-0 flex-1 sm:max-w-xs" />
-        {hayCerradas && (
-          <button type="button" onClick={descargar}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium text-text hover:border-accent hover:text-accent">
-            <IconDownload size={16} aria-hidden /> CSV
-          </button>
+        <ChipFiltro nombre="Período" valor={f.periodo} porDefecto="90d" mostrarValor icono={IconCalendar}
+          opciones={PERIODOS.map(p => ({ valor: p.valor, texto: p.texto }))} onChange={cambiar('periodo')} />
+        <ChipFiltro nombre="Zona" valor={f.zona} porDefecto="todas"
+          opciones={[{ valor: 'todas', texto: 'Todas las zonas' }, ...zonas.map(z => ({ valor: z, texto: z }))]} onChange={cambiar('zona')} />
+        {supervisores.length > 1 && (
+          <ChipFiltro nombre="Supervisor" valor={f.supervisor} porDefecto="todos"
+            opciones={[{ valor: 'todos', texto: 'Todos' }, ...supervisores.map(s => ({ valor: s, texto: s }))]} onChange={cambiar('supervisor')} />
         )}
+        <ChipFiltro nombre="Bloque" valor={f.bloque} porDefecto="todos"
+          opciones={[{ valor: 'todos', texto: 'Todos los bloques' }, ...bloques.map(b => ({ valor: b.id, texto: b.titulo }))]} onChange={cambiar('bloque')} />
+        <ChipFiltro nombre="Nivel" valor={f.nivel} porDefecto="todos" opciones={OPCIONES_NIVEL} onChange={cambiar('nivel')} />
+        {hayFiltros && <button type="button" onClick={() => setF(INICIAL)} className="px-1 text-xs font-semibold text-accent hover:underline">Limpiar</button>}
+        <button type="button" onClick={descargar} disabled={enPeriodo.length === 0}
+          className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-semibold text-text hover:border-accent hover:text-accent disabled:opacity-40">
+          <IconDownload size={14} aria-hidden /> CSV
+        </button>
       </div>
-      <p className="text-xs text-muted">Se toma la última visita cerrada de cada sucursal, salvo en la evolución y en los ítems más incumplidos, que cuentan todas.</p>
 
-      {!hayCerradas ? (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard icon={<IconClipboardCheck size={20} />} label="Visitas cerradas" value={String(a.cerradas.length)}
+          detalle={`${a.ultimas.length} sucursal${a.ultimas.length === 1 ? '' : 'es'} visitada${a.ultimas.length === 1 ? '' : 's'}`} />
+        <KpiCard icon={<IconPercentage size={20} />} label="Cumplimiento promedio" value={textoPct(a.promedio)}
+          tono={a.promedio == null ? 'neutro' : a.promedio >= 85 ? 'exito' : a.promedio >= 65 ? 'neutro' : 'peligro'}
+          detalle={difPromedio == null ? 'Última visita de cada sucursal' : `${difPromedio > 0 ? '+' : difPromedio < 0 ? '−' : ''}${Math.abs(difPromedio)} pts vs. período anterior`} />
+        <KpiCard icon={<IconAlertTriangle size={20} />} label="Sucursales en rojo" value={String(a.enRojo.length)}
+          tono={a.enRojo.length ? 'peligro' : 'exito'} detalle={a.enRojo.length ? nombres(a.enRojo) : 'Ninguna por debajo de 65 %'} />
+        <KpiCard icon={<IconCalendarOff size={20} />} label="Sin visitar en 30 días" value={String(sinVisitar.length)}
+          tono={sinVisitar.length ? 'alerta' : 'exito'} detalle={sinVisitar.length ? nombres(sinVisitar) : 'Todas visitadas'} />
+      </div>
+
+      {a.cerradas.length === 0 ? (
         <div className="rounded-card border border-dashed border-border">
-          <EmptyState icono={IconChartBar} titulo="Todavía no hay visitas cerradas para analizar" />
+          <EmptyState icono={IconChartBar} titulo={hayFiltros ? 'No hay visitas cerradas con estos filtros' : 'Todavía no hay visitas cerradas para analizar'} />
         </div>
       ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <KpiCard icon={<IconClipboardCheck size={20} />} label="Visitas cerradas" value={String(a.cerradas.length)} />
-            <KpiCard icon={<IconPercentage size={20} />} label={filtro === 'todas' ? 'Cumplimiento promedio' : 'Última visita'}
-              value={textoPct(a.promedio)}
-              tono={a.promedio == null ? 'neutro' : a.promedio >= 85 ? 'exito' : a.promedio >= 65 ? 'neutro' : 'peligro'} />
-            <KpiCard icon={<IconAlertTriangle size={20} />} label="Ítems sin cumplir hoy" value={String(a.noCumplenHoy)}
-              tono={a.noCumplenHoy ? 'peligro' : 'exito'} />
-          </div>
-
-          {filtro === 'todas' ? (
-            <Tarjeta titulo="Cumplimiento por sucursal" descripcion="Última visita cerrada de cada una.">
-              <ResponsiveContainer width="100%" height={Math.max(160, porSucursal.length * 38)}>
-                <BarChart data={porSucursal} layout="vertical" margin={{ left: 4, right: 16 }}>
-                  <CartesianGrid horizontal={false} stroke="#2a2a2a" />
-                  <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={EJE} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="nombre" width={110} tick={{ fill: '#ccc', fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{ fill: 'rgba(232,197,71,.08)' }} formatter={v => [`${v}%`, 'Cumplimiento']}
-                    contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 12, fontSize: 12 }} />
-                  <Bar dataKey="pct" radius={[0, 4, 4, 0]} maxBarSize={22}>
-                    {porSucursal.map(r => <Cell key={r.nombre} fill={colorPct(r.pct)} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Tarjeta>
-          ) : a.cerradas.length > 0 && (
-            <Tarjeta titulo={`Evolución de ${nombre(filtro)}`} descripcion="Cumplimiento de cada visita cerrada.">
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={evolucion} margin={{ left: -12, right: 16, top: 8 }}>
-                  <CartesianGrid vertical={false} stroke="#2a2a2a" />
-                  <XAxis dataKey="fecha" tick={EJE} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={EJE} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={v => [`${v}%`, 'Cumplimiento']}
-                    contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 12, fontSize: 12 }} />
-                  <Line type="monotone" dataKey="pct" stroke="#e8c547" strokeWidth={2} dot={{ r: 4, fill: '#e8c547' }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </Tarjeta>
-          )}
-
-          {a.cerradas.length === 0 ? (
-            <div className="rounded-card border border-dashed border-border">
-              <EmptyState icono={IconChartBar} titulo="Esta sucursal no tiene visitas cerradas" />
-            </div>
-          ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
-              <Tarjeta titulo="Cumplimiento por bloque" descripcion={filtro === 'todas' ? 'Promedio entre sucursales.' : 'Última visita.'}>
-                <div className="space-y-3">
-                  {a.porBloque.map(({ bloque, pct }) => <BarraCumplimiento key={bloque.id} titulo={bloque.titulo} pct={pct} />)}
-                </div>
-              </Tarjeta>
-
-              <Tarjeta titulo="Ítems que más se incumplen" descripcion="Cantidad de visitas en que se marcaron “No cumple”.">
-                {a.top.length === 0 ? (
-                  <p className="text-sm text-muted">Sin incumplimientos registrados.</p>
-                ) : (
-                  <ol className="space-y-2.5">
-                    {a.top.map(({ itemId, veces }, i) => (
-                      <li key={itemId} className="flex gap-3">
-                        <span className="w-5 shrink-0 text-right font-['Syne'] text-sm font-bold text-faint">{i + 1}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm text-text">{textoItem.get(itemId)?.texto}</p>
-                          <p className="text-xs text-muted">{textoItem.get(itemId)?.bloque} · {veces} {veces === 1 ? 'visita' : 'visitas'}</p>
-                        </div>
-                      </li>
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <Tarjeta titulo="Sucursal × bloque" descripcion="Última visita cerrada de cada sucursal. Tocá una celda para ver los ítems.">
+            <div className="-mx-4 overflow-x-auto px-4">
+              <table className="w-full border-separate border-spacing-[3px] text-xs">
+                <thead>
+                  <tr>
+                    <th className="sticky left-0 z-10 bg-surface" />
+                    {columnas.map(b => (
+                      <th key={b.id} title={b.titulo} className="h-24 min-w-[34px] px-0 pb-1 align-bottom font-semibold text-muted">
+                        <span className="inline-block -rotate-180 whitespace-nowrap [writing-mode:vertical-rl]">{columnas.length === 1 ? b.titulo : corto(b.titulo)}</span>
+                      </th>
                     ))}
-                  </ol>
-                )}
-              </Tarjeta>
+                    <th className="h-24 min-w-[38px] px-0 pb-1 align-bottom font-semibold text-text">
+                      <span className="inline-block -rotate-180 [writing-mode:vertical-rl]">Total</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {a.mapa.map(({ sucursal, visita, bloques: pcts, total }) => (
+                    <tr key={sucursal.id}>
+                      <th scope="row" className="sticky left-0 z-10 max-w-[120px] truncate bg-surface pr-2 text-left font-semibold text-text sm:max-w-none">
+                        {visita
+                          ? <Link href={`/admin/supervision/${visita.id}`} className="hover:text-accent">{sucursal.nombre}</Link>
+                          : sucursal.nombre}
+                      </th>
+                      {!visita ? (
+                        <td colSpan={columnas.length + 1} className="h-8 pl-1.5 text-faint">Sin visitas cerradas en el período</td>
+                      ) : (
+                        <>
+                          {columnas.map(b => {
+                            const p = pcts[b.id] ?? null
+                            const nivel = nivelCumplimiento(p)
+                            return (
+                              <td key={b.id} className="p-0">
+                                <button type="button" onClick={() => setCelda({ visita, bloque: b, sucursal: sucursal.nombre })}
+                                  aria-label={`${sucursal.nombre}, ${b.titulo}: ${textoPct(p)}`}
+                                  className={`h-8 w-full min-w-[34px] rounded-md font-bold tabular-nums transition-opacity hover:opacity-80 ${nivel ? CELDA[nivel] : 'bg-surface2 text-faint'}`}>
+                                  {p == null ? '–' : Math.round(p)}
+                                </button>
+                              </td>
+                            )
+                          })}
+                          <td className={`h-8 min-w-[38px] rounded-md text-center font-bold tabular-nums ring-1 ring-inset ring-border ${(() => { const n = nivelCumplimiento(total); return n ? CELDA[n] : 'text-faint' })()}`}>
+                            {total == null ? '–' : Math.round(total)}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-        </>
+          </Tarjeta>
+
+          <Tarjeta titulo="Lo que más se incumple" descripcion="Visitas con “No cumple” en el período (sin contar los no respondidos).">
+            {a.top.length === 0 ? (
+              <p className="text-sm text-muted">Sin incumplimientos registrados.</p>
+            ) : (
+              <ol className="divide-y divide-border">
+                {a.top.map(({ itemId, veces, sucursales: n }, i) => (
+                  <li key={itemId} className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
+                    <span className="w-5 shrink-0 text-right font-['Syne'] text-sm font-bold text-faint">{i + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-text">{textoItem.get(itemId)?.texto}</p>
+                      <p className="text-xs text-muted">
+                        {corto(textoItem.get(itemId)?.bloque ?? '')} · {veces} {veces === 1 ? 'visita' : 'visitas'} · {n} {n === 1 ? 'sucursal' : 'sucursales'}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Tarjeta>
+        </div>
       )}
+
+      <Modal open={!!celda} onClose={() => setCelda(null)} title={celda ? `${celda.sucursal} · ${celda.bloque.titulo}` : ''} size="lg">
+        {celda && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted">Visita del {fechaHora(celda.visita.fecha)} · {celda.visita.supervisor_nombre}</p>
+            <ul className="divide-y divide-border">
+              {celda.bloque.items.map(it => {
+                const r = celda.visita.respuestas[it.id]
+                return (
+                  <li key={it.id} className="flex items-start gap-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-text">{it.texto}</p>
+                      {r?.obs && <p className="mt-1 border-l-2 border-brand-red/60 pl-2 text-xs text-muted">{r.obs}</p>}
+                    </div>
+                    <Resultado r={r?.r ?? null} auto={!!r?.auto} />
+                  </li>
+                )
+              })}
+            </ul>
+            <Link href={`/admin/supervision/${celda.visita.id}`} className="inline-block text-sm font-semibold text-accent hover:underline">
+              Ver la visita completa
+            </Link>
+          </div>
+        )}
+      </Modal>
     </div>
   )
+}
+
+export function Resultado({ r, auto }: { r: string | null; auto?: boolean }) {
+  const [texto, clase] = r === 'C' ? ['Cumple', 'bg-green-bg text-success']
+    : r === 'NC' ? [auto ? 'Sin responder' : 'No cumple', auto ? 'bg-warning-bg text-warning' : 'bg-danger-bg text-brand-red']
+    : r === 'NA' ? ['N/A', 'bg-surface2 text-muted']
+    : ['–', 'bg-surface2 text-faint']
+  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-2xs font-bold uppercase tracking-wider ${clase}`}>{texto}</span>
 }

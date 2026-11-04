@@ -3,35 +3,40 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  IconAlertTriangle, IconCheck, IconChevronDown, IconCloudCheck, IconCloudOff, IconHistory, IconLoader2, IconLock, IconMessagePlus,
+  IconAlertTriangle, IconArrowLeft, IconCheck, IconChevronLeft, IconChevronRight, IconCircleDashed, IconCloudCheck,
+  IconCloudOff, IconHistory, IconListSearch, IconLoader2, IconLock, IconMessagePlus, IconX,
 } from '@tabler/icons-react'
-import { useConfirm } from '@/components/ui/ConfirmDialog'
+import Modal from '@/components/ui/Modal'
 import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
-import { calcularResumen, textoPct } from '@/lib/supervision/calculos'
+import { calcularResumen, completarSinResponder, idsSinResponder, textoPct } from '@/lib/supervision/calculos'
 import { fechaHora } from '@/lib/supervision/formato'
-import type { BloqueSupervision, ItemSupervision, Resultado, VisitaSupervision } from '@/lib/supervision/tipos'
+import type { BloqueSupervision, ItemSupervision, Respuestas, Resultado, VisitaSupervision } from '@/lib/supervision/tipos'
 import { CLAVE_BORRADOR, Porcentaje } from './ui'
 
 // Checklist de una visita. Cada cambio se guarda en el celular al instante
 // (respaldo si se corta la conexión) y en la base a los 700 ms; si falla, se
 // reintenta con el próximo cambio, al volver la conexión o al salir.
+// Celular: un bloque por vez (chips arriba, Anterior / Siguiente abajo).
+// Compu: la lista de bloques a la izquierda. El último paso es el cierre.
 
 type EstadoGuardado = 'ok' | 'pendiente' | 'error' | 'sinPermiso' | 'local'
 
 const GUARDADO: Record<EstadoGuardado, { texto: string; icono: React.ReactNode; clase: string }> = {
   ok:         { texto: 'Guardado', icono: <IconCloudCheck size={14} />, clase: 'text-success' },
   pendiente:  { texto: 'Guardando…', icono: <IconLoader2 size={14} className="animate-spin" />, clase: 'text-muted' },
-  error:      { texto: 'No se pudo guardar; se reintenta con el próximo cambio', icono: <IconAlertTriangle size={14} />, clase: 'text-brand-red' },
-  sinPermiso: { texto: 'Tu usuario no tiene permiso para guardar', icono: <IconLock size={14} />, clase: 'text-brand-red' },
-  local:      { texto: 'Sin conexión: guardado solo en este celular', icono: <IconCloudOff size={14} />, clase: 'text-warning' },
+  error:      { texto: 'No se pudo guardar; se reintenta', icono: <IconAlertTriangle size={14} />, clase: 'text-brand-red' },
+  sinPermiso: { texto: 'Sin permiso para guardar', icono: <IconLock size={14} />, clase: 'text-brand-red' },
+  local:      { texto: 'Sin conexión: guardado en el celular', icono: <IconCloudOff size={14} />, clase: 'text-warning' },
 }
 
-const OPCIONES: { valor: Resultado; texto: string; activo: string }[] = [
-  { valor: 'C', texto: 'Cumple', activo: 'border-success bg-success text-black' },
-  { valor: 'NC', texto: 'No cumple', activo: 'border-brand-red bg-brand-red text-white' },
+const OPCIONES: { valor: Resultado; texto: string; icono?: React.ReactNode; activo: string }[] = [
+  { valor: 'C', texto: 'Cumple', icono: <IconCheck size={16} aria-hidden />, activo: 'border-success bg-success text-black' },
+  { valor: 'NC', texto: 'No cumple', icono: <IconX size={16} aria-hidden />, activo: 'border-brand-red bg-brand-red text-white' },
   { valor: 'NA', texto: 'N/A', activo: 'border-muted bg-surface2 text-text' },
 ]
+
+interface Seccion { id: string; titulo: string; corto: string; referencia: string; items: ItemSupervision[]; previa?: boolean }
 
 interface Props {
   inicial: VisitaSupervision
@@ -41,34 +46,21 @@ interface Props {
 
 /** Pausa antes de reintentar un guardado, con algo de azar para no chocar con otro reintento. */
 const pausaReintento = () => new Promise(r => setTimeout(r, 800 + Math.random() * 800))
+const corto = (titulo: string) => titulo.split(' ')[0].replace(/[,.]$/, '')
+const CIERRE = 'cierre'
 
 export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const toast = useToasts()
-  const confirm = useConfirm()
   const [visita, setVisita] = useState(inicial)
   const [guardado, setGuardado] = useState<EstadoGuardado>('ok')
   const [conObs, setConObs] = useState<Set<string>>(() => new Set())
   const [saliendo, setSaliendo] = useState(false)
+  const [cerrando, setCerrando] = useState(false)
   const [altoHeader, setAltoHeader] = useState(56)
-
-  // Debajo del header de la app si queda fijo al bajar (escritorio). En el celular su
-  // contenedor lo envuelve solo a él, así que se va con el scroll: ahí, arriba de todo.
-  useEffect(() => {
-    const header = () => [...document.querySelectorAll('header')].find(h => h.offsetParent !== null && getComputedStyle(h).position === 'sticky')
-    const medir = () => {
-      const h = header()
-      if (!h) { setAltoHeader(0); return }
-      const alto = h.getBoundingClientRect().height
-      const fijo = (h.parentElement?.getBoundingClientRect().height ?? 0) > alto + 1
-      setAltoHeader(fijo ? alto : 0)
-    }
-    medir()
-    const obs = new ResizeObserver(medir)
-    document.querySelectorAll('header').forEach(h => obs.observe(h))
-    return () => obs.disconnect()
-  }, [])
+  const [altoBarra, setAltoBarra] = useState(120)
+  const barra = useRef<HTMLDivElement>(null)
 
   const visitaRef = useRef(visita)
   const sucio = useRef(false)
@@ -79,33 +71,38 @@ export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
   const total = items.size
   const pendientes = useMemo(() => visita.pendientes_previos.filter(id => items.has(id)), [visita.pendientes_previos, items])
   const resumen = calcularResumen(visita.respuestas, bloques)
-  const respondidos = total - resumen.sinResp
+  const faltan = idsSinResponder(visita.respuestas, bloques)
+  const respondidos = total - faltan.length
 
-  // Secciones: primero los pendientes de la visita anterior, después cada bloque sin esos ítems.
+  // Pasos: los pendientes de la visita anterior, cada bloque sin esos ítems y el cierre.
   const secciones = useMemo(() => {
     const enPendientes = new Set(pendientes)
-    const lista: { id: string; titulo: string; referencia: string; items: ItemSupervision[]; previa?: boolean }[] = []
+    const lista: Seccion[] = []
     if (pendientes.length) {
       lista.push({
-        id: 'previa', previa: true, titulo: 'Pendientes de la visita anterior',
+        id: 'previa', previa: true, titulo: 'Pendientes de la visita anterior', corto: 'Pendientes',
         referencia: `Visita del ${fechaHora(visita.anterior_fecha)}: verificá si se corrigieron`,
         items: pendientes.map(id => items.get(id)!),
       })
     }
     for (const b of bloques) {
       const its = b.items.filter(i => !enPendientes.has(i.id))
-      if (its.length) lista.push({ id: b.id, titulo: b.titulo, referencia: b.referencia, items: its })
+      if (its.length) lista.push({ id: b.id, titulo: b.titulo, corto: corto(b.titulo), referencia: b.referencia, items: its })
     }
     return lista
   }, [bloques, pendientes, items, visita.anterior_fecha])
 
   const contestados = (its: ItemSupervision[]) => its.filter(i => visita.respuestas[i.id]?.r).length
+  const pasos = [...secciones.map(s => s.id), CIERRE]
+  const [paso, setPaso] = useState(() => secciones.find(s => contestados(s.items) < s.items.length)?.id ?? secciones[0]?.id ?? CIERRE)
+  const indice = pasos.indexOf(paso)
+  const seccion = secciones.find(s => s.id === paso) ?? null
 
-  // Abierta al entrar: los pendientes si hay; si no, el primer bloque incompleto.
-  const [abiertas, setAbiertas] = useState<Set<string>>(() => {
-    const primera = secciones.find(s => s.previa) ?? secciones.find(s => contestados(s.items) < s.items.length)
-    return new Set(primera ? [primera.id] : [])
-  })
+  function irA(id: string) {
+    setPaso(id)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    document.getElementById(`chip-${id}`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+  }
 
   function guardarBorrador(v: VisitaSupervision) {
     try { localStorage.setItem(CLAVE_BORRADOR, JSON.stringify({ visita: v, guardadoLocal: new Date().toISOString() })) } catch {}
@@ -193,23 +190,38 @@ export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // La barra va debajo del header de la app si queda fijo al bajar (compu). En el
+  // celular su contenedor lo envuelve solo a él y se va con el scroll: ahí, arriba de todo.
+  useEffect(() => {
+    const header = () => [...document.querySelectorAll('header')].find(h => h.offsetParent !== null && getComputedStyle(h).position === 'sticky')
+    const medir = () => {
+      const h = header()
+      const alto = h?.getBoundingClientRect().height ?? 0
+      const fijo = !!h && (h.parentElement?.getBoundingClientRect().height ?? 0) > alto + 1
+      setAltoHeader(fijo ? alto : 0)
+      if (barra.current) setAltoBarra(barra.current.getBoundingClientRect().height)
+    }
+    medir()
+    const obs = new ResizeObserver(medir)
+    document.querySelectorAll('header').forEach(h => obs.observe(h))
+    if (barra.current) obs.observe(barra.current)
+    return () => obs.disconnect()
+  }, [])
+
   function responder(id: string, valor: Resultado) {
     cambiar(v => {
       const previa = v.respuestas[id] ?? {}
-      const r = previa.r === valor ? null : valor // tocar de nuevo desmarca
-      const respuestas = { ...v.respuestas }
+      const r = previa.r === valor && !previa.auto ? null : valor // tocar de nuevo desmarca
+      const respuestas: Respuestas = { ...v.respuestas }
+      // Responder a mano saca la marca de "sin responder".
       if (!r && !previa.obs) delete respuestas[id]
-      else respuestas[id] = { ...previa, r }
+      else respuestas[id] = { ...(previa.obs ? { obs: previa.obs } : {}), r }
       return { ...v, respuestas }
     })
   }
 
   function observar(id: string, obs: string) {
     cambiar(v => ({ ...v, respuestas: { ...v.respuestas, [id]: { ...(v.respuestas[id] ?? {}), obs } } }))
-  }
-
-  function alternar(id: string) {
-    setAbiertas(prev => { const s = new Set(prev); if (s.has(id)) s.delete(id); else s.add(id); return s })
   }
 
   async function salir() {
@@ -219,115 +231,191 @@ export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
     router.push('/admin/supervision?vista=visitas')
   }
 
-  function pedirCierre() {
-    confirm.confirmar({
-      titulo: '¿Cerrar la visita?',
-      mensaje: (
-        <>
-          {resumen.sinResp
-            ? <>Quedan <strong className="text-text">{resumen.sinResp} ítems sin responder</strong>; no cuentan en el porcentaje.</>
-            : 'Respondiste todos los ítems.'}{' '}
-          Cumplimiento: <strong className="text-text">{textoPct(resumen.pct)}</strong>.
-        </>
-      ),
-      textoConfirmar: 'Cerrar visita',
-      textoCancelar: 'Seguir completando',
-      onConfirmar: async () => {
-        setSaliendo(true)
-        cambiar(v => ({ ...v, estado: 'cerrada', cierre: new Date().toISOString() }))
-        if (await guardarAhora()) {
-          router.push(`/admin/supervision/${inicial.id}?aviso=cerrada`)
-        } else {
-          setSaliendo(false)
-          toast.error('No se pudo cerrar en la base. Quedó guardada en este celular; probá de nuevo con conexión.')
-        }
-      },
-    })
+  async function cerrar() {
+    setSaliendo(true)
+    cambiar(v => ({ ...v, respuestas: completarSinResponder(v.respuestas, bloques), estado: 'cerrada', cierre: new Date().toISOString() }))
+    if (await guardarAhora()) {
+      router.push(`/admin/supervision/${inicial.id}?aviso=cerrada`)
+    } else {
+      setSaliendo(false)
+      setCerrando(false)
+      toast.error('No se pudo cerrar en la base. Quedó guardada en este celular; probá de nuevo con conexión.')
+    }
+  }
+
+  function responderFaltantes() {
+    setCerrando(false)
+    const primera = secciones.find(s => s.items.some(i => !visita.respuestas[i.id]?.r))
+    if (primera) irA(primera.id)
   }
 
   const g = GUARDADO[guardado]
+  const final = calcularResumen(completarSinResponder(visita.respuestas, bloques), bloques)
+  const siTodoCumple = calcularResumen(
+    { ...visita.respuestas, ...Object.fromEntries(faltan.map(id => [id, { r: 'C' as const }])) }, bloques,
+  ).pct
+  const anteriorPaso = indice > 0 ? pasos[indice - 1] : null
+  const siguientePaso = indice < pasos.length - 1 ? pasos[indice + 1] : null
+  const nombrePaso = (id: string) => id === CIERRE ? 'Cierre' : secciones.find(s => s.id === id)?.corto ?? ''
+  const textoCerrar = visita.estado === 'cerrada' ? 'Guardar y cerrar' : 'Cerrar visita'
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-3 pb-4">
+    <div className="mx-auto w-full max-w-6xl pb-4">
       <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
-      {confirm.dialog}
 
-      {/* Cabecera fija, justo debajo del header de la app (debajo de los modales, z-50). */}
-      <div style={{ top: altoHeader }}
-        className="sticky z-40 -mx-4 border-b border-border bg-bg/95 px-4 pb-3 pt-3 backdrop-blur lg:-mx-6 lg:px-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate font-['Syne'] text-lg font-bold text-text">{sucursal}</h1>
-            <p className="truncate text-xs text-muted">
-              {visita.supervisor_nombre}{visita.encargado ? ` con ${visita.encargado}` : ''} · {fechaHora(visita.fecha)}
-            </p>
+      {/* Barra fija: sucursal, porcentaje, avance y guardado; en el celular, los chips de bloques. */}
+      <div ref={barra} style={{ top: altoHeader }}
+        className="sticky z-40 -mx-4 border-b border-border bg-bg/95 backdrop-blur lg:-mx-6">
+        <div className="space-y-2 px-4 pb-2.5 pt-3 lg:flex lg:items-center lg:gap-6 lg:space-y-0 lg:px-6 lg:py-4">
+          <div className="flex min-w-0 items-center gap-3 lg:flex-1">
+            <button type="button" onClick={salir} disabled={saliendo} aria-label="Salir y seguir después" title="Salir y seguir después"
+              className="-ml-1 shrink-0 p-1 text-muted hover:text-accent lg:hidden">
+              <IconArrowLeft size={22} />
+            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate font-['Syne'] text-lg font-bold text-text lg:text-xl">{sucursal}</h1>
+              <p className="truncate text-xs text-muted lg:text-sm">
+                {visita.encargado ? `Con ${visita.encargado} · ` : ''}{visita.supervisor_nombre} · {fechaHora(visita.fecha)}
+              </p>
+            </div>
+            <div className="shrink-0 text-right lg:hidden">
+              <Porcentaje pct={resumen.pct} className="block text-2xl leading-none" />
+              <span className="text-2xs uppercase tracking-wider text-faint">cumplimiento</span>
+            </div>
           </div>
-          <div className="shrink-0 text-right">
-            <Porcentaje pct={resumen.pct} className="block text-2xl leading-none" />
-            <span className="text-2xs uppercase tracking-wider text-muted">cumplimiento</span>
+
+          <div className="space-y-1.5 lg:w-80">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-muted">
+                {respondidos} de {total}{faltan.length > 0 && <> · <b className="text-warning">faltan {faltan.length}</b></>}
+              </span>
+              <span className={`inline-flex min-w-0 items-center gap-1 ${g.clase}`} role="status">
+                {g.icono}<span className="truncate">{g.texto}</span>
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface2" role="progressbar"
+              aria-valuemin={0} aria-valuemax={total} aria-valuenow={respondidos} aria-label="Ítems respondidos">
+              <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${total ? (respondidos * 100) / total : 0}%` }} />
+            </div>
+          </div>
+
+          <div className="hidden shrink-0 items-center gap-4 lg:flex">
+            <div className="text-right">
+              <Porcentaje pct={resumen.pct} className="block text-3xl leading-none" />
+              <span className="text-2xs uppercase tracking-wider text-faint">cumplimiento</span>
+            </div>
+            <button type="button" onClick={salir} disabled={saliendo}
+              className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-text hover:border-accent disabled:opacity-50">
+              Salir
+            </button>
+            <button type="button" onClick={() => setCerrando(true)} disabled={saliendo || guardado === 'sinPermiso'}
+              className="rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-black hover:opacity-90 disabled:opacity-40">
+              {textoCerrar}
+            </button>
           </div>
         </div>
-        <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-surface2" role="progressbar"
-          aria-valuemin={0} aria-valuemax={total} aria-valuenow={respondidos} aria-label="Ítems respondidos">
-          <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${total ? (respondidos * 100) / total : 0}%` }} />
-        </div>
-        <div className="mt-1.5 flex items-center justify-between gap-3 text-xs">
-          <span className="text-muted">{respondidos} de {total} ítems</span>
-          <span className={`inline-flex min-w-0 items-center gap-1 ${g.clase}`} role="status">
-            {g.icono}<span className="truncate">{g.texto}</span>
-          </span>
-        </div>
+
+        <nav aria-label="Bloques" className="flex gap-1.5 overflow-x-auto border-t border-border px-4 py-2.5 [scrollbar-width:none]! lg:hidden [&::-webkit-scrollbar]:hidden">
+          {pasos.map(id => {
+            const s = secciones.find(x => x.id === id)
+            const n = s ? contestados(s.items) : 0
+            const completa = !!s && n === s.items.length
+            const activa = id === paso
+            return (
+              <button key={id} id={`chip-${id}`} type="button" onClick={() => irA(id)} aria-current={activa ? 'step' : undefined}
+                className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  activa ? 'border-accent bg-accent text-black' : completa ? 'border-border bg-surface text-success' : 'border-border bg-surface text-text'
+                }`}>
+                {completa && !activa && <IconCheck size={13} aria-hidden />}
+                {s ? `${s.corto} ${n}/${s.items.length}` : 'Cierre'}
+              </button>
+            )
+          })}
+        </nav>
       </div>
 
-      {secciones.map(s => {
-        const n = contestados(s.items)
-        const completa = n === s.items.length
-        const abierta = abiertas.has(s.id)
-        return (
-          <section key={s.id} className={`overflow-hidden rounded-card border bg-surface ${s.previa ? 'border-brand-red/50' : 'border-border'}`}>
-            <button type="button" onClick={() => alternar(s.id)} aria-expanded={abierta}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface2">
-              {s.previa && <IconHistory size={18} className="shrink-0 text-brand-red" aria-hidden />}
-              <span className="min-w-0 flex-1">
-                <span className="block font-['Syne'] text-sm font-bold text-text">{s.titulo}</span>
-                {s.referencia && <span className="block text-xs text-muted">{s.referencia}</span>}
-              </span>
-              <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${
-                completa ? 'bg-green-bg text-success' : 'bg-surface2 text-muted'
-              }`}>
-                {completa && <IconCheck size={12} aria-hidden />}{n}/{s.items.length}
-              </span>
-              <IconChevronDown size={18} className={`shrink-0 text-muted transition-transform ${abierta ? 'rotate-180' : ''}`} aria-hidden />
-            </button>
+      <div className="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+        {/* Compu: lista de bloques. */}
+        <nav aria-label="Bloques" className="sticky hidden space-y-1 lg:block" style={{ top: altoHeader + altoBarra + 16 }}>
+          <p className="px-3 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted">Bloques</p>
+          {pasos.map(id => {
+            const s = secciones.find(x => x.id === id)
+            const n = s ? contestados(s.items) : 0
+            const completa = !!s && n === s.items.length
+            const activa = id === paso
+            return (
+              <button key={id} type="button" onClick={() => irA(id)} aria-current={activa ? 'step' : undefined}
+                className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                  activa ? 'bg-surface2 font-semibold text-text ring-1 ring-inset ring-border' : 'text-muted hover:bg-surface hover:text-text'
+                }`}>
+                <span className="flex min-w-0 items-center gap-2">
+                  {s?.previa && <IconHistory size={15} className="shrink-0 text-brand-red" aria-hidden />}
+                  <span className="truncate">{s ? (s.previa ? 'Pendientes anteriores' : s.titulo) : 'Cierre de la visita'}</span>
+                </span>
+                {s && (
+                  <span className={`inline-flex shrink-0 items-center gap-0.5 text-xs tabular-nums ${completa ? 'text-success' : ''}`}>
+                    {completa && <IconCheck size={13} aria-hidden />}{n}/{s.items.length}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </nav>
 
-            {abierta && (
-              <ul className="divide-y divide-border border-t border-border">
-                {s.items.map(it => {
+        {/* Sin overflow-hidden: anularía el sticky de la barra Anterior / Siguiente. */}
+        <section className={`rounded-card border bg-surface ${seccion?.previa ? 'border-brand-red/50' : 'border-border'}`}>
+          {seccion ? (
+            <>
+              <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 lg:px-5">
+                <div className="min-w-0">
+                  <h2 className="flex items-center gap-2 font-['Syne'] text-base font-bold text-text lg:text-lg">
+                    {seccion.previa && <IconHistory size={18} className="shrink-0 text-brand-red" aria-hidden />}{seccion.titulo}
+                  </h2>
+                  {seccion.referencia && <p className="text-xs text-faint">{seccion.referencia}</p>}
+                </div>
+                <span className="shrink-0 text-xs text-muted">
+                  {indice + 1} de {pasos.length - 1} · {contestados(seccion.items)}/{seccion.items.length}
+                </span>
+              </header>
+
+              <ul className="divide-y divide-border">
+                {seccion.items.map(it => {
                   const a = visita.respuestas[it.id] ?? {}
                   const verObs = a.r === 'NC' || !!a.obs || conObs.has(it.id)
-                  const obsPrevia = s.previa ? visita.obs_previas?.[it.id] : null
+                  const obsPrevia = seccion.previa ? visita.obs_previas?.[it.id] : null
                   return (
-                    <li key={it.id} className="space-y-2.5 px-4 py-3.5">
-                      <p className="text-sm leading-snug text-text">{it.texto}</p>
-                      {obsPrevia && <p className="border-l-2 border-brand-red/60 pl-2 text-xs text-muted">La vez pasada: {obsPrevia}</p>}
+                    <li key={it.id} className="grid grid-cols-1 gap-2.5 px-4 py-3.5 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-center lg:gap-x-5 lg:px-5">
+                      <div className="space-y-1">
+                        <p className="text-sm leading-snug text-text">{it.texto}</p>
+                        {obsPrevia && <p className="border-l-2 border-brand-red/60 pl-2 text-xs text-muted">La vez pasada: {obsPrevia}</p>}
+                        {!a.r && (
+                          <p className="inline-flex items-center gap-1 text-2xs font-semibold text-warning">
+                            <IconCircleDashed size={12} aria-hidden /> Sin responder
+                          </p>
+                        )}
+                        {a.auto && <p className="text-2xs font-semibold text-warning">Quedó sin responder al cerrar</p>}
+                      </div>
                       <div role="group" aria-label="Resultado" className="grid grid-cols-3 gap-1.5">
-                        {OPCIONES.map(o => (
-                          <button key={o.valor} type="button" aria-pressed={a.r === o.valor} onClick={() => responder(it.id, o.valor)}
-                            className={`min-h-[44px] rounded-xl border px-2 text-sm font-semibold transition-colors ${
-                              a.r === o.valor ? o.activo : 'border-border text-muted hover:border-accent/60 hover:text-text'
-                            }`}>
-                            {o.texto}
-                          </button>
-                        ))}
+                        {OPCIONES.map(o => {
+                          const marcado = a.r === o.valor
+                          return (
+                            <button key={o.valor} type="button" aria-pressed={marcado} onClick={() => responder(it.id, o.valor)}
+                              className={`inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl border px-1 text-sm font-semibold transition-colors ${
+                                marcado ? (a.auto ? 'border-warning bg-warning-bg text-warning' : o.activo) : 'border-border text-muted hover:border-accent/60 hover:text-text'
+                              }`}>
+                              {o.icono}{o.texto}
+                            </button>
+                          )
+                        })}
                       </div>
                       {verObs ? (
                         <textarea value={a.obs ?? ''} onChange={e => observar(it.id, e.target.value)} rows={2}
                           autoFocus={conObs.has(it.id) && !a.obs}
-                          placeholder="Observación: qué viste, a quién se le indicó"
-                          className="w-full rounded-xl border border-border bg-surface2 px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none" />
+                          placeholder="Qué viste, a quién se le indicó"
+                          className="w-full rounded-xl border border-border bg-surface2 px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none lg:col-span-2" />
                       ) : (
                         <button type="button" onClick={() => setConObs(prev => new Set(prev).add(it.id))}
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-accent">
+                          className="inline-flex items-center gap-1.5 justify-self-start text-xs font-medium text-muted hover:text-accent lg:col-span-2">
                           <IconMessagePlus size={14} aria-hidden /> Agregar observación
                         </button>
                       )}
@@ -335,28 +423,98 @@ export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
                   )
                 })}
               </ul>
+            </>
+          ) : (
+            <div className="space-y-4 p-4 lg:p-5">
+              <h2 className="font-['Syne'] text-base font-bold text-text lg:text-lg">Cierre de la visita</h2>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl bg-surface2 py-2"><b className="block font-['Syne'] text-lg text-text">{respondidos}</b><span className="text-2xs text-muted">respondidos</span></div>
+                <div className="rounded-xl bg-surface2 py-2"><b className={`block font-['Syne'] text-lg ${faltan.length ? 'text-warning' : 'text-success'}`}>{faltan.length}</b><span className="text-2xs text-muted">sin responder</span></div>
+                <div className="rounded-xl bg-surface2 py-2"><Porcentaje pct={resumen.pct} className="block text-lg" /><span className="text-2xs text-muted">cumplimiento</span></div>
+              </div>
+              {faltan.length > 0 && (
+                <button type="button" onClick={responderFaltantes}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline">
+                  <IconListSearch size={16} aria-hidden /> Ir al primero sin responder
+                </button>
+              )}
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted">Observaciones generales</span>
+                <textarea value={visita.obs_general} onChange={e => cambiar(v => ({ ...v, obs_general: e.target.value }))} rows={4}
+                  placeholder="Comentarios del encargado, acuerdos, próximos pasos"
+                  className="w-full rounded-xl border border-border bg-surface2 px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none" />
+              </label>
+            </div>
+          )}
+
+          {/* Anterior / Siguiente: fijo abajo en el celular, al pie de la tarjeta en la compu. */}
+          <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+3.75rem)] z-10 grid grid-cols-[1fr_1.4fr] gap-2 rounded-b-card border-t border-border bg-bg/95 px-4 py-2.5 backdrop-blur lg:static lg:flex lg:justify-between lg:bg-transparent lg:px-5 lg:py-3.5 lg:backdrop-blur-none">
+            {anteriorPaso ? (
+              <button type="button" onClick={() => irA(anteriorPaso)}
+                className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-xl border border-border px-3 py-3 text-sm font-semibold text-text hover:border-accent">
+                <IconChevronLeft size={16} className="shrink-0" aria-hidden /><span className="truncate">{nombrePaso(anteriorPaso)}</span>
+              </button>
+            ) : <span />}
+            {siguientePaso ? (
+              <button type="button" onClick={() => irA(siguientePaso)}
+                className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3 text-sm font-bold text-black hover:opacity-90">
+                <span className="truncate">{nombrePaso(siguientePaso)}</span><IconChevronRight size={16} className="shrink-0" aria-hidden />
+              </button>
+            ) : (
+              <button type="button" onClick={() => setCerrando(true)} disabled={saliendo || guardado === 'sinPermiso'}
+                className="rounded-xl bg-accent px-3 py-3 text-sm font-bold text-black hover:opacity-90 disabled:opacity-40">
+                {textoCerrar}
+              </button>
             )}
-          </section>
-        )
-      })}
-
-      <label className="block space-y-1.5 pt-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted">Observaciones generales de la visita</span>
-        <textarea value={visita.obs_general} onChange={e => cambiar(v => ({ ...v, obs_general: e.target.value }))} rows={3}
-          placeholder="Comentarios del encargado, acuerdos, próximos pasos"
-          className="w-full rounded-xl border border-border bg-surface2 px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none" />
-      </label>
-
-      <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-        <button type="button" onClick={salir} disabled={saliendo}
-          className="rounded-xl border border-border px-4 py-3 text-sm font-medium text-text hover:border-accent disabled:opacity-50">
-          Salir y seguir después
-        </button>
-        <button type="button" onClick={pedirCierre} disabled={saliendo || guardado === 'sinPermiso'}
-          className="rounded-xl bg-accent px-4 py-3 text-sm font-bold text-black hover:opacity-90 disabled:opacity-40">
-          {visita.estado === 'cerrada' ? 'Guardar y cerrar' : 'Cerrar visita'}
-        </button>
+          </div>
+        </section>
       </div>
+
+      <Modal open={cerrando} onClose={() => setCerrando(false)} title="¿Cerrar la visita?">
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Porcentaje pct={final.pct} className="text-5xl leading-none" />
+            <p className="text-sm text-muted">
+              de cumplimiento<br />
+              {final.cumple} cumple · {final.noCumple} no cumple{faltan.length ? ` (${faltan.length} sin responder)` : ''} · {final.na} N/A
+            </p>
+          </div>
+          {faltan.length > 0 ? (
+            <div className="space-y-2 rounded-xl border border-warning/40 bg-warning-bg p-3 text-sm">
+              <p className="flex items-start gap-2 font-semibold text-warning">
+                <IconAlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden />
+                {faltan.length} {faltan.length === 1 ? 'ítem sin responder va a quedar' : 'ítems sin responder van a quedar'} como No cumple
+              </p>
+              <ul className="space-y-1 text-muted">
+                {faltan.slice(0, 2).map(id => <li key={id} className="truncate">• {items.get(id)?.texto}</li>)}
+                {faltan.length > 2 && <li>• y {faltan.length - 2} más</li>}
+              </ul>
+              <p className="text-xs text-faint">
+                Si los respondieras todos como Cumple, llegaría a {textoPct(siTodoCumple)}. En el detalle quedan marcados “sin responder”.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Respondiste todos los ítems.</p>
+          )}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {faltan.length > 0 ? (
+              <button type="button" onClick={responderFaltantes}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-text hover:border-accent">
+                <IconListSearch size={16} aria-hidden /> Responder los que faltan
+              </button>
+            ) : (
+              <button type="button" onClick={() => setCerrando(false)}
+                className="flex-1 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-muted hover:text-text">
+                Seguir completando
+              </button>
+            )}
+            <button type="button" onClick={cerrar} disabled={saliendo}
+              className="flex-1 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-black hover:opacity-90 disabled:opacity-50">
+              {saliendo ? 'Cerrando…' : faltan.length ? 'Cerrar igual' : 'Cerrar visita'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

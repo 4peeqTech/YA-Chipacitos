@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { SELECT_VISITA, cargarCatalogo, cargarUsuario } from '@/lib/supervision/datos'
-import type { VisitaSupervision } from '@/lib/supervision/tipos'
+import type { ResumenVisita, VisitaSupervision } from '@/lib/supervision/tipos'
 import DetalleVisita from '@/components/supervision/DetalleVisita'
 
 export const metadata = { title: 'Visita | Supervisión de locales' }
@@ -17,15 +17,22 @@ export default async function DetalleVisitaPage({ params, searchParams }: {
   if (!user) redirect('/login')
 
   const [{ id }, { aviso }] = await Promise.all([params, searchParams])
-  const [{ data: visita }, catalogo, usuario] = await Promise.all([
+  const [{ data }, catalogo, usuario] = await Promise.all([
     supabase.from('supervision_visitas').select(SELECT_VISITA).eq('id', id).maybeSingle(),
     cargarCatalogo(supabase),
     cargarUsuario(supabase, user.id),
   ])
-  if (!visita) notFound()
+  if (!data) notFound()
+  const visita = data as VisitaSupervision
+
+  // La visita cerrada anterior de la sucursal (la que se tomó para los pendientes), para la tendencia.
+  const { data: anterior } = visita.anterior_id
+    ? await supabase.from('supervision_visitas').select('id, fecha, resumen').eq('id', visita.anterior_id).maybeSingle()
+    : { data: null }
 
   return (
-    <DetalleVisita visita={visita as VisitaSupervision} sucursales={catalogo.sucursales} bloques={catalogo.bloques}
-      esAdmin={usuario.esAdmin} aviso={aviso === 'cerrada' ? 'Visita cerrada' : null} />
+    <DetalleVisita visita={visita} sucursales={catalogo.sucursales} bloques={catalogo.bloques} esAdmin={usuario.esAdmin}
+      anterior={anterior ? { id: anterior.id as string, fecha: anterior.fecha as string, pct: (anterior.resumen as ResumenVisita | null)?.pct ?? null } : null}
+      aviso={aviso === 'cerrada' ? 'Visita cerrada' : null} />
   )
 }

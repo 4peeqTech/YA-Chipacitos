@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { IconAlertTriangle, IconCircleCheck, IconPlayerPlay, IconProgress } from '@tabler/icons-react'
+import { IconAlertTriangle, IconChevronRight, IconCircleCheck, IconPlayerPlay, IconProgress } from '@tabler/icons-react'
 import type { useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
-import { calcularResumen, pendientesDe, ultimaCerrada, visitaEnCurso } from '@/lib/supervision/calculos'
-import { fechaHora } from '@/lib/supervision/formato'
+import {
+  calcularResumen, diasDesde, idsSinResponder, nivelCumplimiento, pendientesDe, textoPct, ultimaCerrada, visitaEnCurso,
+} from '@/lib/supervision/calculos'
+import { COLOR_NIVEL, fechaHora } from '@/lib/supervision/formato'
 import type { BloqueSupervision, SucursalSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
 import { CLAVE_SUPERVISOR } from './ui'
 
@@ -15,12 +18,13 @@ interface Props {
   bloques: BloqueSupervision[]
   visitas: VisitaSupervision[]
   nombreUsuario: string
+  ahora: number
   toast: ReturnType<typeof useToasts>
 }
 
 const INPUT = 'w-full rounded-xl border border-border bg-surface2 px-3 py-2.5 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none'
 
-export default function NuevaVisita({ sucursales, bloques, visitas, nombreUsuario, toast }: Props) {
+export default function NuevaVisita({ sucursales, bloques, visitas, nombreUsuario, ahora, toast }: Props) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const [sucursalId, setSucursalId] = useState<string | null>(null)
@@ -33,28 +37,28 @@ export default function NuevaVisita({ sucursales, bloques, visitas, nombreUsuari
     try { const s = localStorage.getItem(CLAVE_SUPERVISOR); if (s) setSupervisor(s) } catch {} // eslint-disable-line react-hooks/set-state-in-effect
   }, [])
 
+  const total = bloques.reduce((n, b) => n + b.items.length, 0)
+  const enCursoTodas = useMemo(
+    () => visitas.filter(v => v.estado === 'en_curso').sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    [visitas],
+  )
+  const sucursal = sucursales.find(s => s.id === sucursalId) ?? null
   const enCurso = sucursalId ? visitaEnCurso(visitas, sucursalId) : null
   const anterior = sucursalId ? ultimaCerrada(visitas, sucursalId) : null
   const pendientes = useMemo(() => pendientesDe(anterior, bloques), [anterior, bloques])
-
-  // Agrupadas por zona, como en la recorrida.
-  const zonas = useMemo(() => {
-    const m = new Map<string, SucursalSupervision[]>()
-    for (const s of sucursales) m.set(s.zona, [...(m.get(s.zona) ?? []), s])
-    return [...m.entries()]
-  }, [sucursales])
+  const nombre = (id: string) => sucursales.find(s => s.id === id)?.nombre ?? id
 
   async function comenzar() {
     if (!sucursalId) return
-    const nombre = supervisor.trim()
-    if (!nombre) { toast.error('Escribí el nombre del supervisor.'); return }
+    const nombreSupervisor = supervisor.trim()
+    if (!nombreSupervisor) { toast.error('Escribí el nombre del supervisor.'); return }
     setCreando(true)
-    try { localStorage.setItem(CLAVE_SUPERVISOR, nombre) } catch {}
+    try { localStorage.setItem(CLAVE_SUPERVISOR, nombreSupervisor) } catch {}
     const id = crypto.randomUUID()
     const { error } = await supabase.from('supervision_visitas').insert({
       id,
       sucursal_id: sucursalId,
-      supervisor_nombre: nombre,
+      supervisor_nombre: nombreSupervisor,
       encargado: encargado.trim() || null,
       anterior_id: anterior?.id ?? null,
       anterior_fecha: anterior?.fecha ?? null,
@@ -74,43 +78,62 @@ export default function NuevaVisita({ sucursales, bloques, visitas, nombreUsuari
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-muted">
-        Elegí la sucursal y completá el checklist recorriendo el local. Las respuestas se guardan solas a medida que avanzás.
-      </p>
+      {enCursoTodas.length > 0 && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {enCursoTodas.map(v => (
+            <Link key={v.id} href={`/admin/supervision/${v.id}/checklist`}
+              className="flex items-center gap-3 rounded-card border border-accent/40 bg-accent-bg px-4 py-3 transition-colors hover:border-accent">
+              <IconProgress size={22} className="shrink-0 text-accent" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-text">Seguir visita en {nombre(v.sucursal_id)}</p>
+                <p className="truncate text-xs text-muted">
+                  Empezada {fechaHora(v.fecha)} · {total - idsSinResponder(v.respuestas, bloques).length} de {total} respondidos
+                </p>
+              </div>
+              <IconChevronRight size={18} className="shrink-0 text-muted" aria-hidden />
+            </Link>
+          ))}
+        </div>
+      )}
 
-      <fieldset className="space-y-3">
-        <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Sucursal</legend>
-        {zonas.map(([zona, lista]) => (
-          <div key={zona} className="space-y-1.5">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-faint">{zona}</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-              {lista.map(s => {
-                const activa = sucursalId === s.id
-                const abierta = visitaEnCurso(visitas, s.id)
-                return (
-                  <button key={s.id} type="button" aria-pressed={activa} onClick={() => setSucursalId(s.id)}
-                    className={`relative min-h-[52px] rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition-colors ${
-                      activa ? 'border-accent bg-accent text-black' : 'border-border bg-surface text-text hover:border-accent/60'
-                    }`}>
-                    {s.nombre}
-                    {abierta && (
-                      <span title="Tiene una visita en curso"
-                        className={`absolute right-2 top-2 h-2 w-2 rounded-full ${activa ? 'bg-black' : 'bg-accent'}`} />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        ))}
+      <fieldset className="space-y-2">
+        <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">¿Qué sucursal visitás?</legend>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {sucursales.map(s => {
+            const activa = sucursalId === s.id
+            const abierta = visitaEnCurso(visitas, s.id)
+            const ultima = ultimaCerrada(visitas, s.id)
+            const pct = ultima?.resumen?.pct ?? null
+            const nivel = nivelCumplimiento(pct)
+            const dias = ultima ? diasDesde(ultima.fecha, ahora) : null
+            return (
+              <button key={s.id} type="button" aria-pressed={activa} onClick={() => setSucursalId(s.id)}
+                className={`grid min-h-[60px] content-center gap-0.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                  activa ? 'border-accent bg-accent-bg shadow-[inset_0_0_0_1px_var(--color-accent)]' : 'border-border bg-surface hover:border-accent/60'
+                }`}>
+                <span className="truncate text-sm font-bold text-text">{s.nombre}</span>
+                <span className="flex items-center gap-1.5 truncate text-xs text-muted">
+                  {abierta ? (
+                    <><span className="h-2 w-2 shrink-0 rounded-full bg-accent" />en curso</>
+                  ) : ultima ? (
+                    <>
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${nivel ? COLOR_NIVEL[nivel].fondo : 'bg-faint'}`} />
+                      {dias === 0 ? 'hoy' : `hace ${dias} día${dias === 1 ? '' : 's'}`} · {textoPct(pct)}
+                    </>
+                  ) : <span className="text-faint">sin visitas</span>}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </fieldset>
 
-      {enCurso && (
+      {sucursal && enCurso && (
         <Aviso icono={<IconProgress size={18} className="text-accent" />} tono="border-accent/40 bg-accent-bg">
-          Hay una visita en curso en esta sucursal desde el {fechaHora(enCurso.fecha)}. Podés continuarla o empezar una nueva.
+          Ya hay una visita en curso en {sucursal.nombre} desde el {fechaHora(enCurso.fecha)}. Podés seguirla o empezar una nueva.
         </Aviso>
       )}
-      {anterior && (pendientes.ids.length > 0 ? (
+      {sucursal && anterior && (pendientes.ids.length > 0 ? (
         <Aviso icono={<IconAlertTriangle size={18} className="text-brand-red" />} tono="border-brand-red/40 bg-danger-bg">
           La última visita ({fechaHora(anterior.fecha)}) dejó <strong>{pendientes.ids.length} {pendientes.ids.length === 1 ? 'ítem' : 'ítems'} sin cumplir</strong>.
           Van a aparecer primero para que verifiques si se corrigieron.
@@ -121,30 +144,33 @@ export default function NuevaVisita({ sucursales, bloques, visitas, nombreUsuari
         </Aviso>
       ))}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="space-y-1.5">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted">Supervisor</span>
           <input className={INPUT} value={supervisor} onChange={e => setSupervisor(e.target.value)} placeholder="Nombre y apellido" autoComplete="name" />
         </label>
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted">Encargado presente en el local</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+            Encargado presente <span className="normal-case tracking-normal text-faint">(opcional)</span>
+          </span>
           <input className={INPUT} value={encargado} onChange={e => setEncargado(e.target.value)} placeholder="Nombre y apellido" />
         </label>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      {/* Fijo abajo en el celular (encima de la barra de navegación). */}
+      <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+3.75rem)] z-10 -mx-4 flex flex-col gap-2 border-t border-border bg-bg/95 px-4 py-3 backdrop-blur sm:flex-row sm:justify-end lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
         {enCurso && (
-          <button type="button" onClick={() => router.push(`/admin/supervision/${enCurso.id}/checklist`)}
-            className="rounded-xl bg-accent px-4 py-3 text-sm font-bold text-black hover:opacity-90">
-            Continuar visita en curso
-          </button>
+          <Link href={`/admin/supervision/${enCurso.id}/checklist`}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-black hover:opacity-90">
+            Seguir la visita en curso
+          </Link>
         )}
         <button type="button" onClick={comenzar} disabled={!sucursalId || creando}
           className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
             enCurso ? 'border border-border text-text hover:border-accent' : 'bg-accent text-black hover:opacity-90'
           }`}>
           <IconPlayerPlay size={16} aria-hidden />
-          {creando ? 'Empezando…' : enCurso ? 'Empezar una nueva' : 'Comenzar visita'}
+          {creando ? 'Empezando…' : !sucursal ? 'Elegí una sucursal' : enCurso ? 'Empezar una nueva' : `Comenzar visita en ${sucursal.nombre}`}
         </button>
       </div>
     </div>
