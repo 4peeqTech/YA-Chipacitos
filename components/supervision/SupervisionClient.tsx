@@ -75,7 +75,7 @@ export default function SupervisionClient({ sucursales, bloques, visitasIniciale
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-4">
+    <div className="w-full space-y-4">
       <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">

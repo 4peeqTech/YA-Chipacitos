@@ -260,7 +260,7 @@ export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
   const textoCerrar = visita.estado === 'cerrada' ? 'Guardar y cerrar' : 'Cerrar visita'
 
   return (
-    <div className="mx-auto w-full max-w-6xl pb-4">
+    <div className="w-full pb-4">
       <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
 
       {/* Barra fija: sucursal, porcentaje, avance y guardado; en el celular, los chips de bloques. */}
@@ -334,7 +334,7 @@ export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
         </nav>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)]">
         {/* Compu: lista de bloques. */}
         <nav aria-label="Bloques" className="sticky hidden space-y-1 lg:block" style={{ top: altoHeader + altoBarra + 16 }}>
           <p className="px-3 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted">Bloques</p>
@@ -384,7 +384,7 @@ export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
                   const verObs = a.r === 'NC' || !!a.obs || conObs.has(it.id)
                   const obsPrevia = seccion.previa ? visita.obs_previas?.[it.id] : null
                   return (
-                    <li key={it.id} className="grid grid-cols-1 gap-2.5 px-4 py-3.5 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-center lg:gap-x-5 lg:px-5">
+                    <li key={it.id} className="grid grid-cols-1 gap-2.5 px-4 py-3.5 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-center 2xl:grid-cols-[minmax(0,1fr)_420px] lg:gap-x-5 lg:px-5">
                       <div className="space-y-1">
                         <p className="text-sm leading-snug text-text">{it.texto}</p>
                         {obsPrevia && <p className="border-l-2 border-brand-red/60 pl-2 text-xs text-muted">La vez pasada: {obsPrevia}</p>}

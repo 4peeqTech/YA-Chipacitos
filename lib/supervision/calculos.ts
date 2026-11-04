@@ -84,12 +84,15 @@ export function diferenciaPuntos(pct: number | null | undefined, anterior: numbe
   return pct == null || anterior == null ? null : Math.round(pct) - Math.round(anterior)
 }
 
-/** Lo que quedó sin cumplir en una visita (y sigue en el catálogo), con su observación. */
+/**
+ * Lo que quedó sin cumplir en una visita (y sigue en el catálogo), con su
+ * observación. No incluye los No cumple puestos al cerrar: no se revisaron.
+ */
 export function pendientesDe(anterior: VisitaSupervision | null, bloques: BloqueSupervision[]) {
   if (!anterior) return { ids: [] as string[], obs: {} as Record<string, string> }
   const enCatalogo = new Set(bloques.flatMap(b => b.items.map(i => i.id)))
   const ids = Object.entries(anterior.respuestas ?? {})
-    .filter(([id, a]) => a?.r === 'NC' && enCatalogo.has(id))
+    .filter(([id, a]) => a?.r === 'NC' && !a.auto && enCatalogo.has(id))
     .map(([id]) => id)
   return { ids, obs: Object.fromEntries(ids.map(id => [id, anterior.respuestas[id]?.obs ?? ''])) }
 }

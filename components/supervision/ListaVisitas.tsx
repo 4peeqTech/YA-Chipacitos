@@ -27,6 +27,9 @@ const ESTADOS = [
   { valor: 'cerrada', texto: 'Cerradas' },
 ]
 
+// Columnas de la tabla en la compu (encabezado y filas).
+const COLUMNAS = 'lg:grid-cols-[minmax(0,1.3fr)_150px_minmax(0,1fr)_minmax(0,1fr)_110px_140px_16px] lg:gap-4'
+
 const INICIAL = { periodo: 'todo' as Periodo, estado: 'todas', nivel: 'todos', zona: 'todas', supervisor: 'todos', texto: '' }
 
 /** "Esta semana", "Semana pasada" o el mes ("octubre de 2026"), en hora de Argentina. */
@@ -66,19 +69,20 @@ export default function ListaVisitas({ sucursales, bloques, visitas, ahora }: Pr
 
   return (
     <div className="space-y-3">
-      <SearchInput value={f.texto} onChange={cambiar('texto')} placeholder="Buscar sucursal, supervisor o encargado" className="w-full sm:max-w-md" />
-
-      <div className="flex flex-wrap items-center gap-2">
-        <ChipFiltro nombre="Período" valor={f.periodo} porDefecto="todo" mostrarValor icono={IconCalendar}
-          opciones={PERIODOS.map(p => ({ valor: p.valor, texto: p.texto }))} onChange={cambiar('periodo')} />
-        <ChipFiltro nombre="Estado" valor={f.estado} porDefecto="todas" opciones={ESTADOS} onChange={cambiar('estado')} />
-        <ChipFiltro nombre="Nivel" valor={f.nivel} porDefecto="todos" opciones={OPCIONES_NIVEL} onChange={cambiar('nivel')} />
-        <ChipFiltro nombre="Zona" valor={f.zona} porDefecto="todas"
-          opciones={[{ valor: 'todas', texto: 'Todas las zonas' }, ...zonas.map(z => ({ valor: z, texto: z }))]} onChange={cambiar('zona')} />
-        {supervisores.length > 1 && (
-          <ChipFiltro nombre="Supervisor" valor={f.supervisor} porDefecto="todos"
-            opciones={[{ valor: 'todos', texto: 'Todos' }, ...supervisores.map(s => ({ valor: s, texto: s }))]} onChange={cambiar('supervisor')} />
-        )}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <SearchInput value={f.texto} onChange={cambiar('texto')} placeholder="Buscar sucursal, supervisor o encargado" className="w-full sm:max-w-md lg:w-96 lg:shrink-0" />
+        <div className="flex flex-wrap items-center gap-2">
+          <ChipFiltro nombre="Período" valor={f.periodo} porDefecto="todo" mostrarValor icono={IconCalendar}
+            opciones={PERIODOS.map(p => ({ valor: p.valor, texto: p.texto }))} onChange={cambiar('periodo')} />
+          <ChipFiltro nombre="Estado" valor={f.estado} porDefecto="todas" opciones={ESTADOS} onChange={cambiar('estado')} />
+          <ChipFiltro nombre="Nivel" valor={f.nivel} porDefecto="todos" opciones={OPCIONES_NIVEL} onChange={cambiar('nivel')} />
+          <ChipFiltro nombre="Zona" valor={f.zona} porDefecto="todas"
+            opciones={[{ valor: 'todas', texto: 'Todas las zonas' }, ...zonas.map(z => ({ valor: z, texto: z }))]} onChange={cambiar('zona')} />
+          {supervisores.length > 1 && (
+            <ChipFiltro nombre="Supervisor" valor={f.supervisor} porDefecto="todos"
+              opciones={[{ valor: 'todos', texto: 'Todos' }, ...supervisores.map(s => ({ valor: s, texto: s }))]} onChange={cambiar('supervisor')} />
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-between text-xs">
@@ -94,6 +98,10 @@ export default function ListaVisitas({ sucursales, bloques, visitas, ahora }: Pr
         </div>
       ) : (
         <div className="overflow-hidden rounded-card border border-border bg-surface">
+          <div className={`hidden border-b border-border px-4 py-2.5 text-2xs font-semibold uppercase tracking-wider text-muted lg:grid ${COLUMNAS}`}>
+            <span>Sucursal</span><span>Fecha</span><span>Supervisor</span><span>Encargado</span><span>Respondidos</span>
+            <span className="text-right">Cumplimiento</span><span />
+          </div>
           {grupos.map(([grupo, vs]) => (
             <section key={grupo}>
               <h3 className="bg-surface2 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-faint">{grupo}</h3>
@@ -102,23 +110,26 @@ export default function ListaVisitas({ sucursales, bloques, visitas, ahora }: Pr
                   const pct = pctVisita(v, bloques)
                   const ant = v.estado === 'cerrada' ? anteriorCerrada(visitas, v) : null
                   const dif = ant ? diferenciaPuntos(pct, pctVisita(ant, bloques)) : null
+                  const respondidos = total - idsSinResponder(v.respuestas, bloques).length
                   return (
                     <li key={v.id}>
                       <Link href={`/admin/supervision/${v.id}`}
-                        className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface2 focus-visible:bg-surface2 focus-visible:outline-none">
+                        className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface2 focus-visible:bg-surface2 focus-visible:outline-none lg:grid ${COLUMNAS}`}>
                         <div className="min-w-0 flex-1">
                           <p className="flex items-center gap-2 text-sm font-semibold text-text">
                             <span className="truncate">{nombre(v.sucursal_id)}</span>
                             {v.estado === 'en_curso' && <ChipEnCurso />}
                           </p>
-                          <p className="mt-0.5 truncate text-xs text-muted">
-                            {fechaHora(v.fecha)} · {v.estado === 'en_curso'
-                              ? `${total - idsSinResponder(v.respuestas, bloques).length} de ${total} respondidos`
-                              : v.supervisor_nombre}
-                            <span className="hidden sm:inline">{v.encargado ? ` · con ${v.encargado}` : ''}</span>
+                          {/* Celular: todo en un renglón; en la compu va en columnas. */}
+                          <p className="mt-0.5 truncate text-xs text-muted lg:hidden">
+                            {fechaHora(v.fecha)} · {v.estado === 'en_curso' ? `${respondidos} de ${total} respondidos` : v.supervisor_nombre}
                           </p>
                         </div>
-                        <div className="shrink-0 text-right">
+                        <span className="hidden text-sm tabular-nums text-muted lg:block">{fechaHora(v.fecha)}</span>
+                        <span className="hidden truncate text-sm text-text lg:block">{v.supervisor_nombre}</span>
+                        <span className="hidden truncate text-sm text-muted lg:block">{v.encargado ?? '—'}</span>
+                        <span className="hidden text-sm tabular-nums text-muted lg:block">{respondidos}/{total}</span>
+                        <div className="shrink-0 text-right lg:flex lg:items-baseline lg:justify-end lg:gap-2">
                           <Porcentaje pct={pct} className="block text-lg leading-tight" />
                           {v.estado === 'en_curso' ? <span className="text-2xs text-faint">parcial</span> : <Tendencia dif={dif} />}
                         </div>

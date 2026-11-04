@@ -111,7 +111,7 @@ export default function AnalisisSupervision({ sucursales, bloques, visitas, ahor
           <EmptyState icono={IconChartBar} titulo={hayFiltros ? 'No hay visitas cerradas con estos filtros' : 'Todavía no hay visitas cerradas para analizar'} />
         </div>
       ) : (
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_440px]">
           <Tarjeta titulo="Sucursal × bloque" descripcion="Última visita cerrada de cada sucursal. Tocá una celda para ver los ítems.">
             <div className="-mx-4 overflow-x-auto px-4">
               <table className="w-full border-separate border-spacing-[3px] text-xs">

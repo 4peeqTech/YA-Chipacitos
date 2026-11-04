@@ -105,7 +105,7 @@ export default function DetalleVisita({ visita: v, sucursales, bloques, esAdmin,
   ]
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-4">
+    <div className="w-full space-y-4">
       <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
       {confirm.dialog}
 
@@ -122,7 +122,7 @@ export default function DetalleVisita({ visita: v, sucursales, bloques, esAdmin,
         </p>
       </header>
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
         <div className="min-w-0 space-y-4">
           <section className="space-y-4 rounded-card border border-border bg-surface p-4">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
