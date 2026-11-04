@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { BellRing, ClipboardList, Clock, History, Inbox, LayoutGrid, PackageOpen, RefreshCw, Truck, X, type LucideIcon } from 'lucide-react'
+import { IconSortAscending, IconSortDescending } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import type { EstadoPedido, Pedido, PedidoEvento, PedidoMensaje, Producto } from '@/lib/types'
 import PushToggle from '@/components/ui/PushToggle'
@@ -15,7 +16,7 @@ import TarjetaPedido from './TarjetaPedido'
 import DetallePedidoModal from './DetallePedidoModal'
 import HistorialPedidos from './HistorialPedidos'
 import HojaPreparacion from './HojaPreparacion'
-import { leerVistos, marcarVisto, mensajesSinLeer, notificarNavegador, sonarAviso } from './utiles'
+import { fechaReferencia, leerVistos, marcarVisto, mensajesSinLeer, notificarNavegador, sonarAviso } from './utiles'
 import { prepararSonido } from '@/lib/sonido'
 
 // Pantalla del mayorista (/mayorista/pedidos): tablero Nuevos / En preparación /
@@ -28,6 +29,10 @@ const SELECT = '*, pedido_items(*), pedido_mensajes(*)'
 const ACTIVOS: EstadoPedido[] = ['pendiente', 'preparando', 'enviado']
 
 type Vista = 'tablero' | 'historial' | 'hoja'
+// Orden del tablero (04-11, pedido de Marcos): uno solo para las tres columnas.
+// Se recuerda por dispositivo.
+type Orden = 'antiguos' | 'nuevos'
+const CLAVE_ORDEN = 'mayorista:orden'
 
 const COLUMNAS: { estado: EstadoPedido; titulo: string; corto: string; icono: LucideIcon; vacio: string }[] = [
   { estado: 'pendiente',  titulo: 'Nuevos', corto: 'Nuevos',         icono: Clock,       vacio: 'No hay pedidos nuevos.' },
@@ -57,6 +62,7 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
   const [columnaMovil, setColumnaMovil] = useState<EstadoPedido>('pendiente')
   const [sucursal, setSucursal] = useState('todas')
   const [busqueda, setBusqueda] = useState('')
+  const [orden, setOrden] = useState<Orden>('antiguos')
   const [actualizando, setActualizando] = useState(false)
   const [detalle, setDetalle] = useState<Pedido | null>(null)
   const [eventos, setEventos] = useState<PedidoEvento[] | null>(null)
@@ -74,6 +80,7 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
   useEffect(() => { detalleIdRef.current = detalle?.id ?? null }, [detalle])
   useEffect(() => {
     setVistos(leerVistos()) // eslint-disable-line react-hooks/set-state-in-effect
+    try { if (localStorage.getItem(CLAVE_ORDEN) === 'nuevos') setOrden('nuevos') } catch {}
     prepararSonido() // Safari: el sonido se despierta con el primer toque
     tituloRef.current = document.title
     const iv = setInterval(() => setAhora(Date.now()), 60_000)
@@ -289,10 +296,19 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
   const porColumna = useMemo(() => {
     const r: Record<string, Pedido[]> = { pendiente: [], preparando: [], enviado: [] }
     for (const p of filtrados) r[p.estado]?.push(p)
-    // En camino: lo último que salió arriba.
-    r.enviado.sort((a, b) => new Date(b.enviado_at ?? b.created_at).getTime() - new Date(a.enviado_at ?? a.created_at).getTime())
+    // Por la fecha que muestra la tarjeta: cuándo llegó (en camino, cuándo salió).
+    const signo = orden === 'antiguos' ? 1 : -1
+    for (const lista of Object.values(r)) {
+      lista.sort((a, b) => signo * (new Date(fechaReferencia(a)).getTime() - new Date(fechaReferencia(b)).getTime()))
+    }
     return r
-  }, [filtrados])
+  }, [filtrados, orden])
+
+  function cambiarOrden() {
+    const siguiente: Orden = orden === 'antiguos' ? 'nuevos' : 'antiguos'
+    setOrden(siguiente)
+    try { localStorage.setItem(CLAVE_ORDEN, siguiente) } catch {}
+  }
 
   const nuevosVisibles = pedidos.filter(p => nuevosIds.includes(p.id))
 
@@ -358,14 +374,25 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
         </div>
 
         {vista !== 'historial' && (
-          <div className="flex w-full min-w-0 items-center gap-2 lg:w-auto lg:flex-1">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:w-auto lg:flex-1 lg:flex-nowrap">
             <select value={sucursal} onChange={e => setSucursal(e.target.value)} aria-label="Sucursal"
-              className="w-auto max-w-[45%] shrink-0 rounded-xl border border-border bg-surface2 px-3 py-2 text-sm text-text focus:border-accent focus:outline-none lg:max-w-none">
+              className="min-w-0 flex-1 rounded-xl border border-border bg-surface2 px-3 py-2 text-sm text-text focus:border-accent focus:outline-none lg:w-auto lg:flex-none">
               <option value="todas">Todas las sucursales</option>
               {sucursales.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             {vista === 'tablero' && (
-              <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar…" className="min-w-0 flex-1" />
+              <>
+                {/* En el celular la búsqueda baja a su propio renglón: con el orden al lado no entraba. */}
+                <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar…" className="order-last w-full min-w-0 lg:order-none lg:w-auto lg:flex-1" />
+                <button type="button" onClick={cambiarOrden}
+                  aria-label={orden === 'antiguos' ? 'Orden: más antiguos primero. Tocá para ver los más nuevos primero.' : 'Orden: más nuevos primero. Tocá para ver los más antiguos primero.'}
+                  title={orden === 'antiguos' ? 'Más antiguos primero' : 'Más nuevos primero'}
+                  className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-surface2 px-3 text-sm font-medium text-text hover:border-accent hover:text-accent">
+                  {orden === 'antiguos' ? <IconSortAscending size={16} aria-hidden /> : <IconSortDescending size={16} aria-hidden />}
+                  <span className="sm:hidden">{orden === 'antiguos' ? 'Antiguos' : 'Nuevos'}</span>
+                  <span className="hidden sm:inline">{orden === 'antiguos' ? 'Más antiguos primero' : 'Más nuevos primero'}</span>
+                </button>
+              </>
             )}
           </div>
         )}
@@ -408,7 +435,7 @@ export default function PedidosMayoristaClient({ pedidosIniciales, productos, su
                         titulo={busqueda || sucursal !== 'todas' ? 'Sin resultados con estos filtros' : c.vacio} />
                     </div>
                   ) : (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
                       {lista.map(p => (
                         <TarjetaPedido key={p.id} pedido={p} ahora={ahora}
                           nuevo={nuevosIds.includes(p.id)}

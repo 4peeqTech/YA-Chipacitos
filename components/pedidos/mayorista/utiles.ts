@@ -32,6 +32,11 @@ export function sumar(a: number, b: number): number {
   return Math.round((a + b) * 1000) / 1000
 }
 
+/** La fecha que muestra la tarjeta: cuándo llegó; en camino, cuándo salió. */
+export function fechaReferencia(p: Pick<Pedido, 'estado' | 'enviado_at' | 'created_at'>): string {
+  return p.estado === 'enviado' && p.enviado_at ? p.enviado_at : p.created_at
+}
+
 export function haceCuanto(iso: string, ahora: number): string {
   const min = Math.max(0, Math.floor((ahora - new Date(iso).getTime()) / 60000))
   if (min < 1) return 'recién'

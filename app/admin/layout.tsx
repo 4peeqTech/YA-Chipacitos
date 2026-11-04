@@ -8,7 +8,8 @@ import Sidebar from '@/components/ui/Sidebar'
 import NotificationBell from '@/components/ui/NotificationBell'
 import AvisoRedireccion from '@/components/ui/AvisoRedireccion'
 import { ProveedorAcceso } from '@/components/ui/AccesoModulos'
-import { esRolConModulos } from '@/lib/modulos'
+import { IconClipboardCheck } from '@tabler/icons-react'
+import { esRolConModulos, getModuloPorPath } from '@/lib/modulos'
 
 // El control fino de qué rutas /admin/* puede pisar un usuario squad o de
 // rol personalizado (según modulos_permitidos) vive en proxy.ts, que es
@@ -31,11 +32,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const tieneTareas = !esSquad || modulosPermitidos.includes('tareas')
 
-  const navItems = [
+  const navBase = [
     { href: '/admin/dashboard',    label: 'Dashboard',       icon: <LayoutDashboard size={20} /> },
     { href: '/admin/gastos',       label: 'Gastos',          icon: <Wallet size={20} /> },
     { href: '/admin/conciliacion', label: 'Conciliación',    icon: <BarChart3 size={20} /> },
     { href: '/admin/importar',     label: 'Sincronizar',     icon: <RefreshCw size={20} /> },
+  ]
+  // En el celular no hay sidebar: a los roles con módulos se les muestra solo lo
+  // que tienen habilitado (antes veían todo y el proxy los rebotaba). Supervisión
+  // va en la barra solo para ellos: el supervisor de locales trabaja desde el teléfono.
+  const navItems = [
+    ...(esSquad ? navBase.filter(i => modulosPermitidos.includes(getModuloPorPath(i.href)?.key ?? '')) : navBase),
+    ...(esSquad && modulosPermitidos.includes('supervision')
+      ? [{ href: '/admin/supervision', label: 'Supervisión', icon: <IconClipboardCheck size={20} /> }]
+      : []),
     ...(tieneTareas ? [{ href: '/tareas', label: 'Tareas', icon: <ListTodo size={20} /> }] : []),
     { href: '/ayuda',              label: 'Ayuda',           icon: <HelpCircle size={20} /> },
   ]
