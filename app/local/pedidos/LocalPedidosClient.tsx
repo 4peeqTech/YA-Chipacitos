@@ -6,7 +6,9 @@ import { IconPlus } from '@tabler/icons-react'
 import type { Producto } from '@/lib/types'
 import { crearPedido } from '@/lib/pedidos/acciones'
 import { formatoCantidad } from '@/lib/pedidos/estados'
-import { estiloCategoria, estiloProducto, ordenCategoria, type EstiloProducto } from '@/lib/pedidos/categorias'
+import {
+  compararCategorias, estiloCategoria, estiloProducto, indexarCategorias, type CategoriaCatalogo, type Categorias, type EstiloProducto,
+} from '@/lib/pedidos/categorias'
 import Modal from '@/components/ui/Modal'
 import EmptyState from '@/components/ui/EmptyState'
 import PushToggle from '@/components/ui/PushToggle'
@@ -29,6 +31,8 @@ interface Props {
   usuarioId: string
   /** Productos del mayorista, con stock o sin stock (activo = false). */
   productos: Producto[]
+  /** Categorías de fábrica, en el orden de Admin → Catálogo → Categorías. */
+  categorias: CategoriaCatalogo[]
   habituales: Habitual[]
   ultimoPedido: UltimoPedido | null
   /** Falló la consulta del último pedido: Repetir se muestra deshabilitado. */
@@ -47,7 +51,8 @@ function redondear(n: number) {
   return Math.round(n * 1000) / 1000
 }
 
-export default function LocalPedidosClient({ usuarioId, productos, habituales, ultimoPedido, errorUltimoPedido = false }: Props) {
+export default function LocalPedidosClient({ usuarioId, productos, categorias, habituales, ultimoPedido, errorUltimoPedido = false }: Props) {
+  const cats = useMemo(() => indexarCategorias(categorias), [categorias])
   const toast = useToast()
   const confirmar = useConfirmar()
   const [carrito, actualizarCarrito] = useCarritoGuardado(`ya-carrito-local-${usuarioId}`)
@@ -83,7 +88,7 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
   // El resto, por categoría (lo que más se pide primero) y sin repetir los habituales.
   const resto = productos.filter(p => !idsHabituales.has(p.id) && coincide(p))
   const grupos = [...new Set(resto.map(p => p.categoria || SIN_CATEGORIA))]
-    .sort((a, b) => ordenCategoria(a) - ordenCategoria(b) || a.localeCompare(b, 'es'))
+    .sort(compararCategorias(cats, 'fabrica'))
     .map(cat => [cat, resto.filter(p => (p.categoria || SIN_CATEGORIA) === cat)] as const)
   const sinResultados = habitualesVisibles.length === 0 && resto.length === 0
 
@@ -285,6 +290,7 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
                         ultimaCantidad={h.ultimaCantidad}
                         cantidad={cantidadEnCarrito(h.productoId)}
                         onCantidad={n => setCantidad(h.productoId, n)}
+                        cats={cats}
                       />
                     ))}
                   </div>
@@ -294,12 +300,12 @@ export default function LocalPedidosClient({ usuarioId, productos, habituales, u
               {grupos.map(([cat, prods]) => (
                 <div key={cat} className="space-y-2">
                   <h2 className="flex items-center gap-2 text-2xs font-bold uppercase tracking-wider text-muted">
-                    <IconoEstilo estilo={estiloCategoria(cat)} chico />
+                    <IconoEstilo estilo={estiloCategoria(cats, 'fabrica', cat)} chico />
                     {cat}
                   </h2>
                   <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
                     {prods.map(p => (
-                      <FilaProducto key={p.id} producto={p} cantidad={cantidadEnCarrito(p.id)} onCantidad={n => setCantidad(p.id, n)} />
+                      <FilaProducto key={p.id} producto={p} cantidad={cantidadEnCarrito(p.id)} onCantidad={n => setCantidad(p.id, n)} cats={cats} />
                     ))}
                   </ul>
                 </div>
@@ -404,11 +410,12 @@ function NombreProducto({ producto }: { producto: Producto }) {
   )
 }
 
-function TarjetaHabitual({ producto, ultimaCantidad, cantidad, onCantidad }: {
+function TarjetaHabitual({ producto, ultimaCantidad, cantidad, onCantidad, cats }: {
   producto: Producto
   ultimaCantidad: number | null
   cantidad: number
   onCantidad: (n: number) => void
+  cats: Categorias
 }) {
   const sinStock = !producto.activo
   return (
@@ -416,7 +423,7 @@ function TarjetaHabitual({ producto, ultimaCantidad, cantidad, onCantidad }: {
       sinStock ? 'border-border opacity-50' : cantidad > 0 ? 'border-accent/70' : 'border-border'
     }`}>
       <div className="flex items-start gap-2.5">
-        <IconoEstilo estilo={estiloProducto(producto)} />
+        <IconoEstilo estilo={estiloProducto(producto, cats)} />
         <div className="min-w-0 flex-1">
           <NombreProducto producto={producto} />
           {unidadVisible(producto) && <p className="text-2xs text-muted">{unidadVisible(producto)}</p>}
@@ -434,12 +441,12 @@ function TarjetaHabitual({ producto, ultimaCantidad, cantidad, onCantidad }: {
   )
 }
 
-function FilaProducto({ producto, cantidad, onCantidad }: { producto: Producto; cantidad: number; onCantidad: (n: number) => void }) {
+function FilaProducto({ producto, cantidad, onCantidad, cats }: { producto: Producto; cantidad: number; onCantidad: (n: number) => void; cats: Categorias }) {
   const sinStock = !producto.activo
   return (
     <li className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 sm:flex-nowrap ${cantidad > 0 ? 'bg-accent-bg/40' : ''}`}>
       <div className={`flex min-w-0 flex-1 basis-full items-center gap-2.5 sm:basis-auto ${sinStock ? 'opacity-50' : ''}`}>
-        <IconoEstilo estilo={estiloProducto(producto)} />
+        <IconoEstilo estilo={estiloProducto(producto, cats)} />
         <div className="min-w-0">
           <NombreProducto producto={producto} />
           {unidadVisible(producto) && <p className="text-2xs text-muted">{unidadVisible(producto)}</p>}

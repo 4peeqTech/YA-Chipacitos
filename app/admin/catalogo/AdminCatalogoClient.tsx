@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import {
-  IconBuildingFactory2, IconDownload, IconLayersSubtract, IconPackage, IconPlus, IconSearch, IconTrash, IconUpload,
+  IconBuildingFactory2, IconCategory, IconDownload, IconLayersSubtract, IconPackage, IconPlus, IconSearch, IconTrash, IconUpload,
 } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import { Producto, TipoProducto, DestinoProducto } from '@/lib/types'
@@ -14,11 +14,15 @@ import { useConfirm } from '@/components/ui/ConfirmDialog'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
 import { Puntos } from '@/components/ui/Cargando'
 import SelectorIcono from '@/components/pedidos/SelectorIcono'
-import { estiloProducto, ordenCategoria } from '@/lib/pedidos/categorias'
+import {
+  buscarCategoria, compararCategorias, estiloProducto, indexarCategorias, type CategoriaCatalogo, type Categorias,
+} from '@/lib/pedidos/categorias'
+import CategoriasPanel from './CategoriasPanel'
 
 // Catálogo de productos (admin). Grilla de tarjetas por categoría: cada producto se
 // reconoce por su ícono; se toca la tarjeta para editarlo. "Agregar" y el CSV quedan
 // arriba, siempre a mano (antes había que bajar hasta el final de la lista).
+// La pestaña Categorías (CategoriasPanel) arma la lista de categorías de cada destino.
 
 interface Parametro { id: string; nombre: string }
 interface PresentacionParametro extends Parametro { pesoKg: number }
@@ -29,20 +33,8 @@ interface Props {
   sabores: Parametro[]
   presentaciones: PresentacionParametro[]
   tamanios: Parametro[]
+  categoriasIniciales: CategoriaCatalogo[]
 }
-
-const CATEGORIAS = [
-  'Bolsas Congelados',
-  'Cajas Congelados',
-  'Toppings',
-  'Productos Ya!',
-  'Masas',
-  'Insumos Facturas',
-  'Insumos General',
-  'Bolsas Ya!',
-  'Cajas Ya!',
-  'Vasos Café Ya!',
-]
 
 const SIN_CATEGORIA = 'Sin categoría'
 
@@ -51,6 +43,7 @@ type FormProducto = typeof FORM_VACIO
 
 function mensajeErrorProducto(error: { code?: string; message: string }) {
   if (error.code === '23505') return 'Ya existe un producto con esa combinación de presentación, sabor y tamaño.'
+  if (error.code === '23503') return 'Esa categoría ya no existe. Cerrá, recargá la página y elegí otra.'
   return error.message || 'No se pudo guardar el producto.'
 }
 
@@ -58,12 +51,15 @@ const campo = 'w-full rounded-field border border-border bg-surface2 px-3 py-2 t
 const etiqueta = 'mb-1.5 block text-xs font-medium text-muted'
 
 // sabores, presentaciones y tamanios llegan para la terna (oculta por ahora).
-export default function AdminCatalogoClient({ productosIniciales, mapeos }: Props) {
+export default function AdminCatalogoClient({ productosIniciales, mapeos, categoriasIniciales }: Props) {
   const mapeosPorProductoId = useMemo(() => mapeos.reduce<Record<string, string[]>>((acc, m) => {
     if (m.producto_id) (acc[m.producto_id] ??= []).push(m.nombre_posberry)
     return acc
   }, {}), [mapeos])
   const [productos, setProductos] = useState(productosIniciales)
+  const [categoriasLista, setCategoriasLista] = useState(categoriasIniciales)
+  const cats = useMemo(() => indexarCategorias(categoriasLista), [categoriasLista])
+  const [vista, setVista] = useState<'productos' | 'categorias'>('productos')
   const [tab, setTab] = useState<DestinoProducto>('fabrica')
   const [busqueda, setBusqueda] = useState('')
   const [categoria, setCategoria] = useState<string | null>(null)
@@ -144,14 +140,21 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
       const text = await file.text()
       const rows = parsearCSV(text).filter(r => r.nombre)
       let creados = 0, actualizados = 0, errores = 0
+      const categoriasInexistentes = new Set<string>()
       for (const row of rows) {
+        const destino = (row.destino as DestinoProducto) || tab
+        // La categoría tiene que existir en ese destino (la FK lo exige); se toma con
+        // el nombre exacto aunque en el archivo venga con otras mayúsculas.
+        const categoriaCsv = row.categoria?.trim().toLowerCase()
+        const cat = categoriaCsv ? categoriasLista.find(c => c.destino === destino && c.nombre.toLowerCase() === categoriaCsv) : undefined
+        if (categoriaCsv && !cat) { categoriasInexistentes.add(row.categoria.trim()); errores++; continue }
         const payload = {
           nombre: row.nombre,
           descripcion: row.descripcion || null,
           unidad: row.unidad || 'unidad',
           tipo: (row.tipo as TipoProducto) || (esFabrica ? 'producto' : 'insumo'),
-          destino: (row.destino as DestinoProducto) || tab,
-          categoria: row.categoria || null,
+          destino,
+          categoria: cat?.nombre ?? null,
           precio: row.precio ? parseFloat(row.precio.replace(',', '.')) : null,
           codigo: row.codigo ? parseInt(row.codigo) : null,
           activo: row.activo !== 'false',
@@ -167,7 +170,12 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
           else errores++
         }
       }
-      setImportMsg({ tipo: 'ok', texto: `Importado: ${creados} creados, ${actualizados} actualizados${errores > 0 ? `, ${errores} errores` : ''}.` })
+      const faltan = [...categoriasInexistentes]
+      setImportMsg({
+        tipo: faltan.length > 0 ? 'error' : 'ok',
+        texto: `Importado: ${creados} creados, ${actualizados} actualizados${errores > 0 ? `, ${errores} errores` : ''}.`
+          + (faltan.length > 0 ? ` No existe la categoría ${faltan.map(c => `"${c}"`).join(', ')}: creala en la pestaña Categorías y volvé a subir el archivo.` : ''),
+      })
     } catch {
       setImportMsg({ tipo: 'error', texto: 'Error al leer el archivo. Verificá el formato CSV.' })
     }
@@ -247,10 +255,22 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
 
   // ── Filtros y grupos ───────────────────────────────────────────────────
   const categoriasTab = useMemo(
-    () => [...new Set(delTab.map(p => p.categoria || SIN_CATEGORIA))]
-      .sort((a, b) => ordenCategoria(a) - ordenCategoria(b) || a.localeCompare(b, 'es')),
-    [delTab],
+    () => [...new Set(delTab.map(p => p.categoria || SIN_CATEGORIA))].sort(compararCategorias(cats, tab)),
+    [delTab, cats, tab],
   )
+  const desactivada = (nombre: string) => buscarCategoria(cats, tab, nombre)?.activa === false
+  // Para el desplegable del producto: las del destino del formulario, en el orden de Marcos.
+  const opcionesCategoria = categoriasLista.filter(c => c.destino === form.destino).sort((a, b) => a.orden - b.orden)
+  const conteo = useMemo(() => productos.reduce<Record<string, number>>((acc, p) => {
+    if (p.categoria) acc[`${p.destino}|${p.categoria}`] = (acc[`${p.destino}|${p.categoria}`] ?? 0) + 1
+    return acc
+  }, {}), [productos])
+
+  // Renombrar una categoría renombra la de sus productos en la base (on update cascade).
+  function renombrarEnProductos(destino: DestinoProducto, anterior: string, nuevo: string) {
+    setProductos(prev => prev.map(p => p.destino === destino && p.categoria === anterior ? { ...p, categoria: nuevo } : p))
+    if (categoria === anterior) setCategoria(nuevo)
+  }
   const q = busqueda.trim().toLowerCase()
   const visibles = delTab.filter(p =>
     (estado === 'todos' || p.activo === (estado === 'activos')) &&
@@ -277,7 +297,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
           <h1 className="font-['Syne'] text-xl font-bold text-text">Catálogo de productos</h1>
           <p className="mt-1 text-xs text-muted">Los productos de fábrica (los que piden los locales) y los insumos de depósito.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        {vista === 'productos' && <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={descargarCSV} title="Descargar CSV"
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-medium text-muted hover:border-accent/50 hover:text-text">
             <IconDownload size={15} aria-hidden /> <span className="hidden sm:inline">Descargar</span> CSV
@@ -291,11 +311,26 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
             className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-bold text-black hover:opacity-90">
             <IconPlus size={16} aria-hidden /> Agregar {nombreTipo}
           </button>
-        </div>
+        </div>}
       </div>
-      {importMsg && (
+      {importMsg && vista === 'productos' && (
         <p role="status" className={`text-xs ${importMsg.tipo === 'ok' ? 'text-success' : 'text-brand-red'}`}>{importMsg.texto}</p>
       )}
+
+      {/* Productos | Categorías */}
+      <div role="tablist" aria-label="Qué ver" className="flex gap-6 border-b border-border">
+        {([['productos', 'Productos', IconPackage], ['categorias', 'Categorías', IconCategory]] as const).map(([valor, texto, Icono]) => {
+          const activa = vista === valor
+          return (
+            <button key={valor} type="button" role="tab" aria-selected={activa} onClick={() => setVista(valor)}
+              className={`-mb-px inline-flex min-h-11 items-center gap-2 border-b-2 px-0.5 text-sm font-semibold transition-colors ${
+                activa ? 'border-accent text-text' : 'border-transparent text-muted hover:text-text'
+              }`}>
+              <Icono size={16} aria-hidden /> {texto}
+            </button>
+          )
+        })}
+      </div>
 
       {/* Fábrica / Depósito + búsqueda */}
       <div className="flex flex-wrap items-center gap-2">
@@ -303,7 +338,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
           {(['fabrica', 'deposito'] as DestinoProducto[]).map(d => {
             const activa = tab === d
             const Icono = d === 'fabrica' ? IconBuildingFactory2 : IconPackage
-            const n = productos.filter(p => p.destino === d).length
+            const n = vista === 'productos' ? productos.filter(p => p.destino === d).length : categoriasLista.filter(c => c.destino === d).length
             return (
               <button key={d} type="button" role="tab" aria-selected={activa}
                 onClick={() => { setTab(d); setCategoria(null) }}
@@ -314,6 +349,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
             )
           })}
         </div>
+        {vista === 'productos' && <>
         <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre o código…" className="min-w-[12rem] flex-1" />
         <div role="group" aria-label="Estado" className="flex shrink-0 gap-1 rounded-xl border border-border bg-surface p-1">
           {([['todos', 'Todos', delTab.length], ['activos', 'Activos', activos], ['inactivos', 'Inactivos', delTab.length - activos]] as const).map(([valor, texto, n]) => {
@@ -326,7 +362,13 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
             )
           })}
         </div>
+        </>}
       </div>
+
+      {vista === 'categorias' ? (
+        <CategoriasPanel destino={tab} categorias={categoriasLista} setCategorias={setCategoriasLista} conteo={conteo}
+          onRenombrada={renombrarEnProductos} toast={toast} confirmar={confirmar} />
+      ) : <>
 
       {/* Categorías */}
       {categoriasTab.length > 1 && (
@@ -335,7 +377,8 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
             const activa = categoria === c
             return (
               <button key={c} type="button" aria-pressed={activa} onClick={() => setCategoria(activa ? null : c)}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${activa ? 'border-accent bg-accent text-black' : 'border-border bg-surface2 text-muted hover:text-text'}`}>
+                title={desactivada(c) ? 'Desactivada: nadie la puede pedir' : undefined}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${activa ? 'border-accent bg-accent text-black' : 'border-border bg-surface2 text-muted hover:text-text'} ${desactivada(c) && !activa ? 'line-through opacity-60' : ''}`}>
                 {c}
               </button>
             )
@@ -354,19 +397,25 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
         <div className="space-y-6">
           {grupos.map(g => (
             <section key={g.categoria} aria-label={g.categoria} className="space-y-2.5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
-                {g.categoria} <span className="font-normal normal-case tracking-normal text-faint">· {g.productos.length}</span>
+              <h2 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wider text-muted">
+                <span>{g.categoria} <span className="font-normal normal-case tracking-normal text-faint">· {g.productos.length}</span></span>
+                {desactivada(g.categoria) && (
+                  <span className="rounded-full bg-warning-bg px-2 py-0.5 text-2xs font-semibold normal-case tracking-normal text-warning">
+                    Desactivada · nadie la puede pedir
+                  </span>
+                )}
               </h2>
-              <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+              <ul className={`grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 ${desactivada(g.categoria) ? 'opacity-60' : ''}`}>
                 {g.productos.map(p => (
                   <TarjetaProducto key={p.id} producto={p} esFabrica={esFabrica} posberry={mapeosPorProductoId[p.id]?.length ?? 0}
-                    onAbrir={() => abrirEdicion(p)} />
+                    cats={cats} onAbrir={() => abrirEdicion(p)} />
                 ))}
               </ul>
             </section>
           ))}
         </div>
       )}
+      </>}
 
       {/* Agregar / editar */}
       <Modal open={modal !== null} onClose={cerrarModal} size="lg"
@@ -389,7 +438,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
               <span className={etiqueta}>Categoría</span>
               <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))} className={campo}>
                 <option value="">Sin categoría</option>
-                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                {opcionesCategoria.map(c => <option key={c.id} value={c.nombre}>{c.nombre}{c.activa ? '' : ' (desactivada)'}</option>)}
               </select>
             </label>
             <label className="block">
@@ -435,7 +484,7 @@ export default function AdminCatalogoClient({ productosIniciales, mapeos }: Prop
             <div>
               <span className={etiqueta}>Ícono</span>
               <SelectorIcono valor={form.icono} onCambiar={icono => setForm(f => ({ ...f, icono }))}
-                nombre={form.nombre} categoria={form.categoria || null} />
+                nombre={form.nombre} destino={form.destino} categoria={form.categoria || null} cats={cats} />
             </div>
           )}
 
@@ -513,13 +562,14 @@ function TernaSelects({ value, onChange, presentaciones, sabores, tamanios }: {
 
 // La tarjeta solo muestra el estado; se activa o desactiva desde la edición
 // (antes había un interruptor en la tarjeta y se cambiaba con un toque sin querer).
-function TarjetaProducto({ producto: p, esFabrica, posberry, onAbrir }: {
+function TarjetaProducto({ producto: p, esFabrica, posberry, cats, onAbrir }: {
   producto: Producto
   esFabrica: boolean
   posberry: number
+  cats: Categorias
   onAbrir: () => void
 }) {
-  const { icono: Icono, clase } = esFabrica ? estiloProducto(p) : { icono: IconPackage, clase: 'bg-zinc-400/15 text-zinc-300' }
+  const { icono: Icono, clase } = esFabrica ? estiloProducto(p, cats) : { icono: IconPackage, clase: 'bg-zinc-400/15 text-zinc-300' }
   const detalle = [p.unidad, p.precio != null ? `$ ${p.precio.toLocaleString('es-AR')}` : null].filter(Boolean).join(' · ')
   const atenuado = p.activo ? '' : 'opacity-60'
   return (

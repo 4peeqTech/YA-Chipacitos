@@ -150,6 +150,18 @@ export const admin: SeccionManual = {
             { texto: 'Para volver al automático, elegí **Auto** y guardá.' },
           ],
         },
+        { tipo: 'parrafo', texto: 'En la pestaña **Categorías** (arriba, al lado de **Productos**) armás la lista de categorías de **Fábrica** y de **Depósito**. El orden de esa lista es el que ven los locales en **Pedir** y el mayorista en su **Catálogo**.' },
+        {
+          tipo: 'pasos',
+          pasos: [
+            { texto: 'Para crear una, tocá **Nueva categoría**, poné el nombre, elegí ícono y color y tocá **Guardar**.' },
+            { texto: 'Para cambiar el orden, usá las flechas de cada categoría.' },
+            { texto: 'Para renombrarla o cambiarle el ícono o el color, tocá el lápiz. Si le cambiás el nombre, se cambia solo en todos sus productos.' },
+            { texto: 'Para que no se pueda pedir, apagá el interruptor **Se puede pedir**. Sus productos dejan de aparecer en **Pedir** y en el **Catálogo** del mayorista; los pedidos ya hechos no cambian y no se borra nada. Volvé a prenderlo cuando quieras.' },
+            { texto: 'Con **Sugerir a locales sin pedidos** (en el lápiz), los productos de esa categoría le aparecen en **Tus habituales** a un local que todavía no pidió nada. Viene prendido en Masas.' },
+            { texto: 'Solo se puede eliminar una categoría sin productos. Si tiene, pasalos a otra categoría o desactivala.' },
+          ],
+        },
       ],
     },
     {

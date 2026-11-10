@@ -7,7 +7,9 @@ import type { Producto } from '@/lib/types'
 import SearchInput from '@/components/ui/SearchInput'
 import EmptyState from '@/components/ui/EmptyState'
 import { ToastStack, useToasts } from '@/components/ui/Toast'
-import { estiloCategoria, estiloProducto, ordenCategoria } from '@/lib/pedidos/categorias'
+import {
+  compararCategorias, estiloCategoria, estiloProducto, indexarCategorias, type CategoriaCatalogo,
+} from '@/lib/pedidos/categorias'
 import { unidadVisible } from '@/lib/pedidos/unidad'
 
 // Catálogo del mayorista (R1/R6): marca qué productos tienen stock.
@@ -18,7 +20,8 @@ type Filtro = 'todos' | 'con' | 'sin'
 
 const SIN_CATEGORIA = 'Sin categoría'
 
-export default function CatalogoMayorista({ productosIniciales }: { productosIniciales: Producto[] }) {
+export default function CatalogoMayorista({ productosIniciales, categoriasCatalogo }: { productosIniciales: Producto[]; categoriasCatalogo: CategoriaCatalogo[] }) {
+  const cats = useMemo(() => indexarCategorias(categoriasCatalogo), [categoriasCatalogo])
   const [supabase] = useState(() => createClient())
   const [productos, setProductos] = useState(productosIniciales)
   const [filtro, setFiltro] = useState<Filtro>('todos')
@@ -32,8 +35,8 @@ export default function CatalogoMayorista({ productosIniciales }: { productosIni
 
   const categorias = useMemo(
     () => [...new Set(productos.map(p => p.categoria || SIN_CATEGORIA))]
-      .sort((a, b) => ordenCategoria(a) - ordenCategoria(b) || a.localeCompare(b, 'es')),
-    [productos],
+      .sort(compararCategorias(cats, 'fabrica')),
+    [productos, cats],
   )
 
   const grupos = useMemo(() => {
@@ -122,7 +125,7 @@ export default function CatalogoMayorista({ productosIniciales }: { productosIni
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Categoría">
           {categorias.map(c => {
             const activa = categoria === c
-            const Icono = estiloCategoria(c === SIN_CATEGORIA ? null : c).icono
+            const Icono = estiloCategoria(cats, 'fabrica', c === SIN_CATEGORIA ? null : c).icono
             return (
               <button key={c} type="button" aria-pressed={activa} onClick={() => setCategoria(activa ? null : c)}
                 className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
@@ -151,7 +154,7 @@ export default function CatalogoMayorista({ productosIniciales }: { productosIni
       ) : (
         <div className="space-y-5">
           {grupos.map(g => {
-            const estilo = estiloCategoria(g.categoria === SIN_CATEGORIA ? null : g.categoria)
+            const estilo = estiloCategoria(cats, 'fabrica', g.categoria === SIN_CATEGORIA ? null : g.categoria)
             const Icono = estilo.icono
             return (
               <section key={g.categoria} aria-label={g.categoria} className="space-y-2">
@@ -164,7 +167,7 @@ export default function CatalogoMayorista({ productosIniciales }: { productosIni
                   {g.productos.map(p => {
                     const ocupado = guardando.has(p.id)
                     const unidad = unidadVisible(p)
-                    const { icono: IconoP, clase } = estiloProducto(p)
+                    const { icono: IconoP, clase } = estiloProducto(p, cats)
                     return (
                       <li key={p.id} className="flex items-center gap-3 px-3 py-2.5 sm:px-4">
                         <div className={`flex min-w-0 flex-1 items-center gap-3 ${p.activo ? '' : 'opacity-50'}`}>
