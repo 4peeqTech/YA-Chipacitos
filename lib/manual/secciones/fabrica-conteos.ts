@@ -9,9 +9,10 @@ export const fabricaConteos: SeccionManual = {
   roles: ['admin', 'supervisor_fabrica'],
   modulos: ['fabrica-conteos'],
   resumen: 'Contar el stock de fábrica, ver las diferencias y los avisos de sobrestock.',
-  actualizado: '2026-09-24',
+  actualizado: '2026-11-10',
   pendiente: 'La parte de diferencias con el stock del sistema se completa con la entrega H4. El sobrestock ya está.',
   novedades: [
+    { fecha: '2026-11-10', texto: 'Si sacan un insumo de la lista con el conteo abierto, sale también del conteo y se puede cerrar sin error.' },
     { fecha: '2026-09-24', texto: 'El conteo avisa cuando sobra un insumo: la tarjeta se pone ámbar con "Sobrestock" y Compras recibe el aviso.' },
   ],
   apartados: [
@@ -66,6 +67,8 @@ export const fabricaConteos: SeccionManual = {
             { situacion: 'Un insumo sale con sobrestock y no debería', camino: 'Revisá la cantidad que cargaste y las masas proyectadas antes de cerrar. Si ya cerraste, pedile a Compras que descarte la solicitud y volvé a contar.' },
             { situacion: 'La Sal, la Leche o el Pategrás se acumulan y no avisa nada', camino: 'Están marcados como que se piden a demanda: no avisan salvo que tengan un tope. Pedile a Compras que le cargue un **Stock máximo** en la ficha del insumo; desde el próximo conteo, si lo pasás, avisa.' },
             { situacion: 'Un insumo nunca avisa sobrestock', camino: 'Puede que le falte la unidad de compra o la receta. Compras lo ve avisado en **Insumos**.' },
+            { situacion: 'Cambiaron la lista con el conteo abierto', camino: 'No pasa nada: lo que sacaron de la lista sale del conteo, y lo que agregaron aparece cuando abrís **Stock**. Cargá lo nuevo y cerrá como siempre.' },
+            { situacion: 'Toco **Eliminar conteo** y dice que ya movió stock', camino: 'Lo que cargaste ya actualizó el stock, así que el conteo no se borra. Corregí las cantidades que estén mal y cerralo.' },
           ],
         },
       ],
