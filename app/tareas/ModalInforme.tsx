@@ -7,6 +7,7 @@ import { BuscadorUsuario } from './ModalTarea'
 import GrabadorTexto from './GrabadorTexto'
 import { nombrePerfil, notificarTarea, duracionMin, fmtHoras, insertarVineta, DESTINATARIO_DEFAULT_INFORME_ID } from './helpers'
 import type { InformeDiario, InformeActividad } from '@/lib/types'
+import { useCierrePorFondo } from '@/components/ui/useCierrePorFondo'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
@@ -79,6 +80,7 @@ interface ModalInformeProps {
 }
 
 export default function ModalInforme({ informe, fecha, perfiles, userId, userNombre, onCerrar, onCreado, onEliminado }: ModalInformeProps) {
+  const fondo = useCierrePorFondo(() => onCerrar())
   const [supabase] = useState(() => createClient())
   const esNuevo = !informe
   const esAutor = esNuevo || informe?.autor_id === userId
@@ -185,7 +187,7 @@ export default function ModalInforme({ informe, fecha, perfiles, userId, userNom
 
   return (
     <div className="fixed inset-0 bg-black/70 z-[1000] flex items-center justify-center p-4"
-      onClick={e => e.target === e.currentTarget && onCerrar()}>
+      {...fondo}>
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-2xl w-full max-w-[500px] shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="px-5 pt-4 pb-3 shrink-0 border-b border-[#2a2a2a] flex justify-between items-center">
           <h2 className="m-0 text-base font-bold font-['Syne'] text-[#f0f0f0]">
