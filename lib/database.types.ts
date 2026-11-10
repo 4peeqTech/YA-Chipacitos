@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.18"
   }
   public: {
     Tables: {
@@ -32,6 +32,42 @@ export type Database = {
           created_at?: string | null
           id?: string
           nombre?: string
+        }
+        Relationships: []
+      }
+      catalogo_categorias: {
+        Row: {
+          activa: boolean
+          color: string
+          created_at: string
+          destino: string
+          icono: string | null
+          id: string
+          nombre: string
+          orden: number
+          sugerida: boolean
+        }
+        Insert: {
+          activa?: boolean
+          color?: string
+          created_at?: string
+          destino: string
+          icono?: string | null
+          id?: string
+          nombre: string
+          orden?: number
+          sugerida?: boolean
+        }
+        Update: {
+          activa?: boolean
+          color?: string
+          created_at?: string
+          destino?: string
+          icono?: string | null
+          id?: string
+          nombre?: string
+          orden?: number
+          sugerida?: boolean
         }
         Relationships: []
       }
@@ -4564,6 +4600,13 @@ export type Database = {
           unidad?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "productos_categoria_fkey"
+            columns: ["destino", "categoria"]
+            isOneToOne: false
+            referencedRelation: "catalogo_categorias"
+            referencedColumns: ["destino", "nombre"]
+          },
           {
             foreignKeyName: "productos_presentacion_id_fkey"
             columns: ["presentacion_id"]
