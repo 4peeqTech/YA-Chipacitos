@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import type { Producto } from '@/lib/types'
+import { COLUMNAS_CATEGORIA, buscarCategoria, esPedible, indexarCategorias, type CategoriaCatalogo, type Categorias } from '@/lib/pedidos/categorias'
 import LocalPedidosClient, { type Habitual, type UltimoPedido } from './LocalPedidosClient'
 
 const DIAS_HABITUALES = 60
@@ -14,9 +15,10 @@ interface PedidoHistorial { created_at: string; pedido_items: ItemHistorial[] }
  * "Tus habituales" (R5): hasta 4 productos que este local más pidió en los
  * últimos 60 días (pedidos no cancelados), por cantidad de pedidos en los que
  * aparecen; desempata el total pedido. Con la cantidad de la última vez.
- * Sin historial: las Masas.
+ * Sin historial: los productos de las categorías marcadas "Sugerir a locales sin
+ * pedidos" en Admin → Catálogo → Categorías (antes, fijo: la que se llamara "Masas").
  */
-function calcularHabituales(pedidos: PedidoHistorial[], productos: Producto[]): Habitual[] {
+function calcularHabituales(pedidos: PedidoHistorial[], productos: Producto[], cats: Categorias): Habitual[] {
   const porId = new Map(productos.map(p => [p.id, p]))
   const stats = new Map<string, { veces: number; total: number; ultima: number; ultimaFecha: string }>()
   for (const ped of pedidos) {
@@ -38,7 +40,7 @@ function calcularHabituales(pedidos: PedidoHistorial[], productos: Producto[]): 
       .map(([id, s]) => ({ productoId: id, ultimaCantidad: s.ultima }))
   }
   return productos
-    .filter(p => p.categoria === 'Masas')
+    .filter(p => buscarCategoria(cats, p.destino, p.categoria)?.sugerida)
     .sort((a, b) => Number(b.activo) - Number(a.activo) || a.nombre.localeCompare(b.nombre, 'es'))
     .slice(0, MAX_HABITUALES)
     .map(p => ({ productoId: p.id, ultimaCantidad: null }))
@@ -59,7 +61,7 @@ export default async function LocalPedidosPage() {
   // Por ahora el local solo le pide al mayorista (D10): los productos de
   // depósito no se muestran. Los sin stock (activo = false) vienen igual:
   // se ven en gris y no se pueden cargar (R2).
-  const [rProductos, rUltimo, rHistorial] = await Promise.all([
+  const [rProductos, rUltimo, rHistorial, rCategorias] = await Promise.all([
     supabase.from('productos').select('*').eq('destino', 'fabrica').order('nombre'),
     supabase
       .from('pedidos')
@@ -78,6 +80,7 @@ export default async function LocalPedidosPage() {
       .neq('estado', 'cancelado')
       .gte('created_at', desde)
       .order('created_at', { ascending: false }),
+    supabase.from('catalogo_categorias').select(COLUMNAS_CATEGORIA).eq('destino', 'fabrica').order('orden'),
   ])
 
   // Si una consulta falla la página sigue con lo que tenga, pero el error
@@ -85,16 +88,21 @@ export default async function LocalPedidosPage() {
   if (rProductos.error) console.error('[local/pedidos] productos:', rProductos.error.message)
   if (rUltimo.error) console.error('[local/pedidos] último pedido:', rUltimo.error.message)
   if (rHistorial.error) console.error('[local/pedidos] historial de habituales:', rHistorial.error.message)
+  if (rCategorias.error) console.error('[local/pedidos] categorías:', rCategorias.error.message)
   const productos = rProductos.data
   const ultimo = rUltimo.data
   const historial = rHistorial.data
 
-  const lista = (productos ?? []) as Producto[]
+  // Las categorías que Marcos desactivó no se ven: nadie las puede pedir.
+  const categorias = (rCategorias.data ?? []) as CategoriaCatalogo[]
+  const cats = indexarCategorias(categorias)
+  const lista = ((productos ?? []) as Producto[]).filter(p => esPedible(p, cats))
   return (
     <LocalPedidosClient
       usuarioId={user.id}
       productos={lista}
-      habituales={calcularHabituales((historial ?? []) as PedidoHistorial[], lista)}
+      categorias={categorias}
+      habituales={calcularHabituales((historial ?? []) as PedidoHistorial[], lista, cats)}
       ultimoPedido={(ultimo as UltimoPedido | null) ?? null}
       errorUltimoPedido={!!rUltimo.error}
     />

@@ -1,21 +1,26 @@
 'use client'
 
-import { CLAVES_ICONO, ICONOS, esClaveIcono, estiloProducto, iconoAutomatico, motivoIconoAutomatico } from '@/lib/pedidos/categorias'
+import {
+  CLAVES_ICONO, ICONOS, esClaveIcono, estiloProducto, iconoAutomatico, motivoIconoAutomatico, type Categorias,
+} from '@/lib/pedidos/categorias'
 
 // Elegir el ícono de un producto (Admin → Catálogo). '' = automático: el ícono
 // sale de la categoría (congelados) o del nombre, y se actualiza solo si cambian.
 // Siempre dice por qué tiene el que tiene.
-export default function SelectorIcono({ valor, onCambiar, nombre, categoria }: {
+export default function SelectorIcono({ valor, onCambiar, nombre, destino, categoria, cats }: {
   valor: string
   onCambiar: (clave: string) => void
   nombre: string
+  destino: string
   categoria: string | null
+  cats: Categorias
 }) {
-  const auto = iconoAutomatico({ nombre, categoria })
-  const motivo = motivoIconoAutomatico({ nombre, categoria })
+  const producto = { nombre, destino, categoria }
+  const auto = iconoAutomatico(producto, cats)
+  const motivo = motivoIconoAutomatico(producto, cats)
   const elegido = esClaveIcono(valor) ? valor : null
-  const { icono: Vista, clase } = estiloProducto({ nombre, categoria, icono: elegido })
-  const IconoAuto = estiloProducto({ nombre, categoria }).icono
+  const { icono: Vista, clase } = estiloProducto({ ...producto, icono: elegido }, cats)
+  const IconoAuto = estiloProducto(producto, cats).icono
 
   const porque = motivo === 'categoria' ? `por la categoría ${categoria}` : motivo === 'nombre' ? 'por el nombre' : 'el genérico: el nombre no dice qué es'
 

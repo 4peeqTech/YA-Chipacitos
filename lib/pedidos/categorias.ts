@@ -2,9 +2,13 @@
 // del mayorista: así un mismo producto se reconoce igual en las dos pantallas.
 // Íconos lineales de Tabler sobre un fondo suave; nada de emojis.
 //
+// Las categorías (orden, ícono, color, si se pueden pedir) las arma el admin en
+// Admin → Catálogo → Categorías (tabla catalogo_categorias); llegan como
+// `Categorias` desde el server component de cada pantalla.
+//
 // El color sale de la categoría. El ícono, en este orden:
 //   1. el que se eligió a mano en Admin → Catálogo (productos.icono);
-//   2. Congelados: siempre el copo de nieve (lo que importa es que vienen congelados);
+//   2. categoría con el copo de nieve: siempre el copo (lo que importa es que vienen congelados);
 //   3. una palabra del nombre (masa, queso, jamón...);
 //   4. el de la categoría.
 import {
@@ -14,6 +18,7 @@ import {
   IconPepper, IconPizza, IconSalt, IconSausage, IconShoppingBag, IconSnowflake, IconSparkles, IconTag,
   type Icon,
 } from '@tabler/icons-react'
+import type { DestinoProducto } from '@/lib/types'
 
 export type IconoProducto = Icon
 
@@ -60,34 +65,61 @@ export function esClaveIcono(v: string | null | undefined): v is ClaveIcono {
   return v != null && Object.prototype.hasOwnProperty.call(ICONOS, v)
 }
 
-interface Categoria {
-  icono: ClaveIcono
-  /** Clases del contenedor del ícono (fondo suave + color del trazo). */
-  clase: string
+
+/** Fila de catalogo_categorias: la arma Marcos en Admin → Catálogo → Categorías. */
+export interface CategoriaCatalogo {
+  id: string
+  destino: DestinoProducto
+  nombre: string
+  orden: number
+  /** Clave de ICONOS; null = el genérico. */
+  icono: string | null
+  color: string
+  /** false = nadie la puede pedir: no aparece en Pedir ni en el Catálogo del mayorista. */
+  activa: boolean
+  /** Sus productos son "Tus habituales" de un local que todavía no pidió nada. */
+  sugerida: boolean
 }
 
-const AMBAR = 'bg-amber-400/15 text-amber-300'
-const CELESTE = 'bg-sky-400/15 text-sky-300'
-const VERDE = 'bg-emerald-400/15 text-emerald-300'
-const ROSA = 'bg-rose-400/15 text-rose-300'
-const GRIS = 'bg-zinc-400/15 text-zinc-300'
+/** Columnas de catalogo_categorias que leen las pantallas: `.select(COLUMNAS_CATEGORIA).order('orden')`. */
+export const COLUMNAS_CATEGORIA = 'id, destino, nombre, orden, icono, color, activa, sugerida'
 
-const CATEGORIAS: Record<string, Categoria> = {
-  'Masas':             { icono: 'masa',      clase: AMBAR },
-  'Productos Ya!':     { icono: 'congelado', clase: CELESTE },
-  'Bolsas Congelados': { icono: 'congelado', clase: CELESTE },
-  'Cajas Congelados':  { icono: 'congelado', clase: CELESTE },
-  'Toppings':          { icono: 'topping',   clase: VERDE },
-  'Insumos Facturas':  { icono: 'torta',     clase: ROSA },
-  'Insumos General':   { icono: 'paquete',   clase: GRIS },
-  'Bolsas Ya!':        { icono: 'bolsa',     clase: GRIS },
-  'Cajas Ya!':         { icono: 'caja',      clase: GRIS },
-  'Vasos Café Ya!':    { icono: 'vaso',      clase: GRIS },
+/** Colores que se pueden elegir. La clave es lo que se guarda en catalogo_categorias.color. */
+export const COLORES = {
+  ambar:   { clase: 'bg-amber-400/15 text-amber-300',     etiqueta: 'Ámbar' },
+  celeste: { clase: 'bg-sky-400/15 text-sky-300',         etiqueta: 'Celeste' },
+  verde:   { clase: 'bg-emerald-400/15 text-emerald-300', etiqueta: 'Verde' },
+  rosa:    { clase: 'bg-rose-400/15 text-rose-300',       etiqueta: 'Rosa' },
+  gris:    { clase: 'bg-zinc-400/15 text-zinc-300',       etiqueta: 'Gris' },
+} satisfies Record<string, { clase: string; etiqueta: string }>
+
+export type ClaveColor = keyof typeof COLORES
+
+export const CLAVES_COLOR = Object.keys(COLORES) as ClaveColor[]
+
+function claseColor(color: string | null | undefined): string {
+  return color && Object.prototype.hasOwnProperty.call(COLORES, color) ? COLORES[color as ClaveColor].clase : COLORES.gris.clase
 }
 
-const CONGELADOS = new Set(['Productos Ya!', 'Bolsas Congelados', 'Cajas Congelados'])
+/** Categorías indexadas por destino y nombre (el mismo nombre puede estar en Fábrica y en Depósito). */
+export type Categorias = ReadonlyMap<string, CategoriaCatalogo>
 
-const POR_DEFECTO = { icono: IconBasket, clase: GRIS }
+const clave = (destino: string, nombre: string) => `${destino}|${nombre}`
+
+export function indexarCategorias(lista: readonly CategoriaCatalogo[]): Categorias {
+  return new Map(lista.map(c => [clave(c.destino, c.nombre), c]))
+}
+
+export function buscarCategoria(cats: Categorias, destino: string, nombre: string | null | undefined): CategoriaCatalogo | undefined {
+  return nombre ? cats.get(clave(destino, nombre)) : undefined
+}
+
+/** Se puede pedir: no está en una categoría desactivada. (Que tenga stock lo dice productos.activo.) */
+export function esPedible(p: { destino: string; categoria: string | null }, cats: Categorias): boolean {
+  return buscarCategoria(cats, p.destino, p.categoria)?.activa !== false
+}
+
+const POR_DEFECTO = { icono: IconBasket, clase: COLORES.gris.clase }
 
 /** Palabra del nombre (sin tildes, en minúscula) → ícono. Gana la primera que aparece en la lista. */
 const PALABRAS: [RegExp, ClaveIcono][] = [
@@ -112,13 +144,20 @@ function normalizar(s: string): string {
   return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
 }
 
+type ProductoEstilo = { nombre: string; destino: string; categoria: string | null }
+
+function iconoDeCategoria(cat: CategoriaCatalogo | undefined): ClaveIcono | null {
+  return cat && esClaveIcono(cat.icono) ? cat.icono : null
+}
+
 /** Ícono que le tocaría al producto sin elegir nada a mano (null = el genérico). */
-export function iconoAutomatico(p: { nombre: string; categoria: string | null }): ClaveIcono | null {
-  if (p.categoria && CONGELADOS.has(p.categoria)) return 'congelado'
+export function iconoAutomatico(p: ProductoEstilo, cats: Categorias): ClaveIcono | null {
+  const deCategoria = iconoDeCategoria(buscarCategoria(cats, p.destino, p.categoria))
+  if (deCategoria === 'congelado') return 'congelado'
   const nombre = normalizar(p.nombre)
   const palabra = PALABRAS.find(([re]) => re.test(nombre))
   if (palabra) return palabra[1]
-  return (p.categoria && CATEGORIAS[p.categoria]?.icono) || null
+  return deCategoria
 }
 
 /**
@@ -126,10 +165,11 @@ export function iconoAutomatico(p: { nombre: string; categoria: string | null })
  * categoría Productos Ya!" (congelados, o el nombre no dice nada reconocible) o
  * "por el nombre". null = no hay (va el genérico).
  */
-export function motivoIconoAutomatico(p: { nombre: string; categoria: string | null }): 'categoria' | 'nombre' | null {
-  if (p.categoria && CONGELADOS.has(p.categoria)) return 'categoria'
+export function motivoIconoAutomatico(p: ProductoEstilo, cats: Categorias): 'categoria' | 'nombre' | null {
+  const deCategoria = iconoDeCategoria(buscarCategoria(cats, p.destino, p.categoria))
+  if (deCategoria === 'congelado') return 'categoria'
   if (PALABRAS.some(([re]) => re.test(normalizar(p.nombre)))) return 'nombre'
-  return p.categoria && CATEGORIAS[p.categoria] ? 'categoria' : null
+  return deCategoria ? 'categoria' : null
 }
 
 export interface EstiloProducto {
@@ -137,22 +177,25 @@ export interface EstiloProducto {
   clase: string
 }
 
-export function estiloProducto(p: { nombre: string; categoria: string | null; icono?: string | null }): EstiloProducto {
-  const clase = (p.categoria && CATEGORIAS[p.categoria]?.clase) || POR_DEFECTO.clase
-  const clave = esClaveIcono(p.icono) ? p.icono : iconoAutomatico(p)
+export function estiloProducto(p: ProductoEstilo & { icono?: string | null }, cats: Categorias): EstiloProducto {
+  const clase = claseColor(buscarCategoria(cats, p.destino, p.categoria)?.color)
+  const clave = esClaveIcono(p.icono) ? p.icono : iconoAutomatico(p, cats)
   return { icono: clave ? ICONOS[clave].icono : POR_DEFECTO.icono, clase }
 }
 
 /** Ícono y color de una categoría (títulos y filtros). */
-export function estiloCategoria(categoria: string | null | undefined): EstiloProducto {
-  const c = categoria ? CATEGORIAS[categoria] : undefined
-  return c ? { icono: ICONOS[c.icono].icono, clase: c.clase } : POR_DEFECTO
+export function estiloCategoria(cats: Categorias, destino: string, categoria: string | null | undefined): EstiloProducto {
+  const c = buscarCategoria(cats, destino, categoria)
+  if (!c) return POR_DEFECTO
+  const icono = iconoDeCategoria(c)
+  return { icono: icono ? ICONOS[icono].icono : POR_DEFECTO.icono, clase: claseColor(c.color) }
 }
 
-/** Orden en que se muestran las categorías: lo que más se pide, primero. */
-export const ORDEN_CATEGORIAS = ['Masas', 'Productos Ya!', 'Bolsas Congelados', 'Cajas Congelados', 'Toppings', 'Insumos Facturas', 'Insumos General']
-
-export function ordenCategoria(categoria: string | null | undefined): number {
-  const i = categoria ? ORDEN_CATEGORIAS.indexOf(categoria) : -1
-  return i === -1 ? ORDEN_CATEGORIAS.length : i
+/**
+ * Para ordenar nombres de categoría como los ordenó Marcos. Las que no están en
+ * la tabla ("Sin categoría") van al final, por orden alfabético.
+ */
+export function compararCategorias(cats: Categorias, destino: string) {
+  const orden = (nombre: string) => buscarCategoria(cats, destino, nombre)?.orden ?? Number.MAX_SAFE_INTEGER
+  return (a: string, b: string) => orden(a) - orden(b) || a.localeCompare(b, 'es')
 }
