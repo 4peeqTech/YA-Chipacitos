@@ -5,6 +5,7 @@ import { IconMessageCircle, IconX } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import type { PedidoMensaje } from '@/lib/types'
 import ChatPedido from './ChatPedido'
+import { useCierrePorFondo } from '@/components/ui/useCierrePorFondo'
 
 // El chat de un pedido, fuera del detalle (una conversación larga lo alargaba
 // muchísimo). Botón con la cantidad de mensajes, resaltado si hay sin leer; al
@@ -54,6 +55,7 @@ export function contarSinLeer(mensajes: PedidoMensaje[], usuarioId: string, vist
 }
 
 export default function BotonChat({ pedidoId, usuarioId, titulo, mensajes: mensajesControlados, sinLeer: sinLeerControlado, onVisto, enVivo = true }: Props) {
+  const fondo = useCierrePorFondo(() => cerrar())
   const controlado = mensajesControlados !== undefined
   const [supabase] = useState(() => createClient())
   const [propios, setPropios] = useState<PedidoMensaje[]>([])
@@ -122,7 +124,7 @@ export default function BotonChat({ pedidoId, usuarioId, titulo, mensajes: mensa
       </button>
 
       {abierto && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" onClick={cerrar}>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" {...fondo}>
           <div role="dialog" aria-modal="true" aria-label={titulo} onClick={e => e.stopPropagation()}
             className="flex h-[85dvh] w-full max-w-lg flex-col gap-3 rounded-t-2xl border border-border border-t-2 border-t-accent bg-surface p-4 shadow-modal sm:h-[70vh] sm:rounded-2xl">
             <div className="flex items-center justify-between">

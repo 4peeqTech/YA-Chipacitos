@@ -22,6 +22,7 @@ import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, isVencida, esMiaTarea, e
 import { urlBase64ToUint8Array } from '@/lib/push'
 import { useRefrescarAlVolver } from '@/lib/hooks/useRefrescarAlVolver'
 import type { Tarea, PrioridadTarea, EstadoTarea, Turno } from '@/lib/types'
+import { useCierrePorFondo } from '@/components/ui/useCierrePorFondo'
 
 export interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
@@ -325,6 +326,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
   const [fechaNuevaTarea, setFechaNuevaTarea] = useState<string | undefined>(undefined)
   const [turnoNuevaTarea, setTurnoNuevaTarea] = useState<Turno | undefined>(undefined)
   const [confirmEliminar, setConfirmEliminar] = useState<Tarea | null>(null)
+  const fondoConfirmar = useCierrePorFondo(() => setConfirmEliminar(null))
   const [activeId, setActiveId] = useState<string | null>(null)
 
   const [grabando, setGrabando] = useState(false)
@@ -892,7 +894,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
 
       {confirmEliminar && (
         <div className="fixed inset-0 bg-black/70 z-[1000] flex items-center justify-center p-5"
-          onClick={e => e.target === e.currentTarget && setConfirmEliminar(null)}>
+          {...fondoConfirmar}>
           <div className="bg-[#111111] border border-[#2a2a2a] border-t-2 border-t-[#e84210] rounded-2xl p-6 max-w-[340px] w-full">
             <h3 className="m-0 mb-2 text-base font-['Syne'] font-bold text-[#f0f0f0]">Eliminar tarea</h3>
             <p className="m-0 mb-5 text-[13px] text-[#888]">

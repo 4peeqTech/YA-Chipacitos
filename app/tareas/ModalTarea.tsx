@@ -7,6 +7,7 @@ import { useToasts, ToastStack } from '@/components/ui/Toast'
 import { PRIORIDAD_META, COLABORA_META, nombrePerfil, notificarTarea, insertarVineta } from './helpers'
 import type { Tarea, TareaComentario, TareaSubtarea, TareaHistorial, TareaAdjunto, PrioridadTarea, Turno, ColaboraTipo } from '@/lib/types'
 import DatePicker from '@/components/ui/DatePicker'
+import { useCierrePorFondo } from '@/components/ui/useCierrePorFondo'
 
 interface PerfilLite { id: string; nombre: string; rol: string; local_nombre: string | null }
 
@@ -426,6 +427,7 @@ interface ModalTareaProps {
 }
 
 export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaInicial, turnoInicial, onCerrar, onGuardado }: ModalTareaProps) {
+  const fondo = useCierrePorFondo(() => onCerrar())
   const [supabase] = useState(() => createClient())
   const esNueva = !tarea?.id
   const esCreador = esNueva || tarea?.creado_por === userId
@@ -541,7 +543,7 @@ export default function ModalTarea({ tarea, perfiles, userId, userNombre, fechaI
 
   return (
     <div className="fixed inset-0 bg-black/70 z-[1000] flex items-center justify-center p-4"
-      onClick={e => e.target === e.currentTarget && onCerrar()}>
+      {...fondo}>
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-2xl w-full max-w-[540px] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-5 pt-4 pb-3 shrink-0 border-b border-[#2a2a2a]">

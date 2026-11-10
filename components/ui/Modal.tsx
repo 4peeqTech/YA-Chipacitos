@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { X } from 'lucide-react'
+import { useCierrePorFondo } from './useCierrePorFondo'
 
 interface Props {
   open: boolean
@@ -77,6 +78,7 @@ export default function Modal({ open, onClose, title, accent = 'gold', size = 'm
     if (e.shiftKey && (activo === primero || activo === ref.current)) { e.preventDefault(); ultimo.focus() }
     else if (!e.shiftKey && activo === ultimo) { e.preventDefault(); primero.focus() }
   }
+  const fondo = useCierrePorFondo(onClose)
 
   if (!open) return null
 
@@ -85,7 +87,7 @@ export default function Modal({ open, onClose, title, accent = 'gold', size = 'm
   return (
     <div
       className={`modal-fondo fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 ${pantallaCompletaMobile ? 'p-0 sm:p-4' : 'p-4'}`}
-      onClick={onClose}
+      {...fondo}
     >
       <div
         className={`modal-caja bg-surface border border-border border-t-2 ${accentBorder} w-full ${MAX_WIDTH[size]} overflow-y-auto ${pantallaCompletaMobile ? 'h-dvh sm:h-auto max-h-dvh sm:max-h-[calc(100vh-2rem)] rounded-none sm:rounded-2xl p-4' : 'max-h-[calc(100vh-2rem)] rounded-2xl p-6'} sm:p-6 overflow-x-hidden space-y-4 shadow-modal outline-none`}
