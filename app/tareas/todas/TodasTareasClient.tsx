@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { VistaTabla, type PerfilLite } from '../TareasClient'
 import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, nombrePerfil } from '../helpers'
 import type { Tarea } from '@/lib/types'
+import { useCierrePorFondo } from '@/components/ui/useCierrePorFondo'
 
 interface TodasTareasClientProps {
   userId: string
@@ -15,6 +16,7 @@ export default function TodasTareasClient({ userId, tareas, perfiles }: TodasTar
   const [filtroAsignador, setFiltroAsignador] = useState('')
   const [filtroReceptor, setFiltroReceptor] = useState('')
   const [detalle, setDetalle] = useState<Tarea | null>(null)
+  const fondo = useCierrePorFondo(() => setDetalle(null))
 
   const filtradas = useMemo(() => tareas.filter(t =>
     (!filtroAsignador || t.creado_por === filtroAsignador) &&
@@ -64,7 +66,7 @@ export default function TodasTareasClient({ userId, tareas, perfiles }: TodasTar
       </div>
 
       {detalle && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setDetalle(null)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" {...fondo}>
           <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl max-w-[480px] w-full p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-lg font-bold text-[#f0f0f0] m-0">{detalle.titulo}</h2>

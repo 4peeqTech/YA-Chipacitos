@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { mensajeError } from '@/lib/errores'
 import { PRIORIDAD_META } from './helpers'
 import type { Tarea, TareaSubtarea, Turno } from '@/lib/types'
+import { useCierrePorFondo } from '@/components/ui/useCierrePorFondo'
 
 interface ModalSubtareaProps {
   tareas: Tarea[]
@@ -16,6 +17,7 @@ interface ModalSubtareaProps {
 }
 
 export default function ModalSubtarea({ tareas, userId, fechaInicial, turnoInicial, onCerrar, onCreada }: ModalSubtareaProps) {
+  const fondo = useCierrePorFondo(() => onCerrar())
   const supabase = createClient()
   const [query, setQuery] = useState('')
   const [tareaId, setTareaId] = useState<string | null>(null)
@@ -53,7 +55,7 @@ export default function ModalSubtarea({ tareas, userId, fechaInicial, turnoInici
 
   return (
     <div className="fixed inset-0 bg-black/70 z-[1000] flex items-center justify-center p-4"
-      onClick={e => e.target === e.currentTarget && onCerrar()}>
+      {...fondo}>
       <div className="bg-[#111111] border border-[#2a2a2a] rounded-2xl w-full max-w-[440px] shadow-2xl max-h-[88vh] flex flex-col overflow-hidden">
         <div className="px-5 pt-4 pb-3 shrink-0 border-b border-[#2a2a2a] flex justify-between items-center">
           <h2 className="m-0 text-base font-bold font-['Syne'] text-[#f0f0f0]">+ Subtarea</h2>

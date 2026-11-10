@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
+import { useCierrePorFondo } from './useCierrePorFondo'
 
 interface Props {
   open: boolean
@@ -27,6 +28,7 @@ export default function Modal({ open, onClose, title, accent = 'gold', size = 'm
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
+  const fondo = useCierrePorFondo(onClose)
 
   if (!open) return null
 
@@ -35,7 +37,7 @@ export default function Modal({ open, onClose, title, accent = 'gold', size = 'm
   return (
     <div
       className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4"
-      onClick={onClose}
+      {...fondo}
     >
       <div
         className={`bg-surface border border-border border-t-2 ${accentBorder} rounded-2xl w-full ${MAX_WIDTH[size]} max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden p-6 space-y-4 shadow-modal`}

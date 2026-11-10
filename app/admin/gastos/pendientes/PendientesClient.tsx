@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { mensajeError } from '@/lib/errores'
+import { useCierrePorFondo } from '@/components/ui/useCierrePorFondo'
 
 interface GastoManual {
   _source: 'manual'
@@ -57,6 +58,7 @@ function getDescripcion(g: GastoPendiente) {
 function getFecha(g: GastoPendiente) { return g._source === 'manual' ? g.fecha : (g as GastoFudo).date }
 
 export default function PendientesClient({ gastosManual: initialManual }: Props) {
+  const fondo = useCierrePorFondo(() => closeModal())
   const supabase = createClient()
   const [gastosManual, setGastosManual] = useState<GastoManual[]>(initialManual)
   const [gastosFudo, setGastosFudo] = useState<GastoFudo[]>([])
@@ -328,7 +330,7 @@ export default function PendientesClient({ gastosManual: initialManual }: Props)
 
       {/* Modal */}
       {modalGasto && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={closeModal}>
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" {...fondo}>
           <div className="bg-[#111111] border border-[#2a2a2a] rounded-2xl w-full max-w-md p-6 space-y-5" onClick={e => e.stopPropagation()}>
             <div>
               <div className="flex items-center gap-2 mb-1">
