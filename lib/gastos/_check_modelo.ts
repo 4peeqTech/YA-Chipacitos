@@ -7,6 +7,7 @@ import {
   type GastoFila, type PagoFila,
 } from './modelo'
 import { rutaComprobante } from './comprobante'
+import { buscarCuentas, rutaDe, type CuentaPlan } from './plan'
 
 const fila = (p: Partial<GastoFila>): GastoFila => ({
   id: 'g1', fecha: '2026-09-10', local: 'YA! FABRICA', rubro: 'MATERIA PRIMA', categoria: 'HUEVOS',
@@ -16,7 +17,8 @@ const fila = (p: Partial<GastoFila>): GastoFila => ({
   factura_id: null, factura_numero: null, factura_pedido_numero: null,
   origen: 'manual', fecha_vencimiento: null, vencido: false, pagado: 0, saldo: null, pagos: 0, adjuntos: 0,
   ultimo_pago_forma: null, fudo_id: null, fudo_categoria: null, fudo_proveedor: null, fudo_estado: null,
-  fudo_revisar: false, fudo_sincronizado_en: null, fudo_descripcion: null, recurrente_id: null, periodo: null, a_confirmar: false, ...p,
+  fudo_revisar: false, fudo_sincronizado_en: null, fudo_descripcion: null, recurrente_id: null, periodo: null, a_confirmar: false,
+  cuenta: '5.1.01.02', cuenta_nombre: 'Huevos', uso_gastos: 'gasto', ...p,
 })
 
 const gastos = armarGastos([
@@ -24,13 +26,25 @@ const gastos = armarGastos([
   fila({ id: 'g2', fecha: '2026-09-20', estado: 'Pagado', fecha_pago: '2026-09-21', monto: 500.5, pagado: 500.5, pagos: 1, local: 'YA! GOYA', proveedor_nombre: null }),
   fila({ id: 'g3', fecha: '2026-08-30', monto: 200, factura_id: 'f1', factura_numero: '0007-1', factura_pedido_numero: 15 }),
   fila({ id: 'g5', estado: 'Parcial', monto: 1000, pagado: 400, saldo: 600, pagos: 1 }),
-  fila({ id: 'g6', origen: 'fudo', rubro: null, categoria: null }),
+  fila({ id: 'g6', origen: 'fudo', rubro: null, categoria: null, cuenta: null, cuenta_nombre: null, uso_gastos: null }),
   fila({ id: null }),
 ])
 const g = (id: string) => gastos.find(x => x.id === id)!
+
+const cta = (codigo: string, nombre: string, padre: string, nivel = 4, incluye: string | null = null): CuentaPlan => ({
+  codigo, nombre, nivel, padre, imputable: nivel === 4, tipo: 'Resultado · Costo y gasto', rubroGasto: 'Gastos de funcionamiento',
+  categoriaGasto: 'Servicios', incluye, tableroFabrica: null, tableroLocales: null, usoGastos: nivel === 4 ? 'gasto' : null,
+})
+const plan = [
+  cta('5', 'COSTOS Y GASTOS', '', 1), cta('5.3', 'Gastos de funcionamiento', '5', 2), cta('5.3.01', 'Servicios', '5.3', 3),
+  cta('5.3.01.01', 'Energía eléctrica', '5.3.01', 4, 'Facturas de DPEC.'),
+  cta('5.3.01.04', 'Internet y telefonía', '5.3.01', 4, 'Internet de locales y fábrica, celulares de administración.'),
+  cta('5.3.01.05', 'Seguridad y monitoreo', '5.3.01', 4, 'Monitoreo de alarmas (Proegur).'),
+]
+const busca = (q: string) => buscarCuentas(plan.filter(c => c.imputable), q).map(c => c.codigo).join()
 const hoy = '2026-11-03'
 const nuevo = formInicial(null, '2026-09-30', { local: 'YA! FABRICA', formaPago: 'Transferencia' })
-const completo = { ...nuevo, rubro: 'MATERIA PRIMA', categoria: 'HUEVOS', monto: 10 }
+const completo = { ...nuevo, cuenta: '5.1.01.02', monto: 10 }
 
 const porDefecto = leerFiltros({}, hoy)
 const conTodo = leerFiltros({ desde: '2026-10-01', hasta: '2026-10-31', estado: 'pendientes', local: 'YA! GOYA', q: ' huevos ', origen: 'fudo', pagina: '3' }, hoy)
@@ -58,7 +72,7 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'valores inválidos caen al defecto', real: JSON.stringify(leerFiltros({ estado: 'x', origen: 'y', pagina: '-2', desde: '2026-13' }, hoy)), esperado: JSON.stringify(porDefecto) },
   { nombre: 'solo "hasta" no completa el desde', real: leerFiltros({ hasta: '2026-10-31' }, hoy).desde, esperado: '' },
   // Resumen
-  { nombre: 'resumen desde el jsonb', real: JSON.stringify(leerResumen({ pendiente: '10.005', pendientes_count: 2, filtrado_total: null })), esperado: JSON.stringify({ pendiente: 10.01, pendientesCount: 2, pagadoPeriodo: 0, totalPeriodo: 0, gastosPeriodo: 0, filtradoTotal: 0 }) },
+  { nombre: 'resumen desde el jsonb', real: JSON.stringify(leerResumen({ pendiente: '10.005', pendientes_count: 2, filtrado_total: null })), esperado: JSON.stringify({ pendiente: 10.01, pendientesCount: 2, pagadoPeriodo: 0, totalPeriodo: 0, gastosPeriodo: 0, otrosPeriodo: 0, otrosCount: 0, sinClasificarCount: 0, filtradoTotal: 0 }) },
   { nombre: 'resumen vacío', real: leerResumen(null).pendiente, esperado: 0 },
   // Pagos
   { nombre: 'pagos: vigentes primero, el más reciente arriba', real: pagos.map(p => p.id).join(), esperado: 'p3,p2,p1' },
@@ -66,7 +80,7 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'pago de Fudo', real: pagos[0].origen, esperado: 'fudo' },
   // Formulario
   { nombre: 'form nuevo con defaults', real: `${nuevo.local}|${nuevo.formaPago}|${nuevo.fecha}|${nuevo.fechaVencimiento}`, esperado: 'YA! FABRICA|Transferencia|2026-09-30|' },
-  { nombre: 'valida rubro', real: validarGasto(nuevo, true)?.campo, esperado: 'rubro' },
+  { nombre: 'valida cuenta', real: validarGasto(nuevo, true)?.campo, esperado: 'cuenta' },
   { nombre: 'valida monto 0', real: validarGasto({ ...completo, monto: 0 }, true)?.campo, esperado: 'monto' },
   { nombre: 'completo es válido', real: validarGasto(completo, true), esperado: null },
   { nombre: 'vencimiento antes de la fecha', real: validarGasto({ ...completo, fechaVencimiento: '2026-09-01' }, true)?.campo, esperado: 'fechaVencimiento' },
@@ -84,7 +98,7 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'no se elimina con pagos', real: motivoNoEliminar(g('g5'))?.startsWith('Este gasto tiene pagos'), esperado: true },
   { nombre: 'sin pagos se elimina', real: motivoNoEliminar(g('g1')), esperado: null },
   // Pendientes (todo es un gasto de la base)
-  { nombre: 'pendiente: título proveedor', real: `${pendienteDeGasto(g('g1')).titulo}|${pendienteDeGasto(g('g1')).detalle}`, esperado: 'Huevo Campo|HUEVOS' },
+  { nombre: 'pendiente: título proveedor', real: `${pendienteDeGasto(g('g1')).titulo}|${pendienteDeGasto(g('g1')).detalle}`, esperado: 'Huevo Campo|Huevos' },
   { nombre: 'pendiente de Fudo: detalle con lo de Fudo', real: pendienteDeGasto(g('g6')).detalle, esperado: 'Sin clasificar' },
   // Comprobantes
   { nombre: 'comprobante: ruta tal cual', real: rutaComprobante('gastos/app-1/1.png'), esperado: 'gastos/app-1/1.png' },
@@ -96,21 +110,42 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   // Gastos de Fudo
   {
     nombre: 'Fudo: título con la descripción, abajo "Sin clasificar" y lo de Fudo',
-    real: (() => { const x = armarGastos([fila({ id: 'f1', origen: 'fudo', rubro: null, categoria: null, proveedor_nombre: null, fudo_descripcion: 'Flete', fudo_proveedor: 'Lucas', fudo_categoria: 'Envíos' })])[0]; return `${x.titulo}|${x.subtitulo}` })(),
+    real: (() => { const x = armarGastos([fila({ id: 'f1', origen: 'fudo', rubro: null, categoria: null, cuenta: null, cuenta_nombre: null, uso_gastos: null, proveedor_nombre: null, fudo_descripcion: 'Flete', fudo_proveedor: 'Lucas', fudo_categoria: 'Envíos' })])[0]; return `${x.titulo}|${x.subtitulo}` })(),
     esperado: 'Flete|Sin clasificar · Lucas · Envíos',
   },
   {
-    nombre: 'Fudo clasificado: abajo la categoría de la app',
-    real: armarGastos([fila({ id: 'f2', origen: 'fudo', rubro: 'PERSONAL', categoria: 'PERSONAL', proveedor_nombre: null, fudo_descripcion: null, fudo_proveedor: 'Lucas', fudo_categoria: null })])[0].subtitulo,
-    esperado: 'PERSONAL',
+    nombre: 'Fudo clasificado: abajo la cuenta de la app',
+    real: armarGastos([fila({ id: 'f2', origen: 'fudo', cuenta: '5.2.02.01', cuenta_nombre: 'Reemplazos, francos y eventos', proveedor_nombre: null, fudo_descripcion: null, fudo_proveedor: 'Lucas', fudo_categoria: null })])[0].subtitulo,
+    esperado: 'Reemplazos, francos y eventos',
   },
-  { nombre: 'Fudo: se guarda sin clasificar', real: validarGasto({ ...completo, rubro: '', categoria: '' }, false, true), esperado: null },
-  { nombre: 'Fudo: con rubro pide categoría', real: validarGasto({ ...completo, categoria: '' }, false, true)?.campo, esperado: 'categoria' },
+  { nombre: 'Fudo: se guarda sin clasificar', real: validarGasto({ ...completo, cuenta: '' }, false, true), esperado: null },
+  { nombre: 'manual: sin cuenta no se guarda', real: validarGasto({ ...completo, cuenta: '' }, true)?.campo, esperado: 'cuenta' },
+  {
+    nombre: 'otro pago: queda marcado como "no es gasto"',
+    real: armarGastos([fila({ id: 'o1', cuenta: '3.1.01.01', cuenta_nombre: 'Retiros del socio', uso_gastos: 'otro_pago' })])[0].usoGastos,
+    esperado: 'otro_pago',
+  },
+  { nombre: 'filtro por cuenta: lee un código', real: leerFiltros({ cuenta: '5.3' }, hoy).cuenta, esperado: '5.3' },
+  { nombre: 'filtro por cuenta: sin clasificar', real: paramsDeFiltros({ ...leerFiltros({}, hoy), cuenta: 'sin' }, hoy), esperado: 'cuenta=sin' },
+  { nombre: 'filtro por cuenta: ignora basura', real: leerFiltros({ cuenta: "5'; drop" }, hoy).cuenta, esperado: '' },
+  {
+    nombre: 'resumen: lo que no es gasto viene aparte',
+    real: (() => { const r = leerResumen({ total_periodo: 1000, otros_periodo: 500, otros_count: 1, sin_clasificar_count: 3 }); return `${r.totalPeriodo}|${r.otrosPeriodo}|${r.otrosCount}|${r.sinClasificarCount}` })(),
+    esperado: '1000|500|1|3',
+  },
+  // Plan de cuentas: búsqueda
+  { nombre: 'buscar "luz": energía eléctrica (sinónimo)', real: busca('luz'), esperado: '5.3.01.01' },
+  { nombre: 'buscar sin tildes: "telefonia"', real: busca('telefonia'), esperado: '5.3.01.04' },
+  { nombre: 'buscar en "qué se incluye": "proegur"', real: busca('proegur'), esperado: '5.3.01.05' },
+  { nombre: 'buscar por código: "5.3.01.0" las tres', real: busca('5.3.01.0'), esperado: '5.3.01.01,5.3.01.04,5.3.01.05' },
+  { nombre: 'buscar: primero lo que está en el nombre', real: busca('celular'), esperado: '5.3.01.04' },
+  { nombre: 'buscar: todas las palabras', real: busca('dpec alarmas'), esperado: '' },
+  { nombre: 'ruta de una cuenta: rubro › categoría', real: rutaDe(plan, '5.3.01.01').join(' › '), esperado: 'Gastos de funcionamiento › Servicios' },
   // Gastos que se repiten
   {
     nombre: 'recurrente: el título es el nombre de la plantilla',
     real: (() => { const x = armarGastos([fila({ id: 'r1', origen: 'recurrente', recurrente_id: 'p1', periodo: '2026-10', a_confirmar: true, observaciones: 'Luz Córdoba\nmedidor 2', proveedor_nombre: 'EPEC' })])[0]; return `${x.titulo}|${x.subtitulo}|${x.recurrente?.aConfirmar}` })(),
-    esperado: 'Luz Córdoba|EPEC · HUEVOS|true',
+    esperado: 'Luz Córdoba|EPEC · Huevos|true',
   },
   { nombre: 'textoDia: el 31 es el último', real: textoDia(31), esperado: 'el último día de cada mes' },
   { nombre: 'textoDia: el 30 avisa', real: textoDia(30), esperado: 'el 30 de cada mes (o el último, si el mes es más corto)' },
@@ -119,17 +154,17 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'plantilla: pide nombre', real: validarRecurrente(formRecurrenteInicial(null, '2026-11-04', 'Transferencia'))?.campo, esperado: 'nombre' },
   {
     nombre: 'plantilla completa es válida',
-    real: validarRecurrente({ ...formRecurrenteInicial(null, '2026-11-04', 'Transferencia'), nombre: 'Alquiler', local: 'YA! GOYA', rubro: 'SERVICIOS Y ESTRUCTURA', categoria: 'ALQUILER', monto: 100 }),
+    real: validarRecurrente({ ...formRecurrenteInicial(null, '2026-11-04', 'Transferencia'), nombre: 'Alquiler', local: 'YA! GOYA', cuenta: '5.3.02.01', monto: 100 }),
     esperado: null,
   },
   {
     nombre: 'plantilla: fin antes del inicio',
-    real: validarRecurrente({ ...formRecurrenteInicial(null, '2026-11-04', 'Transferencia'), nombre: 'A', local: 'L', rubro: 'R', categoria: 'C', monto: 1, hasta: '2026-01-01' })?.campo,
+    real: validarRecurrente({ ...formRecurrenteInicial(null, '2026-11-04', 'Transferencia'), nombre: 'A', local: 'L', cuenta: '5.3.02.01', monto: 1, hasta: '2026-01-01' })?.campo,
     esperado: 'hasta',
   },
   {
     nombre: 'plantilla: día 0 inválido',
-    real: validarRecurrente({ ...formRecurrenteInicial(null, '2026-11-04', 'Transferencia'), nombre: 'A', local: 'L', rubro: 'R', categoria: 'C', monto: 1, diaDelMes: 0 })?.campo,
+    real: validarRecurrente({ ...formRecurrenteInicial(null, '2026-11-04', 'Transferencia'), nombre: 'A', local: 'L', cuenta: '5.3.02.01', monto: 1, diaDelMes: 0 })?.campo,
     esperado: 'diaDelMes',
   },
   // Atraso y filtros de Pendientes

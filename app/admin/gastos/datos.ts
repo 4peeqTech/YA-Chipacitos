@@ -1,5 +1,6 @@
 import type { createClientTipado } from '@/lib/supabase/server'
 import { sincronizacionActiva } from '@/lib/gastos/fudoSync'
+import { COLUMNAS_PLAN, armarPlan, type CuentaPlan } from '@/lib/gastos/plan'
 import {
   POR_PAGINA, leerResumen, type FiltrosLista, type FiltrosPendientes, type GastoFila, type ResumenGastos,
 } from '@/lib/gastos/modelo'
@@ -7,7 +8,7 @@ import {
 type Cliente = Awaited<ReturnType<typeof createClientTipado>>
 
 /** Los filtros de la lista como argumentos de gastos_listar / gastos_resumen. */
-function argsFiltros(f: Pick<FiltrosLista, 'desde' | 'hasta' | 'estado' | 'local' | 'q' | 'origen'>) {
+function argsFiltros(f: Pick<FiltrosLista, 'desde' | 'hasta' | 'estado' | 'local' | 'q' | 'origen'> & { cuenta?: string }) {
   return {
     p_desde: f.desde || undefined,
     p_hasta: f.hasta || undefined,
@@ -15,7 +16,20 @@ function argsFiltros(f: Pick<FiltrosLista, 'desde' | 'hasta' | 'estado' | 'local
     p_local: f.local || undefined,
     p_q: f.q || undefined,
     p_origen: f.origen || undefined,
+    p_cuenta: f.cuenta || undefined,
   }
+}
+
+/** Las cuentas que se eligen en Gastos (imputables, de gasto o "no es gasto"), en el orden del plan. */
+export async function consultarCuentasGastos(supabase: Cliente): Promise<CuentaPlan[]> {
+  const { data, error } = await supabase
+    .from('plan_cuentas')
+    .select(COLUMNAS_PLAN)
+    .eq('imputable', true)
+    .not('uso_gastos', 'is', null)
+    .order('orden')
+  if (error) console.error(error)
+  return armarPlan(data ?? [])
 }
 
 /**

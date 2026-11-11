@@ -4,7 +4,7 @@ import { hoyISOArgentina } from '@/lib/fechas'
 import { POR_PAGINA, leerFiltros, paramsDeFiltros } from '@/lib/gastos/modelo'
 import GastosClient from './GastosClient'
 import {
-  consultarCatalogosPago, consultarEstadoFudo, consultarGasto, consultarLocales, generarRecurrentes, listarGastos,
+  consultarCatalogosPago, consultarCuentasGastos, consultarEstadoFudo, consultarGasto, consultarLocales, generarRecurrentes, listarGastos,
   pedidosDeFacturas,
 } from './datos'
 
@@ -30,13 +30,14 @@ export default async function GastosPage({
   // Los que se repiten y ya tocan se crean antes de listar.
   await generarRecurrentes(supabase)
 
-  const [lista, { data: proveedores }, catalogos, locales, fudo] = await Promise.all([
+  const [lista, { data: proveedores }, catalogos, locales, fudo, cuentas] = await Promise.all([
     listarGastos(supabase, filtros),
     // Todos: un gasto de un proveedor archivado tiene que mostrarlo (B3, E19).
     supabase.from('proveedores').select('id, nombre, estado').order('nombre'),
     consultarCatalogosPago(supabase),
     consultarLocales(supabase),
     consultarEstadoFudo(supabase),
+    consultarCuentasGastos(supabase),
   ])
 
   // Una página que ya no existe (se borraron gastos, o la URL es vieja): a la última.
@@ -68,6 +69,7 @@ export default async function GastosPage({
       pedidoDeFactura={await pedidosDeFacturas(supabase, filas)}
       gastoInicial={gastoParam}
       fudo={fudo}
+      cuentas={cuentas}
     />
   )
 }

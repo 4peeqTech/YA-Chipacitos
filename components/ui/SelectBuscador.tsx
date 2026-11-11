@@ -7,6 +7,8 @@ export interface OpcionSelect {
   value: string
   label: string
   grupo?: string
+  /** Segunda línea, más chica (código, categoría…). */
+  detalle?: string
 }
 
 interface Props {
@@ -18,6 +20,12 @@ interface Props {
   placeholderVacio?: string
   className?: string
   disabled?: boolean
+  /** Búsqueda propia (por defecto: el label contiene el texto). Puede reordenar. */
+  filtrar?: (opciones: OpcionSelect[], busqueda: string) => OpcionSelect[]
+  /** false = no ofrece volver a "sin elegir" (campo obligatorio). */
+  opcionVacia?: boolean
+  ariaLabel?: string
+  invalido?: boolean
 }
 
 export default function SelectBuscador({
@@ -27,6 +35,10 @@ export default function SelectBuscador({
   placeholderVacio = '— Sin asignar —',
   className = '',
   disabled = false,
+  filtrar,
+  opcionVacia = true,
+  ariaLabel,
+  invalido = false,
 }: Props) {
   const [abierto, setAbierto] = useState(false)
   const [busqueda, setBusqueda] = useState('')
@@ -56,13 +68,28 @@ export default function SelectBuscador({
     if (abierto) setTimeout(() => inputRef.current?.focus(), 50)
   }, [abierto])
 
-  const opcionesFiltradas = opciones.filter(o =>
-    o.label.toLowerCase().includes(busqueda.toLowerCase())
-  )
+  const opcionesFiltradas = filtrar
+    ? (busqueda.trim() ? filtrar(opciones, busqueda) : opciones)
+    : opciones.filter(o => o.label.toLowerCase().includes(busqueda.toLowerCase()))
 
   // Agrupar por grupo
   const grupos = Array.from(new Set(opcionesFiltradas.map(o => o.grupo || ''))).filter(Boolean)
   const sinGrupo = opcionesFiltradas.filter(o => !o.grupo)
+
+  const boton = (o: OpcionSelect) => (
+    <button
+      key={o.value}
+      type="button"
+      onClick={() => seleccionar(o.value)}
+      className={`w-full text-left px-3 py-2 text-sm hover:bg-surface2 transition-colors ${
+        value === o.value ? 'bg-green-bg text-success font-medium' : 'text-text'
+      }`}
+    >
+      {value === o.value && <span className="mr-1.5">✓</span>}
+      {o.label}
+      {o.detalle && <span className="block text-2xs font-normal text-muted">{o.detalle}</span>}
+    </button>
+  )
 
   function seleccionar(val: string) {
     onChange(val)
@@ -92,12 +119,13 @@ export default function SelectBuscador({
         disabled={disabled}
         aria-expanded={abierto}
         aria-haspopup="listbox"
+        aria-label={ariaLabel}
         onClick={() => setAbierto(!abierto)}
         className={`w-full min-h-11 sm:min-h-9 flex items-center justify-between border rounded-lg px-3 py-2 text-sm text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 ${
           value
             ? 'border-success bg-green-bg text-success font-medium'
             : 'border-border bg-surface2 text-muted'
-        } ${abierto ? 'ring-2 ring-accent/20 border-accent' : ''}`}
+        } ${abierto ? 'ring-2 ring-accent/20 border-accent' : ''} ${invalido ? 'border-brand-red' : ''}`}
       >
         <span className="truncate">{seleccionado ? seleccionado.label : placeholderVacio}</span>
         <svg className={`w-4 h-4 shrink-0 ml-2 transition-transform ${abierto ? 'rotate-180' : ''}`}
@@ -132,13 +160,15 @@ export default function SelectBuscador({
           {/* Opciones */}
           <div className="max-h-52 overflow-y-auto">
             {/* Opción vacía */}
-            <button
-              type="button"
-              onClick={() => seleccionar('')}
-              className={`w-full text-left px-3 py-2 text-xs text-muted hover:bg-surface2 transition-colors ${!value ? 'bg-surface2 font-medium' : ''}`}
-            >
-              {placeholderVacio}
-            </button>
+            {opcionVacia && (
+              <button
+                type="button"
+                onClick={() => seleccionar('')}
+                className={`w-full text-left px-3 py-2 text-xs text-muted hover:bg-surface2 transition-colors ${!value ? 'bg-surface2 font-medium' : ''}`}
+              >
+                {placeholderVacio}
+              </button>
+            )}
 
             {opcionesFiltradas.length === 0 ? (
               <p className="text-xs text-muted text-center py-4">Sin resultados</p>
@@ -149,49 +179,13 @@ export default function SelectBuscador({
                     <p className="px-3 py-1.5 text-3xs font-semibold text-accent uppercase tracking-wider bg-surface2 border-t border-border">
                       {grupo}
                     </p>
-                    {opcionesFiltradas.filter(o => o.grupo === grupo).map(o => (
-                      <button
-                        key={o.value}
-                        type="button"
-                        onClick={() => seleccionar(o.value)}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-surface2 transition-colors ${
-                          value === o.value ? 'bg-green-bg text-success font-medium' : 'text-text'
-                        }`}
-                      >
-                        {value === o.value && <span className="mr-1.5">✓</span>}
-                        {o.label}
-                      </button>
-                    ))}
+                    {opcionesFiltradas.filter(o => o.grupo === grupo).map(boton)}
                   </div>
                 ))}
-                {sinGrupo.map(o => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => seleccionar(o.value)}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-surface2 transition-colors ${
-                      value === o.value ? 'bg-green-bg text-success font-medium' : 'text-text'
-                    }`}
-                  >
-                    {value === o.value && <span className="mr-1.5">✓</span>}
-                    {o.label}
-                  </button>
-                ))}
+                {sinGrupo.map(boton)}
               </>
             ) : (
-              opcionesFiltradas.map(o => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => seleccionar(o.value)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-surface2 transition-colors ${
-                    value === o.value ? 'bg-green-bg text-success font-medium' : 'text-text'
-                  }`}
-                >
-                  {value === o.value && <span className="mr-1.5">✓</span>}
-                  {o.label}
-                </button>
-              ))
+              opcionesFiltradas.map(boton)
             )}
           </div>
         </div>

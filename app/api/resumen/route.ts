@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   let gastosQ = supabase
     .from('gastos')
-    .select('local, categoria, monto, fecha')
+    .select('local, categoria, monto, fecha, plan_cuentas(uso_gastos)')
     .not('local', 'is', null)
     // Un gasto de Fudo cancelado allá queda Anulado: no es plata gastada.
     .neq('estado', 'Anulado')
@@ -38,8 +38,11 @@ export async function GET(req: NextRequest) {
   type CatMap = Record<string, number>
   const gastosPorLocal: Record<string, CatMap> = {}
   for (const g of gastos ?? []) {
+    // Lo que no es gasto (retiros, bienes de uso, capital de préstamos) no va al Resumen.
+    const plan = [g.plan_cuentas].flat()[0] as { uso_gastos: string | null } | null | undefined
+    if (plan?.uso_gastos === 'otro_pago') continue
     const local = g.local as string
-    const cat = (g.categoria as string) || 'Sin categoría'
+    const cat = (g.categoria as string) || 'Sin clasificar'
     if (!gastosPorLocal[local]) gastosPorLocal[local] = {}
     gastosPorLocal[local][cat] = (gastosPorLocal[local][cat] ?? 0) + Number(g.monto ?? 0)
   }

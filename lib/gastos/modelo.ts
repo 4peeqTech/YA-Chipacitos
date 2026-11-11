@@ -4,6 +4,7 @@
 
 import { codigoPedido } from '@/lib/compras/codigos'
 import type { Database } from '@/lib/database.types'
+import type { UsoGastos } from './plan'
 
 export type GastoFila = Database['public']['Views']['v_gastos']['Row']
 
@@ -19,7 +20,7 @@ export function aEstadoGasto(v: string | null): EstadoGasto {
 /** Un gasto con los null de la vista ya resueltos. */
 export interface GastoVista {
   id: string
-  /** Lo principal (proveedor, o la descripción de Fudo) y lo secundario (categoría). */
+  /** Lo principal (proveedor, o la descripción de Fudo) y lo secundario (la cuenta). */
   titulo: string
   subtitulo: string
   /** Los datos que manda Fudo, si vino de ahí. */
@@ -28,6 +29,12 @@ export interface GastoVista {
   recurrente: { id: string; periodo: string | null; aConfirmar: boolean } | null
   fecha: string
   local: string
+  /** Cuenta del plan ('' = sin clasificar, solo los de Fudo). */
+  cuenta: string
+  cuentaNombre: string
+  /** 'otro_pago': mueve plata pero no es gasto (retiros, bienes de uso…). */
+  usoGastos: UsoGastos | null
+  /** Del plan, según la cuenta. */
   rubro: string
   categoria: string
   proveedorId: string | null
@@ -59,22 +66,22 @@ export interface GastoVista {
 
 /**
  * Qué se lee primero en una lista. Uno de Fudo: su descripción (o su
- * proveedor o categoría de Fudo) y, abajo, la categoría de la app o "Sin clasificar".
+ * proveedor o categoría de Fudo) y, abajo, la cuenta de la app o "Sin clasificar".
  */
 function titulos(g: GastoFila, fudo: GastoVista['fudo']): { titulo: string; subtitulo: string } {
   if (fudo) {
     const titulo = g.proveedor_nombre ?? fudo.descripcion ?? fudo.proveedor ?? fudo.categoria ?? 'Gasto de Fudo'
     const deFudo = [fudo.proveedor, fudo.categoria].filter(v => v && v !== titulo).join(' · ')
-    return { titulo, subtitulo: [g.categoria ?? 'Sin clasificar', deFudo].filter(Boolean).join(' · ') }
+    return { titulo, subtitulo: [g.cuenta_nombre ?? 'Sin clasificar', deFudo].filter(Boolean).join(' · ') }
   }
   // Uno que se repite: la primera línea de las observaciones es el nombre de la plantilla.
   const nombrePlantilla = g.origen === 'recurrente' ? (g.observaciones ?? '').split('\n')[0].trim() : ''
   if (nombrePlantilla) {
-    return { titulo: nombrePlantilla, subtitulo: [g.proveedor_nombre, g.categoria].filter(Boolean).join(' · ') }
+    return { titulo: nombrePlantilla, subtitulo: [g.proveedor_nombre, g.cuenta_nombre].filter(Boolean).join(' · ') }
   }
   return {
-    titulo: g.proveedor_nombre ?? g.categoria ?? '—',
-    subtitulo: (g.proveedor_nombre ? g.categoria : g.rubro) ?? '',
+    titulo: g.proveedor_nombre ?? g.cuenta_nombre ?? '—',
+    subtitulo: (g.proveedor_nombre ? g.cuenta_nombre : g.rubro) ?? '',
   }
 }
 
@@ -87,8 +94,7 @@ export type RecurrenteFila = Database['public']['Views']['v_gastos_recurrentes']
 export interface FormRecurrente {
   nombre: string
   local: string
-  rubro: string
-  categoria: string
+  cuenta: string
   proveedorId: string
   monto: number | null
   montoVariable: boolean
@@ -105,14 +111,14 @@ export interface FormRecurrente {
 export function formRecurrenteInicial(r: RecurrenteFila | null, hoy: string, formaPago = ''): FormRecurrente {
   if (r) {
     return {
-      nombre: r.nombre ?? '', local: r.local ?? '', rubro: r.rubro ?? '', categoria: r.categoria ?? '',
+      nombre: r.nombre ?? '', local: r.local ?? '', cuenta: r.cuenta ?? '',
       proveedorId: r.proveedor_id ?? '', monto: r.monto == null ? null : Number(r.monto), montoVariable: r.monto_variable ?? false,
       formaPago: r.forma_pago ?? '', diaDelMes: r.dia_del_mes, diasParaVencer: r.dias_para_vencer,
       desde: r.desde ?? hoy, hasta: r.hasta ?? '', observaciones: r.observaciones ?? '',
     }
   }
   return {
-    nombre: '', local: '', rubro: '', categoria: '', proveedorId: '', monto: null, montoVariable: false, formaPago,
+    nombre: '', local: '', cuenta: '', proveedorId: '', monto: null, montoVariable: false, formaPago,
     diaDelMes: Number(hoy.slice(8, 10)) || 1, diasParaVencer: null, desde: hoy, hasta: '', observaciones: '',
   }
 }
@@ -122,8 +128,7 @@ export type CampoRecurrente = keyof FormRecurrente
 export function validarRecurrente(f: FormRecurrente): { campo: CampoRecurrente; mensaje: string } | null {
   if (!f.nombre.trim()) return { campo: 'nombre', mensaje: 'Poné un nombre, por ejemplo "Alquiler San Lorenzo".' }
   if (!f.local) return { campo: 'local', mensaje: 'Elegí el local.' }
-  if (!f.rubro) return { campo: 'rubro', mensaje: 'Elegí el rubro.' }
-  if (!f.categoria) return { campo: 'categoria', mensaje: 'Elegí la categoría.' }
+  if (!f.cuenta) return { campo: 'cuenta', mensaje: 'Elegí la cuenta.' }
   if (f.monto == null || f.monto <= 0) return { campo: 'monto', mensaje: 'Cargá el monto: tiene que ser mayor a $ 0.' }
   if (!f.formaPago) return { campo: 'formaPago', mensaje: 'Elegí la forma de pago.' }
   if (f.diaDelMes == null || f.diaDelMes < 1 || f.diaDelMes > 31 || !Number.isInteger(f.diaDelMes)) {
@@ -161,6 +166,9 @@ export function armarGastos(filas: GastoFila[], pedidoDeFactura: Record<string, 
       recurrente: g.recurrente_id ? { id: g.recurrente_id, periodo: g.periodo, aConfirmar: g.a_confirmar ?? false } : null,
       fecha: g.fecha ?? '',
       local: g.local ?? '—',
+      cuenta: g.cuenta ?? '',
+      cuentaNombre: g.cuenta_nombre ?? '',
+      usoGastos: g.uso_gastos === 'gasto' || g.uso_gastos === 'otro_pago' ? g.uso_gastos : null,
       rubro: g.rubro ?? '',
       categoria: g.categoria ?? '',
       proveedorId: g.proveedor_id,
@@ -224,11 +232,14 @@ export interface FiltrosLista {
   local: string
   q: string
   origen: OrigenGasto | ''
+  /** '' todo · 'sin' sin clasificar · 'otros' lo que no es gasto · un código (y lo que cuelga de él). */
+  cuenta: string
   /** Desde 1. */
   pagina: number
 }
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/
+const FILTRO_CUENTA = /^(sin|otros|\d+(\.\d+)*)$/
 const dos = (n: number) => String(n).padStart(2, '0')
 
 /** El mes calendario de `hoy` (YYYY-MM-DD). */
@@ -257,6 +268,7 @@ export function leerFiltros(p: Params, hoy: string): FiltrosLista {
     local: uno(p.local).trim(),
     q: uno(p.q).trim().slice(0, 100),
     origen: ORIGENES.includes(origen) ? origen : '',
+    cuenta: FILTRO_CUENTA.test(uno(p.cuenta)) ? uno(p.cuenta) : '',
     pagina: Number.isFinite(pagina) && pagina > 1 ? pagina : 1,
   }
 }
@@ -274,6 +286,7 @@ export function paramsDeFiltros(f: FiltrosLista, hoy: string): string {
   if (f.local) s.set('local', f.local)
   if (f.q.trim()) s.set('q', f.q.trim())
   if (f.origen) s.set('origen', f.origen)
+  if (f.cuenta) s.set('cuenta', f.cuenta)
   if (f.pagina > 1) s.set('pagina', String(f.pagina))
   return s.toString()
 }
@@ -289,9 +302,14 @@ export interface ResumenGastos {
   pendientesCount: number
   /** Lo que se pagó dentro del período (por fecha de pago). */
   pagadoPeriodo: number
-  /** Lo que se gastó en el período (por fecha del gasto). */
+  /** Lo que se gastó en el período (por fecha del gasto), sin lo que no es gasto. */
   totalPeriodo: number
   gastosPeriodo: number
+  /** Lo que salió en el período sin ser gasto (retiros, bienes de uso, capital de préstamos…). */
+  otrosPeriodo: number
+  otrosCount: number
+  /** Del período, los de Fudo que todavía no tienen cuenta. */
+  sinClasificarCount: number
   /** Suma de lo que muestra la lista con todos los filtros. */
   filtradoTotal: number
 }
@@ -309,6 +327,9 @@ export function leerResumen(j: unknown): ResumenGastos {
     pagadoPeriodo: n('pagado_periodo'),
     totalPeriodo: n('total_periodo'),
     gastosPeriodo: n('gastos_periodo'),
+    otrosPeriodo: n('otros_periodo'),
+    otrosCount: n('otros_count'),
+    sinClasificarCount: n('sin_clasificar_count'),
     filtradoTotal: n('filtrado_total'),
   }
 }
@@ -324,8 +345,8 @@ function redondear(n: number): number {
 export interface FormGasto {
   fecha: string
   local: string
-  rubro: string
-  categoria: string
+  /** Código de la cuenta del plan. */
+  cuenta: string
   proveedorId: string
   monto: number | null
   formaPago: string
@@ -341,25 +362,24 @@ export interface FormGasto {
 export function formInicial(g: GastoVista | null, hoy: string, defaults: { local?: string; formaPago?: string } = {}): FormGasto {
   if (g) {
     return {
-      fecha: g.fecha, local: g.local, rubro: g.rubro, categoria: g.categoria, proveedorId: g.proveedorId ?? '',
+      fecha: g.fecha, local: g.local, cuenta: g.cuenta, proveedorId: g.proveedorId ?? '',
       monto: g.monto, formaPago: g.formaPago, observaciones: g.observaciones,
       fechaVencimiento: g.fechaVencimiento ?? '', yaPagado: false, fechaPago: hoy, caja: '',
     }
   }
   return {
-    fecha: hoy, local: defaults.local ?? '', rubro: '', categoria: '', proveedorId: '', monto: null,
+    fecha: hoy, local: defaults.local ?? '', cuenta: '', proveedorId: '', monto: null,
     formaPago: defaults.formaPago ?? '', observaciones: '', fechaVencimiento: '', yaPagado: false, fechaPago: hoy, caja: '',
   }
 }
 
-export type CampoGasto = 'fecha' | 'local' | 'rubro' | 'categoria' | 'monto' | 'formaPago' | 'fechaVencimiento' | 'fechaPago' | 'caja'
+export type CampoGasto = 'fecha' | 'local' | 'cuenta' | 'monto' | 'formaPago' | 'fechaVencimiento' | 'fechaPago' | 'caja'
 
-/** `deFudo`: se puede guardar sin clasificar (entra así de Fudo); si se elige rubro, pide categoría. */
+/** `deFudo`: se puede guardar sin cuenta (entra así de Fudo). */
 export function validarGasto(f: FormGasto, esNuevo: boolean, deFudo = false): { campo: CampoGasto; mensaje: string } | null {
   if (!f.fecha) return { campo: 'fecha', mensaje: 'Elegí la fecha del gasto.' }
   if (!f.local) return { campo: 'local', mensaje: 'Elegí el local al que corresponde el gasto.' }
-  if (!f.rubro && !deFudo) return { campo: 'rubro', mensaje: 'Elegí el rubro.' }
-  if (f.rubro && !f.categoria) return { campo: 'categoria', mensaje: 'Elegí la categoría.' }
+  if (!f.cuenta && !deFudo) return { campo: 'cuenta', mensaje: 'Elegí la cuenta.' }
   if (f.monto == null || f.monto <= 0) return { campo: 'monto', mensaje: 'Cargá el monto: tiene que ser mayor a $ 0.' }
   if (!f.formaPago) return { campo: 'formaPago', mensaje: 'Elegí la forma de pago.' }
   if (f.fechaVencimiento && f.fechaVencimiento < f.fecha) {
@@ -440,7 +460,7 @@ export interface PendienteVista {
   fecha: string
   /** Lo principal: proveedor o descripción. */
   titulo: string
-  /** Lo secundario: categoría, o la descripción cuando el título es el proveedor. */
+  /** Lo secundario: la cuenta, o la descripción cuando el título es el proveedor. */
   detalle: string | null
   monto: number
   formaPago: string | null
@@ -457,7 +477,7 @@ export function pendienteDeGasto(g: GastoVista): PendienteVista {
     local: g.local,
     fecha: g.fecha,
     titulo: g.titulo,
-    detalle: g.fudo ? g.subtitulo : g.proveedor ? g.categoria : (g.observaciones || null),
+    detalle: g.fudo ? g.subtitulo : g.proveedor ? g.cuentaNombre : (g.observaciones || null),
     // Lo que falta: un gasto pagado en parte se paga por el saldo.
     monto: g.saldo,
     formaPago: g.formaPago || null,

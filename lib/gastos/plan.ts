@@ -68,19 +68,31 @@ export function rutaDe(plan: CuentaPlan[], codigo: string): string[] {
   return ruta
 }
 
+/** Cómo se dice en el día a día lo que el plan nombra de otra forma. */
+const SINONIMOS: Record<string, string[]> = {
+  luz: ['energia'],
+  nafta: ['combustible'],
+  gasoil: ['combustible'],
+  celular: ['telefonia'],
+  telefono: ['telefonia'],
+  contador: ['contable'],
+  sueldo: ['sueldos'],
+}
+
 /**
  * Busca por nombre, código, rubro, categoría y "qué se incluye". Todas las
  * palabras tienen que aparecer. Primero lo que coincide en el nombre.
  */
 export function buscarCuentas(cuentas: CuentaPlan[], q: string): CuentaPlan[] {
-  const palabras = sinAcentos(q).split(/\s+/).filter(Boolean)
+  const palabras = sinAcentos(q).split(/\s+/).filter(Boolean).map(p => [p, ...(SINONIMOS[p] ?? [])])
   if (palabras.length === 0) return cuentas
+  const esta = (texto: string, p: string[]) => p.some(v => texto.includes(v))
   const puntaje = (c: CuentaPlan): number => {
     const nombre = sinAcentos(c.nombre)
     const todo = sinAcentos([c.codigo, c.nombre, c.rubroGasto, c.categoriaGasto, c.incluye].filter(Boolean).join(' '))
-    if (!palabras.every(p => todo.includes(p))) return -1
-    if (palabras.every(p => nombre.includes(p))) return nombre.startsWith(palabras[0]) ? 3 : 2
-    return c.codigo.startsWith(palabras[0]) ? 2 : 1
+    if (!palabras.every(p => esta(todo, p))) return -1
+    if (palabras.every(p => esta(nombre, p))) return palabras[0].some(v => nombre.startsWith(v)) ? 3 : 2
+    return c.codigo.startsWith(palabras[0][0]) ? 2 : 1
   }
   return cuentas
     .map((c, i) => ({ c, i, p: puntaje(c) }))

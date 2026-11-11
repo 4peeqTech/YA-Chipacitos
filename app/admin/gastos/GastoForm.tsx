@@ -18,7 +18,7 @@ import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { formatearFecha, formatearFechaHora, formatearMonedaExacta } from '@/lib/formato'
 import { hoyISO } from '@/lib/fechas'
 import { mensajeError } from '@/lib/errores'
-import { RUBROS, RUBROS_CATEGORIAS } from '@/lib/gastos-constants'
+import type { CuentaPlan } from '@/lib/gastos/plan'
 import {
   armarPagos, bloqueoFactura, formInicial, hayCambios, motivoNoEliminar, validarGasto,
   type AdjuntoFila, type CampoGasto, type FormGasto, type GastoVista, type PagoVista,
@@ -29,17 +29,11 @@ import {
 } from './acciones'
 import { MAX_MB_ARCHIVO, TIPOS_ARCHIVO, abrirArchivoGasto, borrarArchivoGasto, subirArchivoGasto } from './archivos'
 import PagoModal, { type DatosPago } from './PagoModal'
+import CampoCuenta from './CampoCuenta'
 
 const botonPrimario = 'presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50'
 const botonSecundario = 'presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50'
 const botonTexto = 'presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-text hover:bg-surface2 disabled:opacity-50'
-
-/** Categorías del rubro. Un rubro sin categorías (Movimiento interno) usa el rubro como categoría. */
-function categoriasDe(rubro: string): string[] {
-  if (!rubro) return []
-  const lista = RUBROS_CATEGORIAS[rubro] ?? []
-  return lista.length ? lista : [rubro]
-}
 
 /** Abre un archivo del bucket privado con un link firmado. */
 function BotonArchivo({ valor, texto }: { valor: string; texto: string }) {
@@ -234,12 +228,15 @@ export default function GastoForm({
   cajas,
   formasPago,
   locales,
+  cuentas,
   onCambios,
   onListo,
   onCancelar,
 }: {
   /** null = gasto nuevo. */
   gasto: GastoVista | null
+  /** Las cuentas del plan que se eligen en Gastos. */
+  cuentas: CuentaPlan[]
   /** Todos, con su estado: el form ofrece los activos y muestra el archivado actual. */
   proveedores: { id: string; nombre: string; estado: string }[]
   cajas: string[]
@@ -275,7 +272,6 @@ export default function GastoForm({
   const candado = bloqueo != null || deFudo
   const problema = validarGasto(form, esNuevo, deFudo)
   const marca = (c: CampoGasto) => (intento && problema?.campo === c ? 'border-brand-red' : '')
-  const categorias = categoriasDe(form.rubro)
   const conCambios = hayCambios(form, inicial)
   // Guardar (aunque sea sin cambios) confirma el monto de uno que se repite.
   const porConfirmar = gasto?.recurrente?.aConfirmar === true
@@ -299,10 +295,6 @@ export default function GastoForm({
 
   function cambiar(parcial: Partial<FormGasto>) {
     const nuevo = { ...form, ...parcial }
-    if (parcial.rubro !== undefined && parcial.rubro !== form.rubro) {
-      const cats = categoriasDe(parcial.rubro)
-      nuevo.categoria = cats.length === 1 ? cats[0] : ''
-    }
     setForm(nuevo)
     // Fuera del actualizador: avisar al padre durante el render es un error de React.
     onCambios(hayCambios(nuevo, inicial) || enEspera.length > 0)
@@ -374,8 +366,7 @@ export default function GastoForm({
         id: gasto?.id ?? null,
         fecha: form.fecha,
         local: form.local,
-        rubro: form.rubro,
-        categoria: form.categoria,
+        cuenta: form.cuenta,
         proveedorId: form.proveedorId || null,
         monto: form.monto ?? 0,
         formaPago: form.formaPago,
@@ -578,31 +569,18 @@ export default function GastoForm({
             <SelectBuscador value={form.proveedorId} onChange={proveedorId => cambiar({ proveedorId })} opciones={opcionesProveedor} placeholderVacio="Sin proveedor" />
           )}
         </Field>
-        <Field label="Rubro" obligatorio={!deFudo}>
-          <select
-            aria-label="Rubro del gasto"
-            value={form.rubro}
-            onChange={e => cambiar({ rubro: e.target.value })}
-            className={`${controlClass} min-h-11 ${marca('rubro')}`}
-          >
-            <option value="">{deFudo ? 'Sin clasificar' : 'Elegí el rubro…'}</option>
-            {RUBROS.map(r => <option key={r} value={r}>{r}</option>)}
-            {form.rubro && !RUBROS.includes(form.rubro) && <option value={form.rubro}>{form.rubro}</option>}
-          </select>
-        </Field>
-        <Field label="Categoría" obligatorio={!deFudo || !!form.rubro}>
-          <select
-            aria-label="Categoría del gasto"
-            value={form.categoria}
-            onChange={e => cambiar({ categoria: e.target.value })}
-            disabled={!form.rubro}
-            className={`${controlClass} min-h-11 ${marca('categoria')}`}
-          >
-            <option value="">{form.rubro ? 'Elegí la categoría…' : 'Primero elegí el rubro'}</option>
-            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-            {form.categoria && !categorias.includes(form.categoria) && <option value={form.categoria}>{form.categoria}</option>}
-          </select>
-        </Field>
+        <div className="sm:col-span-2">
+          <Field label="Cuenta" obligatorio={!deFudo}>
+            <CampoCuenta
+              cuentas={cuentas}
+              value={form.cuenta}
+              onChange={cuenta => cambiar({ cuenta })}
+              actual={gasto?.cuenta ? { codigo: gasto.cuenta, nombre: gasto.cuentaNombre } : null}
+              permitirVacio={deFudo}
+              invalido={marca('cuenta') !== ''}
+            />
+          </Field>
+        </div>
         <Field label="Vence" ayuda="Opcional. Si vence, Pendientes lo marca cuando pasa la fecha.">
           <DatePicker
             ariaLabel="Fecha de vencimiento del gasto"

@@ -17,7 +17,7 @@ export const MODULO_AYUDA: Record<string, { titulo: string; desc: string }> = {
   roles:             { titulo: 'Roles',              desc: 'Roles del sistema y qué módulos tiene habilitados cada uno.' },
   integraciones_ventas: { titulo: 'Ventas (integraciones)', desc: 'Ventas importadas desde los sistemas de caja.' },
   integraciones_cajas:  { titulo: 'Cajas Fudo',       desc: 'Cajas sincronizadas desde Fudo.' },
-  plan_cuentas:      { titulo: 'Plan de cuentas',    desc: 'Categorías contables para clasificar gastos.' },
+  plan_cuentas:      { titulo: 'Plan de cuentas',    desc: 'El plan fijo del negocio: qué entra en cada cuenta.' },
   proveedores:       { titulo: 'Proveedores',        desc: 'Alta y edición de proveedores vinculables a gastos.' },
   cajas:             { titulo: 'Cajas',              desc: 'Administración de cajas disponibles.' },
   formas_pago:       { titulo: 'Formas de pago',     desc: 'Alta y edición de medios de pago.' },

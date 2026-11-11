@@ -3401,6 +3401,7 @@ export type Database = {
           categoria: string | null
           created_at: string | null
           created_by: string | null
+          cuenta: string | null
           estado: string
           fecha: string
           fecha_vencimiento: string | null
@@ -3427,6 +3428,7 @@ export type Database = {
           categoria?: string | null
           created_at?: string | null
           created_by?: string | null
+          cuenta?: string | null
           estado?: string
           fecha?: string
           fecha_vencimiento?: string | null
@@ -3453,6 +3455,7 @@ export type Database = {
           categoria?: string | null
           created_at?: string | null
           created_by?: string | null
+          cuenta?: string | null
           estado?: string
           fecha?: string
           fecha_vencimiento?: string | null
@@ -3481,6 +3484,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_cuenta_fkey"
+            columns: ["cuenta"]
+            isOneToOne: false
+            referencedRelation: "plan_cuentas"
+            referencedColumns: ["codigo"]
           },
           {
             foreignKeyName: "gastos_local_fkey"
@@ -3698,9 +3708,9 @@ export type Database = {
       gastos_recurrentes: {
         Row: {
           activo: boolean
-          categoria: string
           creado_por: string | null
           created_at: string
+          cuenta: string
           desde: string
           dia_del_mes: number
           dias_para_vencer: number | null
@@ -3713,14 +3723,13 @@ export type Database = {
           nombre: string
           observaciones: string | null
           proveedor_id: string | null
-          rubro: string
           updated_at: string
         }
         Insert: {
           activo?: boolean
-          categoria: string
           creado_por?: string | null
           created_at?: string
+          cuenta: string
           desde: string
           dia_del_mes: number
           dias_para_vencer?: number | null
@@ -3733,14 +3742,13 @@ export type Database = {
           nombre: string
           observaciones?: string | null
           proveedor_id?: string | null
-          rubro: string
           updated_at?: string
         }
         Update: {
           activo?: boolean
-          categoria?: string
           creado_por?: string | null
           created_at?: string
+          cuenta?: string
           desde?: string
           dia_del_mes?: number
           dias_para_vencer?: number | null
@@ -3753,7 +3761,6 @@ export type Database = {
           nombre?: string
           observaciones?: string | null
           proveedor_id?: string | null
-          rubro?: string
           updated_at?: string
         }
         Relationships: [
@@ -3763,6 +3770,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_recurrentes_cuenta_fkey"
+            columns: ["cuenta"]
+            isOneToOne: false
+            referencedRelation: "plan_cuentas"
+            referencedColumns: ["codigo"]
           },
           {
             foreignKeyName: "gastos_recurrentes_local_fkey"
@@ -6130,6 +6144,8 @@ export type Database = {
           comprobante_url: string | null
           creado_por_nombre: string | null
           created_at: string | null
+          cuenta: string | null
+          cuenta_nombre: string | null
           estado: string | null
           factura_id: string | null
           factura_numero: string | null
@@ -6160,9 +6176,17 @@ export type Database = {
           rubro: string | null
           saldo: number | null
           ultimo_pago_forma: string | null
+          uso_gastos: string | null
           vencido: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "gastos_cuenta_fkey"
+            columns: ["cuenta"]
+            isOneToOne: false
+            referencedRelation: "plan_cuentas"
+            referencedColumns: ["codigo"]
+          },
           {
             foreignKeyName: "gastos_local_fkey"
             columns: ["local"]
@@ -6246,9 +6270,10 @@ export type Database = {
       v_gastos_recurrentes: {
         Row: {
           activo: boolean | null
-          categoria: string | null
           creado_por: string | null
           created_at: string | null
+          cuenta: string | null
+          cuenta_nombre: string | null
           desde: string | null
           dia_del_mes: number | null
           dias_para_vencer: number | null
@@ -6264,7 +6289,6 @@ export type Database = {
           proveedor_id: string | null
           proveedor_nombre: string | null
           proximo: string | null
-          rubro: string | null
           ultimo_monto: number | null
           ultimo_periodo: string | null
           updated_at: string | null
@@ -6276,6 +6300,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_recurrentes_cuenta_fkey"
+            columns: ["cuenta"]
+            isOneToOne: false
+            referencedRelation: "plan_cuentas"
+            referencedColumns: ["codigo"]
           },
           {
             foreignKeyName: "gastos_recurrentes_local_fkey"
@@ -6495,6 +6526,7 @@ export type Database = {
         }[]
       }
       _compras_pesos_txt: { Args: { p: number }; Returns: string }
+      _gastos_cuenta_valida: { Args: { p_cuenta: string }; Returns: boolean }
       _gastos_dia_del_periodo: {
         Args: { p_dia: number; p_mes: string }
         Returns: string
@@ -6911,7 +6943,7 @@ export type Database = {
       gastos_generar_recurrentes: { Args: { p_hasta?: string }; Returns: Json }
       gastos_guardar: {
         Args: {
-          p_categoria?: string
+          p_cuenta?: string
           p_fecha?: string
           p_fecha_vencimiento?: string
           p_forma_pago?: string
@@ -6921,12 +6953,12 @@ export type Database = {
           p_observaciones?: string
           p_pago?: Json
           p_proveedor_id?: string
-          p_rubro?: string
         }
         Returns: string
       }
       gastos_listar: {
         Args: {
+          p_cuenta?: string
           p_desde?: string
           p_estado?: string
           p_hasta?: string
@@ -6943,6 +6975,8 @@ export type Database = {
           comprobante_url: string | null
           creado_por_nombre: string | null
           created_at: string | null
+          cuenta: string | null
+          cuenta_nombre: string | null
           estado: string | null
           factura_id: string | null
           factura_numero: string | null
@@ -6973,6 +7007,7 @@ export type Database = {
           rubro: string | null
           saldo: number | null
           ultimo_pago_forma: string | null
+          uso_gastos: string | null
           vencido: boolean | null
         }[]
         SetofOptions: {
@@ -7008,7 +7043,7 @@ export type Database = {
       }
       gastos_recurrente_guardar: {
         Args: {
-          p_categoria?: string
+          p_cuenta?: string
           p_desde?: string
           p_dia_del_mes?: number
           p_dias_para_vencer?: number
@@ -7021,7 +7056,6 @@ export type Database = {
           p_nombre?: string
           p_observaciones?: string
           p_proveedor_id?: string
-          p_rubro?: string
         }
         Returns: string
       }
@@ -7038,6 +7072,7 @@ export type Database = {
       }
       gastos_resumen: {
         Args: {
+          p_cuenta?: string
           p_desde?: string
           p_estado?: string
           p_hasta?: string

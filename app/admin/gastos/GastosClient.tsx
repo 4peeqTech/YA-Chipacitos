@@ -28,6 +28,7 @@ import {
   POR_PAGINA, armarGastos, hayFiltros, mesDe, paramsDeFiltros,
   type FiltroEstadoGasto, type FiltrosLista, type GastoFila, type GastoVista, type OrigenGasto, type ResumenGastos,
 } from '@/lib/gastos/modelo'
+import type { CuentaPlan } from '@/lib/gastos/plan'
 import { useActualizarFudo } from './useActualizarFudo'
 import GastoForm from './GastoForm'
 
@@ -92,6 +93,22 @@ function LineaFudo({ fudo, actualizando, onActualizar }: { fudo: EstadoFudo; act
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`
 
+/** Opciones del filtro por cuenta: los rubros de gasto del plan, lo que no es gasto y lo sin clasificar. */
+function opcionesCuenta(cuentas: CuentaPlan[]): { value: string; label: string }[] {
+  const rubros = new Map<string, string>()
+  for (const c of cuentas) {
+    if (c.usoGastos !== 'gasto') continue
+    const rubro = c.codigo.split('.').slice(0, 2).join('.')
+    if (!rubros.has(rubro)) rubros.set(rubro, c.rubroGasto ?? rubro)
+  }
+  return [
+    { value: '', label: 'Todas las cuentas' },
+    ...[...rubros].map(([value, label]) => ({ value, label })),
+    { value: 'otros', label: 'No son gasto (retiros, bienes de uso…)' },
+    { value: 'sin', label: 'Sin clasificar' },
+  ]
+}
+
 /** Debajo del estado: cuándo se pagó, cuánto falta o que venció. */
 function DetalleEstado({ g }: { g: GastoVista }) {
   if (g.estado === 'Pagado' && g.fechaPago) {
@@ -121,7 +138,10 @@ export default function GastosClient({
   pedidoDeFactura,
   gastoInicial,
   fudo,
+  cuentas,
 }: {
+  /** Las cuentas del plan que se eligen en Gastos. */
+  cuentas: CuentaPlan[]
   /** Estado de la sincronización con Fudo (solo lectura de Fudo). */
   fudo: EstadoFudo
   /** La página actual, ya filtrada y ordenada por la base. */
@@ -157,6 +177,7 @@ export default function GastosClient({
   // Todo sale de las props: los filtros cambian la URL y las acciones llaman a
   // refresh(); en los dos casos el servidor vuelve a armar la página.
   const gastos = useMemo(() => armarGastos(filas, pedidoDeFactura), [filas, pedidoDeFactura])
+  const filtroCuenta = useMemo(() => opcionesCuenta(cuentas), [cuentas])
   const suelto = useMemo(() => (gastoSuelto ? armarGastos([gastoSuelto], pedidoDeFactura)[0] ?? null : null), [gastoSuelto, pedidoDeFactura])
 
   function ir(cambios: Partial<FiltrosLista>) {
@@ -177,7 +198,7 @@ export default function GastosClient({
   const conFiltros = hayFiltros(filtros, hoy)
   function limpiar() {
     setBusqueda('')
-    ir({ desde: mes.desde, hasta: mes.hasta, estado: 'todos', local: '', q: '', origen: '' })
+    ir({ desde: mes.desde, hasta: mes.hasta, estado: 'todos', local: '', q: '', origen: '', cuenta: '' })
   }
 
   const paginas = Math.max(1, Math.ceil(cantidad / POR_PAGINA))
@@ -226,7 +247,8 @@ export default function GastosClient({
             )}
           </span>
           <span className="block text-xs text-muted">
-            {g.fudo && !g.rubro ? <span className="font-semibold text-warning">Sin clasificar</span> : (g.fudo ? g.categoria : g.subtitulo)}
+            {g.fudo && !g.cuenta ? <span className="font-semibold text-warning">Sin clasificar</span> : (g.fudo ? g.cuentaNombre : g.subtitulo)}
+            {g.usoGastos === 'otro_pago' && <> · no es gasto</>}
             {g.fudo && g.subtitulo.includes(' · ') && <> · {g.subtitulo.split(' · ').slice(1).join(' · ')}</>}
             <span className="sm:hidden"> · {g.local} · <span className="tabular-nums">{g.fecha ? formatearFecha(g.fecha) : ''}</span></span>
           </span>
@@ -320,9 +342,22 @@ export default function GastosClient({
           icon={<IconCalendarStats size={18} aria-hidden />}
           label="Gastado en el período"
           value={formatearMonedaExacta(resumen.totalPeriodo)}
-          detalle={`${plural(resumen.gastosPeriodo, 'gasto', 'gastos')}, por fecha del gasto`}
+          detalle={resumen.otrosCount > 0
+            ? `${plural(resumen.gastosPeriodo, 'gasto', 'gastos')} · aparte, ${formatearMonedaExacta(resumen.otrosPeriodo)} que no son gasto`
+            : `${plural(resumen.gastosPeriodo, 'gasto', 'gastos')}, por fecha del gasto`}
         />
       </div>
+
+      {resumen.sinClasificarCount > 0 && filtros.cuenta !== 'sin' && (
+        <button
+          type="button"
+          onClick={() => ir({ cuenta: 'sin' })}
+          className="presionable flex min-h-11 w-full items-center gap-2 rounded-xl border border-warning bg-warning-bg px-4 py-2 text-left text-sm font-medium text-warning"
+        >
+          <IconAlertTriangle size={16} className="shrink-0" aria-hidden />
+          {plural(resumen.sinClasificarCount, 'gasto de Fudo', 'gastos de Fudo')} de este período sin cuenta. Tocá para verlos y clasificarlos.
+        </button>
+      )}
 
       <div className="space-y-3">
         <ChipGroup opciones={FILTROS} value={filtros.estado === 'anulados' ? 'todos' : filtros.estado} onChange={estado => ir({ estado })} />
@@ -350,6 +385,15 @@ export default function GastosClient({
             className={`${controlClass} min-h-11 w-full sm:w-52`}
           >
             {ORIGENES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <select
+            aria-label="Filtrar por cuenta"
+            value={filtros.cuenta}
+            onChange={e => ir({ cuenta: e.target.value })}
+            className={`${controlClass} min-h-11 w-full sm:w-60`}
+          >
+            {filtroCuenta.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {filtros.cuenta && !filtroCuenta.some(o => o.value === filtros.cuenta) && <option value={filtros.cuenta}>{filtros.cuenta}</option>}
           </select>
           <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar proveedor, factura o pedido" className="w-full sm:w-72" />
           <ClearFiltersButton visible={conFiltros} onClick={limpiar} />
@@ -419,6 +463,7 @@ export default function GastosClient({
             cajas={cajas}
             formasPago={formasPago}
             locales={localesCarga}
+            cuentas={cuentas}
             onCambios={setConCambios}
             onListo={cerrarYa}
             onCancelar={cerrar}

@@ -18,28 +18,24 @@ import { Puntos } from '@/components/ui/Cargando'
 import { Field, controlClass } from '@/components/ui/Field'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
-import { RUBROS, RUBROS_CATEGORIAS } from '@/lib/gastos-constants'
+import type { CuentaPlan } from '@/lib/gastos/plan'
 import {
   formRecurrenteInicial, textoDia, validarRecurrente,
   type CampoRecurrente, type FormRecurrente, type RecurrenteFila,
 } from '@/lib/gastos/modelo'
 import { activarRecurrente, eliminarRecurrente, guardarRecurrente } from '../acciones'
+import CampoCuenta from '../CampoCuenta'
 
 const botonPrimario = 'presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50'
 const botonSecundario = 'presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50'
 
-function categoriasDe(rubro: string): string[] {
-  if (!rubro) return []
-  const lista = RUBROS_CATEGORIAS[rubro] ?? []
-  return lista.length ? lista : [rubro]
-}
-
 type Proveedor = { id: string; nombre: string; estado: string }
 
 function FormRecurrente({
-  plantilla, hoy, proveedores, formasPago, locales, onListo, onCancelar,
+  plantilla, hoy, proveedores, formasPago, locales, cuentas, onListo, onCancelar,
 }: {
   plantilla: RecurrenteFila | null
+  cuentas: CuentaPlan[]
   hoy: string
   proveedores: Proveedor[]
   formasPago: string[]
@@ -55,18 +51,10 @@ function FormRecurrente({
   const [intento, setIntento] = useState(false)
   const problema = validarRecurrente(form)
   const marca = (c: CampoRecurrente) => (intento && problema?.campo === c ? 'border-brand-red' : '')
-  const categorias = categoriasDe(form.rubro)
   const esNueva = plantilla == null
 
   function cambiar(parcial: Partial<FormRecurrente>) {
-    setForm(f => {
-      const nuevo = { ...f, ...parcial }
-      if (parcial.rubro !== undefined && parcial.rubro !== f.rubro) {
-        const cats = categoriasDe(parcial.rubro)
-        nuevo.categoria = cats.length === 1 ? cats[0] : ''
-      }
-      return nuevo
-    })
+    setForm(f => ({ ...f, ...parcial }))
   }
 
   const opcionesProveedor: OpcionSelect[] = [
@@ -84,8 +72,7 @@ function FormRecurrente({
         id: plantilla?.id ?? null,
         nombre: form.nombre,
         local: form.local,
-        rubro: form.rubro,
-        categoria: form.categoria,
+        cuenta: form.cuenta,
         proveedorId: form.proveedorId || null,
         monto: form.monto ?? 0,
         montoVariable: form.montoVariable,
@@ -160,18 +147,17 @@ function FormRecurrente({
         <Field label="Proveedor">
           <SelectBuscador value={form.proveedorId} onChange={proveedorId => cambiar({ proveedorId })} opciones={opcionesProveedor} placeholderVacio="Sin proveedor" />
         </Field>
-        <Field label="Rubro" obligatorio>
-          <select aria-label="Rubro" value={form.rubro} onChange={e => cambiar({ rubro: e.target.value })} className={`${controlClass} min-h-11 ${marca('rubro')}`}>
-            <option value="">Elegí el rubro…</option>
-            {RUBROS.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </Field>
-        <Field label="Categoría" obligatorio>
-          <select aria-label="Categoría" value={form.categoria} onChange={e => cambiar({ categoria: e.target.value })} disabled={!form.rubro} className={`${controlClass} min-h-11 ${marca('categoria')}`}>
-            <option value="">{form.rubro ? 'Elegí la categoría…' : 'Primero elegí el rubro'}</option>
-            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </Field>
+        <div className="sm:col-span-2">
+          <Field label="Cuenta" obligatorio>
+            <CampoCuenta
+              cuentas={cuentas}
+              value={form.cuenta}
+              onChange={cuenta => cambiar({ cuenta })}
+              actual={plantilla?.cuenta ? { codigo: plantilla.cuenta, nombre: plantilla.cuenta_nombre ?? plantilla.cuenta } : null}
+              invalido={marca('cuenta') !== ''}
+            />
+          </Field>
+        </div>
         <Field label="Monto" obligatorio>
           <InputNumero
             value={form.monto}
@@ -276,8 +262,10 @@ export default function RecurrentesClient({
   proveedores,
   formasPago,
   locales,
+  cuentas,
 }: {
   plantillas: RecurrenteFila[]
+  cuentas: CuentaPlan[]
   error: boolean
   hoy: string
   proveedores: Proveedor[]
@@ -296,7 +284,7 @@ export default function RecurrentesClient({
       render: p => (
         <span className={`block min-w-0 ${p.activo ? '' : 'opacity-60'}`}>
           <span className="block font-medium text-text">{p.nombre}</span>
-          <span className="block text-xs text-muted">{[p.local, p.categoria, p.proveedor_nombre].filter(Boolean).join(' · ')}</span>
+          <span className="block text-xs text-muted">{[p.local, p.cuenta_nombre, p.proveedor_nombre].filter(Boolean).join(' · ')}</span>
         </span>
       ),
     },
@@ -383,6 +371,7 @@ export default function RecurrentesClient({
           <FormRecurrente
             key={abierta}
             plantilla={plantilla}
+            cuentas={cuentas}
             hoy={hoy}
             proveedores={proveedores}
             formasPago={formasPago}
