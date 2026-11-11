@@ -5,7 +5,7 @@ import {
   Package, Link2, Users, Shield, ClipboardList, CreditCard, Factory,
   Truck, ShoppingBasket, ListTodo, Boxes, ReceiptText, BellRing,
 } from 'lucide-react'
-import { IconBooks, IconClipboardCheck, IconRepeat, IconTruckDelivery } from '@tabler/icons-react'
+import { IconBooks, IconClipboardCheck, IconRepeat, IconTags, IconTruckDelivery } from '@tabler/icons-react'
 
 export interface Modulo {
   key: string
@@ -34,6 +34,7 @@ export const MODULOS: Modulo[] = [
   { key: 'gastos',            label: 'Gastos',             icon: <Wallet size={16} />, href: '/admin/gastos',            section: 'Gastos' },
   { key: 'gastos_pendientes', label: 'Pendientes de pago', icon: <Clock size={16} />, href: '/admin/gastos/pendientes', section: 'Gastos' },
   { key: 'gastos_recurrentes', label: 'Que se repiten',    icon: <IconRepeat size={16} />, href: '/admin/gastos/recurrentes', section: 'Gastos', soloAdmin: true },
+  { key: 'gastos_clasificar', label: 'Clasificar Fudo',    icon: <IconTags size={16} />, href: '/admin/gastos/clasificar', section: 'Gastos', soloAdmin: true },
   { key: 'resumen',           label: 'Resumen por local',  icon: <BarChart3 size={16} />, href: '/admin/resumen',           section: 'Gastos' },
   { key: 'fudo',               label: 'Fudo / Caja',        icon: <Landmark size={16} />, href: '/admin/fudo',              section: 'Gastos' },
 

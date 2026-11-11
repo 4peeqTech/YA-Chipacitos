@@ -34,6 +34,8 @@ export interface GastoVista {
   cuentaNombre: string
   /** 'otro_pago': mueve plata pero no es gasto (retiros, bienes de uso…). */
   usoGastos: UsoGastos | null
+  /** La puso una equivalencia de Fudo (no una persona). */
+  cuentaAutomatica: boolean
   /** Del plan, según la cuenta. */
   rubro: string
   categoria: string
@@ -169,6 +171,7 @@ export function armarGastos(filas: GastoFila[], pedidoDeFactura: Record<string, 
       cuenta: g.cuenta ?? '',
       cuentaNombre: g.cuenta_nombre ?? '',
       usoGastos: g.uso_gastos === 'gasto' || g.uso_gastos === 'otro_pago' ? g.uso_gastos : null,
+      cuentaAutomatica: g.cuenta_automatica ?? false,
       rubro: g.rubro ?? '',
       categoria: g.categoria ?? '',
       proveedorId: g.proveedor_id,

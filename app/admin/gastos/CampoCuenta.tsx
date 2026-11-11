@@ -17,7 +17,10 @@ export default function CampoCuenta({
   permitirVacio = false,
   invalido = false,
   disabled = false,
+  nota,
 }: {
+  /** Una línea más abajo (por ejemplo, que la puso una equivalencia de Fudo). */
+  nota?: string | null
   /** Las que se eligen en Gastos (consultarCuentasGastos). */
   cuentas: CuentaPlan[]
   value: string
@@ -73,6 +76,7 @@ export default function CampoCuenta({
           {elegida.incluye && <span className="mt-0.5 block">{elegida.incluye}</span>}
         </p>
       )}
+      {nota && <p className="text-xs text-muted">{nota}</p>}
     </div>
   )
 }

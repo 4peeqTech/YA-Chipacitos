@@ -349,14 +349,16 @@ export default function GastosClient({
       </div>
 
       {resumen.sinClasificarCount > 0 && filtros.cuenta !== 'sin' && (
-        <button
-          type="button"
-          onClick={() => ir({ cuenta: 'sin' })}
-          className="presionable flex min-h-11 w-full items-center gap-2 rounded-xl border border-warning bg-warning-bg px-4 py-2 text-left text-sm font-medium text-warning"
-        >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-warning bg-warning-bg px-4 py-2 text-sm font-medium text-warning">
           <IconAlertTriangle size={16} className="shrink-0" aria-hidden />
-          {plural(resumen.sinClasificarCount, 'gasto de Fudo', 'gastos de Fudo')} de este período sin cuenta. Tocá para verlos y clasificarlos.
-        </button>
+          <span className="min-w-0 flex-1">{plural(resumen.sinClasificarCount, 'gasto de Fudo', 'gastos de Fudo')} de este período sin cuenta.</span>
+          <Link href="/admin/gastos/clasificar" className="presionable inline-flex min-h-11 items-center font-semibold underline decoration-2 underline-offset-4">
+            Clasificar por lo que dice Fudo
+          </Link>
+          <button type="button" onClick={() => ir({ cuenta: 'sin' })} className="presionable inline-flex min-h-11 items-center font-semibold underline decoration-2 underline-offset-4">
+            Ver cuáles
+          </button>
+        </div>
       )}
 
       <div className="space-y-3">

@@ -18,7 +18,7 @@ const fila = (p: Partial<GastoFila>): GastoFila => ({
   origen: 'manual', fecha_vencimiento: null, vencido: false, pagado: 0, saldo: null, pagos: 0, adjuntos: 0,
   ultimo_pago_forma: null, fudo_id: null, fudo_categoria: null, fudo_proveedor: null, fudo_estado: null,
   fudo_revisar: false, fudo_sincronizado_en: null, fudo_descripcion: null, recurrente_id: null, periodo: null, a_confirmar: false,
-  cuenta: '5.1.01.02', cuenta_nombre: 'Huevos', uso_gastos: 'gasto', ...p,
+  cuenta: '5.1.01.02', cuenta_nombre: 'Huevos', uso_gastos: 'gasto', cuenta_automatica: false, ...p,
 })
 
 const gastos = armarGastos([

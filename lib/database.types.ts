@@ -3402,6 +3402,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           cuenta: string | null
+          cuenta_automatica: boolean
           estado: string
           fecha: string
           fecha_vencimiento: string | null
@@ -3429,6 +3430,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           cuenta?: string | null
+          cuenta_automatica?: boolean
           estado?: string
           fecha?: string
           fecha_vencimiento?: string | null
@@ -3456,6 +3458,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           cuenta?: string | null
+          cuenta_automatica?: boolean
           estado?: string
           fecha?: string
           fecha_vencimiento?: string | null
@@ -3574,6 +3577,45 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      gastos_fudo_equivalencias: {
+        Row: {
+          actualizado_por: string | null
+          cuenta: string
+          etiqueta: string
+          texto: string
+          updated_at: string
+        }
+        Insert: {
+          actualizado_por?: string | null
+          cuenta: string
+          etiqueta: string
+          texto: string
+          updated_at?: string
+        }
+        Update: {
+          actualizado_por?: string | null
+          cuenta?: string
+          etiqueta?: string
+          texto?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gastos_fudo_equivalencias_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_fudo_equivalencias_cuenta_fkey"
+            columns: ["cuenta"]
+            isOneToOne: false
+            referencedRelation: "plan_cuentas"
+            referencedColumns: ["codigo"]
           },
         ]
       }
@@ -6145,6 +6187,7 @@ export type Database = {
           creado_por_nombre: string | null
           created_at: string | null
           cuenta: string | null
+          cuenta_automatica: boolean | null
           cuenta_nombre: string | null
           estado: string | null
           factura_id: string | null
@@ -6529,6 +6572,10 @@ export type Database = {
       _gastos_cuenta_valida: { Args: { p_cuenta: string }; Returns: boolean }
       _gastos_dia_del_periodo: {
         Args: { p_dia: number; p_mes: string }
+        Returns: string
+      }
+      _gastos_fudo_etiqueta: {
+        Args: { p_categoria: string; p_proveedor: string }
         Returns: string
       }
       _gastos_fudo_puede: { Args: never; Returns: boolean }
@@ -6927,6 +6974,10 @@ export type Database = {
         }
         Returns: Json
       }
+      gastos_fudo_equivalencia_guardar: {
+        Args: { p_cuenta?: string; p_texto?: string }
+        Returns: number
+      }
       gastos_fudo_estado: {
         Args: never
         Returns: {
@@ -6934,6 +6985,20 @@ export type Database = {
           ultimo_error: string
           ultimo_intento: string
           ultimo_ok: string
+        }[]
+      }
+      gastos_fudo_etiquetas: {
+        Args: never
+        Returns: {
+          a_mano: number
+          cuenta: string
+          cuenta_nombre: string
+          etiqueta: string
+          gastos: number
+          locales: string[]
+          monto: number
+          sin_clasificar: number
+          texto: string
         }[]
       }
       gastos_fudo_registrar_error: {
@@ -6976,6 +7041,7 @@ export type Database = {
           creado_por_nombre: string | null
           created_at: string | null
           cuenta: string | null
+          cuenta_automatica: boolean | null
           cuenta_nombre: string | null
           estado: string | null
           factura_id: string | null

@@ -204,6 +204,35 @@ export async function eliminarGasto(id: string): Promise<Resultado<null>> {
 }
 
 // ---------------------------------------------------------------------------
+// Equivalencias de Fudo: lo que dice Fudo → cuenta del plan.
+// ---------------------------------------------------------------------------
+
+const Equivalencia = z.object({
+  /** Lo que dice Fudo (categoría, o proveedor si no tiene). */
+  texto: Texto.max(200),
+  /** '' = sacar la equivalencia. */
+  cuenta: z.string().trim().max(20),
+})
+
+/** Devuelve cuántos gastos cambiaron de cuenta. */
+export async function guardarEquivalenciaFudo(entrada: z.input<typeof Equivalencia>): Promise<Resultado<number>> {
+  const p = Equivalencia.safeParse(entrada)
+  if (!p.success) return fallo(null, 'Revisá la equivalencia: falta lo que dice Fudo.')
+  try {
+    const supabase = await createClientTipado()
+    const { data, error } = await supabase.rpc('gastos_fudo_equivalencia_guardar', {
+      p_texto: p.data.texto,
+      p_cuenta: p.data.cuenta || undefined,
+    })
+    refresh()
+    if (error) return fallo(error, 'No se pudo guardar la equivalencia.')
+    return ok(data ?? 0)
+  } catch (e) {
+    return fallo(e, 'No se pudo guardar la equivalencia.')
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Gastos que se repiten (plantillas).
 // ---------------------------------------------------------------------------
 

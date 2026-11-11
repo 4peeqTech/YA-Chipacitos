@@ -578,6 +578,9 @@ export default function GastoForm({
               actual={gasto?.cuenta ? { codigo: gasto.cuenta, nombre: gasto.cuentaNombre } : null}
               permitirVacio={deFudo}
               invalido={marca('cuenta') !== ''}
+              nota={gasto?.cuentaAutomatica && form.cuenta === gasto.cuenta
+                ? `La puso sola la equivalencia de "${gasto.fudo?.categoria ?? gasto.fudo?.proveedor ?? ''}" (Fudo). Si la cambiás, queda la tuya.`
+                : null}
             />
           </Field>
         </div>
