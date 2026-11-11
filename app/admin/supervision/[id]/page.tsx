@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { bloquesDeVisita } from '@/lib/supervision/calculos'
-import { SELECT_VISITA, cargarCatalogo, cargarUsuario } from '@/lib/supervision/datos'
+import { SELECT_VISITA, cargarCatalogo, cargarRequerimientos, cargarUsuario } from '@/lib/supervision/datos'
 import type { ResumenVisita, VisitaSupervision } from '@/lib/supervision/tipos'
 import DetalleVisita from '@/components/supervision/DetalleVisita'
 
@@ -18,10 +18,11 @@ export default async function DetalleVisitaPage({ params, searchParams }: {
   if (!user) redirect('/login')
 
   const [{ id }, { aviso }] = await Promise.all([params, searchParams])
-  const [{ data }, catalogo, usuario] = await Promise.all([
+  const [{ data }, catalogo, usuario, { requerimientos }] = await Promise.all([
     supabase.from('supervision_visitas').select(SELECT_VISITA).eq('id', id).maybeSingle(),
     cargarCatalogo(supabase),
     cargarUsuario(supabase, user.id),
+    cargarRequerimientos(supabase, id),
   ])
   if (!data) notFound()
   const visita = data as VisitaSupervision
@@ -33,7 +34,7 @@ export default async function DetalleVisitaPage({ params, searchParams }: {
 
   const lugar = catalogo.lugares.find(l => l.id === visita.lugar_id)
   return (
-    <DetalleVisita visita={visita} lugares={catalogo.lugares} bloques={bloquesDeVisita(visita, catalogo.bloques, lugar)} esAdmin={usuario.esAdmin}
+    <DetalleVisita visita={visita} lugares={catalogo.lugares} bloques={bloquesDeVisita(visita, catalogo.bloques, lugar)} requerimientos={[...requerimientos].reverse()} esAdmin={usuario.esAdmin}
       anterior={anterior ? { id: anterior.id as string, fecha: anterior.fecha as string, pct: (anterior.resumen as ResumenVisita | null)?.pct ?? null } : null}
       aviso={aviso === 'cerrada' ? 'Visita cerrada' : null} />
   )

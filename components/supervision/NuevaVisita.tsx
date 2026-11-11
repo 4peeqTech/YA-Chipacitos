@@ -3,21 +3,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { IconAlertTriangle, IconChevronRight, IconCircleCheck, IconPlayerPlay, IconProgress } from '@tabler/icons-react'
+import { IconAlertTriangle, IconChevronRight, IconCircleCheck, IconClipboardList, IconPlayerPlay, IconProgress } from '@tabler/icons-react'
 import type { useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import {
-  bloquesDeVisita, calcularResumen, catalogoPara, diasDesde, idsDe, idsSinResponder, nivelCumplimiento, pendientesDe, textoPct,
+  bloquesDeVisita, calcularResumen, catalogoPara, diasDesde, idsDe, idsSinResponder, nivelCumplimiento, pendientesDe, requerimientosAbiertos,
+  textoPct,
   ultimaCerrada, visitaEnCurso,
 } from '@/lib/supervision/calculos'
 import { COLOR_NIVEL, fechaHora } from '@/lib/supervision/formato'
-import { TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type TipoVisita, type VisitaSupervision } from '@/lib/supervision/tipos'
-import { CLAVE_SUPERVISOR, Porcentaje } from './ui'
+import {
+  TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type RequerimientoSupervision, type TipoVisita, type VisitaSupervision,
+} from '@/lib/supervision/tipos'
+import { CLAVE_SUPERVISOR, ChipPrioridad, Porcentaje } from './ui'
 
 interface Props {
   lugares: LugarSupervision[]
   bloques: BloqueSupervision[]
   visitas: VisitaSupervision[]
+  requerimientos: RequerimientoSupervision[]
   nombreUsuario: string
   ahora: number
   toast: ReturnType<typeof useToasts>
@@ -32,7 +36,7 @@ const ELEGIR: Record<TipoVisita, string> = {
 
 const INPUT = 'w-full rounded-xl border border-border bg-surface2 px-3 py-2.5 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none'
 
-export default function NuevaVisita({ lugares, bloques, visitas, nombreUsuario, ahora, toast }: Props) {
+export default function NuevaVisita({ lugares, bloques, visitas, requerimientos, nombreUsuario, ahora, toast }: Props) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   // Primero el tipo de visita y después el lugar. Si hay un solo tipo con
@@ -76,6 +80,8 @@ export default function NuevaVisita({ lugares, bloques, visitas, nombreUsuario, 
   const anterior = lugarId ? ultimaCerrada(visitas, lugarId) : null
   const pendientes = useMemo(() => pendientesDe(anterior, bloquesLugar), [anterior, bloquesLugar])
   const nombre = (id: string) => lugarDe(id)?.nombre ?? id
+  // Mayoristas no llevan requerimientos.
+  const abiertos = sucursal && sucursal.tipo !== 'mayorista' ? requerimientosAbiertos(requerimientos, sucursal.id) : []
   const avance = (v: VisitaSupervision) => {
     const bs = bloquesDeVisita(v, bloques, lugarDe(v.lugar_id))
     const total = idsDe(bs).length
@@ -232,6 +238,28 @@ export default function NuevaVisita({ lugares, bloques, visitas, nombreUsuario, 
             La última visita ({fechaHora(anterior.fecha)}) no dejó ítems pendientes.
           </Aviso>
         ))}
+
+        {abiertos.length > 0 && (
+          <div className="space-y-2 rounded-card border border-border bg-surface px-4 py-3 xl:bg-surface2/40">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-text">
+              <IconClipboardList size={16} className="text-accent" aria-hidden />
+              {abiertos.length} {abiertos.length === 1 ? 'requerimiento abierto' : 'requerimientos abiertos'}
+            </p>
+            <ul className="space-y-1.5">
+              {abiertos.map(r => {
+                const dias = diasDesde(r.created_at, ahora)
+                return (
+                  <li key={r.id} className="flex items-start gap-2 text-sm">
+                    <ChipPrioridad prioridad={r.prioridad} />
+                    <span className="min-w-0 flex-1 text-text">
+                      {r.descripcion} <span className="text-xs text-faint">· {dias === 0 ? 'hoy' : `hace ${dias} día${dias === 1 ? '' : 's'}`}</span>
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
           <label className="space-y-1.5">

@@ -102,3 +102,45 @@ export interface VisitaSupervision {
   creado_por: string | null
   updated_at: string
 }
+
+// ── Requerimientos de la visita ────────────────────────────────────────────
+// Lo que falta, lo que hay que reparar o una idea. No suma al porcentaje.
+
+export type CategoriaRequerimiento = 'herramienta_insumo' | 'mantenimiento' | 'idea' | 'otro'
+export type PrioridadRequerimiento = 'urgente' | 'no_urgente' | 'cuando_se_pueda' | 'reunion'
+export type EstadoRequerimiento = 'pendiente' | 'en_gestion' | 'resuelto' | 'descartado'
+
+export const CATEGORIAS_REQ: { valor: CategoriaRequerimiento; texto: string }[] = [
+  { valor: 'herramienta_insumo', texto: 'Herramienta o insumo' },
+  { valor: 'mantenimiento', texto: 'Mantenimiento o reparación' },
+  { valor: 'idea', texto: 'Idea o sugerencia' },
+  { valor: 'otro', texto: 'Otro' },
+]
+export const PRIORIDADES_REQ: { valor: PrioridadRequerimiento; texto: string }[] = [
+  { valor: 'urgente', texto: 'Urgente' },
+  { valor: 'no_urgente', texto: 'No urgente' },
+  { valor: 'cuando_se_pueda', texto: 'Cuando se pueda' },
+  { valor: 'reunion', texto: 'Para tratar en reunión' },
+]
+export const ESTADOS_REQ: { valor: EstadoRequerimiento; texto: string }[] = [
+  { valor: 'pendiente', texto: 'Pendiente' },
+  { valor: 'en_gestion', texto: 'En gestión' },
+  { valor: 'resuelto', texto: 'Resuelto' },
+  { valor: 'descartado', texto: 'Descartado' },
+]
+
+export interface RequerimientoSupervision {
+  id: string
+  lugar_id: string
+  visita_id: string | null
+  descripcion: string
+  categoria: CategoriaRequerimiento
+  prioridad: PrioridadRequerimiento
+  estado: EstadoRequerimiento
+  respuesta: string
+  responsable: string | null
+  resuelto_at: string | null
+  creado_por: string | null
+  created_at: string
+  updated_at: string
+}

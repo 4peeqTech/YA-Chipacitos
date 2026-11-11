@@ -11,7 +11,8 @@ import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { calcularResumen, completarSinResponder, idsSinResponder, textoPct } from '@/lib/supervision/calculos'
 import { fechaHora } from '@/lib/supervision/formato'
-import type { BloqueSupervision, ItemSupervision, Respuestas, Resultado, VisitaSupervision } from '@/lib/supervision/tipos'
+import type { BloqueSupervision, ItemSupervision, RequerimientoSupervision, Respuestas, Resultado, VisitaSupervision } from '@/lib/supervision/tipos'
+import RequerimientosVisita from './RequerimientosVisita'
 import { CLAVE_BORRADOR, Porcentaje } from './ui'
 
 // Checklist de una visita. Cada cambio se guarda en el celular al instante
@@ -42,6 +43,8 @@ interface Props {
   inicial: VisitaSupervision
   sucursal: string
   bloques: BloqueSupervision[]
+  /** Los de esta visita; null si el tipo de visita no lleva requerimientos (mayoristas). */
+  requerimientos: RequerimientoSupervision[] | null
 }
 
 /** Pausa antes de reintentar un guardado, con algo de azar para no chocar con otro reintento. */
@@ -49,7 +52,7 @@ const pausaReintento = () => new Promise(r => setTimeout(r, 800 + Math.random() 
 const corto = (titulo: string) => titulo.split(' ')[0].replace(/[,.]$/, '')
 const CIERRE = 'cierre'
 
-export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
+export default function ChecklistVisita({ inicial, sucursal, bloques, requerimientos }: Props) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const toast = useToasts()
@@ -458,6 +461,10 @@ export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
                   className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline">
                   <IconListSearch size={16} aria-hidden /> Ir al primero sin responder
                 </button>
+              )}
+              {requerimientos && (
+                <RequerimientosVisita visitaId={inicial.id} lugarId={inicial.lugar_id} enCurso={visita.estado === 'en_curso'}
+                  iniciales={requerimientos} toast={toast} />
               )}
               <label className="block space-y-1.5">
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted">Observaciones generales</span>

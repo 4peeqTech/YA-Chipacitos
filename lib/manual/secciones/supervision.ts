@@ -8,9 +8,10 @@ export const supervision: SeccionManual = {
   area: 'administracion',
   roles: ['admin'],
   modulos: ['supervision'],
-  resumen: 'El checklist de la recorrida: empezar una visita, completarla desde el celular, ver el análisis y los datos de cada sucursal.',
+  resumen: 'El checklist de la recorrida: empezar una visita, completarla desde el celular, anotar requerimientos, ver el análisis y los datos de cada sucursal.',
   actualizado: '2026-11-11',
   novedades: [
+    { fecha: '2026-11-11', texto: '**Requerimientos**: lo que falta, lo que hay que reparar o una idea, con seguimiento propio. Los abiertos aparecen al empezar otra visita al mismo lugar.' },
     { fecha: '2026-11-11', texto: 'Checklist de sucursal actualizado (85 ítems), bloques nuevos de **Limpieza de baño** y **Seguridad e higiene**, ítems según el tipo de horno y el jugo, y la pestaña **Lugares**.' },
   ],
   apartados: [
@@ -79,6 +80,23 @@ export const supervision: SeccionManual = {
       ],
     },
     {
+      ancla: 'requerimientos',
+      titulo: 'Requerimientos',
+      bloques: [
+        { tipo: 'parrafo', texto: 'Lo que detectás o te pide el personal durante la visita: una herramienta o insumo que falta, algo para reparar, una idea. No es parte del checklist y no suma al porcentaje.' },
+        {
+          tipo: 'pasos',
+          pasos: [
+            { texto: 'En el **Cierre** de la visita, escribí en **Qué hace falta** y elegí la **Categoría** y la **Prioridad**.' },
+            { texto: 'Tocá **Agregar**. Se guarda en el momento; podés cargar varios.' },
+            { texto: 'Si te equivocaste, borralo con el tacho mientras la visita sigue en curso.' },
+          ],
+        },
+        { tipo: 'parrafo', texto: 'En la pestaña **Requerimientos** está el seguimiento: por defecto los abiertos, los urgentes primero. Tocá uno para cambiar el **Estado**, escribir la **Respuesta** (qué se decidió y por qué) y el **Responsable**, y tocá **Guardar**.' },
+        { tipo: 'tip', texto: 'Al empezar otra visita al mismo lugar, los requerimientos que siguen abiertos aparecen al lado del botón para empezar.' },
+      ],
+    },
+    {
       ancla: 'lugares',
       titulo: 'Datos de cada sucursal (Lugares)',
       bloques: [
@@ -117,6 +135,7 @@ export const supervision: SeccionManual = {
           casos: [
             { situacion: 'Veo los dos ítems de carga del horno', camino: 'La sucursal no tiene cargado el tipo de horno. Marcá N/A el que no corresponde y pedile a un administrador que lo cargue en **Lugares**.' },
             { situacion: 'Se cortó la conexión en medio de la visita', camino: 'Seguí completando: queda guardado en el celular. Al volver la señal se sube solo, o tocá **Continuar** en el aviso de la pantalla de inicio.' },
+            { situacion: 'Quiero borrar un requerimiento de una visita cerrada', camino: 'Pasalo a **Descartado** en la pestaña **Requerimientos** y anotá el motivo en la respuesta. Así queda el historial.' },
             { situacion: 'Quiero borrar una visita', camino: 'Solo un administrador puede borrarla, desde el detalle de la visita.' },
           ],
         },
