@@ -22,7 +22,7 @@ export default async function SupervisionPage({ searchParams }: { searchParams: 
 
   return (
     <SupervisionClient
-      sucursales={catalogo.sucursales}
+      lugares={catalogo.lugares}
       bloques={catalogo.bloques}
       visitasIniciales={visitas}
       errorCarga={!!(error ?? catalogo.error)}

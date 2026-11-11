@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { bloquesDeVisita } from '@/lib/supervision/calculos'
 import { SELECT_VISITA, cargarCatalogo } from '@/lib/supervision/datos'
 import type { VisitaSupervision } from '@/lib/supervision/tipos'
 import ChecklistVisita from '@/components/supervision/ChecklistVisita'
@@ -14,12 +15,16 @@ export default async function ChecklistPage({ params }: { params: Promise<{ id: 
   if (!user) redirect('/login')
 
   const { id } = await params
-  const [{ data: visita }, catalogo] = await Promise.all([
+  const [{ data }, catalogo] = await Promise.all([
     supabase.from('supervision_visitas').select(SELECT_VISITA).eq('id', id).maybeSingle(),
     cargarCatalogo(supabase),
   ])
-  if (!visita) notFound()
+  if (!data) notFound()
+  const visita = data as VisitaSupervision
 
-  const sucursal = catalogo.sucursales.find(s => s.id === visita.sucursal_id)?.nombre ?? visita.sucursal_id
-  return <ChecklistVisita inicial={visita as VisitaSupervision} sucursal={sucursal} bloques={catalogo.bloques} />
+  // Los ítems de esta visita: los que se mostraron al iniciarla (o, en las
+  // anteriores a la v2, el catálogo del lugar).
+  const lugar = catalogo.lugares.find(l => l.id === visita.lugar_id)
+  return <ChecklistVisita inicial={visita} sucursal={lugar?.nombre ?? visita.lugar_id}
+    bloques={bloquesDeVisita(visita, catalogo.bloques, lugar)} />
 }

@@ -8,13 +8,13 @@ import { useConfirm } from '@/components/ui/ConfirmDialog'
 import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { calcularResumen, diferenciaPuntos, pendientesResueltos, textoPct } from '@/lib/supervision/calculos'
-import { fechaCorta, fechaHora } from '@/lib/supervision/formato'
-import type { BloqueSupervision, SucursalSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
+import { fechaCorta, fechaHora, pesos } from '@/lib/supervision/formato'
+import type { BloqueSupervision, LugarSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
 import { BarraCumplimiento, ChipEnCurso, Porcentaje, Tarjeta, Tendencia } from './ui'
 
 interface Props {
   visita: VisitaSupervision
-  sucursales: SucursalSupervision[]
+  lugares: LugarSupervision[]
   bloques: BloqueSupervision[]
   esAdmin: boolean
   anterior: { id: string; fecha: string; pct: number | null } | null
@@ -23,7 +23,7 @@ interface Props {
 
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
-export default function DetalleVisita({ visita: v, sucursales, bloques, esAdmin, anterior, aviso }: Props) {
+export default function DetalleVisita({ visita: v, lugares, bloques, esAdmin, anterior, aviso }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [supabase] = useState(() => createClient())
@@ -40,7 +40,7 @@ export default function DetalleVisita({ visita: v, sucursales, bloques, esAdmin,
     window.history.replaceState(null, '', pathname)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sucursal = sucursales.find(s => s.id === v.sucursal_id)?.nombre ?? v.sucursal_id
+  const sucursal = lugares.find(l => l.id === v.lugar_id)?.nombre ?? v.lugar_id
   const r = calcularResumen(v.respuestas, bloques)
   const sinResponder = (r.sinResponder ?? 0) + r.sinResp
   const dif = anterior ? diferenciaPuntos(r.pct, anterior.pct) : null
@@ -175,6 +175,7 @@ export default function DetalleVisita({ visita: v, sucursales, bloques, esAdmin,
                     <p className="text-2xs font-semibold uppercase tracking-wider text-faint">{items.get(id)?.bloque}</p>
                     <p className="text-sm text-text">{items.get(id)?.texto}</p>
                     {a?.obs && <p className="border-l-2 border-brand-red/60 pl-2 text-sm text-muted">{a.obs}</p>}
+                    {a?.monto != null && <p className="text-sm tabular-nums text-muted">Diferencia detectada: {pesos(a.monto)}</p>}
                     {a?.auto && <p className="text-2xs font-bold uppercase tracking-wider text-warning">Sin responder</p>}
                     {!a?.auto && previos.has(id) && <p className="text-2xs font-bold uppercase tracking-wider text-brand-red">Sigue desde la visita anterior</p>}
                   </li>

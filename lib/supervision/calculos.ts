@@ -1,11 +1,64 @@
 // Cálculos del checklist de supervisión. Funciones puras (sin imports de la
 // app) para poder testearlas con `npm test` (calculos.test.mjs).
 import type {
-  BloqueSupervision, ResumenVisita, Respuestas, Resultado, SucursalSupervision, VisitaSupervision,
+  AtributosLugar, BloqueSupervision, ItemSupervision, LugarSupervision, ResumenVisita, Respuestas, Resultado, VisitaSupervision,
 } from './tipos'
 
 const redondear1 = (n: number) => Math.round(n * 10) / 10
 const DIA = 86_400_000
+
+// ── Catálogo por lugar ─────────────────────────────────────────────────────
+
+/**
+ * Si el ítem aplica al lugar según su condición. Si falta el atributo que
+ * decide (por ejemplo, un horno "a confirmar"), el ítem se muestra: el
+ * supervisor puede marcarlo N/A.
+ */
+export function itemVisible(item: Pick<ItemSupervision, 'condicion'>, a: AtributosLugar): boolean {
+  switch (item.condicion) {
+    case 'horno_rotativo': return a.horno == null || a.horno === 'rotativo'
+    case 'horno_convector': return a.horno == null || a.horno === 'convector'
+    case 'jugo': return a.jugo !== false
+    case 'cocina': return a.perfil === 'cocina'
+    case 'freezer_ya': return a.freezer === 'ya'
+    case 'horno_cliente': return a.perfil === 'cocina' && a.horno === 'cliente'
+    case 'horno_ya': return a.perfil === 'cocina' && a.horno === 'ya'
+    case 'con_equipos': return (a.equipos ?? 0) > 0
+    default: return true
+  }
+}
+
+const tiposDe = (b: BloqueSupervision) => b.tipos?.length ? b.tipos : ['sucursal']
+
+/** Bloques del tipo del lugar con los ítems que le aplican; sin bloques vacíos. */
+export function catalogoPara(bloques: BloqueSupervision[], lugar: Pick<LugarSupervision, 'tipo' | 'atributos'>): BloqueSupervision[] {
+  return bloques
+    .filter(b => tiposDe(b).includes(lugar.tipo))
+    .map(b => ({ ...b, items: b.items.filter(i => itemVisible(i, lugar.atributos ?? {})) }))
+    .filter(b => b.items.length > 0)
+}
+
+/** Bloques del tipo del lugar, sin filtrar condiciones (para análisis y exportar). */
+export function catalogoDeTipo(bloques: BloqueSupervision[], tipo: LugarSupervision['tipo']): BloqueSupervision[] {
+  return bloques.filter(b => tiposDe(b).includes(tipo))
+}
+
+export const idsDe = (bloques: BloqueSupervision[]) => bloques.flatMap(b => b.items.map(i => i.id))
+
+/**
+ * Lo que se muestra en una visita: los ítems guardados al iniciarla
+ * (items_visibles) que sigan activos. Las visitas anteriores a la v2 no los
+ * tienen y usan el catálogo del lugar.
+ */
+export function bloquesDeVisita(
+  v: Pick<VisitaSupervision, 'items_visibles'>, bloques: BloqueSupervision[], lugar: LugarSupervision | undefined,
+): BloqueSupervision[] {
+  if (!v.items_visibles) return lugar ? catalogoPara(bloques, lugar) : bloques
+  const visibles = new Set(v.items_visibles)
+  return bloques
+    .map(b => ({ ...b, items: b.items.filter(i => visibles.has(i.id)) }))
+    .filter(b => b.items.length > 0)
+}
 
 /**
  * Cumple / (Cumple + No cumple). N/A, sin responder e ítems fuera del catálogo
@@ -62,20 +115,20 @@ export function pctVisita(v: VisitaSupervision, bloques: BloqueSupervision[]): n
 
 const porFechaDesc = (a: VisitaSupervision, b: VisitaSupervision) => b.fecha.localeCompare(a.fecha)
 
-export function ultimaCerrada(visitas: VisitaSupervision[], sucursalId: string, exceptoId?: string): VisitaSupervision | null {
+export function ultimaCerrada(visitas: VisitaSupervision[], lugarId: string, exceptoId?: string): VisitaSupervision | null {
   return visitas
-    .filter(v => v.estado === 'cerrada' && v.sucursal_id === sucursalId && v.id !== exceptoId)
+    .filter(v => v.estado === 'cerrada' && v.lugar_id === lugarId && v.id !== exceptoId)
     .sort(porFechaDesc)[0] ?? null
 }
 
-export function visitaEnCurso(visitas: VisitaSupervision[], sucursalId: string): VisitaSupervision | null {
-  return visitas.filter(v => v.estado === 'en_curso' && v.sucursal_id === sucursalId).sort(porFechaDesc)[0] ?? null
+export function visitaEnCurso(visitas: VisitaSupervision[], lugarId: string): VisitaSupervision | null {
+  return visitas.filter(v => v.estado === 'en_curso' && v.lugar_id === lugarId).sort(porFechaDesc)[0] ?? null
 }
 
 /** La visita cerrada de la misma sucursal inmediatamente anterior a `v`. */
 export function anteriorCerrada(visitas: VisitaSupervision[], v: VisitaSupervision): VisitaSupervision | null {
   return visitas
-    .filter(x => x.estado === 'cerrada' && x.sucursal_id === v.sucursal_id && x.id !== v.id && x.fecha < v.fecha)
+    .filter(x => x.estado === 'cerrada' && x.lugar_id === v.lugar_id && x.id !== v.id && x.fecha < v.fecha)
     .sort(porFechaDesc)[0] ?? null
 }
 
@@ -160,17 +213,17 @@ export interface FiltrosVisitas {
 const sinAcentos = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 export function filtrarVisitas(
-  visitas: VisitaSupervision[], f: FiltrosVisitas, sucursales: SucursalSupervision[], bloques: BloqueSupervision[],
+  visitas: VisitaSupervision[], f: FiltrosVisitas, sucursales: LugarSupervision[], bloques: BloqueSupervision[],
 ): VisitaSupervision[] {
   const suc = new Map(sucursales.map(s => [s.id, s]))
   const q = f.texto ? sinAcentos(f.texto.trim()) : ''
   return visitas.filter(v => {
     if (!enRango(v.fecha, f.rango)) return false
     if (f.estado && f.estado !== 'todas' && v.estado !== f.estado) return false
-    if (f.zona && f.zona !== 'todas' && suc.get(v.sucursal_id)?.zona !== f.zona) return false
+    if (f.zona && f.zona !== 'todas' && suc.get(v.lugar_id)?.zona !== f.zona) return false
     if (f.supervisor && f.supervisor !== 'todos' && v.supervisor_nombre !== f.supervisor) return false
     if (f.nivel && f.nivel !== 'todos' && nivelCumplimiento(pctVisita(v, bloques)) !== f.nivel) return false
-    if (q && !sinAcentos(`${suc.get(v.sucursal_id)?.nombre ?? ''} ${v.supervisor_nombre} ${v.encargado ?? ''}`).includes(q)) return false
+    if (q && !sinAcentos(`${suc.get(v.lugar_id)?.nombre ?? ''} ${v.supervisor_nombre} ${v.encargado ?? ''}`).includes(q)) return false
     return true
   })
 }
@@ -188,12 +241,12 @@ const promedio = (xs: number[]) => (xs.length ? redondear1(xs.reduce((a, b) => a
 export function analizar(
   visitas: VisitaSupervision[],
   bloques: BloqueSupervision[],
-  sucursales: SucursalSupervision[],
+  sucursales: LugarSupervision[],
   opciones: { bloqueId?: string; nivel?: 'todos' | NivelCumplimiento } = {},
 ) {
   const cerradas = visitas.filter(v => v.estado === 'cerrada').sort((a, b) => a.fecha.localeCompare(b.fecha))
   const ultimaPorSucursal = new Map<string, VisitaSupervision>()
-  for (const v of cerradas) ultimaPorSucursal.set(v.sucursal_id, v)
+  for (const v of cerradas) ultimaPorSucursal.set(v.lugar_id, v)
 
   const resumenes = new Map([...ultimaPorSucursal.values()].map(v => [v.id, calcularResumen(v.respuestas, bloques)]))
   const nivelOk = (pct: number | null) => !opciones.nivel || opciones.nivel === 'todos' || nivelCumplimiento(pct) === opciones.nivel
@@ -215,7 +268,7 @@ export function analizar(
       if (a?.r !== 'NC' || a.auto || !enAlcance.has(id)) continue
       const x = veces.get(id) ?? { visitas: 0, sucursales: new Set<string>() }
       x.visitas++
-      x.sucursales.add(v.sucursal_id)
+      x.sucursales.add(v.lugar_id)
       veces.set(id, x)
     }
   }
@@ -235,9 +288,9 @@ export function analizar(
 }
 
 /** Sucursales sin una visita cerrada en los últimos `dias` días. */
-export function sinVisitarDesde(visitas: VisitaSupervision[], sucursales: SucursalSupervision[], ahora: number, dias = 30) {
+export function sinVisitarDesde(visitas: VisitaSupervision[], sucursales: LugarSupervision[], ahora: number, dias = 30) {
   const limite = ahora - dias * DIA
-  return sucursales.filter(s => !visitas.some(v => v.estado === 'cerrada' && v.sucursal_id === s.id && Date.parse(v.fecha) >= limite))
+  return sucursales.filter(s => !visitas.some(v => v.estado === 'cerrada' && v.lugar_id === s.id && Date.parse(v.fecha) >= limite))
 }
 
 export function diasDesde(iso: string, ahora: number): number {
@@ -264,7 +317,7 @@ export function filasCsv(
       for (const it of b.items) {
         const a = v.respuestas?.[it.id] ?? {}
         filas.push([
-          fecha(v.fecha), nombreSucursal(v.sucursal_id), v.supervisor_nombre,
+          fecha(v.fecha), nombreSucursal(v.lugar_id), v.supervisor_nombre,
           v.estado === 'cerrada' ? 'Cerrada' : 'En curso', pct ?? '',
           b.titulo, it.texto, a.r ? ETIQUETA[a.r] + (a.auto ? ' (sin responder)' : '') : '', a.obs ?? '',
         ])

@@ -4895,6 +4895,7 @@ export type Database = {
           id: string
           orden: number
           referencia: string
+          tipos: string[]
           titulo: string
         }
         Insert: {
@@ -4902,6 +4903,7 @@ export type Database = {
           id: string
           orden?: number
           referencia?: string
+          tipos?: string[]
           titulo: string
         }
         Update: {
@@ -4909,6 +4911,7 @@ export type Database = {
           id?: string
           orden?: number
           referencia?: string
+          tipos?: string[]
           titulo?: string
         }
         Relationships: []
@@ -4917,22 +4920,31 @@ export type Database = {
         Row: {
           activo: boolean
           bloque_id: string
+          con_monto: boolean
+          condicion: string | null
           id: string
           orden: number
+          parametro: string | null
           texto: string
         }
         Insert: {
           activo?: boolean
           bloque_id: string
+          con_monto?: boolean
+          condicion?: string | null
           id: string
           orden?: number
+          parametro?: string | null
           texto: string
         }
         Update: {
           activo?: boolean
           bloque_id?: string
+          con_monto?: boolean
+          condicion?: string | null
           id?: string
           orden?: number
+          parametro?: string | null
           texto?: string
         }
         Relationships: [
@@ -4945,34 +4957,43 @@ export type Database = {
           },
         ]
       }
-      supervision_sucursales: {
+      supervision_lugares: {
         Row: {
           activo: boolean
+          atributos: Json
+          encargado: string | null
           id: string
           local_config_id: string | null
           nombre: string
           orden: number
-          zona: string
+          tipo: string
+          zona: string | null
         }
         Insert: {
           activo?: boolean
+          atributos?: Json
+          encargado?: string | null
           id: string
           local_config_id?: string | null
           nombre: string
           orden?: number
-          zona: string
+          tipo?: string
+          zona?: string | null
         }
         Update: {
           activo?: boolean
+          atributos?: Json
+          encargado?: string | null
           id?: string
           local_config_id?: string | null
           nombre?: string
           orden?: number
-          zona?: string
+          tipo?: string
+          zona?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "supervision_sucursales_local_config_id_fkey"
+            foreignKeyName: "supervision_lugares_local_config_id_fkey"
             columns: ["local_config_id"]
             isOneToOne: false
             referencedRelation: "locales_config"
@@ -4991,12 +5012,13 @@ export type Database = {
           estado: string
           fecha: string
           id: string
+          items_visibles: string[] | null
+          lugar_id: string
           obs_general: string
           obs_previas: Json
           pendientes_previos: string[]
           respuestas: Json
           resumen: Json | null
-          sucursal_id: string
           supervisor_nombre: string
           updated_at: string
         }
@@ -5010,12 +5032,13 @@ export type Database = {
           estado?: string
           fecha?: string
           id?: string
+          items_visibles?: string[] | null
+          lugar_id: string
           obs_general?: string
           obs_previas?: Json
           pendientes_previos?: string[]
           respuestas?: Json
           resumen?: Json | null
-          sucursal_id: string
           supervisor_nombre: string
           updated_at?: string
         }
@@ -5029,12 +5052,13 @@ export type Database = {
           estado?: string
           fecha?: string
           id?: string
+          items_visibles?: string[] | null
+          lugar_id?: string
           obs_general?: string
           obs_previas?: Json
           pendientes_previos?: string[]
           respuestas?: Json
           resumen?: Json | null
-          sucursal_id?: string
           supervisor_nombre?: string
           updated_at?: string
         }
@@ -5061,10 +5085,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "supervision_visitas_sucursal_id_fkey"
-            columns: ["sucursal_id"]
+            foreignKeyName: "supervision_visitas_lugar_id_fkey"
+            columns: ["lugar_id"]
             isOneToOne: false
-            referencedRelation: "supervision_sucursales"
+            referencedRelation: "supervision_lugares"
             referencedColumns: ["id"]
           },
         ]
@@ -5366,19 +5390,21 @@ export type Database = {
           fecha: string | null
           item: string | null
           item_id: string | null
+          lugar: string | null
+          lugar_id: string | null
+          monto: number | null
           observacion: string | null
           resultado: string | null
-          sucursal: string | null
-          sucursal_id: string | null
           supervisor: string | null
+          tipo: string | null
           visita_id: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "supervision_visitas_sucursal_id_fkey"
-            columns: ["sucursal_id"]
+            foreignKeyName: "supervision_visitas_lugar_id_fkey"
+            columns: ["lugar_id"]
             isOneToOne: false
-            referencedRelation: "supervision_sucursales"
+            referencedRelation: "supervision_lugares"
             referencedColumns: ["id"]
           },
         ]

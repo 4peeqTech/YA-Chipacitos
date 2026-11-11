@@ -13,12 +13,12 @@ import {
   sinVisitarDesde, textoPct, type NivelCumplimiento, type Periodo,
 } from '@/lib/supervision/calculos'
 import { fechaHora } from '@/lib/supervision/formato'
-import type { BloqueSupervision, SucursalSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
+import type { BloqueSupervision, LugarSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
 import { ChipFiltro, OPCIONES_NIVEL } from './Filtros'
 import { Tarjeta } from './ui'
 
 interface Props {
-  sucursales: SucursalSupervision[]
+  sucursales: LugarSupervision[]
   bloques: BloqueSupervision[]
   visitas: VisitaSupervision[]
   ahora: number
@@ -41,7 +41,7 @@ export default function AnalisisSupervision({ sucursales, bloques, visitas, ahor
   const [celda, setCelda] = useState<{ visita: VisitaSupervision; bloque: BloqueSupervision; sucursal: string } | null>(null)
   const cambiar = (k: keyof typeof INICIAL) => (v: string) => setF(prev => ({ ...prev, [k]: v }))
 
-  const zonas = useMemo(() => [...new Set(sucursales.map(s => s.zona))], [sucursales])
+  const zonas = useMemo(() => [...new Set(sucursales.map(s => s.zona).filter((z): z is string => !!z))], [sucursales])
   const supervisores = useMemo(() => [...new Set(visitas.map(v => v.supervisor_nombre))].sort((a, b) => a.localeCompare(b, 'es')), [visitas])
   const sucursalesZona = useMemo(() => sucursales.filter(s => f.zona === 'todas' || s.zona === f.zona), [sucursales, f.zona])
   const textoItem = useMemo(() => new Map(bloques.flatMap(b => b.items.map(i => [i.id, { texto: i.texto, bloque: b.titulo }]))), [bloques])
@@ -56,7 +56,7 @@ export default function AnalisisSupervision({ sucursales, bloques, visitas, ahor
   const promedioAnterior = rAnt ? analizar(filtrar(rAnt), bloques, sucursalesZona, opciones).promedio : null
   const difPromedio = diferenciaPuntos(a.promedio, promedioAnterior)
   const sinVisitar = sinVisitarDesde(visitas, sucursalesZona, ahora)
-  const nombres = (ss: SucursalSupervision[]) => ss.map(s => s.nombre).join(', ')
+  const nombres = (ss: LugarSupervision[]) => ss.map(s => s.nombre).join(', ')
 
   function descargar() {
     const nombre = (id: string) => sucursales.find(s => s.id === id)?.nombre ?? id

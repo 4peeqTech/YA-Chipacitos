@@ -214,14 +214,25 @@ export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
       const r = previa.r === valor && !previa.auto ? null : valor // tocar de nuevo desmarca
       const respuestas: Respuestas = { ...v.respuestas }
       // Responder a mano saca la marca de "sin responder".
-      if (!r && !previa.obs) delete respuestas[id]
-      else respuestas[id] = { ...(previa.obs ? { obs: previa.obs } : {}), r }
+      if (!r && !previa.obs && previa.monto == null) delete respuestas[id]
+      else respuestas[id] = { ...(previa.obs ? { obs: previa.obs } : {}), ...(previa.monto != null ? { monto: previa.monto } : {}), r }
       return { ...v, respuestas }
     })
   }
 
   function observar(id: string, obs: string) {
     cambiar(v => ({ ...v, respuestas: { ...v.respuestas, [id]: { ...(v.respuestas[id] ?? {}), obs } } }))
+  }
+
+  /** Diferencia de arqueo: se guarda tal cual para el análisis; vacío la borra. */
+  function anotarMonto(id: string, texto: string) {
+    const n = texto.trim() === '' ? null : Number(texto)
+    if (n != null && !Number.isFinite(n)) return
+    cambiar(v => {
+      const resto = { ...(v.respuestas[id] ?? {}) }
+      delete resto.monto
+      return { ...v, respuestas: { ...v.respuestas, [id]: n == null ? resto : { ...resto, monto: n } } }
+    })
   }
 
   async function salir() {
@@ -418,6 +429,16 @@ export default function ChecklistVisita({ inicial, sucursal, bloques }: Props) {
                           className="inline-flex items-center gap-1.5 justify-self-start text-xs font-medium text-muted hover:text-accent lg:col-span-2">
                           <IconMessagePlus size={14} aria-hidden /> Agregar observación
                         </button>
+                      )}
+                      {it.con_monto && (
+                        <label className="flex flex-wrap items-center gap-2 lg:col-span-2">
+                          <span className="text-xs font-medium text-muted">
+                            Diferencia detectada ($) <span className="text-faint">(opcional)</span>
+                          </span>
+                          <input type="number" inputMode="decimal" step="any" value={a.monto ?? ''}
+                            onChange={e => anotarMonto(it.id, e.target.value)} placeholder="0"
+                            className="min-h-[44px] w-36 rounded-xl border border-border bg-surface2 px-3 py-2 text-sm tabular-nums text-text placeholder:text-faint focus:border-accent focus:outline-none" />
+                        </label>
                       )}
                     </li>
                   )

@@ -14,6 +14,11 @@ export function fechaCorta(iso: string): string {
   return new Date(iso).toLocaleDateString('es-AR', { timeZone: ZONA, day: '2-digit', month: '2-digit' })
 }
 
+/** Monto en pesos, sin decimales si es entero ($ 1.250 · $ 12,50). */
+export function pesos(n: number): string {
+  return `$ ${n.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`
+}
+
 /** Colores del porcentaje: verde desde 85 %, dorado desde 65 %, rojo debajo. */
 export const COLOR_NIVEL: Record<NivelCumplimiento, { texto: string; fondo: string; hex: string }> = {
   alto:  { texto: 'text-success',   fondo: 'bg-success',   hex: '#56d68a' },
