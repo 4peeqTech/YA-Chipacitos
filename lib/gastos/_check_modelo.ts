@@ -7,7 +7,7 @@ import {
   type GastoFila, type PagoFila,
 } from './modelo'
 import { rutaComprobante } from './comprobante'
-import { buscarCuentas, rutaDe, type CuentaPlan } from './plan'
+import { buscarCuentas, conAyudas, rutaDe, type CuentaPlan } from './plan'
 
 const fila = (p: Partial<GastoFila>): GastoFila => ({
   id: 'g1', fecha: '2026-09-10', local: 'YA! FABRICA', rubro: 'MATERIA PRIMA', categoria: 'HUEVOS',
@@ -33,10 +33,11 @@ const g = (id: string) => gastos.find(x => x.id === id)!
 
 const cta = (codigo: string, nombre: string, padre: string, nivel = 4, incluye: string | null = null): CuentaPlan => ({
   codigo, nombre, nivel, padre, imputable: nivel === 4, tipo: 'Resultado · Costo y gasto', rubroGasto: 'Gastos de funcionamiento',
-  categoriaGasto: 'Servicios', incluye, tableroFabrica: null, tableroLocales: null, usoGastos: nivel === 4 ? 'gasto' : null,
+  categoriaGasto: 'Servicios', incluye, incluyePropuesto: false, tableroFabrica: null, tableroLocales: null, usoGastos: nivel === 4 ? 'gasto' : null,
 })
 const plan = [
-  cta('5', 'COSTOS Y GASTOS', '', 1), cta('5.3', 'Gastos de funcionamiento', '5', 2), cta('5.3.01', 'Servicios', '5.3', 3),
+  cta('5', 'COSTOS Y GASTOS', '', 1), cta('5.3', 'Gastos de funcionamiento', '5', 2, 'Lo que cuesta tener abierto.'),
+  cta('5.3.01', 'Servicios', '5.3', 3, 'Luz, agua, gas.'),
   cta('5.3.01.01', 'Energía eléctrica', '5.3.01', 4, 'Facturas de DPEC.'),
   cta('5.3.01.04', 'Internet y telefonía', '5.3.01', 4, 'Internet de locales y fábrica, celulares de administración.'),
   cta('5.3.01.05', 'Seguridad y monitoreo', '5.3.01', 4, 'Monitoreo de alarmas (Proegur).'),
@@ -140,6 +141,11 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'buscar por código: "5.3.01.0" las tres', real: busca('5.3.01.0'), esperado: '5.3.01.01,5.3.01.04,5.3.01.05' },
   { nombre: 'buscar: primero lo que está en el nombre', real: busca('celular'), esperado: '5.3.01.04' },
   { nombre: 'buscar: todas las palabras', real: busca('dpec alarmas'), esperado: '' },
+  {
+    nombre: 'ayudas: la cuenta trae qué significan su rubro y su categoría',
+    real: (() => { const c = conAyudas(plan).find(x => x.codigo === '5.3.01.01')!; return `${c.ayudaRubro}|${c.ayudaCategoria}` })(),
+    esperado: 'Lo que cuesta tener abierto.|Luz, agua, gas.',
+  },
   { nombre: 'ruta de una cuenta: rubro › categoría', real: rutaDe(plan, '5.3.01.01').join(' › '), esperado: 'Gastos de funcionamiento › Servicios' },
   // Gastos que se repiten
   {

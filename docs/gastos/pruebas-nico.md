@@ -11,8 +11,8 @@ Esto está en **QA** (`qa.yachipacitos.com.ar`), con datos de prueba: podés car
 
 ## Para probar
 
-1. **Parámetros › Plan de cuentas.** Buscá "luz", "alquiler", "proegur", "5.3.01". Probá el botón **Las que se eligen en Gastos**. ¿Está todo como en el Excel?
-2. **Gastos › Nuevo gasto.** En **Cuenta**, escribí lo que es (luz, nafta, sueldos, contador…). Mirá que abajo diga qué entra en la cuenta. Guardalo.
+1. **Gastos › Plan de cuentas.** Buscá "luz", "alquiler", "proegur", "5.3.01". Probá el botón **Las que se eligen en Gastos**. ¿Está todo como en el Excel? Los rubros y categorías que en el Excel no tenían descripción tienen una nuestra, marcada **Propuesto**: revisalas.
+2. **Gastos › Nuevo gasto.** En **Cuenta**, escribí lo que es (luz, nafta, sueldos, contador…). Cada opción dice qué entra en ella y, al elegirla, abajo aparece qué significan su rubro, su categoría y la cuenta. Guardalo.
 3. Cargá un **retiro del socio** (3.1.01.01). Fijate que no sume en "Gastado en el período" y aparezca aparte.
 4. Abrí un gasto y **cambiale la cuenta**. Probá el filtro **Todas las cuentas** de la lista (por rubro, "No son gasto", "Sin clasificar").
 5. **Gastos › Clasificar Fudo.** Elegí la cuenta para "Cubre franco", "Logistica", "Otros envíos", etc. Fijate que los gastos se clasifiquen solos y que en la lista ya no digan "Sin clasificar".

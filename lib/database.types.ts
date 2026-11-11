@@ -4544,6 +4544,7 @@ export type Database = {
           codigo: string
           imputable: boolean
           incluye: string | null
+          incluye_propuesto: boolean
           nivel: number
           nombre: string
           orden: number
@@ -4559,6 +4560,7 @@ export type Database = {
           codigo: string
           imputable: boolean
           incluye?: string | null
+          incluye_propuesto?: boolean
           nivel: number
           nombre: string
           orden: number
@@ -4574,6 +4576,7 @@ export type Database = {
           codigo?: string
           imputable?: boolean
           incluye?: string | null
+          incluye_propuesto?: boolean
           nivel?: number
           nombre?: string
           orden?: number

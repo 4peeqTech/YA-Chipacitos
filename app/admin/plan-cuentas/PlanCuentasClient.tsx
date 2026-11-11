@@ -18,6 +18,21 @@ const VISTAS: { value: Vista; label: string }[] = [
 /** Lo que no aporta en el renglón: el Excel lo repite en las cuentas que no van al resultado. */
 const SIN_TABLERO = new Set(['No va al resultado', '—'])
 
+/** La descripción de un rubro o categoría. Si el Excel no la traía, la propuso el sistema y se marca. */
+function Descripcion({ c, className }: { c: CuentaPlan; className: string }) {
+  if (!c.incluye) return null
+  return (
+    <p className={className}>
+      {c.incluye}
+      {c.incluyePropuesto && (
+        <span className="ml-1.5 whitespace-nowrap rounded-md border border-border px-1.5 text-2xs font-semibold text-muted" title="El plan de Nico no traía este texto: lo propusimos y falta que lo confirme.">
+          Propuesto
+        </span>
+      )}
+    </p>
+  )
+}
+
 function UsoBadge({ c }: { c: CuentaPlan }) {
   if (!c.usoGastos) return null
   const clase = c.usoGastos === 'gasto' ? 'border-accent/40 text-text' : 'border-border text-muted'
@@ -93,7 +108,7 @@ export default function PlanCuentasClient({ plan, error }: { plan: CuentaPlan[];
       <PageHeader
         icono={IconListTree}
         titulo="Plan de cuentas"
-        descripcion="Las cuentas con las que se clasifica cada gasto. Es el plan fijo del negocio: no se cambia desde acá."
+        descripcion="Las cuentas con las que se clasifica cada gasto y cuándo se usa cada una. Es el plan fijo del negocio: no se cambia desde acá."
       />
 
       <div className="space-y-3">
@@ -123,7 +138,7 @@ export default function PlanCuentasClient({ plan, error }: { plan: CuentaPlan[];
               </h2>
               <span className="text-xs text-muted">{cuenta.get(tipo.codigo)} cuentas</span>
             </div>
-            {tipo.incluye && <p className="text-sm text-muted">{tipo.incluye}</p>}
+            <Descripcion c={tipo} className="text-sm text-muted" />
             <div className="space-y-2">
               {conHijos(tipo.codigo).map(rubro => (
                 <details key={rubro.codigo} className="group overflow-hidden rounded-2xl border border-border bg-surface">
@@ -133,12 +148,15 @@ export default function PlanCuentasClient({ plan, error }: { plan: CuentaPlan[];
                     <span className="min-w-0 flex-1 font-semibold text-text">{rubro.nombre}</span>
                     <span className="whitespace-nowrap text-xs text-muted">{cuenta.get(rubro.codigo)}</span>
                   </summary>
-                  {rubro.incluye && <p className="border-t border-border px-4 py-2 text-sm text-muted">{rubro.incluye}</p>}
+                  <Descripcion c={rubro} className="border-t border-border px-4 py-2 text-sm text-muted" />
                   {conHijos(rubro.codigo).map(cat => (
                     <div key={cat.codigo} className="border-t border-border">
-                      <h3 className="bg-surface2/60 px-4 py-2 text-xs font-semibold text-muted">
-                        <span className="font-mono tabular-nums">{cat.codigo}</span> {cat.nombre}
-                      </h3>
+                      <div className="space-y-0.5 bg-surface2/60 px-4 py-2">
+                        <h3 className="text-xs font-semibold text-muted">
+                          <span className="font-mono tabular-nums">{cat.codigo}</span> {cat.nombre}
+                        </h3>
+                        <Descripcion c={cat} className="text-xs text-muted" />
+                      </div>
                       <ul className="divide-y divide-border">
                         {conHijos(cat.codigo).map(c => <Cuenta key={c.codigo} c={c} />)}
                       </ul>

@@ -26,6 +26,8 @@ interface Props {
   opcionVacia?: boolean
   ariaLabel?: string
   invalido?: boolean
+  /** Alto máximo de la lista (clase de Tailwind). Más alto cuando las opciones traen detalle. */
+  altoLista?: string
 }
 
 export default function SelectBuscador({
@@ -39,6 +41,7 @@ export default function SelectBuscador({
   opcionVacia = true,
   ariaLabel,
   invalido = false,
+  altoLista = 'max-h-52',
 }: Props) {
   const [abierto, setAbierto] = useState(false)
   const [busqueda, setBusqueda] = useState('')
@@ -87,7 +90,7 @@ export default function SelectBuscador({
     >
       {value === o.value && <span className="mr-1.5">✓</span>}
       {o.label}
-      {o.detalle && <span className="block text-2xs font-normal text-muted">{o.detalle}</span>}
+      {o.detalle && <span className="line-clamp-2 block text-2xs font-normal text-muted">{o.detalle}</span>}
     </button>
   )
 
@@ -158,7 +161,7 @@ export default function SelectBuscador({
           </div>
 
           {/* Opciones */}
-          <div className="max-h-52 overflow-y-auto">
+          <div className={`${altoLista} overflow-y-auto`}>
             {/* Opción vacía */}
             {opcionVacia && (
               <button

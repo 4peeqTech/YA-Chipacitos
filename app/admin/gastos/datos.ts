@@ -1,6 +1,6 @@
 import type { createClientTipado } from '@/lib/supabase/server'
 import { sincronizacionActiva } from '@/lib/gastos/fudoSync'
-import { COLUMNAS_PLAN, armarPlan, type CuentaPlan } from '@/lib/gastos/plan'
+import { COLUMNAS_PLAN, armarPlan, conAyudas, type CuentaPlan } from '@/lib/gastos/plan'
 import {
   POR_PAGINA, leerResumen, type FiltrosLista, type FiltrosPendientes, type GastoFila, type ResumenGastos,
 } from '@/lib/gastos/modelo'
@@ -20,16 +20,15 @@ function argsFiltros(f: Pick<FiltrosLista, 'desde' | 'hasta' | 'estado' | 'local
   }
 }
 
-/** Las cuentas que se eligen en Gastos (imputables, de gasto o "no es gasto"), en el orden del plan. */
+/**
+ * Las cuentas que se eligen en Gastos (imputables, de gasto o "no es gasto"), en
+ * el orden del plan, con lo que significan su rubro y su categoría. Trae el plan
+ * entero (son 216 filas) para tener los textos de los ancestros.
+ */
 export async function consultarCuentasGastos(supabase: Cliente): Promise<CuentaPlan[]> {
-  const { data, error } = await supabase
-    .from('plan_cuentas')
-    .select(COLUMNAS_PLAN)
-    .eq('imputable', true)
-    .not('uso_gastos', 'is', null)
-    .order('orden')
+  const { data, error } = await supabase.from('plan_cuentas').select(COLUMNAS_PLAN).order('orden')
   if (error) console.error(error)
-  return armarPlan(data ?? [])
+  return conAyudas(armarPlan(data ?? [])).filter(c => c.imputable && c.usoGastos != null)
 }
 
 /**

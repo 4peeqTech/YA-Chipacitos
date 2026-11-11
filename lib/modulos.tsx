@@ -35,6 +35,7 @@ export const MODULOS: Modulo[] = [
   { key: 'gastos_pendientes', label: 'Pendientes de pago', icon: <Clock size={16} />, href: '/admin/gastos/pendientes', section: 'Gastos' },
   { key: 'gastos_recurrentes', label: 'Que se repiten',    icon: <IconRepeat size={16} />, href: '/admin/gastos/recurrentes', section: 'Gastos', soloAdmin: true },
   { key: 'gastos_clasificar', label: 'Clasificar Fudo',    icon: <IconTags size={16} />, href: '/admin/gastos/clasificar', section: 'Gastos', soloAdmin: true },
+  { key: 'plan_cuentas',      label: 'Plan de cuentas',    icon: <ClipboardList size={16} />, href: '/admin/plan-cuentas',      section: 'Gastos' },
   { key: 'resumen',           label: 'Resumen por local',  icon: <BarChart3 size={16} />, href: '/admin/resumen',           section: 'Gastos' },
   { key: 'fudo',               label: 'Fudo / Caja',        icon: <Landmark size={16} />, href: '/admin/fudo',              section: 'Gastos' },
 
@@ -53,7 +54,6 @@ export const MODULOS: Modulo[] = [
   { key: 'mapeos',       label: 'Mapeo productos', icon: <Link2 size={16} />, href: '/admin/mapeos',       section: 'Parámetros' },
   { key: 'usuarios',     label: 'Usuarios',        icon: <Users size={16} />, href: '/admin/usuarios',     section: 'Parámetros' },
   { key: 'roles',        label: 'Roles',           icon: <Shield size={16} />, href: '/admin/roles',        section: 'Parámetros' },
-  { key: 'plan_cuentas', label: 'Plan de cuentas', icon: <ClipboardList size={16} />, href: '/admin/plan-cuentas', section: 'Parámetros' },
   { key: 'cajas',        label: 'Cajas',           icon: <Landmark size={16} />, href: '/admin/cajas',        section: 'Parámetros' },
   { key: 'formas_pago',  label: 'Formas de pago',  icon: <CreditCard size={16} />, href: '/admin/formas-pago',  section: 'Parámetros' },
 

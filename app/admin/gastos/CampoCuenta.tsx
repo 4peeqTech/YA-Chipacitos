@@ -4,10 +4,22 @@ import { useMemo } from 'react'
 import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
 import { buscarCuentas, type CuentaPlan } from '@/lib/gastos/plan'
 
+/** Una línea de "qué significa": Rubro · Servicios: lo que entra. */
+function Significado({ titulo, nombre, texto }: { titulo: string; nombre: string | null; texto?: string | null }) {
+  if (!nombre) return null
+  return (
+    <div>
+      <dt className="inline font-semibold text-text">{titulo} · {nombre}{texto ? ': ' : ''}</dt>
+      {texto && <dd className="inline">{texto}</dd>}
+    </div>
+  )
+}
+
 /**
  * La cuenta del plan de un gasto: un buscador (por nombre, código o "qué se
- * incluye") agrupado por rubro, con lo que no es gasto al final. Abajo, qué
- * entra en la cuenta elegida.
+ * incluye") agrupado por rubro, con lo que no es gasto al final. Cada opción
+ * dice qué entra en ella; abajo, qué significan el rubro, la categoría y la
+ * cuenta elegidos, como guía para clasificar.
  */
 export default function CampoCuenta({
   cuentas,
@@ -38,7 +50,7 @@ export default function CampoCuenta({
     const lista = enOrden.map(c => ({
       value: c.codigo,
       label: c.nombre,
-      detalle: `${c.codigo} · ${c.categoriaGasto ?? ''}`,
+      detalle: [c.codigo, c.incluye ?? c.categoriaGasto].filter(Boolean).join(' · '),
       grupo: c.usoGastos === 'otro_pago' ? `No es gasto · ${c.rubroGasto ?? ''}` : (c.rubroGasto ?? 'Otras'),
     }))
     if (actual?.codigo && !cuentas.some(c => c.codigo === actual.codigo)) {
@@ -68,13 +80,17 @@ export default function CampoCuenta({
         ariaLabel="Cuenta del gasto"
         invalido={invalido}
         disabled={disabled}
+        altoLista="max-h-72"
       />
       {elegida && (
-        <p className="text-xs text-muted">
-          <span className="font-mono tabular-nums">{elegida.codigo}</span> · {elegida.rubroGasto} › {elegida.categoriaGasto}
-          {elegida.usoGastos === 'otro_pago' && <span className="font-semibold text-text"> · No es gasto: no suma en lo gastado</span>}
-          {elegida.incluye && <span className="mt-0.5 block">{elegida.incluye}</span>}
-        </p>
+        <dl className="space-y-1 rounded-xl bg-surface2 px-3 py-2 text-xs text-muted" aria-label="Qué significa esta clasificación">
+          {elegida.usoGastos === 'otro_pago' && (
+            <div className="font-semibold text-text">No es gasto: se carga, pero no suma en lo gastado.</div>
+          )}
+          <Significado titulo="Rubro" nombre={elegida.rubroGasto} texto={elegida.ayudaRubro} />
+          <Significado titulo="Categoría" nombre={elegida.categoriaGasto} texto={elegida.ayudaCategoria} />
+          <Significado titulo="Cuenta" nombre={`${elegida.codigo} ${elegida.nombre}`} texto={elegida.incluye} />
+        </dl>
       )}
       {nota && <p className="text-xs text-muted">{nota}</p>}
     </div>

@@ -38,7 +38,7 @@ export const admin: SeccionManual = {
           tipo: 'pasos',
           pasos: [
             { texto: 'Tocá **Nuevo gasto** y completá fecha, local, cuenta, proveedor (opcional), monto y forma de pago prevista. Si vence, poné la fecha en **Vence**.' },
-            { texto: 'En **Cuenta** escribí lo que es (luz, alquiler, nafta, sueldos…) y elegila de la lista. Abajo te dice qué entra en esa cuenta. Las que dicen **No es gasto** (retiros del socio, compra de una máquina, cuota de un préstamo) se cargan igual pero no suman en lo gastado.' },
+            { texto: 'En **Cuenta** escribí lo que es (luz, alquiler, nafta, sueldos…) y elegila de la lista: cada opción dice qué entra en ella. Abajo te explica qué significan el rubro, la categoría y la cuenta elegidos. Las que dicen **No es gasto** (retiros del socio, compra de una máquina, cuota de un préstamo) se cargan igual pero no suman en lo gastado.' },
             { texto: 'Si ya está pagado, tildá **Ya está pagado**: pide la fecha del pago, la caja y, si querés, el comprobante.' },
             { texto: 'En **Factura o ticket** adjuntás las fotos o PDF del gasto (hasta 10 MB cada uno).' },
             { texto: 'Arriba de la lista elegís el período (por defecto, el mes actual), el estado, el local, el origen y la cuenta, y buscás por proveedor, cuenta, factura o pedido (sin importar las tildes). El link de la página guarda los filtros: lo podés compartir.' },
@@ -49,7 +49,7 @@ export const admin: SeccionManual = {
         { tipo: 'parrafo', texto: '**Gastos que se repiten** (alquiler, sueldos, servicios): en **Gastos › Que se repiten** cargás el gasto una vez, con el día del mes, y la app lo crea cada mes como pendiente de pago. Si el monto cambia todos los meses (luz, agua), nace con el monto del mes anterior y marcado **monto a confirmar** hasta que lo confirmes o lo corrijas. Si un mes no corresponde, eliminá ese gasto: queda anulado y no se vuelve a generar.' },
         { tipo: 'parrafo', texto: 'En **Pendientes de pago** está lo que falta pagar, local por local y lo más viejo arriba. Lo atrasado se marca: por su vencimiento si tiene, o a los 30 días si no.' },
         { tipo: 'parrafo', texto: 'En **Resumen por local** ves el total de gastos agrupados por sucursal y período. Lo que no es gasto no entra.' },
-        { tipo: 'parrafo', texto: '**Plan de cuentas.** Las cuentas son las del plan del negocio y no se cambian desde la app. En **Parámetros › Plan de cuentas** está el plan completo, con lo que entra en cada cuenta y un buscador.' },
+        { tipo: 'parrafo', texto: '**Plan de cuentas.** Las cuentas son las del plan del negocio y no se cambian desde la app. En **Gastos › Plan de cuentas** está el plan completo, con lo que entra en cada cuenta y un buscador.' },
         {
           tipo: 'estados',
           dominio: 'gastos',
@@ -218,7 +218,6 @@ export const admin: SeccionManual = {
         {
           tipo: 'lista',
           items: [
-            '**Plan de cuentas** — el plan fijo del negocio, para consultar qué entra en cada cuenta.',
             '**Proveedores** — alta y edición de proveedores vinculables a gastos.',
             '**APIs** — configuración de claves y conexiones externas (Posberry, Fudo, etc.).',
             '**Cajas** — administración de cajas disponibles para registrar gastos.',
