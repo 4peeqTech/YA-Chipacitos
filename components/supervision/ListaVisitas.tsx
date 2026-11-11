@@ -6,7 +6,7 @@ import { IconCalendar, IconChevronRight, IconClipboardList, IconFilterOff } from
 import EmptyState from '@/components/ui/EmptyState'
 import SearchInput from '@/components/ui/SearchInput'
 import {
-  PERIODOS, anteriorCerrada, diferenciaPuntos, filtrarVisitas, idsSinResponder, pctVisita, rangoPeriodo,
+  PERIODOS, anteriorCerrada, bloquesDeVisita, diferenciaPuntos, filtrarVisitas, idsDe, idsSinResponder, pctVisita, rangoPeriodo,
   type NivelCumplimiento, type Periodo,
 } from '@/lib/supervision/calculos'
 import { fechaHora } from '@/lib/supervision/formato'
@@ -47,7 +47,6 @@ export default function ListaVisitas({ sucursales, bloques, visitas, ahora }: Pr
   const [f, setF] = useState(INICIAL)
   const cambiar = (k: keyof typeof INICIAL) => (v: string) => setF(prev => ({ ...prev, [k]: v }))
   const nombre = (id: string) => sucursales.find(s => s.id === id)?.nombre ?? id
-  const total = bloques.reduce((n, b) => n + b.items.length, 0)
 
   const zonas = useMemo(() => [...new Set(sucursales.map(s => s.zona).filter((z): z is string => !!z))], [sucursales])
   const supervisores = useMemo(() => [...new Set(visitas.map(v => v.supervisor_nombre))].sort((a, b) => a.localeCompare(b, 'es')), [visitas])
@@ -110,7 +109,10 @@ export default function ListaVisitas({ sucursales, bloques, visitas, ahora }: Pr
                   const pct = pctVisita(v, bloques)
                   const ant = v.estado === 'cerrada' ? anteriorCerrada(visitas, v) : null
                   const dif = ant ? diferenciaPuntos(pct, pctVisita(ant, bloques)) : null
-                  const respondidos = total - idsSinResponder(v.respuestas, bloques).length
+                  // Los ítems de esta visita (según su lugar), no todo el catálogo.
+                  const propios = bloquesDeVisita(v, bloques, sucursales.find(s => s.id === v.lugar_id))
+                  const total = idsDe(propios).length
+                  const respondidos = total - idsSinResponder(v.respuestas, propios).length
                   return (
                     <li key={v.id}>
                       <Link href={`/admin/supervision/${v.id}`}
