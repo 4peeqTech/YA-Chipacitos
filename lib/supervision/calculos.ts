@@ -287,6 +287,47 @@ export function analizar(
   }
 }
 
+const centavos = (n: number) => Math.round(n * 100) / 100
+
+export interface DiferenciaArqueo {
+  lugar: LugarSupervision
+  /** Visitas cerradas con un monto anotado (un 0 también cuenta: se controló). */
+  visitas: number
+  /** Suma de las diferencias en valor absoluto (un faltante y un sobrante no se compensan). */
+  total: number
+  /** La diferencia más grande, con su signo. */
+  mayor: number
+  ultima: string
+}
+
+/**
+ * Diferencias de arqueo (ítems con con_monto) de las visitas cerradas, por
+ * lugar, de mayor a menor total. Solo informa: no marca nada.
+ */
+export function diferenciasArqueo(
+  visitas: VisitaSupervision[], bloques: BloqueSupervision[], lugares: LugarSupervision[],
+): DiferenciaArqueo[] {
+  const conMonto = bloques.flatMap(b => b.items.filter(i => i.con_monto).map(i => i.id))
+  const porLugar = new Map<string, Omit<DiferenciaArqueo, 'lugar'>>()
+  for (const v of visitas) {
+    if (v.estado !== 'cerrada') continue
+    for (const id of conMonto) {
+      const m = v.respuestas?.[id]?.monto
+      if (typeof m !== 'number' || !Number.isFinite(m)) continue
+      const x = porLugar.get(v.lugar_id) ?? { visitas: 0, total: 0, mayor: 0, ultima: v.fecha }
+      x.visitas++
+      x.total = centavos(x.total + Math.abs(m))
+      if (Math.abs(m) > Math.abs(x.mayor)) x.mayor = m
+      if (v.fecha > x.ultima) x.ultima = v.fecha
+      porLugar.set(v.lugar_id, x)
+    }
+  }
+  return lugares
+    .filter(l => porLugar.has(l.id))
+    .map(l => ({ lugar: l, ...porLugar.get(l.id)! }))
+    .sort((a, b) => b.total - a.total || a.lugar.orden - b.lugar.orden)
+}
+
 /** Sucursales sin una visita cerrada en los últimos `dias` días. */
 export function sinVisitarDesde(visitas: VisitaSupervision[], sucursales: LugarSupervision[], ahora: number, dias = 30) {
   const limite = ahora - dias * DIA
@@ -301,25 +342,31 @@ export function diasDesde(iso: string, ahora: number): number {
 
 const ETIQUETA: Record<Resultado, string> = { C: 'Cumple', NC: 'No cumple', NA: 'N/A' }
 
-/** Una fila por ítem del catálogo y por visita, con encabezado. */
+/**
+ * Una fila por ítem y por visita, con encabezado. bloquesDe da los ítems de
+ * cada visita (los que se le mostraron); por defecto, todo el catálogo.
+ */
 export function filasCsv(
   visitas: VisitaSupervision[],
   bloques: BloqueSupervision[],
-  nombreSucursal: (id: string) => string,
+  nombreLugar: (id: string) => string,
   fecha: (iso: string) => string,
+  opciones: { tipo?: (id: string) => string; bloquesDe?: (v: VisitaSupervision) => BloqueSupervision[] } = {},
 ): (string | number)[][] {
   const filas: (string | number)[][] = [
-    ['Fecha', 'Sucursal', 'Supervisor', 'Estado', 'Cumplimiento %', 'Bloque', 'Ítem', 'Resultado', 'Observación'],
+    ['Fecha', 'Tipo', 'Lugar', 'Supervisor', 'Estado', 'Cumplimiento %', 'Bloque', 'Ítem', 'Resultado', 'Observación', 'Diferencia ($)'],
   ]
   for (const v of visitas) {
-    const pct = calcularResumen(v.respuestas, bloques).pct
-    for (const b of bloques) {
+    const propios = opciones.bloquesDe?.(v) ?? bloques
+    const pct = calcularResumen(v.respuestas, propios).pct
+    for (const b of propios) {
       for (const it of b.items) {
         const a = v.respuestas?.[it.id] ?? {}
         filas.push([
-          fecha(v.fecha), nombreSucursal(v.lugar_id), v.supervisor_nombre,
+          fecha(v.fecha), opciones.tipo?.(v.lugar_id) ?? '', nombreLugar(v.lugar_id), v.supervisor_nombre,
           v.estado === 'cerrada' ? 'Cerrada' : 'En curso', pct ?? '',
           b.titulo, it.texto, a.r ? ETIQUETA[a.r] + (a.auto ? ' (sin responder)' : '') : '', a.obs ?? '',
+          typeof a.monto === 'number' ? a.monto : '',
         ])
       }
     }

@@ -14,6 +14,7 @@ import { comprasStock } from './secciones/compras-stock'
 import { comprasSolicitudes } from './secciones/compras-solicitudes'
 import { comprasPedidoBase } from './secciones/compras-pedido-base'
 import { admin } from './secciones/admin'
+import { supervision } from './secciones/supervision'
 import { colaborador, MODULO_AYUDA } from './secciones/colaborador'
 
 export { MODULO_AYUDA }
@@ -23,7 +24,7 @@ export const SECCIONES: SeccionManual[] = [
   local, deposito, mayorista,
   comprasPedidos, comprasRemitos, comprasFacturas, comprasDevoluciones, comprasStock, comprasSolicitudes, comprasPedidoBase,
   fabrica, fabricaConteos,
-  admin, colaborador,
+  admin, supervision, colaborador,
 ]
 
 export const AREAS: { key: Area; titulo: string }[] = [

@@ -3,17 +3,18 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
-  IconAlertTriangle, IconCalendar, IconCalendarOff, IconChartBar, IconClipboardCheck, IconDownload, IconPercentage,
+  IconAlertTriangle, IconCalendar, IconCalendarOff, IconChartBar, IconClipboardCheck, IconCoins, IconDownload, IconPercentage,
 } from '@tabler/icons-react'
 import EmptyState from '@/components/ui/EmptyState'
 import KpiCard from '@/components/ui/KpiCard'
 import Modal from '@/components/ui/Modal'
 import {
-  PERIODOS, aCsv, analizar, diferenciaPuntos, filasCsv, filtrarVisitas, nivelCumplimiento, rangoAnterior, rangoPeriodo,
+  PERIODOS, aCsv, analizar, bloquesDeVisita, diferenciaPuntos, diferenciasArqueo, filasCsv, filtrarVisitas, nivelCumplimiento,
+  rangoAnterior, rangoPeriodo,
   sinVisitarDesde, textoPct, type NivelCumplimiento, type Periodo,
 } from '@/lib/supervision/calculos'
-import { fechaHora } from '@/lib/supervision/formato'
-import type { BloqueSupervision, LugarSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
+import { fechaCorta, fechaHora, pesos } from '@/lib/supervision/formato'
+import { TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type TipoVisita, type VisitaSupervision } from '@/lib/supervision/tipos'
 import { ChipFiltro, OPCIONES_NIVEL } from './Filtros'
 import { Tarjeta } from './ui'
 
@@ -22,6 +23,7 @@ interface Props {
   bloques: BloqueSupervision[]
   visitas: VisitaSupervision[]
   ahora: number
+  tipo?: TipoVisita
 }
 
 const INICIAL = { periodo: '90d' as Periodo, zona: 'todas', supervisor: 'todos', bloque: 'todos', nivel: 'todos' }
@@ -36,7 +38,7 @@ const CELDA: Record<NivelCumplimiento, string> = {
 /** "Stock, depósito y cadena de frío" → "Stock". */
 const corto = (titulo: string) => titulo.split(' ')[0].replace(/[,.]$/, '')
 
-export default function AnalisisSupervision({ sucursales, bloques, visitas, ahora }: Props) {
+export default function AnalisisSupervision({ sucursales, bloques, visitas, ahora, tipo = 'sucursal' }: Props) {
   const [f, setF] = useState(INICIAL)
   const [celda, setCelda] = useState<{ visita: VisitaSupervision; bloque: BloqueSupervision; sucursal: string } | null>(null)
   const cambiar = (k: keyof typeof INICIAL) => (v: string) => setF(prev => ({ ...prev, [k]: v }))
@@ -57,14 +59,21 @@ export default function AnalisisSupervision({ sucursales, bloques, visitas, ahor
   const difPromedio = diferenciaPuntos(a.promedio, promedioAnterior)
   const sinVisitar = sinVisitarDesde(visitas, sucursalesZona, ahora)
   const nombres = (ss: LugarSupervision[]) => ss.map(s => s.nombre).join(', ')
+  const hayArqueo = bloques.some(b => b.items.some(i => i.con_monto))
+  const arqueo = hayArqueo ? diferenciasArqueo(enPeriodo, bloques, sucursalesZona) : []
 
   function descargar() {
     const nombre = (id: string) => sucursales.find(s => s.id === id)?.nombre ?? id
-    const blob = new Blob([aCsv(filasCsv(enPeriodo, bloques, nombre, fechaHora))], { type: 'text/csv;charset=utf-8' })
+    const tipoTexto = TIPOS_VISITA.find(t => t.valor === tipo)?.texto ?? ''
+    const filas = filasCsv(enPeriodo, bloques, nombre, fechaHora, {
+      tipo: () => tipoTexto,
+      bloquesDe: v => bloquesDeVisita(v, bloques, sucursales.find(s => s.id === v.lugar_id)),
+    })
+    const blob = new Blob([aCsv(filas)], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `supervision-locales-${new Date(ahora).toISOString().slice(0, 10)}.csv`
+    link.download = `supervision-${tipo}-${new Date(ahora).toISOString().slice(0, 10)}.csv`
     document.body.appendChild(link)
     link.click()
     link.remove()
@@ -187,12 +196,46 @@ export default function AnalisisSupervision({ sucursales, bloques, visitas, ahor
         </div>
       )}
 
+      {hayArqueo && a.cerradas.length > 0 && (
+        <Tarjeta titulo="Diferencias de arqueo" descripcion="Montos anotados en el arqueo de caja de las visitas cerradas del período. Faltantes y sobrantes suman igual.">
+          {arqueo.length === 0 ? (
+            <p className="text-sm text-muted">No se anotaron diferencias en el período.</p>
+          ) : (
+            <div className="-mx-4 overflow-x-auto px-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-2xs uppercase tracking-wider text-muted">
+                    <th className="py-1.5 pr-3 font-semibold">Sucursal</th>
+                    <th className="py-1.5 pr-3 text-right font-semibold">Visitas</th>
+                    <th className="py-1.5 pr-3 text-right font-semibold">Total</th>
+                    <th className="py-1.5 pr-3 text-right font-semibold">Mayor</th>
+                    <th className="py-1.5 text-right font-semibold">Última</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {arqueo.map(d => (
+                    <tr key={d.lugar.id}>
+                      <td className="py-2 pr-3 font-semibold text-text">{d.lugar.nombre}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-muted">{d.visitas}</td>
+                      <td className="whitespace-nowrap py-2 pr-3 text-right font-bold tabular-nums text-text">{pesos(d.total)}</td>
+                      <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{d.mayor < 0 ? '−' : ''}{pesos(Math.abs(d.mayor))}</td>
+                      <td className="whitespace-nowrap py-2 text-right tabular-nums text-muted">{fechaCorta(d.ultima)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="flex items-center gap-1.5 text-xs text-faint"><IconCoins size={14} aria-hidden /> Solo informa: no cambia el cumplimiento.</p>
+        </Tarjeta>
+      )}
+
       <Modal open={!!celda} onClose={() => setCelda(null)} title={celda ? `${celda.sucursal} · ${celda.bloque.titulo}` : ''} size="lg">
         {celda && (
           <div className="space-y-3">
             <p className="text-xs text-muted">Visita del {fechaHora(celda.visita.fecha)} · {celda.visita.supervisor_nombre}</p>
             <ul className="divide-y divide-border">
-              {celda.bloque.items.map(it => {
+              {celda.bloque.items.filter(it => !celda.visita.items_visibles || celda.visita.items_visibles.includes(it.id)).map(it => {
                 const r = celda.visita.respuestas[it.id]
                 return (
                   <li key={it.id} className="flex items-start gap-3 py-2.5">

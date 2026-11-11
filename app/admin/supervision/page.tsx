@@ -7,7 +7,7 @@ import SupervisionClient, { type VistaSupervision } from '@/components/supervisi
 
 export const metadata = { title: 'Supervisión de locales | YA! Chipacitos' }
 
-const VISTAS: VistaSupervision[] = ['nueva', 'visitas', 'analisis']
+const VISTAS: VistaSupervision[] = ['nueva', 'visitas', 'analisis', 'lugares']
 
 // Checklist del Supervisor de locales: nueva visita, historial y análisis.
 export default async function SupervisionPage({ searchParams }: { searchParams: Promise<{ vista?: string; aviso?: string }> }) {
@@ -23,6 +23,7 @@ export default async function SupervisionPage({ searchParams }: { searchParams: 
   return (
     <SupervisionClient
       lugares={catalogo.lugares}
+      esAdmin={usuario.esAdmin}
       bloques={catalogo.bloques}
       visitasIniciales={visitas}
       errorCarga={!!(error ?? catalogo.error)}
