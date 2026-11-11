@@ -3,11 +3,11 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { enviarPush } from '@/lib/push/sendPush'
 import { NextRequest, NextResponse } from 'next/server'
 import { formatearNumero } from '@/lib/formato'
+import { rutaDe } from '@/lib/compras/rutas'
+// Replica tiene_acceso_compras() (sin fabrica-conteos desde A2a).
+import { MODULOS_COMPRAS } from '@/lib/modulos'
 
-// Los módulos de Compras vigentes (lib/modulos.tsx). tiene_acceso_compras()
-// suma fabrica-conteos para lectura, pero ese módulo no abre las pantallas de
-// Compras a las que llevan estos avisos: queda afuera a propósito.
-const MODULOS_COMPRAS = ['compras-insumos', 'compras-stock', 'compras-pedidos', 'compras-reportes']
+const DIA_NOMBRE = ['', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
 function getAdminClient() {
   return createAdminClient(
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       userIds,
       title: '🏭 Nueva solicitud de Fábrica',
       body: 'Fábrica cerró el conteo semanal y pide revisar la compra complementaria.',
-      url: '/admin/compras/pedidos/solicitudes',
+      url: rutaDe({ tipo: 'solicitud', id: solicitudId }),
       tipo: 'solicitud_fabrica',
     })
 
@@ -53,9 +53,37 @@ export async function POST(request: NextRequest) {
     // cerrar_conteo_fabrica; acá solo se lee.
     const { data: solicitud } = await admin
       .from('compras_solicitudes')
-      .select('conteo_id, fabrica_conteos(fabrica_conteo_definiciones(nombre))')
+      .select('conteo_id, fabrica_conteos(fuera_de_dia, motivo_fuera_de_dia, fabrica_conteo_definiciones(nombre, dia_semana))')
       .eq('id', solicitudId)
       .maybeSingle()
+
+    // Conteo cerrado fuera de su día: aviso aparte a los admins (Marcos). La
+    // marca y el motivo los puso la base al cerrar (20261027180000).
+    const conteo = solicitud?.fabrica_conteos as unknown as {
+      fuera_de_dia: boolean
+      motivo_fuera_de_dia: string | null
+      fabrica_conteo_definiciones: { nombre: string; dia_semana: number } | null
+    } | null
+    let fueraDeDia = null
+    if (conteo?.fuera_de_dia) {
+      const { data: admins } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('estado', 'activo')
+        .eq('rol', 'admin')
+      const lista = conteo.fabrica_conteo_definiciones
+      fueraDeDia = await enviarPush({
+        userIds: (admins || []).map(p => p.id),
+        title: lista ? `📅 Conteo ${lista.nombre} fuera de día` : '📅 Conteo fuera de día',
+        body: lista
+          ? `Se cerró hoy y le toca los ${DIA_NOMBRE[lista.dia_semana]}. Motivo: ${conteo.motivo_fuera_de_dia ?? '—'}`
+          : `Motivo: ${conteo.motivo_fuera_de_dia ?? '—'}`,
+        url: rutaDe({ tipo: 'solicitud', id: solicitudId }),
+        tipo: 'conteo_fuera_de_dia',
+        tag: 'conteo_fuera_de_dia',
+      })
+    }
+
     let sobrestock = null
     if (solicitud?.conteo_id) {
       const { data: sobrantes } = await admin
@@ -84,7 +112,7 @@ export async function POST(request: NextRequest) {
         })
       }
     }
-    return NextResponse.json({ ...resultado, sobrestock })
+    return NextResponse.json({ ...resultado, sobrestock, fueraDeDia })
   } catch (err) {
     console.error('Error al notificar solicitud nueva', err)
     return NextResponse.json({ error: 'No se pudo enviar la notificación' }, { status: 500 })

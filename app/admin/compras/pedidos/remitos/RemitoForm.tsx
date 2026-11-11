@@ -1,239 +1,616 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
-import { X } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { sugerirPedidoItem } from '@/lib/compras/matchRemito'
-import { sumarStock, revertirYBorrar } from '@/lib/compras/stockRemito'
-import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
-import { controlClass } from '@/components/ui/Field'
+import { useMemo, useState, useTransition } from 'react'
+import { AlertTriangle, CheckCheck, Loader2, PackagePlus, Trash2, X } from 'lucide-react'
+import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
 import InputNumero from '@/components/ui/InputNumero'
-import { mensajeError } from '@/lib/errores'
-import type { Remito } from '@/lib/compras/tipos'
+import { Field, controlClass } from '@/components/ui/Field'
+import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
+import { formatearFecha } from '@/lib/formato'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { codigoPedido, codigoRemito } from '@/lib/compras/codigos'
+import { conUnidad } from '../modelo'
+import {
+  avisoNominal, cortoBase, equivalenteBase, esCobraPor, esUnidadBase, numeroCorto, tieneConversion,
+  type CobraPor, type UnidadesInsumo,
+} from '@/lib/compras/unidades'
+import { eliminarRemito, guardarRemito } from './acciones'
+import {
+  armarEnvio, calcularImpacto, cargadoPorLinea, conDescripcion, estadoInicial, impactoEliminar,
+  libreVacia, lineasSinStock, validar,
+  type EstadoRemito, type ImpactoItem, type LineaLibre,
+} from './modelo'
+import type { InsumoRemito, LineaPedido, PedidoRemito, RemitoFila } from './datos'
+import DatePicker from '@/components/ui/DatePicker'
 
-interface PedidoItemPD {
-  id: string
-  item_id: string | null
-  descripcion: string
-  cantidad: number
+const botonPrimario = 'presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50'
+const botonSecundario = 'presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50'
+
+/** A2b: cómo se mide y cómo cobra el proveedor una línea. null = no pide kg. */
+interface UnidadesLinea {
+  u: UnidadesInsumo
+  cobraPor: CobraPor
 }
 
-export interface PedidoConItems {
-  id: string
-  compras_pedido_items: PedidoItemPD[]
-  compras_remitos: Remito[]
-}
-
-interface LineaEditor {
-  descripcion: string
+/**
+ * "Kg reales" solo donde se cobra por peso: debajo, el nominal y el aviso si se
+ * aleja más del 10 % (no bloquea). Es opcional: vacío no se manda.
+ */
+function KgReales({ unidades, cantidad, valor, descripcion, onChange }: {
+  unidades: UnidadesLinea
   cantidad: number | null
-  precio: number | null
-  pedidoItemId: string | null
-  matchManual: boolean
+  valor: number | null
+  descripcion: string
+  onChange: (v: number | null) => void
+}) {
+  const base = cortoBase(unidades.u.unidadBase)
+  const nominal = cantidad && cantidad > 0 ? equivalenteBase(cantidad, unidades.u) : null
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-24">
+        <InputNumero
+          value={valor}
+          onChange={onChange}
+          placeholder={nominal != null ? numeroCorto(nominal) : base}
+          min={0}
+          className={`${controlClass} min-h-11 text-right tabular-nums`}
+          ariaLabel={`${base === 'kg' ? 'Kg' : base} reales de ${descripcion}`}
+        />
+      </div>
+      <span className="w-16 text-xs text-muted">{base} reales</span>
+    </div>
+  )
 }
 
-function lineaVacia(): LineaEditor {
-  return { descripcion: '', cantidad: null, precio: null, pedidoItemId: null, matchManual: false }
+function AyudaKg({ unidades, cantidad, valor }: { unidades: UnidadesLinea; cantidad: number | null; valor: number | null }) {
+  const base = cortoBase(unidades.u.unidadBase)
+  const nominal = cantidad && cantidad > 0 ? equivalenteBase(cantidad, unidades.u) : null
+  const aviso = avisoNominal(valor, cantidad, unidades.u)
+  return (
+    <div className="basis-full space-y-0.5 text-xs">
+      <p className="text-muted tabular-nums">
+        {nominal != null ? `Nominal ${numeroCorto(nominal)} ${base} · ` : ''}cobra por {base}: con los {base} reales, la factura sale prellenada.
+      </p>
+      {aviso && (
+        <p className="flex items-center gap-1.5 font-medium text-warning">
+          <AlertTriangle size={13} className="shrink-0" /> {aviso} Revisá el número.
+        </p>
+      )}
+    </div>
+  )
 }
 
-function lineasDesdeRemito(remito: Remito): LineaEditor[] {
-  return remito.compras_remito_items.map(i => ({
-    descripcion: i.descripcion,
-    cantidad: i.cantidad,
-    precio: i.precio,
-    pedidoItemId: i.pedido_item_id,
-    matchManual: true,
-  }))
+export interface NombresInsumo {
+  nombre: string
+  unidad: string | null
+}
+
+/** Encabezado del confirm: el remito y su pedido, bien legibles. */
+export function CabeceraRemito({ codigo, pedido }: { codigo: string | null; pedido: PedidoRemito | null }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl bg-surface2 px-4 py-3">
+      <span className="font-mono text-lg font-bold tabular-nums text-text">{codigo ?? 'Remito'}</span>
+      {pedido && (
+        <span className="text-sm text-muted">
+          del pedido <span className="font-mono font-semibold tabular-nums text-text">{codigoPedido(pedido.numero)}</span>
+          {' · '}<span className="text-text">{pedido.proveedores?.nombre ?? '—'}</span>
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Cómo cambia el stock, en tabla: insumo · había · cambio · queda. En ámbar si queda negativo. */
+export function ResumenImpacto({ impacto, nombres, sinStock = 0 }: {
+  impacto: ImpactoItem[]
+  nombres: Record<string, NombresInsumo>
+  sinStock?: number
+}) {
+  const num = (n: number) => conUnidad(n, null)
+  const hayNegativo = impacto.some(i => i.despues < 0)
+  return (
+    <div className="space-y-2">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-2xs uppercase tracking-wider text-muted">
+            <th scope="col" className="py-1.5 pr-2 text-left font-semibold">Insumo</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Había</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Cambio</th>
+            <th scope="col" className="py-1.5 pl-2 text-right font-semibold">Queda</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {impacto.map(i => {
+            const n = nombres[i.itemId]
+            const negativo = i.despues < 0
+            return (
+              <tr key={i.itemId}>
+                <td className="py-2 pr-2 text-text">
+                  {n?.nombre ?? 'Insumo'}
+                  {n?.unidad && <span className="block text-2xs text-muted">en {n.unidad}</span>}
+                </td>
+                <td className="px-2 py-2 text-right tabular-nums text-muted">{num(i.antes)}</td>
+                <td className={`px-2 py-2 text-right font-semibold tabular-nums ${i.delta > 0 ? 'text-success' : 'text-warning'}`}>
+                  {i.delta > 0 ? '+' : '−'}{num(Math.abs(i.delta))}
+                </td>
+                <td className={`py-2 pl-2 text-right font-bold tabular-nums ${negativo ? 'text-warning' : 'text-text'}`}>{num(i.despues)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      {hayNegativo && <p className="text-xs text-warning">Algún stock queda negativo: revisá la cantidad o ajustá el stock después.</p>}
+      {sinStock > 0 && (
+        <p className="text-xs text-muted">
+          {sinStock === 1 ? '1 línea no mueve stock (no tiene insumo).' : `${sinStock} líneas no mueven stock (no tienen insumo).`}
+        </p>
+      )}
+    </div>
+  )
 }
 
 export default function RemitoForm({
-  pedido,
-  usuarioId,
-  remitoEditando,
-  onGuardado,
+  remito,
+  pedidos,
+  pedidoIdInicial,
+  lineas,
+  remitos,
+  stockPorItem,
+  insumos,
+  onCambios,
+  onListo,
   onCancelar,
 }: {
-  pedido: PedidoConItems
-  usuarioId: string
-  remitoEditando: Remito | null
-  onGuardado: (remito: Remito, reemplazoId: string | null) => void
+  remito: RemitoFila | null
+  pedidos: PedidoRemito[]
+  pedidoIdInicial: string | null
+  lineas: LineaPedido[]
+  remitos: RemitoFila[]
+  stockPorItem: Record<string, number>
+  insumos: InsumoRemito[]
+  onCambios: () => void
+  onListo: () => void
   onCancelar: () => void
 }) {
-  const supabase = createClient()
   const confirmar = useConfirmar()
   const toast = useToast()
-  const [numero, setNumero] = useState(remitoEditando?.numero ?? '')
-  const [fecha, setFecha] = useState(remitoEditando?.fecha ?? '')
-  const [lineas, setLineas] = useState<LineaEditor[]>(remitoEditando ? lineasDesdeRemito(remitoEditando) : [lineaVacia()])
   const [isPending, startTransition] = useTransition()
+  const [pedidoId, setPedidoId] = useState(remito?.pedido_id ?? pedidoIdInicial ?? '')
+  const lineasDelPedido = useMemo(() => lineas.filter(l => l.pedido_id === pedidoId), [lineas, pedidoId])
+  const [estado, setEstado] = useState<EstadoRemito>(() => estadoInicial(remito, lineasDelPedido))
+  const [intentoGuardar, setIntentoGuardar] = useState(false)
 
-  useEffect(() => {
-    setNumero(remitoEditando?.numero ?? '')
-    setFecha(remitoEditando?.fecha ?? '')
-    setLineas(remitoEditando ? lineasDesdeRemito(remitoEditando) : [lineaVacia()])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remitoEditando?.id])
+  const pedido = pedidos.find(p => p.id === pedidoId) ?? null
+  const cargadoAntes = useMemo(() => cargadoPorLinea(remito), [remito])
 
-  function agregarLinea() {
-    setLineas(prev => [...prev, lineaVacia()])
+  // A2b: solo las líneas que el proveedor cobra por peso (y con conversión) piden kg.
+  function unidadesDeLinea(l: LineaPedido | undefined): UnidadesLinea | null {
+    if (!l?.item_id || !esUnidadBase(l.unidad_base) || !esCobraPor(l.cobra_por) || l.contenido == null) return null
+    const u: UnidadesInsumo = { unidad: l.unidad, unidadBase: l.unidad_base, contenido: l.contenido }
+    return l.cobra_por === 'base' && tieneConversion(u) ? { u, cobraPor: l.cobra_por } : null
   }
 
-  function quitarLinea(idx: number) {
-    setLineas(prev => prev.filter((_, i) => i !== idx))
+  function unidadesDeInsumo(itemId: string | null): UnidadesLinea | null {
+    const i = itemId ? insumos.find(x => x.id === itemId) : undefined
+    if (!i || !esUnidadBase(i.unidad_base)) return null
+    const par = i.compras_item_proveedores.find(cp => cp.proveedor_id === pedido?.proveedor_id)
+    const cobraPor = par && esCobraPor(par.cobra_por) ? par.cobra_por : i.cobra_por_default
+    const u: UnidadesInsumo = { unidad: i.unidad, unidadBase: i.unidad_base, contenido: i.cantidad_por_unidad }
+    return cobraPor === 'base' && tieneConversion(u) ? { u, cobraPor } : null
   }
 
-  function actualizarDescripcion(idx: number, descripcion: string) {
-    setLineas(prev => prev.map((l, i) => {
-      if (i !== idx) return l
-      if (l.matchManual) return { ...l, descripcion }
-      const sugerido = sugerirPedidoItem(descripcion, pedido.compras_pedido_items)
-      return { ...l, descripcion, pedidoItemId: sugerido }
-    }))
+  function unidadesDeLibre(l: LineaLibre): UnidadesLinea | null {
+    if (l.corresponde === '') return null
+    if (l.corresponde === 'nada') return unidadesDeInsumo(l.itemId)
+    return unidadesDeLinea(lineasDelPedido.find(p => p.pedido_item_id === l.corresponde))
   }
 
-  function actualizarMatch(idx: number, pedidoItemId: string) {
-    setLineas(prev => prev.map((l, i) => i === idx ? { ...l, pedidoItemId: pedidoItemId || null, matchManual: true } : l))
-  }
+  const nombres = useMemo(() => {
+    const res: Record<string, NombresInsumo> = {}
+    for (const i of insumos) res[i.id] = { nombre: i.nombre, unidad: i.unidad }
+    for (const l of lineasDelPedido) {
+      if (l.item_id && !res[l.item_id]) res[l.item_id] = { nombre: l.descripcion ?? 'Insumo', unidad: l.unidad }
+    }
+    return res
+  }, [insumos, lineasDelPedido])
 
-  function actualizarCampo(idx: number, cambios: Partial<Pick<LineaEditor, 'cantidad' | 'precio'>>) {
-    setLineas(prev => prev.map((l, i) => i === idx ? { ...l, ...cambios } : l))
-  }
+  const codigo = useMemo(() => {
+    if (!pedido) return null
+    if (remito) return codigoRemito(pedido.numero, remito.secuencia)
+    // Igual que la RPC: los códigos de remitos borrados no se reusan.
+    const siguiente = Math.max(pedido.ultima_secuencia_remito, ...remitos.filter(r => r.pedido_id === pedido.id).map(r => r.secuencia)) + 1
+    return codigoRemito(pedido.numero, siguiente)
+  }, [pedido, remito, remitos])
 
-  function guardarRemito() {
-    if (!numero.trim() || !fecha) { toast.error('Completá número y fecha'); return }
-    const filas = lineas.filter(l => l.descripcion.trim() && (l.cantidad ?? 0) > 0)
-    if (!filas.length) { toast.error('Agregá al menos un ítem con cantidad'); return }
+  const envio = useMemo(() => armarEnvio(estado, lineasDelPedido), [estado, lineasDelPedido])
+  const impacto = useMemo(
+    () => calcularImpacto(envio, remito, lineasDelPedido, stockPorItem),
+    [envio, remito, lineasDelPedido, stockPorItem],
+  )
+  const sinStock = lineasSinStock(envio)
+  const problema = validar(estado)
 
-    const remitoAReemplazar = remitoEditando?.id ?? null
-    if (!remitoAReemplazar) {
-      const existente = pedido.compras_remitos.find(r => r.numero === numero.trim())
-      if (existente) {
-        confirmar({
-          titulo: 'Remito duplicado',
-          mensaje: `Ya existe el remito ${numero} en este pedido. ¿Sobrescribirlo?`,
-          textoConfirmar: 'Sobrescribir',
-          peligroso: true,
-          onConfirmar: () => ejecutarGuardado(existente.id),
-        })
-        return
+  // Lo que ya llegó en otros remitos y lo que suma este, por línea del pedido.
+  const recepcion = useMemo(() => {
+    const res: Record<string, { yaLlego: number; este: number }> = {}
+    for (const l of lineasDelPedido) {
+      const id = l.pedido_item_id ?? ''
+      const libres = estado.libres
+        .filter(x => x.corresponde === id)
+        .reduce((t, x) => t + (x.cantidad ?? 0), 0)
+      res[id] = {
+        yaLlego: (l.recibido ?? 0) - (cargadoAntes[id] ?? 0),
+        este: (estado.porLinea[id]?.cantidad ?? 0) + libres,
       }
     }
-    ejecutarGuardado(remitoAReemplazar)
+    return res
+  }, [lineasDelPedido, estado, cargadoAntes])
+
+  const faltantes = lineasDelPedido.filter(l => {
+    const r = recepcion[l.pedido_item_id ?? '']
+    return r && (l.cantidad ?? 0) - r.yaLlego - r.este > 0 && estado.porLinea[l.pedido_item_id ?? '']?.cantidad == null
+  })
+
+  function cambiar(fn: (e: EstadoRemito) => EstadoRemito) {
+    setEstado(fn)
+    onCambios()
   }
 
-  function ejecutarGuardado(remitoAReemplazar: string | null) {
-    const filas = lineas.filter(l => l.descripcion.trim() && (l.cantidad ?? 0) > 0)
-    startTransition(async () => {
-      if (remitoAReemplazar) {
-        const remitoExistente = pedido.compras_remitos.find(r => r.id === remitoAReemplazar)
-        if (remitoExistente) await revertirYBorrar(supabase, remitoExistente, usuarioId)
+  function elegirPedido(id: string) {
+    setPedidoId(id)
+    setEstado(estadoInicial(null, lineas.filter(l => l.pedido_id === id)))
+    setIntentoGuardar(false)
+    onCambios()
+  }
+
+  function completarFaltantes() {
+    cambiar(e => {
+      const porLinea = { ...e.porLinea }
+      for (const l of faltantes) {
+        const id = l.pedido_item_id ?? ''
+        const r = recepcion[id]
+        porLinea[id] = { ...porLinea[id], cantidad: Math.max((l.cantidad ?? 0) - r.yaLlego - r.este, 0) }
       }
-
-      const { data: remito, error: errRemito } = await supabase
-        .from('compras_remitos')
-        .insert([{ pedido_id: pedido.id, numero: numero.trim(), fecha, creado_por: usuarioId }])
-        .select()
-        .single()
-      if (errRemito) { toast.error(mensajeError(errRemito, 'No se pudo guardar el remito')); return }
-
-      const filasInsert = filas.map(l => ({
-        remito_id: remito.id,
-        pedido_item_id: l.pedidoItemId,
-        item_id: pedido.compras_pedido_items.find(pi => pi.id === l.pedidoItemId)?.item_id ?? null,
-        descripcion: l.descripcion.trim(),
-        cantidad: l.cantidad ?? 0,
-        precio: l.precio,
-      }))
-
-      const { data: itemsGuardados, error: errItems } = await supabase
-        .from('compras_remito_items')
-        .insert(filasInsert)
-        .select()
-      if (errItems) { toast.error(mensajeError(errItems, 'No se pudieron guardar los ítems del remito')); return }
-
-      for (const item of itemsGuardados) {
-        if (item.item_id) await sumarStock(supabase, item.item_id, item.cantidad, remito.id, usuarioId)
-      }
-
-      const remitoCompleto: Remito = { ...remito, compras_remito_items: itemsGuardados }
-      toast.success(remitoAReemplazar ? 'Remito actualizado' : 'Remito guardado')
-      onGuardado(remitoCompleto, remitoAReemplazar)
+      return { ...e, porLinea }
     })
   }
 
-  const labelClass = 'block text-xs font-semibold text-accent uppercase tracking-wider mb-1'
+  function actualizarLibre(clave: string, fn: (l: LineaLibre) => LineaLibre) {
+    cambiar(e => ({ ...e, libres: e.libres.map(l => (l.clave === clave ? fn(l) : l)) }))
+  }
+
+  function mensajeProblema(): string {
+    switch (problema?.tipo) {
+      case 'sin_fecha': return 'Elegí la fecha en que llegó la mercadería.'
+      case 'libre_incompleta': return 'Hay una línea agregada sin descripción o sin cantidad.'
+      case 'libre_sin_destino': return 'Hay una línea agregada sin elegir a qué corresponde.'
+      case 'sin_lineas': return remito
+        ? 'El remito quedó sin cantidades. Si no llegó nada, eliminá el remito.'
+        : 'Cargá la cantidad que llegó en al menos una línea.'
+      default: return ''
+    }
+  }
+
+  function guardar() {
+    if (!pedido) { toast.error('Elegí el pedido al que corresponde el remito.'); return }
+    if (problema) { setIntentoGuardar(true); toast.error(mensajeProblema()); return }
+
+    const ejecutar = () => startTransition(async () => {
+      const r = await guardarRemito({ remitoId: remito?.id ?? null, pedidoId: pedido.id, fecha: estado.fecha, numero: estado.numero, lineas: envio })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success(!r.data.cambios ? 'Sin cambios' : remito ? `Remito ${r.data.codigo} actualizado` : `Remito ${r.data.codigo} guardado`)
+      onListo()
+    })
+
+    if (impacto.length === 0) { ejecutar(); return }
+    confirmar({
+      // El código va en el mensaje (mono): la Syne del título dibuja los ceros como "o".
+      titulo: remito ? 'Guardar cambios del remito' : 'Guardar remito',
+      mensaje: (
+        <div className="space-y-3">
+          <CabeceraRemito codigo={codigo} pedido={pedido} />
+          <ResumenImpacto impacto={impacto} nombres={nombres} sinStock={sinStock} />
+        </div>
+      ),
+      ancho: 'lg',
+      textoConfirmar: 'Guardar',
+      onConfirmar: ejecutar,
+    })
+  }
+
+  function eliminar() {
+    if (!remito) return
+    const imp = impactoEliminar(remito, stockPorItem)
+    confirmar({
+      titulo: 'Eliminar remito',
+      mensaje: (
+        <div className="space-y-3">
+          <CabeceraRemito codigo={codigo} pedido={pedido} />
+          {imp.length
+            ? <><p>Se resta del stock lo que sumó:</p><ResumenImpacto impacto={imp} nombres={nombres} /></>
+            : <p>Este remito no había sumado stock. El pedido vuelve a mostrar esas líneas como pendientes.</p>}
+        </div>
+      ),
+      ancho: 'lg',
+      textoConfirmar: 'Eliminar',
+      peligroso: true,
+      onConfirmar: () => startTransition(async () => {
+        const r = await eliminarRemito(remito.id)
+        if (!r.ok) { toast.error(r.error); return }
+        toast.success(`Remito ${r.data.codigo} eliminado`)
+        onListo()
+      }),
+    })
+  }
+
+  const opcionesPedido: OpcionSelect[] = pedidos.map(p => ({
+    value: p.id,
+    label: `${codigoPedido(p.numero)} · ${p.proveedores?.nombre ?? '—'}${p.enviado_en ? ` — enviado ${formatearFecha(p.enviado_en.slice(0, 10))}` : ''}`,
+    grupo: p.estado_recepcion === 'enviado' || p.estado_recepcion === 'parcial' ? 'Esperando mercadería' : 'Recibidos o cerrados',
+  }))
+
+  const opcionesInsumo: OpcionSelect[] = insumos.map(i => ({ value: i.id, label: i.unidad ? `${i.nombre} (${i.unidad})` : i.nombre }))
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <label className={labelClass}>N° Remito</label>
-          <input type="text" className={controlClass} value={numero} onChange={e => setNumero(e.target.value)} />
+    <div className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-[1fr_11rem_11rem] [&>*]:min-w-0">
+        <div className="sm:col-span-2 md:col-span-1">
+          <Field label="Pedido" obligatorio>
+            {remito ? (
+              <p className="flex min-h-11 items-center text-sm text-text">
+                {pedido
+                  ? <LinkEntidad entidad={{ tipo: 'pedido', id: pedido.id }}>{codigoPedido(pedido.numero)}</LinkEntidad>
+                  : <span className="font-mono tabular-nums">—</span>}
+                <span className="text-muted">&nbsp;·&nbsp;{pedido?.proveedores?.nombre ?? '—'}</span>
+              </p>
+            ) : (
+              <SelectBuscador value={pedidoId} onChange={elegirPedido} opciones={opcionesPedido} placeholderVacio="Elegí un pedido…" />
+            )}
+          </Field>
         </div>
-        <div className="flex-1">
-          <label className={labelClass}>Fecha</label>
-          <input type="date" className={controlClass} value={fecha} onChange={e => setFecha(e.target.value)} />
-        </div>
+        <Field label="N° del proveedor">
+          <input
+            type="text"
+            inputMode="text"
+            maxLength={60}
+            aria-label="Número de remito del proveedor"
+            placeholder="Ej. 0001-00012345"
+            className={`${controlClass} min-h-11 font-mono tabular-nums`}
+            value={estado.numero}
+            onChange={e => { const numero = e.target.value; cambiar(s => ({ ...s, numero })) }}
+          />
+        </Field>
+        <Field label="Llegó el" obligatorio>
+          <DatePicker
+            ariaLabel="Fecha en que llegó la mercadería"
+            className={`${controlClass} min-h-11 ${intentoGuardar && problema?.tipo === 'sin_fecha' ? 'border-brand-red' : ''}`}
+            value={estado.fecha}
+            onChange={fecha => cambiar(s => ({ ...s, fecha }))}
+          />
+        </Field>
       </div>
 
-      <div className="space-y-2">
-        <div className="hidden sm:grid grid-cols-[1fr_14rem_5.5rem_6.5rem_2rem] gap-2 px-0.5">
-          <span className={labelClass}>Descripción</span>
-          <span className={labelClass}>Corresponde a</span>
-          <span className={labelClass}>Cant.</span>
-          <span className={labelClass}>Precio</span>
-          <span />
-        </div>
-        {lineas.map((linea, idx) => (
-          <div key={idx} className="grid grid-cols-[1fr_14rem_5.5rem_6.5rem_2rem] gap-2">
-            <input
-              type="text"
-              className={controlClass}
-              placeholder="Descripción (como figura en el remito)"
-              value={linea.descripcion}
-              onChange={e => actualizarDescripcion(idx, e.target.value)}
-            />
-            <select
-              className={controlClass}
-              value={linea.pedidoItemId ?? ''}
-              onChange={e => actualizarMatch(idx, e.target.value)}
+      {!pedido ? (
+        <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
+          Elegí el pedido para ver qué había que recibir.
+        </p>
+      ) : (
+        <>
+          {!remito && codigo && (
+            <p className="-mt-2 text-xs text-muted">
+              Se guarda como <span className="font-mono tabular-nums text-text">{codigo}</span>. El número impreso del proveedor es opcional: sirve para encontrarlo después.
+            </p>
+          )}
+
+          <section className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-bold text-text">Qué llegó</h4>
+              {faltantes.length > 0 && (
+                <button type="button" onClick={completarFaltantes} className={botonSecundario}>
+                  <CheckCheck size={15} /> Completar con lo que falta
+                </button>
+              )}
+            </div>
+            {lineasDelPedido.length === 0 ? (
+              <p className="text-sm text-muted">Este pedido no tiene líneas. Cargá lo que llegó con “Algo que no estaba en el pedido”.</p>
+            ) : (
+              <ul className="divide-y divide-border rounded-xl border border-border">
+                {lineasDelPedido.map(l => {
+                  const id = l.pedido_item_id ?? ''
+                  const r = recepcion[id] ?? { yaLlego: 0, este: 0 }
+                  const pedidoCant = l.cantidad ?? 0
+                  const falta = Math.max(pedidoCant - r.yaLlego - r.este, 0)
+                  const deMas = Math.max(r.yaLlego + r.este - pedidoCant, 0)
+                  const kg = unidadesDeLinea(l)
+                  const cant = estado.porLinea[id]?.cantidad ?? null
+                  const kgValor = estado.porLinea[id]?.cantidadBase ?? null
+                  return (
+                    <li key={id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3">
+                      <div className="min-w-0 flex-1 basis-52">
+                        <p className="text-sm font-medium text-text">{l.descripcion}</p>
+                        <p className="text-xs text-muted tabular-nums">
+                          Pedido {conUnidad(pedidoCant, l.unidad)}
+                          {r.yaLlego > 0 && <> · antes llegó {conUnidad(r.yaLlego, l.unidad)}</>}
+                          {' · '}
+                          {deMas > 0
+                            ? <span className="font-semibold text-warning">+{conUnidad(deMas, l.unidad)} de más</span>
+                            : falta > 0
+                              ? <span className="font-semibold text-info">falta {conUnidad(falta, l.unidad)}</span>
+                              : <span className="text-success">completo</span>}
+                          {!l.item_id && <> · <span className="text-warning">sin insumo: no mueve stock</span></>}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <div className="w-28">
+                          <InputNumero
+                            value={estado.porLinea[id]?.cantidad ?? null}
+                            onChange={v => cambiar(e => ({ ...e, porLinea: { ...e.porLinea, [id]: { ...e.porLinea[id], cantidad: v } } }))}
+                            placeholder="0"
+                            min={0}
+                            className={`${controlClass} min-h-11 text-right tabular-nums`}
+                            ariaLabel={`Cantidad que llegó de ${l.descripcion ?? 'la línea'}`}
+                          />
+                        </div>
+                        <span className="w-16 truncate text-xs text-muted">{l.unidad ?? ''}</span>
+                      </div>
+                      {kg && (
+                        <KgReales
+                          unidades={kg}
+                          cantidad={cant}
+                          valor={kgValor}
+                          descripcion={l.descripcion ?? 'la línea'}
+                          onChange={v => cambiar(e => ({ ...e, porLinea: { ...e.porLinea, [id]: { ...e.porLinea[id], cantidadBase: v } } }))}
+                        />
+                      )}
+                      {kg && <AyudaKg unidades={kg} cantidad={cant} valor={kgValor} />}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section className="space-y-2">
+            {estado.libres.length > 0 && <h4 className="text-sm font-bold text-text">No estaba en el pedido o vino con otro nombre</h4>}
+            {estado.libres.map(l => {
+              const incompleta = intentoGuardar && problema?.tipo === 'libre_incompleta' && problema.clave === l.clave
+              const sinDestino = l.corresponde === '' && (l.descripcion.trim() !== '' || l.cantidad != null)
+              const kg = unidadesDeLibre(l)
+              return (
+                <div key={l.clave} className={`space-y-2 rounded-xl border p-3 ${sinDestino ? 'border-warning bg-warning-bg' : 'border-border'}`}>
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="text"
+                      aria-label="Descripción, como figura en el remito"
+                      placeholder="Descripción, como figura en el remito"
+                      className={`${controlClass} min-h-11 flex-1 ${incompleta && !l.descripcion.trim() ? 'border-brand-red' : ''}`}
+                      value={l.descripcion}
+                      onChange={e => { const d = e.target.value; actualizarLibre(l.clave, x => conDescripcion(x, d, lineasDelPedido)) }}
+                    />
+                    <div className="w-24 shrink-0">
+                      <InputNumero
+                        value={l.cantidad}
+                        onChange={v => actualizarLibre(l.clave, x => ({ ...x, cantidad: v }))}
+                        placeholder="Cant."
+                        min={0}
+                        className={`${controlClass} min-h-11 text-right tabular-nums ${incompleta && !(l.cantidad && l.cantidad > 0) ? 'border-brand-red' : ''}`}
+                        ariaLabel="Cantidad"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => cambiar(e => ({ ...e, libres: e.libres.filter(x => x.clave !== l.clave) }))}
+                      aria-label="Quitar esta línea"
+                      title="Quitar esta línea"
+                      className="presionable flex size-11 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-surface2 hover:text-brand-red"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <select
+                      aria-label="A qué corresponde"
+                      className={`${controlClass} min-h-11 ${sinDestino ? 'border-warning' : ''}`}
+                      value={l.corresponde}
+                      onChange={e => { const c = e.target.value; actualizarLibre(l.clave, x => ({ ...x, corresponde: c, manual: true, itemId: c === 'nada' ? x.itemId : null, cantidadBase: null })) }}
+                    >
+                      <option value="">Elegí a qué corresponde…</option>
+                      {lineasDelPedido.map(p => (
+                        <option key={p.pedido_item_id} value={p.pedido_item_id ?? ''}>Es “{p.descripcion}” del pedido</option>
+                      ))}
+                      {l.corresponde !== '' && l.corresponde !== 'nada' && !lineasDelPedido.some(p => p.pedido_item_id === l.corresponde) && (
+                        <option value={l.corresponde}>Una línea del pedido</option>
+                      )}
+                      <option value="nada">No está en el pedido</option>
+                    </select>
+                    {l.corresponde === 'nada' && (
+                      <SelectBuscador
+                        value={l.itemId ?? ''}
+                        onChange={v => actualizarLibre(l.clave, x => ({ ...x, itemId: v || null, cantidadBase: null }))}
+                        opciones={opcionesInsumo}
+                        placeholderVacio="Insumo (opcional)…"
+                      />
+                    )}
+                  </div>
+                  {kg && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <KgReales
+                        unidades={kg}
+                        cantidad={l.cantidad}
+                        valor={l.cantidadBase}
+                        descripcion={l.descripcion || 'la línea'}
+                        onChange={v => actualizarLibre(l.clave, x => ({ ...x, cantidadBase: v }))}
+                      />
+                      <AyudaKg unidades={kg} cantidad={l.cantidad} valor={l.cantidadBase} />
+                    </div>
+                  )}
+                  {sinDestino && (
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-warning">
+                      <AlertTriangle size={13} /> Elegí a qué corresponde: si es algo del pedido, suma a esa línea.
+                    </p>
+                  )}
+                  {l.corresponde === 'nada' && !l.itemId && (
+                    <p className="text-xs text-muted">Sin insumo, esta línea queda registrada pero no mueve stock.</p>
+                  )}
+                </div>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => cambiar(e => ({ ...e, libres: [...e.libres, libreVacia()] }))}
+              className={botonSecundario}
             >
-              <option value="">Sin corresponder</option>
-              {pedido.compras_pedido_items.map(item => (
-                <option key={item.id} value={item.id}>{item.descripcion}</option>
-              ))}
-            </select>
-            <InputNumero
-              placeholder="Cant."
-              className={controlClass}
-              value={linea.cantidad}
-              onChange={v => actualizarCampo(idx, { cantidad: v })}
-              min={0}
-            />
-            <InputNumero
-              placeholder="Precio"
-              className={controlClass}
-              value={linea.precio}
-              onChange={v => actualizarCampo(idx, { precio: v })}
-              min={0}
-            />
-            <button onClick={() => quitarLinea(idx)} title="Quitar línea" aria-label="Quitar línea" className="text-muted hover:text-red-400 flex items-center justify-center">
-              <X size={15} />
+              <PackagePlus size={15} /> Algo que no estaba en el pedido
             </button>
-          </div>
-        ))}
-      </div>
+          </section>
 
-      <div className="flex gap-3">
-        <button onClick={agregarLinea} className="bg-border hover:opacity-80 text-text font-semibold text-xs py-1.5 px-3 rounded-lg transition-all">
-          + Agregar línea
-        </button>
-        <button onClick={guardarRemito} disabled={isPending} className="bg-accent hover:opacity-90 disabled:opacity-40 text-black font-semibold text-xs py-1.5 px-3 rounded-lg transition-all">
-          Guardar remito
-        </button>
-        <button onClick={onCancelar} className="bg-border hover:opacity-80 text-text font-semibold text-xs py-1.5 px-3 rounded-lg transition-all">
-          Cancelar
-        </button>
+          <section className="space-y-2 rounded-xl bg-surface2 px-4 py-3" aria-live="polite">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">Cómo queda el stock</h4>
+            {impacto.length === 0 ? (
+              <p className="text-sm text-muted">
+                {envio.length === 0 ? 'Cargá cantidades para ver cuánto suma al stock.' : 'Con estos cambios el stock no se mueve.'}
+              </p>
+            ) : (
+              <ul className="space-y-1 text-sm">
+                {impacto.map(i => {
+                  const n = nombres[i.itemId]
+                  return (
+                    <li key={i.itemId} className={`flex flex-wrap justify-between gap-x-3 ${i.despues < 0 ? 'text-warning' : 'text-text'}`}>
+                      <span className="min-w-0">{n?.nombre ?? 'Insumo'}</span>
+                      <span className="tabular-nums">
+                        <span className="text-muted">{conUnidad(i.antes, null)} → </span>
+                        <strong>{conUnidad(i.despues, n?.unidad ?? null)}</strong>
+                        <span className={i.delta > 0 ? 'text-success' : 'text-warning'}> ({i.delta > 0 ? '+' : '−'}{conUnidad(Math.abs(i.delta), null)})</span>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+
+      <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center">
+        {remito && (
+          <button
+            type="button"
+            onClick={eliminar}
+            disabled={isPending}
+            className="presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-text hover:bg-danger-bg disabled:opacity-50 sm:mr-auto"
+          >
+            <Trash2 size={15} className="text-brand-red" /> Eliminar remito
+          </button>
+        )}
+        <div className="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row">
+          <button type="button" onClick={onCancelar} disabled={isPending} className={botonSecundario}>
+            Cancelar
+          </button>
+          <button type="button" onClick={guardar} disabled={isPending || !pedido} className={botonPrimario}>
+            {isPending && <Loader2 size={16} className="animate-spin" />}
+            {remito ? 'Guardar cambios' : 'Guardar remito'}
+          </button>
+        </div>
       </div>
     </div>
   )

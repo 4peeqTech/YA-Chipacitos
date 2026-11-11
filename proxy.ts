@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { getRoleHome, getModuloPorPath, MODULOS, esRolConModulos } from '@/lib/modulos'
+import { getRoleHome, getModuloPorPath, MODULOS, esRolConModulos, moduloPermitido } from '@/lib/modulos'
 import { verificarEntorno } from '@/lib/entorno'
 
 export async function proxy(request: NextRequest) {
@@ -88,7 +88,7 @@ export async function proxy(request: NextRequest) {
         // qué módulos tienen asignados.
         if (esRolConModulos(profile?.rol)) {
           const modulosPermitidos: string[] = profile?.modulos_permitidos || []
-          const primerModulo = MODULOS.find(m => modulosPermitidos.includes(m.key))
+          const primerModulo = MODULOS.find(m => !m.oculto && modulosPermitidos.includes(m.key))
           dest = primerModulo?.href || '/ayuda'
         }
         return NextResponse.redirect(new URL(dest || '/login', request.url))
@@ -151,12 +151,16 @@ export async function proxy(request: NextRequest) {
       // entrar a los módulos que tienen asignados en modulos_permitidos.
       if (esRolConModulos(rol) && pathname.startsWith('/admin')) {
         const modulo = getModuloPorPath(pathname)
-        const tieneAcceso = modulo && !modulo.soloAdmin && modulosPermitidos.includes(modulo.key)
-        if (!tieneAcceso) {
-          const primerModulo = MODULOS.find(m => modulosPermitidos.includes(m.key))
+        if (!moduloPermitido(pathname, modulosPermitidos)) {
+          const primerModulo = MODULOS.find(m => !m.oculto && modulosPermitidos.includes(m.key))
           // Si no tiene NINGÚN módulo asignado, '/ayuda' es la única ruta
           // permitida sin permisos — evita un loop con /login.
-          return NextResponse.redirect(new URL(primerModulo?.href || '/ayuda', request.url))
+          const destino = new URL(primerModulo?.href || '/ayuda', request.url)
+          // El rebote es invisible sin esto: el usuario abre un link (una
+          // notificación, por ejemplo) y aparece en otra pantalla sin saber por
+          // qué. `sinAcceso` lo cuenta con un toast (ver AvisoRedireccion).
+          destino.searchParams.set('sinAcceso', modulo?.label ?? 'esa pantalla')
+          return NextResponse.redirect(destino)
         }
       }
     }

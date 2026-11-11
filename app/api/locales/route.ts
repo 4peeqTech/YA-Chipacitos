@@ -15,6 +15,8 @@ export async function GET() {
   const { data, error: dbError } = await supabase
     .from('locales_config')
     .select('sucursal, activo')
+    // locales_config tiene todos los locales; acá van solo los que tienen Fudo.
+    .eq('tiene_fudo', true)
     .order('sucursal')
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
   return NextResponse.json(data)

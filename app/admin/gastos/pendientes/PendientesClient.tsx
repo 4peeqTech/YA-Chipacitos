@@ -1,413 +1,311 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { mensajeError } from '@/lib/errores'
-import { useCierrePorFondo } from '@/components/ui/useCierrePorFondo'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import {
+  IconAlertTriangle, IconBuildingStore, IconCircleCheck, IconClock, IconRefresh, IconWallet,
+} from '@tabler/icons-react'
+import PageHeader from '@/components/ui/PageHeader'
+import AyudaLink from '@/components/ui/AyudaLink'
+import KpiCard from '@/components/ui/KpiCard'
+import EmptyState from '@/components/ui/EmptyState'
+import SearchInput from '@/components/ui/SearchInput'
+import DateRangePicker from '@/components/ui/DateRangePicker'
+import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
+import { SegmentedControl } from '@/components/ui/Chip'
+import { Puntos } from '@/components/ui/Cargando'
+import { controlClass } from '@/components/ui/Field'
+import { useToast } from '@/components/ui/ProveedorUI'
+import { usePuedeEntrar } from '@/components/ui/AccesoModulos'
+import { formatearFecha, formatearMonedaExacta } from '@/lib/formato'
+import {
+  armarGastos, atraso, paramsDePendientes, pendienteDeGasto,
+  type FiltrosPendientes, type GastoFila, type PendienteVista,
+} from '@/lib/gastos/modelo'
+import { masPendientes, registrarPagoGasto } from '../acciones'
+import PagoModal, { type DatosPago } from '../PagoModal'
+import { useActualizarFudo } from '../useActualizarFudo'
+import type { EstadoFudo } from '../GastosClient'
+import { rutaDe } from '@/lib/compras/rutas'
 
-interface GastoManual {
-  _source: 'manual'
-  id: string
-  fecha: string
+interface GrupoServidor {
   local: string
-  rubro: string
-  categoria: string
-  monto: number
-  forma_pago: string
-  estado: string
-  observaciones: string | null
-  comprobante_url: string | null
-  fecha_pago: string | null
-  proveedores: { nombre: string } | null
+  cantidad: number
+  total: number
+  vencidos: number
+  filas: GastoFila[]
 }
 
-interface GastoFudo {
-  _source: 'fudo'
-  id: string
-  sucursal: string
-  date: string
-  description: string
-  amount: number
-  status: string
-  expenseCategory: { name: string } | null
-  provider: { name: string } | null
+// Secundario: con decenas de filas, un botón amarillo por fila tapaba todo lo demás.
+const botonPago = 'presionable min-h-11 inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:border-accent hover:bg-surface2 disabled:opacity-50'
+const botonMas = 'flex min-h-11 w-full items-center justify-center gap-2 border-t border-border text-sm font-medium text-text transition-colors hover:bg-surface2 disabled:opacity-60'
+
+const TANDA_MAS = 60
+
+function plural(n: number, uno: string, varios: string): string {
+  return `${n} ${n === 1 ? uno : varios}`
 }
 
-type GastoPendiente = GastoManual | GastoFudo
-
-interface Props {
-  gastosManual: GastoManual[]
+/** Un gasto pendiente: qué es, de cuándo, si está atrasado, cuánto falta y el botón de pagar. */
+function FilaPendiente({ p, hoy, pendiente, onPagar }: { p: PendienteVista; hoy: string; pendiente: boolean; onPagar: (p: PendienteVista) => void }) {
+  // Gastos es otro módulo: sin él, el título queda como texto.
+  const puedeEntrar = usePuedeEntrar()
+  const atrasado = atraso(p, hoy)
+  const g = p.gasto
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:flex-nowrap">
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium text-text">
+          {puedeEntrar(rutaDe({ tipo: 'gasto', id: p.id })) ? (
+            <Link href={rutaDe({ tipo: 'gasto', id: p.id })} className="-my-3 inline-block py-3 hover:underline hover:decoration-accent hover:decoration-2 hover:underline-offset-4">
+              {p.titulo}
+            </Link>
+          ) : p.titulo}
+          {g?.fudo && <span className="ml-2 rounded-md border border-border px-1.5 align-middle text-2xs font-semibold text-muted">Fudo</span>}
+        </p>
+        <p className="text-xs text-muted">
+          <span className="tabular-nums">{p.fecha ? formatearFecha(p.fecha) : 'Sin fecha'}</span>
+          {atrasado && <span className="font-semibold text-warning"> · {atrasado}</span>}
+          {p.detalle && <> · {p.detalle}</>}
+        </p>
+      </div>
+      <div className="ml-auto text-right">
+        <p className="whitespace-nowrap text-base font-semibold tabular-nums text-text">{formatearMonedaExacta(p.monto)}</p>
+        {g && g.pagado > 0 && <p className="whitespace-nowrap text-2xs text-muted">falta, de <span className="tabular-nums">{formatearMonedaExacta(g.monto)}</span></p>}
+        {g?.recurrente?.aConfirmar && <p className="whitespace-nowrap text-2xs font-semibold text-warning">monto a confirmar</p>}
+      </div>
+      <button type="button" onClick={() => onPagar(p)} disabled={pendiente} className={`${botonPago} w-full sm:w-auto`}>
+        <IconWallet size={15} aria-hidden /> Registrar pago
+      </button>
+    </li>
+  )
 }
 
-function formatMonto(n: number | unknown) {
-  const v = Number(n)
-  return isNaN(v) ? '—' : `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-}
+/** Un local: la primera tanda viene del servidor y "Ver más" pide la siguiente. */
+function GrupoLocal({ grupo, filtros, hoy, pendiente, onPagar }: {
+  grupo: GrupoServidor
+  filtros: FiltrosPendientes
+  hoy: string
+  pendiente: boolean
+  onPagar: (p: PendienteVista) => void
+}) {
+  const toast = useToast()
+  const [extra, setExtra] = useState<GastoFila[]>([])
+  const [cargando, setCargando] = useState(false)
+  // Uno por uno: armarGastos ordena por fecha y acá manda el orden de la base.
+  const items = useMemo(
+    () => [...grupo.filas, ...extra].flatMap(f => armarGastos([f])).map(pendienteDeGasto),
+    [grupo.filas, extra],
+  )
+  const resto = grupo.cantidad - items.length
 
-function hoy() { return new Date().toISOString().split('T')[0] }
-
-function getLocal(g: GastoPendiente) { return g._source === 'manual' ? g.local : g.sucursal }
-function getMonto(g: GastoPendiente) { return g._source === 'manual' ? g.monto : Number((g as GastoFudo).amount) }
-function getDescripcion(g: GastoPendiente) {
-  if (g._source === 'manual') {
-    return g.proveedores?.nombre ?? g.categoria
+  async function verMas() {
+    setCargando(true)
+    const r = await masPendientes({ ...filtros, local: grupo.local, offset: items.length, cuantos: TANDA_MAS })
+    setCargando(false)
+    if (!r.ok) { toast.error(r.error); return }
+    setExtra(prev => [...prev, ...r.data])
   }
-  const f = g as GastoFudo
-  return f.description || f.expenseCategory?.name || f.provider?.name || '—'
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border bg-surface" aria-label={`Pendientes de ${grupo.local}`}>
+      <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border bg-surface2 px-4 py-3">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-text">
+          <IconBuildingStore size={15} className="text-accent-fg" aria-hidden /> {grupo.local}
+        </h2>
+        <p className="text-sm text-muted">
+          {plural(grupo.cantidad, 'gasto', 'gastos')}
+          {grupo.vencidos > 0 && <span className="font-semibold text-warning"> · {plural(grupo.vencidos, 'vencido', 'vencidos')}</span>}
+          {' · '}<span className="font-semibold tabular-nums text-text">{formatearMonedaExacta(grupo.total)}</span>
+        </p>
+      </header>
+      <ul className="divide-y divide-border">
+        {items.map(p => <FilaPendiente key={p.clave} p={p} hoy={hoy} pendiente={pendiente} onPagar={onPagar} />)}
+      </ul>
+      {resto > 0 && (
+        <button type="button" onClick={verMas} disabled={cargando} className={botonMas}>
+          {cargando ? <><Puntos /> Trayendo</> : <>Ver {Math.min(resto, TANDA_MAS)} más de {grupo.local} <span className="text-muted">(quedan {resto})</span></>}
+        </button>
+      )}
+    </section>
+  )
 }
-function getFecha(g: GastoPendiente) { return g._source === 'manual' ? g.fecha : (g as GastoFudo).date }
 
-export default function PendientesClient({ gastosManual: initialManual }: Props) {
-  const fondo = useCierrePorFondo(() => closeModal())
-  const supabase = createClient()
-  const [gastosManual, setGastosManual] = useState<GastoManual[]>(initialManual)
-  const [gastosFudo, setGastosFudo] = useState<GastoFudo[]>([])
-  const [loadingFudo, setLoadingFudo] = useState(true)
-  const [errorFudo, setErrorFudo] = useState('')
+export default function PendientesClient({
+  grupos,
+  totales,
+  filtros,
+  hoy,
+  error,
+  cajas,
+  formasPago,
+  locales,
+  fudo,
+}: {
+  /** Ya filtrados por la base: un renglón por local con su primera tanda. */
+  grupos: GrupoServidor[]
+  /** Todo lo que se debe, sin filtros (los números de arriba). */
+  totales: { cantidad: number; total: number; vencidos: number }
+  filtros: FiltrosPendientes
+  hoy: string
+  error: boolean
+  cajas: string[]
+  formasPago: string[]
+  locales: string[]
+  fudo: EstadoFudo
+}) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const toast = useToast()
+  const [isPending, startTransition] = useTransition()
+  const [navegando, startNav] = useTransition()
+  const [busqueda, setBusqueda] = useState(filtros.q)
+  const [pagando, setPagando] = useState<PendienteVista | null>(null)
+  const { actualizando, actualizar } = useActualizarFudo(fudo.activo, toast)
 
-  const [cajas, setCajas] = useState<string[]>([])
-  const [formasPago, setFormasPago] = useState<string[]>([])
+  function ir(cambios: Partial<FiltrosPendientes>) {
+    const qs = paramsDePendientes({ ...filtros, ...cambios })
+    startNav(() => router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }))
+  }
 
-  // Filtros
-  const [filtroSucursal, setFiltroSucursal] = useState('todas')
-  const [filtroOrigen, setFiltroOrigen] = useState<'todos' | 'manual' | 'fudo'>('todos')
-  const [filtroDesde, setFiltroDesde] = useState('')
-  const [filtroHasta, setFiltroHasta] = useState('')
-  const [filtroBusqueda, setFiltroBusqueda] = useState('')
-
-  const [modalGasto, setModalGasto] = useState<GastoPendiente | null>(null)
-  const [fechaPago, setFechaPago] = useState(hoy())
-  const [caja, setCaja] = useState('')
-  const [formaPago, setFormaPago] = useState('')
-  const [file, setFile] = useState<File | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [, startTransition] = useTransition()
-
+  // La búsqueda va a la URL cuando se deja de escribir.
   useEffect(() => {
-    fetch('/api/cajas').then(r => r.json()).then((d: Array<{ nombre: string; activo: boolean }>) => {
-      setCajas(Array.isArray(d) ? d.filter(x => x.activo).map(x => x.nombre) : [])
-    }).catch(() => {})
-    fetch('/api/formas-pago').then(r => r.json()).then((d: Array<{ nombre: string; activo: boolean }>) => {
-      setFormasPago(Array.isArray(d) ? d.filter(x => x.activo).map(x => x.nombre) : [])
-    }).catch(() => {})
-  }, [])
+    if (busqueda.trim() === filtros.q) return
+    const t = setTimeout(() => ir({ q: busqueda }), 350)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busqueda])
 
-  useEffect(() => {
-    fetch('/api/fudo/pendientes')
-      .then(r => r.json())
-      .then(data => {
-        if (Array.isArray(data)) setGastosFudo(data as GastoFudo[])
-        else setErrorFudo(data.error ?? 'Error al cargar Fudo')
-      })
-      .catch(() => setErrorFudo('Error de conexión con Fudo'))
-      .finally(() => setLoadingFudo(false))
-  }, [])
+  const hayFiltros = !!filtros.local || !!filtros.q || !!filtros.desde || !!filtros.hasta
+  const cantidad = grupos.reduce((s, g) => s + g.cantidad, 0)
+  const totalFiltrado = grupos.reduce((s, g) => s + g.total, 0)
+  const sinConexion = fudo.activo ? fudo.locales.filter(l => l.ultimoError) : []
+  function limpiar() { setBusqueda(''); ir({ local: '', q: '', desde: '', hasta: '' }) }
 
-  const todos: GastoPendiente[] = [
-    ...gastosManual.map(g => ({ ...g, _source: 'manual' as const })),
-    ...gastosFudo,
-  ]
-
-  const todosFiltrados = todos.filter(g => {
-    if (filtroOrigen !== 'todos' && g._source !== filtroOrigen) return false
-    if (filtroSucursal !== 'todas' && getLocal(g) !== filtroSucursal) return false
-    if (filtroDesde && getFecha(g) < filtroDesde) return false
-    if (filtroHasta && getFecha(g) > filtroHasta) return false
-    if (filtroBusqueda) {
-      const q = filtroBusqueda.toLowerCase()
-      if (!getDescripcion(g).toLowerCase().includes(q) && !getLocal(g).toLowerCase().includes(q)) return false
-    }
-    return true
-  })
-
-  const sucursalesDisponibles = [...new Set(todos.map(getLocal))].sort()
-
-  const porLocal = todosFiltrados.reduce<Record<string, GastoPendiente[]>>((acc, g) => {
-    const k = getLocal(g)
-    if (!acc[k]) acc[k] = []
-    acc[k].push(g)
-    return acc
-  }, {})
-
-  const totalPendiente = todos.reduce((s, g) => s + getMonto(g), 0)
-
-  function openModal(gasto: GastoPendiente) {
-    setModalGasto(gasto)
-    setFechaPago(hoy())
-    setCaja('')
-    setFormaPago(gasto._source === 'manual' ? gasto.forma_pago : '')
-    setFile(null)
-    setError('')
+  async function pagar(datos: DatosPago): Promise<boolean> {
+    const p = pagando
+    if (!p) return false
+    return await new Promise(resolve => startTransition(async () => {
+      const r = await registrarPagoGasto({ id: p.id, ...datos })
+      if (!r.ok) { toast.error(r.error); resolve(false); return }
+      toast.success(`Pago registrado · ${p.titulo} · ${formatearMonedaExacta(datos.monto ?? p.monto)}`)
+      setPagando(null)
+      resolve(true)
+    }))
   }
-
-  function closeModal() { setModalGasto(null); setFile(null); setError('') }
-
-  async function marcarPagado() {
-    if (!modalGasto) return
-    if (!caja) { setError('Seleccioná una caja'); return }
-    if (!formaPago) { setError('Seleccioná una forma de pago'); return }
-    setSaving(true); setError('')
-    try {
-      let comprobante_url: string | null = null
-
-      if (file) {
-        const id = modalGasto.id
-        const ext = file.name.split('.').pop()
-        const path = `gastos/${id}/${Date.now()}.${ext}`
-        const { error: upErr } = await supabase.storage.from('comprobantes').upload(path, file, { upsert: true })
-        if (upErr) throw new Error(`Error al subir: ${upErr.message}`)
-        const { data: urlData } = supabase.storage.from('comprobantes').getPublicUrl(path)
-        comprobante_url = urlData.publicUrl
-      }
-
-      if (modalGasto._source === 'manual') {
-        const { error: e } = await supabase
-          .from('gastos')
-          .update({ estado: 'Pagado', fecha_pago: fechaPago, forma_pago: formaPago, caja, comprobante_url })
-          .eq('id', modalGasto.id)
-        if (e) throw new Error(e.message)
-        setGastosManual(prev => prev.filter(g => g.id !== modalGasto.id))
-      } else {
-        const fg = modalGasto as GastoFudo
-        const { error: e } = await supabase.from('fudo_pagos').insert({
-          fudo_expense_id: fg.id,
-          sucursal: fg.sucursal,
-          descripcion: getDescripcion(fg),
-          monto: fg.amount,
-          fecha_gasto: fg.date,
-          fecha_pago: fechaPago,
-          forma_pago: formaPago,
-          caja,
-          comprobante_url,
-        })
-        if (e) throw new Error(e.message)
-        setGastosFudo(prev => prev.filter(g => !(g.id === fg.id && g.sucursal === fg.sucursal)))
-      }
-
-      closeModal()
-    } catch (e: unknown) {
-      setError(mensajeError(e, 'No se pudo marcar el gasto como pagado'))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const inputClass = "w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] [color-scheme:dark]"
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#f0f0f0]">Pendientes de pago</h1>
-        <p className="text-[#888] text-sm mt-0.5">Gastos manuales + Fudo por sucursal</p>
+      <PageHeader
+        icono={IconClock}
+        titulo="Pendientes de pago"
+        descripcion="Lo que falta pagar en cada local, más viejo primero."
+        acciones={<AyudaLink seccion="admin" ancla="gastos" />}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <KpiCard
+          icon={<IconWallet size={18} aria-hidden />}
+          label="Pendiente de pago"
+          value={formatearMonedaExacta(totales.total)}
+          detalle={totales.cantidad === 0 ? 'Todo al día' : plural(totales.cantidad, 'gasto sin pagar', 'gastos sin pagar')}
+          tono={totales.cantidad > 0 ? 'peligro' : 'exito'}
+        />
+        <KpiCard
+          icon={<IconAlertTriangle size={18} aria-hidden />}
+          label="Vencidos"
+          value={String(totales.vencidos)}
+          detalle={totales.vencidos ? 'con la fecha de vencimiento pasada' : 'ninguno vencido'}
+          tono={totales.vencidos ? 'alerta' : 'neutro'}
+        />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-xs uppercase tracking-wider">Total pendiente</p>
-          <p className="text-xl font-bold text-red-400 mt-1">{formatMonto(todosFiltrados.reduce((s, g) => s + getMonto(g), 0))}</p>
-        </div>
-        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-xs uppercase tracking-wider">Manuales</p>
-          <p className="text-xl font-bold text-[#f0f0f0] mt-1">{gastosManual.length}</p>
-        </div>
-        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-xs uppercase tracking-wider">Fudo</p>
-          <p className={`text-xl font-bold mt-1 ${loadingFudo ? 'text-[#555]' : 'text-[#f0f0f0]'}`}>
-            {loadingFudo ? '…' : gastosFudo.length}
-          </p>
-        </div>
-        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
-          <p className="text-[#888] text-xs uppercase tracking-wider">Mostrando</p>
-          <p className="text-xl font-bold text-[#f0f0f0] mt-1">{todosFiltrados.length}</p>
-        </div>
-      </div>
-
-      {/* Filtros */}
-      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Sucursal</label>
-          <select className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547]"
-            value={filtroSucursal} onChange={e => setFiltroSucursal(e.target.value)}>
-            <option value="todas">Todas</option>
-            {sucursalesDisponibles.map(s => <option key={s} value={s}>{s}</option>)}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            aria-label="Filtrar por local"
+            value={filtros.local}
+            onChange={e => ir({ local: e.target.value })}
+            className={`${controlClass} min-h-11 w-full sm:w-52`}
+          >
+            <option value="">Todos los locales</option>
+            {locales.map(l => <option key={l} value={l}>{l}</option>)}
+            {filtros.local && !locales.includes(filtros.local) && <option value={filtros.local}>{filtros.local}</option>}
           </select>
+          <DateRangePicker desde={filtros.desde} hasta={filtros.hasta} onChange={(desde, hasta) => ir({ desde, hasta })} ariaLabel="Fecha de los gastos" placeholder="Cualquier fecha" />
+          <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar descripción o proveedor" className="w-full sm:w-72" />
+          <SegmentedControl
+            opciones={[{ value: 'viejos', label: 'Más viejos primero' }, { value: 'nuevos', label: 'Más nuevos primero' }]}
+            value={filtros.orden}
+            onChange={orden => ir({ orden })}
+          />
+          <ClearFiltersButton visible={hayFiltros} onClick={limpiar} />
+          {navegando && <span className="inline-flex items-center gap-2 text-sm text-muted" aria-live="polite"><Puntos /> Buscando</span>}
         </div>
-        <div>
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Origen</label>
-          <select className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547]"
-            value={filtroOrigen} onChange={e => setFiltroOrigen(e.target.value as 'todos' | 'manual' | 'fudo')}>
-            <option value="todos">Todos</option>
-            <option value="manual">Manual</option>
-            <option value="fudo">Fudo</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Desde</label>
-          <input type="date" className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] [color-scheme:dark]"
-            value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Hasta</label>
-          <input type="date" className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547] [color-scheme:dark]"
-            value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} />
-        </div>
-        <div className="flex-1 min-w-[180px]">
-          <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Buscar</label>
-          <input type="text" placeholder="Descripción o sucursal..."
-            className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547]"
-            value={filtroBusqueda} onChange={e => setFiltroBusqueda(e.target.value)} />
-        </div>
-        {(filtroSucursal !== 'todas' || filtroOrigen !== 'todos' || filtroDesde || filtroHasta || filtroBusqueda) && (
-          <button onClick={() => { setFiltroSucursal('todas'); setFiltroOrigen('todos'); setFiltroDesde(''); setFiltroHasta(''); setFiltroBusqueda('') }}
-            className="text-xs text-[#888] hover:text-[#f0f0f0] border border-[#2a2a2a] px-3 py-2 rounded-lg">
-            Limpiar
-          </button>
+        {fudo.activo && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+            {sinConexion.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-warning" title={sinConexion.map(l => `${l.local}: ${l.ultimoError}`).join('\n')}>
+                <IconAlertTriangle size={15} aria-hidden /> No se pudo actualizar con Fudo: {sinConexion.map(l => l.local.replace(/^YA! /, '')).join(', ')}. Sus gastos pueden no estar al día.
+              </span>
+            )}
+            <button type="button" onClick={() => actualizar(false)} disabled={actualizando}
+              className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl px-2 font-semibold text-text hover:bg-surface2 disabled:opacity-60">
+              {actualizando ? <><Puntos /> Actualizando con Fudo</> : <><IconRefresh size={15} aria-hidden /> Actualizar con Fudo</>}
+            </button>
+          </div>
         )}
       </div>
 
-      {errorFudo && (
-        <div className="bg-yellow-900/20 border border-yellow-800/40 rounded-xl p-3 text-yellow-300 text-sm">
-          Fudo: {errorFudo}
+      {error ? (
+        <p className="flex items-start gap-2 rounded-xl border border-warning bg-warning-bg px-4 py-3 text-sm font-medium text-warning">
+          <IconAlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+          No pudimos cargar los pendientes. Recargá la página; si sigue pasando, avisanos.
+        </p>
+      ) : grupos.length === 0 ? (
+        <div className="overflow-hidden rounded-2xl border border-border">
+          {hayFiltros ? (
+            <EmptyState icono={IconWallet} titulo="Ningún pendiente coincide con los filtros" accion={<ClearFiltersButton visible onClick={limpiar} />} />
+          ) : (
+            <EmptyState icono={IconCircleCheck} titulo="Todo al día" descripcion="No hay gastos pendientes de pago." />
+          )}
+        </div>
+      ) : (
+        <div className={`space-y-4 transition-opacity ${navegando ? 'opacity-60' : ''}`}>
+          {hayFiltros && (
+            <p className="text-sm text-muted">
+              {plural(cantidad, 'gasto', 'gastos')} · <span className="font-semibold tabular-nums text-text">{formatearMonedaExacta(totalFiltrado)}</span>
+            </p>
+          )}
+          {grupos.map(g => (
+            // La clave cambia si cambian sus totales (un pago): vuelve a la primera tanda, ya al día.
+            <GrupoLocal key={`${g.local}-${g.cantidad}-${g.total}-${filtros.orden}-${filtros.q}-${filtros.desde}-${filtros.hasta}`}
+              grupo={g} filtros={filtros} hoy={hoy} pendiente={isPending} onPagar={setPagando} />
+          ))}
         </div>
       )}
 
-      {todosFiltrados.length === 0 && !loadingFudo && (
-        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-12 text-center">
-          <p className="text-4xl mb-3">✅</p>
-          <p className="text-[#f0f0f0] font-medium">{todos.length === 0 ? 'Todo al día' : 'Sin resultados'}</p>
-          <p className="text-[#888] text-sm mt-1">{todos.length === 0 ? 'No hay gastos pendientes de pago' : 'Probá cambiando los filtros'}</p>
-        </div>
-      )}
-
-      {Object.entries(porLocal).sort(([a], [b]) => a.localeCompare(b)).map(([local, items]) => {
-        const subtotal = items.reduce((s, g) => s + getMonto(g), 0)
-        return (
-          <div key={local} className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#2a2a2a] flex items-center justify-between">
-              <h2 className="font-bold text-[#f0f0f0] text-sm">{local}</h2>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-[#888]">{items.length} gastos</span>
-                <span className="text-sm font-bold text-red-400">{formatMonto(subtotal)}</span>
-              </div>
-            </div>
-            <div className="divide-y divide-[#1a1a1a]">
-              {items.map(gasto => (
-                <div key={`${gasto._source}-${gasto.id}`} className="px-4 py-3 flex items-center gap-4 hover:bg-[#161616] transition-colors">
-                  <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                    <div>
-                      <p className="text-[#888] text-xs">Fecha</p>
-                      <p className="text-[#f0f0f0]">{getFecha(gasto)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[#888] text-xs">Descripción</p>
-                      <p className="text-[#f0f0f0] truncate">{getDescripcion(gasto)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[#888] text-xs">Origen</p>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${gasto._source === 'fudo' ? 'bg-blue-900/40 text-blue-300' : 'bg-[#2a2a2a] text-[#888]'}`}>
-                        {gasto._source === 'fudo' ? 'Fudo' : 'Manual'}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-[#888] text-xs">Monto</p>
-                      <p className="text-[#f0f0f0] font-bold">{formatMonto(getMonto(gasto))}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => openModal(gasto)}
-                    className="bg-[#e8c547] hover:opacity-90 text-black font-bold text-xs py-1.5 px-3 rounded-lg transition-all shrink-0"
-                  >
-                    Dar pago
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })}
-
-      {/* Modal */}
-      {modalGasto && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" {...fondo}>
-          <div className="bg-[#111111] border border-[#2a2a2a] rounded-2xl w-full max-w-md p-6 space-y-5" onClick={e => e.stopPropagation()}>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-lg font-bold text-[#f0f0f0]">Registrar pago</h2>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${modalGasto._source === 'fudo' ? 'bg-blue-900/40 text-blue-300' : 'bg-[#2a2a2a] text-[#888]'}`}>
-                  {modalGasto._source === 'fudo' ? 'Fudo' : 'Manual'}
-                </span>
-              </div>
-              <p className="text-[#888] text-sm">{getLocal(modalGasto)} — {getDescripcion(modalGasto)}</p>
-            </div>
-
-            <div className="bg-[#0a0a0a] rounded-xl p-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-[#888]">Fecha gasto</span>
-                <span className="text-[#f0f0f0]">{getFecha(modalGasto)}</span>
-              </div>
-              {modalGasto._source === 'manual' && (
-                <div className="flex justify-between">
-                  <span className="text-[#888]">Forma de pago</span>
-                  <span className="text-[#f0f0f0]">{modalGasto.forma_pago}</span>
-                </div>
-              )}
-              <div className="flex justify-between border-t border-[#2a2a2a] pt-2 mt-2">
-                <span className="text-[#888] font-medium">Monto</span>
-                <span className="text-[#e8c547] font-bold text-base">{formatMonto(getMonto(modalGasto))}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Fecha de pago</label>
-                <input type="date" className={inputClass} value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Caja <span className="text-red-400">*</span></label>
-                <select className={inputClass} value={caja} onChange={e => setCaja(e.target.value)}>
-                  <option value="">Seleccionar...</option>
-                  {cajas.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">Forma de pago <span className="text-red-400">*</span></label>
-              <select className={inputClass} value={formaPago} onChange={e => setFormaPago(e.target.value)}>
-                <option value="">Seleccionar...</option>
-                {formasPago.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#e8c547] uppercase tracking-wider mb-1.5">
-                Comprobante <span className="text-[#555] normal-case font-normal">(opcional)</span>
-              </label>
-              <label className="flex items-center gap-3 border border-dashed border-[#2a2a2a] hover:border-[#e8c547]/40 rounded-xl p-4 cursor-pointer transition-colors">
-                <span className="text-2xl">📎</span>
-                <p className={`text-sm ${file ? 'text-[#f0f0f0]' : 'text-[#888]'}`}>
-                  {file ? file.name : 'Seleccionar archivo (JPG, PNG, PDF)'}
-                </p>
-                <input type="file" className="hidden" accept="image/jpeg,image/png,image/webp,application/pdf"
-                  onChange={e => setFile(e.target.files?.[0] ?? null)} />
-              </label>
-            </div>
-
-            {error && <p className="text-red-400 text-sm">{error}</p>}
-
-            <div className="flex gap-3">
-              <button onClick={marcarPagado} disabled={saving}
-                className="flex-1 bg-[#e8c547] hover:opacity-90 disabled:opacity-40 text-black font-bold py-2.5 rounded-xl text-sm">
-                {saving ? 'Guardando...' : 'Confirmar pago'}
-              </button>
-              <button onClick={closeModal}
-                className="px-4 text-[#888] hover:text-[#f0f0f0] border border-[#2a2a2a] rounded-xl text-sm">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
+      {pagando && pagando.gasto && (
+        <PagoModal
+          key={pagando.clave}
+          gasto={{
+            clave: pagando.id,
+            titulo: pagando.titulo,
+            detalle: pagando.detalle,
+            local: pagando.local,
+            fecha: pagando.fecha,
+            monto: pagando.monto,
+            montoTotal: pagando.gasto.monto,
+            deFudo: pagando.gasto.fudo != null,
+          }}
+          formaPagoInicial={pagando.formaPago}
+          cajas={cajas}
+          formasPago={formasPago}
+          pendiente={isPending}
+          onConfirmar={pagar}
+          onCerrar={() => setPagando(null)}
+        />
       )}
     </div>
   )

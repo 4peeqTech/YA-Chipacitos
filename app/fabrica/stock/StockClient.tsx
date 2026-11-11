@@ -13,12 +13,10 @@ export type { DefinicionConDatos, ItemConteoUI, ConteoBorrador, ConteoHistorial,
 export default function StockClient({
   definiciones,
   historialGlobal,
-  usuarioId,
   umbralSobrestock,
 }: {
   definiciones: DefinicionConDatos[]
   historialGlobal: HistorialGlobalItem[]
-  usuarioId: string
   umbralSobrestock: number
 }) {
   return (
@@ -33,7 +31,7 @@ export default function StockClient({
         <div className="space-y-3">
           {definiciones.map(def => (
             // key por conteo: al cerrar, el borrador nuevo arranca con estado propio (no el del cerrado).
-            <ConteoDesplegable key={def.conteo.id} definicion={def} usuarioId={usuarioId} umbralSobrestock={umbralSobrestock} />
+            <ConteoDesplegable key={def.conteo.id} definicion={def} umbralSobrestock={umbralSobrestock} />
           ))}
         </div>
       )}

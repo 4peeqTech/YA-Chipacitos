@@ -12,7 +12,9 @@ export default async function ConteosPage() {
   const [{ data: definiciones }, { data: items }, { data: catalogo }, { data: categorias }] = await Promise.all([
     supabase.from('fabrica_conteo_definiciones').select('*').order('created_at'),
     supabase.from('fabrica_conteo_definicion_items').select('*').eq('activo', true),
-    supabase.from('compras_items').select('id, nombre, unidad, categoria_id').eq('estado', 'activo').order('nombre'),
+    // A2a: también los archivados, para resolver el nombre de una membresía
+    // vieja. El selector para agregar sigue ofreciendo solo los activos.
+    supabase.from('compras_items').select('id, nombre, unidad, categoria_id, estado').order('nombre'),
     supabase.from('compras_categorias').select('id, nombre').order('orden'),
   ])
 

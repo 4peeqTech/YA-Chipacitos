@@ -68,9 +68,12 @@ export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos,
     }
   }
 
+  // Los módulos `oculto` no son ítems del menú: se llega a ellos por una
+  // pestaña o un link. Siguen en MODULOS por el guard de permisos.
+  const modulosDelMenu = MODULOS.filter(m => !m.oculto)
   const modulosVisibles = modulosPermitidos
-    ? MODULOS.filter(m => modulosPermitidos.includes(m.key))
-    : MODULOS
+    ? modulosDelMenu.filter(m => modulosPermitidos.includes(m.key))
+    : modulosDelMenu
 
   const standaloneItems: NavItem[] = modulosVisibles
     .filter(m => !m.section)

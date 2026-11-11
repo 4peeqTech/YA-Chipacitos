@@ -3,12 +3,8 @@
 import { Fragment, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { calcularMovimientoPorInsumo, type MovimientoReporte } from '@/lib/compras/reportes'
-
-const TIPO_LABEL: Record<MovimientoReporte['tipo'], string> = {
-  entrada_remito: 'Entrada (remito)',
-  conteo_fabrica: 'Conteo de fábrica',
-  ajuste_manual: 'Ajuste manual',
-}
+import { TIPO_MOVIMIENTO_LABEL as TIPO_LABEL } from '@/lib/compras/movimientos'
+import LinkEntidad from '@/components/ui/LinkEntidad'
 
 const SERIE_COLOR = { entradas: '#56d68a', conteosFabrica: '#e8c547', ajustes: '#f0a030' }
 
@@ -83,7 +79,9 @@ export default function MovimientoStock({
               <th className={thClass}>Proveedor</th>
               <th className={thClass}>Entradas (remito)</th>
               <th className={thClass}>Conteos de fábrica</th>
-              <th className={thClass}>Ajustes manuales</th>
+              <th className={thClass}>Ajustes</th>
+              <th className={thClass}>Devoluciones</th>
+              <th className={thClass}>Saldo inicial</th>
               <th className={thClass}>Balance del período</th>
               <th className={thClass}>Stock actual</th>
             </tr>
@@ -96,18 +94,21 @@ export default function MovimientoStock({
                   onClick={() => setExpandidoId(prev => (prev === f.itemId ? null : f.itemId))}
                 >
                   <td className="px-4 py-3 text-[#f0f0f0] font-medium">
-                    {expandidoId === f.itemId ? '▼ ' : '▶ '}{f.itemNombre}
+                    {expandidoId === f.itemId ? '▼ ' : '▶ '}
+                    <LinkEntidad entidad={{ tipo: 'insumo', id: f.itemId }} variante="texto" title="Ver el stock de este insumo">{f.itemNombre}</LinkEntidad>
                   </td>
                   <td className="px-4 py-3 text-[#888]">{f.proveedorNombre}</td>
                   <td className="px-4 py-3 text-[#888]">{f.entradas}</td>
                   <td className="px-4 py-3 text-[#888]">{f.conteosFabrica}</td>
                   <td className="px-4 py-3 text-[#888]">{f.ajustes}</td>
+                  <td className="px-4 py-3 text-[#888]">{f.devoluciones}</td>
+                  <td className="px-4 py-3 text-[#888]">{f.apertura}</td>
                   <td className="px-4 py-3 text-[#f0f0f0]">{f.balance}</td>
                   <td className="px-4 py-3 text-[#888]">{f.stockActual}</td>
                 </tr>
                 {expandidoId === f.itemId && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-3 bg-[#0a0a0a]">
+                    <td colSpan={9} className="px-4 py-3 bg-[#0a0a0a]">
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-[#888]">

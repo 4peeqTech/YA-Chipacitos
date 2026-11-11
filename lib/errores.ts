@@ -14,7 +14,47 @@ const CONSTRAINTS: Record<string, string> = {
     'Este conteo ya generó una solicitud.',
   compras_items_stock_maximo_positivo:
     'El stock máximo tiene que ser mayor a 0. Dejalo vacío si el insumo no tiene tope.',
+  compras_remitos_pedido_secuencia_key:
+    'Otra persona cargó un remito de este pedido al mismo tiempo. Probá guardar de nuevo.',
+  compras_stock_movimientos_anula_unico:
+    'Ese ajuste ya se revirtió. Recargá la página para ver el historial al día.',
+  compras_stock_movimientos_delta_no_cero:
+    'El movimiento no cambia el stock: no hay nada que registrar.',
+  compras_facturas_numero_unique:
+    'Ya cargaste una factura con ese número para este proveedor. Buscala por su número en la lista de facturas.',
+  compras_facturas_una_por_pedido:
+    'Ese pedido ya tiene una factura. Abrila desde la lista de facturas o anulala para cargar otra.',
+  compras_factura_items_pedido_item_id_fkey:
+    'Esa línea del pedido ya está facturada: no se puede borrar. Anulá la factura primero.',
+  compras_items_alicuota_iva_valida:
+    'Esa alícuota de IVA no existe. Elegí una de la lista: 0, 2,5, 5, 10,5, 21 o 27 %.',
+  compras_factura_items_alicuota_iva_check:
+    'Esa alícuota de IVA no existe. Elegí una de la lista: 0, 2,5, 5, 10,5, 21 o 27 %.',
+  compras_facturas_gasto_unico:
+    'Ese gasto ya está vinculado a otra factura. Recargá la página y elegí de nuevo.',
+  gastos_recurrente_periodo_unico:
+    'Ese gasto que se repite ya está cargado para ese mes. Recargá la página para verlo al día.',
+  gastos_fudo_unico:
+    'Ese gasto de Fudo ya está cargado. Recargá la página para verlo al día.',
+  compras_factura_discrepancias_clave_unica:
+    'Otra persona actualizó las diferencias de esta factura al mismo tiempo. Recargá la página.',
+  // B4
+  compras_devolucion_motivos_nombre_unico:
+    'Ya hay un motivo con ese nombre.',
+  compras_devolucion_motivos_flags_validos:
+    'Un motivo que devuelve mercadería no puede ser a la vez una corrección de precio.',
+  compras_devoluciones_motivo_id_fkey:
+    'Ese motivo ya se usó en devoluciones: desactivalo en vez de borrarlo.',
+  compras_devoluciones_pedido_secuencia_key:
+    'Otra persona registró una devolución de este pedido al mismo tiempo. Probá de nuevo.',
+  compras_devoluciones_nc_unica:
+    'Esa nota de crédito ya está asociada a otra devolución. Recargá la página.',
+  compras_devolucion_items_factura_item_id_fkey:
+    'Esa línea de la factura tiene una corrección de precio registrada: anulá esa devolución primero.',
 }
+
+/** B4: el mismo unique de número, cuando lo que se guardaba era una nota de crédito. */
+export const MENSAJE_NC_REPETIDA = 'Ya cargaste una nota de crédito con ese número para este proveedor.'
 
 function extraerMensaje(error: unknown): string {
   if (error instanceof Error) return error.message
@@ -45,7 +85,10 @@ export function mensajeError(error: unknown, fallback: string): string {
     return (constraint && CONSTRAINTS[constraint]) || 'Ya existe un registro con esos datos.'
   }
 
-  if (codigo === '23503') return 'No se puede borrar porque hay otros registros que lo están usando.'
+  if (codigo === '23503') {
+    const constraint = mensaje.match(/foreign key constraint "([^"]+)"/)?.[1]
+    return (constraint && CONSTRAINTS[constraint]) || 'No se puede borrar porque hay otros registros que lo están usando.'
+  }
 
   if (codigo === '23514') {
     const constraint = mensaje.match(/check constraint "([^"]+)"/)?.[1]

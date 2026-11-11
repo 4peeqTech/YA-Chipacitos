@@ -17,6 +17,8 @@ interface ConfirmOptions {
   textoCancelar?: string
   /** Estilo de alerta (rojo) para acciones destructivas o irreversibles. */
   peligroso?: boolean
+  /** 'lg' cuando el mensaje trae una tabla (ej. el impacto de un remito en el stock). */
+  ancho?: 'md' | 'lg'
   onConfirmar: () => void
 }
 
@@ -76,7 +78,7 @@ export default function ProveedorUI({ children }: { children: ReactNode }) {
             <div
               key={t.id}
               role="status"
-              className="flex items-start gap-2.5 rounded-xl border border-border bg-surface text-text px-4 py-3 shadow-modal"
+              className="toast-entrada flex items-start gap-2.5 rounded-xl border border-border bg-surface text-text px-4 py-3 shadow-modal"
             >
               <span className={`shrink-0 mt-0.5 ${t.type === 'success' ? 'text-success' : 'text-brand-red'}`}>
                 {t.type === 'success' ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}
@@ -102,8 +104,9 @@ export default function ProveedorUI({ children }: { children: ReactNode }) {
         onClose={cerrarConfirm}
         title={confirmOpciones?.titulo ?? 'Confirmar'}
         accent={confirmOpciones?.peligroso ? 'red' : 'gold'}
+        size={confirmOpciones?.ancho ?? 'md'}
       >
-        <p className="text-sm text-muted">{confirmOpciones?.mensaje}</p>
+        <div className="text-sm text-muted">{confirmOpciones?.mensaje}</div>
         <div className="flex gap-2 pt-4">
           <button onClick={cerrarConfirm} className="flex-1 py-2.5 border border-border rounded-xl text-sm font-medium text-muted hover:text-text transition-colors">
             {confirmOpciones?.textoCancelar ?? 'Cancelar'}

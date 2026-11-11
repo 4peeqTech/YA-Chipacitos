@@ -1,0 +1,81 @@
+// Chequeo de las funciones puras de diferencias factura/recepción.
+// Correr con: npx tsx lib/compras/_check_diferencias.ts
+import {
+  accionDevolucion, agruparDiferencias, armarDiferencias, cantidadAResolver, explicacionResolucion,
+  muestraKg, recepcionCompleta, textoCantidadesConDevolucion, textoDelta, textoDiferencia, textoEsperandoNc, textoKg, textoResuelta,
+  type DiferenciaFila,
+} from './diferencias'
+
+const fila = (p: Partial<DiferenciaFila>): DiferenciaFila => ({
+  id: 'd1', factura_id: 'f1', pedido_id: 'p1', clave: 'x', pedido_item_id: 'pi1', item_id: 'i1',
+  descripcion: 'Fécula', unidad: 'Bolsa', cantidad_recibida: 19, cantidad_facturada: 21, diferencia: 2,
+  resolucion: 'pendiente', movimiento_id: null, nota: null, resuelto_en: null, resuelto_por_nombre: null,
+  unidad_base: 'unidades', contenido: 1, facturada_base: 21, facturada_base_real: false, recibida_base: 19, recibida_base_real: false,
+  devuelta: 0, acreditada: 0, devolucion_id: null, devolucion_codigo: null, ...p,
+})
+
+// A2b: Queso Barra, factura con kg reales y remito sin kg (cae a nominal).
+const queso = armarDiferencias([fila({
+  id: 'q', descripcion: 'Queso Barra', unidad: 'Caja', cantidad_recibida: 1, cantidad_facturada: 2, diferencia: 1,
+  unidad_base: 'kg', contenido: 16.5, facturada_base: 33.4, facturada_base_real: true, recibida_base: 16.5, recibida_base_real: false,
+})])[0]
+
+const difs = armarDiferencias([
+  fila({}),
+  fila({ id: 'd2', descripcion: 'Azúcar', cantidad_recibida: 2, cantidad_facturada: 0, diferencia: -2, resolucion: 'ignorada' }),
+  fila({ id: 'd3', item_id: null }),
+])
+
+const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
+  { nombre: 'A2b kg reales', real: textoKg(queso.facturadaBase, queso.facturadaBaseReal, queso.unidadBase), esperado: '33,4 kg' },
+  { nombre: 'A2b kg nominales', real: textoKg(queso.recibidaBase, queso.recibidaBaseReal, queso.unidadBase), esperado: '≈ 16,5 kg' },
+  { nombre: 'A2b muestra kg con conversión', real: muestraKg(queso), esperado: true },
+  { nombre: 'A2b sin conversión no muestra kg', real: muestraKg(difs[1]), esperado: false },
+  { nombre: 'A2b la diferencia sigue en cajas', real: textoDiferencia(queso), esperado: textoDiferencia({ diferencia: 1, facturada: 2, unidad: 'Caja' }) },
+  { nombre: 'descarta filas sin insumo', real: difs.length, esperado: 2 },
+  { nombre: 'ordena por insumo', real: difs[0].descripcion, esperado: 'Azúcar' },
+  { nombre: 'recibido = completa', real: recepcionCompleta('recibido'), esperado: true },
+  { nombre: 'cerrado a mano = completa', real: recepcionCompleta('cerrado_manual'), esperado: true },
+  { nombre: 'parcial = incompleta', real: recepcionCompleta('parcial'), esperado: false },
+  { nombre: 'incompleta: pendiente de llegar', real: agruparDiferencias(difs, 'parcial').pendientesDeLlegar.length, esperado: 1 },
+  { nombre: 'incompleta: nada a resolver', real: agruparDiferencias(difs, 'parcial').aResolver.length, esperado: 0 },
+  { nombre: 'completa: a resolver', real: agruparDiferencias(difs, 'recibido').aResolver.map(d => d.id).join(), esperado: 'd1' },
+  { nombre: 'resueltas en los dos casos', real: agruparDiferencias(difs, 'parcial').resueltas.length, esperado: 1 },
+  { nombre: 'badge solo con recepción completa', real: cantidadAResolver(3, 'enviado'), esperado: 0 },
+  { nombre: 'badge con recepción completa', real: cantidadAResolver(3, 'recibido'), esperado: 3 },
+  { nombre: 'texto: factura dice más', real: textoDiferencia({ diferencia: 2, facturada: 21, unidad: 'Bolsa' }), esperado: 'La factura dice 2 Bolsa más de lo que llegó' },
+  { nombre: 'texto: llegó y no está facturado', real: textoDiferencia({ diferencia: -2, facturada: 0, unidad: null }), esperado: 'Llegó 2 que no está en la factura' },
+  { nombre: 'texto: llegó de más', real: textoDiferencia({ diferencia: -1.5, facturada: 3, unidad: 'kg' }), esperado: 'Llegó 1,5 kg más de lo que dice la factura' },
+  { nombre: 'delta positivo', real: textoDelta(2), esperado: '+2' },
+  { nombre: 'delta negativo', real: textoDelta(-0.5), esperado: '−0,5' },
+  { nombre: 'resuelta ajuste', real: textoResuelta('ajusta_stock', -2, 'Bolsa'), esperado: 'Se ajustó el stock (−2 Bolsa)' },
+  {
+    nombre: 'explicación ajuste con stock',
+    real: explicacionResolucion('ajusta_stock', { diferencia: 2, unidad: 'Bolsa', descripcion: 'Fécula' }, 172).startsWith('Suma 2 Bolsa de Fécula al stock (queda en 174).'),
+    esperado: true,
+  },
+  {
+    nombre: 'explicación ajuste que resta',
+    real: explicacionResolucion('ajusta_stock', { diferencia: -3, unidad: null, descripcion: 'Polvo' }, 12).startsWith('Resta 3 de Polvo al stock (queda en 9).'),
+    esperado: true,
+  },
+  // B4
+  { nombre: 'B4 devolución y NC en el texto', real: textoCantidadesConDevolucion({ recibida: 8, facturada: 8, devuelta: 2, acreditada: 2, unidad: 'Caja' }), esperado: 'Llegaron 10 Caja, se devolvieron 2: quedaron 8 · la factura dice 10 (8 con la nota de crédito)' },
+  { nombre: 'B4 solo devolución', real: textoCantidadesConDevolucion({ recibida: 8, facturada: 10, devuelta: 2, acreditada: 0, unidad: 'Caja' }), esperado: 'Llegaron 10 Caja, se devolvieron 2: quedaron 8 · la factura dice 10' },
+  { nombre: 'B4 sin devolución ni NC → null', real: textoCantidadesConDevolucion({ recibida: 8, facturada: 10, devuelta: 0, acreditada: 0, unidad: 'Caja' }), esperado: null },
+  { nombre: 'B4 esperando NC', real: textoEsperandoNc(armarDiferencias([fila({ resolucion: 'reclamo_proveedor', devolucion_id: 'dv', devolucion_codigo: 'D-0037-01' })])[0]), esperado: 'Esperando la nota de crédito de D-0037-01' },
+  { nombre: 'B4 reclamo sin devolución: no espera', real: textoEsperandoNc({ resolucion: 'reclamo_proveedor', devolucionId: null, devolucionCodigo: null }), esperado: null },
+  { nombre: 'B4 ofrece registrar devolución', real: accionDevolucion({ resolucion: 'reclamo_proveedor', devolucionId: null }, 'recibido'), esperado: true },
+  { nombre: 'B4 no la ofrece si ya tiene devolución', real: accionDevolucion({ resolucion: 'reclamo_proveedor', devolucionId: 'dv' }, 'recibido'), esperado: false },
+  { nombre: 'B4 no la ofrece con la recepción incompleta', real: accionDevolucion({ resolucion: 'reclamo_proveedor', devolucionId: null }, 'parcial'), esperado: false },
+  { nombre: 'B4 no la ofrece en una pendiente', real: accionDevolucion({ resolucion: 'pendiente', devolucionId: null }, 'recibido'), esperado: false },
+]
+
+let fallas = 0
+for (const c of casos) {
+  const ok = c.real === c.esperado
+  if (!ok) fallas++
+  console.log(`${ok ? 'OK ' : 'MAL'} ${c.nombre}${ok ? '' : ` → ${JSON.stringify(c.real)} (esperado ${JSON.stringify(c.esperado)})`}`)
+}
+console.log(fallas ? `\n${fallas} fallas` : `\n${casos.length} casos OK`)
+process.exit(fallas ? 1 : 0)

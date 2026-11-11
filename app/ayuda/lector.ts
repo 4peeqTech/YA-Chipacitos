@@ -19,7 +19,7 @@ export const obtenerLector = cache(async () => {
 
   // Un colaborador vuelve a su primer módulo habilitado (el dashboard puede no estar entre ellos).
   const inicio = esRolConModulos(profile.rol)
-    ? MODULOS.find(m => modulos.includes(m.key))?.href ?? '/ayuda'
+    ? MODULOS.find(m => !m.oculto && modulos.includes(m.key))?.href ?? '/ayuda'
     : getRoleHome(profile.rol)
 
   return { lector, inicio, email: user.email, nombre: profile.nombre as string | undefined }

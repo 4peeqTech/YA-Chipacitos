@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react'
-import type { LucideIcon } from 'lucide-react'
+import type { ComponentType, ReactNode } from 'react'
 
 /** Encabezado obligatorio de pantalla — ícono + título son requeridos a propósito,
  * así ninguna pantalla nueva sale sin ícono (ver DoD #6). */
@@ -9,7 +8,8 @@ export default function PageHeader({
   descripcion,
   acciones,
 }: {
-  icono: LucideIcon
+  /** Lucide o Tabler (decisión firme: Tabler para lo nuevo). */
+  icono: ComponentType<{ size?: number | string; className?: string }>
   titulo: string
   descripcion?: string
   acciones?: ReactNode

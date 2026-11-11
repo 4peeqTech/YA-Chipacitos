@@ -23,15 +23,54 @@ export const ESTADOS = {
     recibido:   { label: 'Recibido',        tono: 'exito' },
     cancelado:  { label: 'Cancelado',       tono: 'peligro' },
   },
-  compras_pedidos: {
-    borrador: { label: 'Borrador', tono: 'neutro' },
-    enviado:  { label: 'Enviado',  tono: 'info' },
-    cerrado:  { label: 'Cerrado',  tono: 'exito' },
+  // Estado visible del pedido a proveedor (lo deriva lib/compras/estadoPedido.ts
+  // de estado_recepcion + estado_facturacion).
+  compras_pedido: {
+    sin_enviar: { label: 'Sin enviar',            tono: 'neutro', icono: 'PencilLine' },
+    enviado:    { label: 'Enviado',               tono: 'info',   icono: 'Send' },
+    parcial:    { label: 'Parcialmente recibido', tono: 'alerta', icono: 'PackageOpen' },
+    recibido:   { label: 'Recibido',              tono: 'exito',  icono: 'PackageCheck' },
+    cerrado:    { label: 'Cerrado',               tono: 'neutro', icono: 'Lock' },
+    facturado:  { label: 'Facturado',             tono: 'exito',  icono: 'ReceiptText' },
+    devuelto:   { label: 'Devuelto',              tono: 'peligro', icono: 'Undo2' },
+  },
+  compras_remito: {
+    no_facturado: { label: 'No facturado', tono: 'neutro' },
+    facturado:    { label: 'Facturado',    tono: 'exito' },
+  },
+  // Factura de proveedor (Compras › Pedidos › Facturas).
+  compras_factura: {
+    borrador:   { label: 'Borrador',   tono: 'neutro',  icono: 'PencilLine' },
+    confirmada: { label: 'Confirmada', tono: 'exito',   icono: 'ReceiptText' },
+    anulada:    { label: 'Anulada',    tono: 'peligro', icono: 'Ban' },
+  },
+  // Proveedor (B3: se archiva en vez de borrarse).
+  proveedores: {
+    activo:    { label: 'Activo',    tono: 'exito' },
+    archivado: { label: 'Archivado', tono: 'neutro' },
+  },
+  // Stock de un insumo contra su stock mínimo (Compras › Stock).
+  compras_stock: {
+    bajo: { label: 'Bajo el mínimo', tono: 'peligro' },
+    ok:   { label: 'OK',             tono: 'exito' },
   },
   gastos: {
     'Pendiente de pago': { label: 'Pendiente de pago', tono: 'peligro' },
     'Parcial':            { label: 'Parcial',           tono: 'alerta' },
     'Pagado':              { label: 'Pagado',            tono: 'exito' },
+    'Anulado':             { label: 'Anulado',           tono: 'neutro' },
+  },
+  // Estados tal como los devuelve Fudo (Gastos › Fudo / Caja). cancelado y ok
+  // son nuestros: Fudo los marca con un booleano, no con un estado.
+  fudo: {
+    PAID:        { label: 'Pagado',    tono: 'exito' },
+    UNPAID:      { label: 'Impago',    tono: 'alerta' },
+    PENDING:     { label: 'Pendiente', tono: 'alerta' },
+    CLOSED:      { label: 'Cerrada',   tono: 'exito' },
+    'IN-COURSE': { label: 'En curso',  tono: 'info' },
+    CANCELED:    { label: 'Cancelada', tono: 'neutro' },
+    cancelado:   { label: 'Cancelado', tono: 'neutro' },
+    ok:          { label: 'Registrado', tono: 'exito' },
   },
 } as const satisfies Record<string, Record<string, DefinicionEstado>>
 

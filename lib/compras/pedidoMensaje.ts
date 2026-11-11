@@ -1,7 +1,14 @@
+import { codigoPedido } from './codigos'
+import { cantidadMensaje, type CobraPor, type UnidadBase } from './unidades'
+
 export interface ItemMensaje {
   descripcion: string
   unidad: string | null
   cantidad: number
+  /** A2b: si el proveedor cobra por kg, la línea suma el equivalente: "2 CAJAS (~33 KG)". */
+  contenido?: number | null
+  unidadBase?: UnidadBase | null
+  cobraPor?: CobraPor | null
 }
 
 // Espeja una fila de `locales_facturacion`. El módulo ya no resuelve slugs:
@@ -24,30 +31,30 @@ export const BLOQUE_FACTURACION =
 
 // Cuerpo por default cuando no hay ninguna plantilla en compras_plantillas_mensaje
 // (mismo formato que el seed de esa tabla).
-const CUERPO_FALLBACK = '🧾 *PEDIDO {{proveedor}}* — {{dia}} {{fecha}}{{entrega}}\n\n*Detalle del pedido:*\n{{items}}{{facturacion}}'
-
-function formatearCantidad(cantidad: number): string {
-  return cantidad % 1 === 0 ? String(Math.floor(cantidad)) : String(cantidad)
-}
+const CUERPO_FALLBACK = '🧾 *PEDIDO {{numero}} · {{proveedor}}* — {{dia}} {{fecha}}{{entrega}}\n\n*Detalle del pedido:*\n{{items}}{{facturacion}}'
 
 function formatearLineaItem(item: ItemMensaje): string {
-  const unidad = item.unidad ? ` ${item.unidad}` : ''
-  return `   — ${formatearCantidad(item.cantidad)}${unidad} ${item.descripcion}`.toUpperCase()
+  const u = item.unidadBase && item.contenido != null
+    ? { unidad: item.unidad, unidadBase: item.unidadBase, contenido: item.contenido }
+    : null
+  return `   — ${cantidadMensaje(item.cantidad, item.unidad, u, item.cobraPor ?? null)} ${item.descripcion}`.toUpperCase()
 }
 
-function interpolar(texto: string, vars: Record<string, string>): string {
+export function interpolar(texto: string, vars: Record<string, string>): string {
   return texto.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? '')
 }
 
 export interface ContextoMensaje {
   proveedorNombre: string
+  // Número del pedido (compras_pedidos.numero); sin él, {{numero}} queda vacío.
+  numero?: number | null
   contactoNombre?: string | null
   local: DatosLocal | null
   items: ItemMensaje[]
 }
 
 // Variables soportadas por las plantillas (ver ABM en /admin/proveedores/plantillas):
-// {{proveedor}} {{contacto}} {{items}} {{fecha}} {{dia}} {{entrega}} {{facturacion}}
+// {{proveedor}} {{numero}} {{contacto}} {{items}} {{fecha}} {{dia}} {{entrega}} {{facturacion}}
 // {{local_suc}} {{local_direccion}} {{local_cuit}} {{razon_social}}. Una variable no
 // reconocida se deja vacía en vez de romper el mensaje.
 export function renderPlantilla(cuerpo: string, ctx: ContextoMensaje): string {
@@ -58,6 +65,7 @@ export function renderPlantilla(cuerpo: string, ctx: ContextoMensaje): string {
 
   const vars: Record<string, string> = {
     proveedor: ctx.proveedorNombre.toUpperCase(),
+    numero: ctx.numero != null ? codigoPedido(ctx.numero) : '',
     contacto: ctx.contactoNombre ?? '',
     items: ctx.items.map(formatearLineaItem).join('\n'),
     fecha,
@@ -74,12 +82,6 @@ export function renderPlantilla(cuerpo: string, ctx: ContextoMensaje): string {
   return interpolar(cuerpo, vars)
 }
 
-export function construirMensajePedido(proveedorNombre: string, local: DatosLocal | null, items: ItemMensaje[]): string {
-  return renderPlantilla(CUERPO_FALLBACK, { proveedorNombre, local, items })
-}
-
-export function linkWhatsApp(telefono: string | null, mensaje: string): string {
-  const texto = encodeURIComponent(mensaje)
-  const numero = telefono ? telefono.replace(/[^\d]/g, '') : ''
-  return numero ? `https://wa.me/${numero}?text=${texto}` : `https://api.whatsapp.com/send?text=${texto}`
+export function construirMensajePedido(proveedorNombre: string, local: DatosLocal | null, items: ItemMensaje[], numero?: number | null): string {
+  return renderPlantilla(CUERPO_FALLBACK, { proveedorNombre, local, items, numero })
 }

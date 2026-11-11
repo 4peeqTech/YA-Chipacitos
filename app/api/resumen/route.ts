@@ -12,6 +12,8 @@ export async function GET(req: NextRequest) {
     .from('gastos')
     .select('local, categoria, monto, fecha')
     .not('local', 'is', null)
+    // Un gasto de Fudo cancelado allá queda Anulado: no es plata gastada.
+    .neq('estado', 'Anulado')
 
   if (desde) gastosQ = gastosQ.gte('fecha', desde)
   if (hasta) gastosQ = gastosQ.lte('fecha', hasta)

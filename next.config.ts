@@ -18,6 +18,12 @@ if (!entorno.ok) {
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@4peeqtech/ticket-widget'],
+  // La ruta del comprobante (B2) lee las fuentes y el logo con readFile: el
+  // trazado no los ve solo. La clave es un glob (picomatch): los corchetes
+  // del segmento dinámico van escapados.
+  outputFileTracingIncludes: {
+    '/api/compras/facturas/\\[id\\]/comprobante': ['./assets/fonts/*.ttf', './public/chipacitos-logo.png'],
+  },
   async redirects() {
     return [
       {

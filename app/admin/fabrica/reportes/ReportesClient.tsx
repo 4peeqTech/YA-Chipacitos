@@ -14,6 +14,7 @@ import EmbolsadoResumen from '@/components/fabrica/reportes/EmbolsadoResumen'
 import DevolucionesResumen from '@/components/fabrica/reportes/DevolucionesResumen'
 import RendimientoPorOperario from '@/components/fabrica/reportes/RendimientoPorOperario'
 import CumplimientoProyeccion from '@/components/fabrica/reportes/CumplimientoProyeccion'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 export type ProduccionFilaUI = ProduccionFila
 export type EmbolsadoFilaUI = EmbolsadoFila
@@ -187,21 +188,13 @@ export default function ReportesClient({
       </div>
 
       {preset === 'personalizado' && (
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="date"
-            value={rangoPersonalizado.desde}
-            onChange={e => setRangoPersonalizado(prev => ({ ...prev, desde: e.target.value }))}
-            className={`${inputClass} flex-1 min-w-[132px]`}
-          />
-          <span className="text-[#666] text-xs shrink-0">al</span>
-          <input
-            type="date"
-            value={rangoPersonalizado.hasta}
-            onChange={e => setRangoPersonalizado(prev => ({ ...prev, hasta: e.target.value }))}
-            className={`${inputClass} flex-1 min-w-[132px]`}
-          />
-        </div>
+        <DateRangePicker
+          atajos={false}
+          limpiable={false}
+          desde={rangoPersonalizado.desde}
+          hasta={rangoPersonalizado.hasta}
+          onChange={(desde, hasta) => setRangoPersonalizado(prev => ({ ...prev, desde, hasta }))}
+        />
       )}
 
       <div className="flex flex-wrap gap-2">

@@ -13,9 +13,10 @@ export default async function PedidoBasePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: plantilla }, { data: proveedores }, { data: items }, { data: sugerencias }, { data: ultimaBase }] = await Promise.all([
+  const [{ data: plantilla }, { data: proveedores }, { data: items }, { data: sugerencias }, { data: ultimaBase }, { data: archivados }] = await Promise.all([
     supabase.from('compras_plantilla_base').select('*').order('orden').order('descripcion'),
-    supabase.from('proveedores').select('id, nombre').eq('estado', 'activo').order('nombre'),
+    // Todos: una línea de un proveedor archivado tiene que mostrarlo (B3, E19).
+    supabase.from('proveedores').select('id, nombre, estado').order('nombre'),
     supabase
       .from('compras_items')
       .select('id, nombre, unidad, compras_item_proveedores(proveedor_id, es_principal)')
@@ -31,6 +32,8 @@ export default async function PedidoBasePage() {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // A2a: para marcar las líneas de insumos archivados (no entran al pedido base).
+    supabase.from('compras_items').select('id').eq('estado', 'archivado'),
   ])
 
   const itemsCatalogo = (items ?? []).map(i => ({
@@ -47,6 +50,7 @@ export default async function PedidoBasePage() {
       proveedores={proveedores ?? []}
       itemsCatalogo={itemsCatalogo}
       sugerencias={sugerencias ?? []}
+      itemsArchivados={(archivados ?? []).map(a => a.id)}
       ultimaBase={ultimaBase && {
         ...ultimaBase,
         estaSemana: haceMenosDeUnaSemana(ultimaBase.created_at),

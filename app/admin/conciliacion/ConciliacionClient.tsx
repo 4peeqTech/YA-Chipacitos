@@ -6,6 +6,7 @@ import { Conciliacion, Profile } from '@/lib/types'
 import Card from '@/components/ui/Card'
 import { BadgeOk, BadgeDiff } from '@/components/ui/Badge'
 import SelectBuscador from '@/components/ui/SelectBuscador'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 interface ConciliacionConPerfil extends Conciliacion {
   profiles?: { nombre: string; local_nombre: string | null } | null
@@ -44,8 +45,9 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
     setCargando(false)
   }
 
-  function handleDesde(v: string) { setDesde(v); cargarPeriodo(v, hasta) }
-  function handleHasta(v: string) { setHasta(v); cargarPeriodo(desde, v) }
+  // Un solo handler para los dos extremos: encadenar setDesde + setHasta dejaba
+  // al segundo fetch leyendo el `desde` viejo (el state no cambia en el tick).
+  function handlePeriodo(d: string, h: string) { setDesde(d); setHasta(h); cargarPeriodo(d, h) }
 
   async function recalcular() {
     setRecalculando(true)
@@ -194,17 +196,7 @@ export default function ConciliacionClient({ conciliacionesIniciales, locales, v
         </div>
         {/* Selector de período + recalcular */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 bg-[#111111] border border-[#2a2a2a] rounded-xl px-3 py-2">
-            <span className="text-xs text-[#e8c547] font-semibold uppercase tracking-wider">Desde</span>
-            <input type="date" value={desde} onChange={e => handleDesde(e.target.value)}
-              className="text-sm focus:outline-none bg-transparent text-[#f0f0f0] [color-scheme:dark]" />
-          </div>
-          <span className="text-[#f0f0f0]">→</span>
-          <div className="flex items-center gap-2 bg-[#111111] border border-[#2a2a2a] rounded-xl px-3 py-2">
-            <span className="text-xs text-[#e8c547] font-semibold uppercase tracking-wider">Hasta</span>
-            <input type="date" value={hasta} onChange={e => handleHasta(e.target.value)}
-              className="text-sm focus:outline-none bg-transparent text-[#f0f0f0] [color-scheme:dark]" />
-          </div>
+          <DateRangePicker desde={desde} hasta={hasta} limpiable={false} onChange={handlePeriodo} />
           <button
             onClick={recalcular}
             disabled={recalculando}

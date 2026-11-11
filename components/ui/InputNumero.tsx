@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import { parseCantidad, parseDecimal } from '@/lib/numeros'
 import { controlClass } from './Field'
 
@@ -18,6 +18,8 @@ interface Props {
   /** Cantidad: la coma o el punto son siempre decimales, sin separador de miles ("1,500" = 1,5). */
   cantidad?: boolean
   autoFocus?: boolean
+  /** Nombre accesible cuando no hay un <label> asociado (ej. celdas de una tabla editable). */
+  ariaLabel?: string
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void
 }
 
@@ -25,30 +27,28 @@ interface Props {
  * Input numérico tolerante a coma decimal. Nunca usar type="number": el
  * browser descarta un valor con coma antes de que llegue al JS.
  */
-export default function InputNumero({ value, onChange, placeholder, className, disabled, min, enteros, cantidad, autoFocus, onKeyDown }: Props) {
+export default function InputNumero({ value, onChange, placeholder, className, disabled, min, enteros, cantidad, autoFocus, ariaLabel, onKeyDown }: Props) {
   const [raw, setRaw] = useState(value == null ? '' : String(value).replace('.', ','))
   const [focused, setFocused] = useState(false)
   const parsear = cantidad ? parseCantidad : parseDecimal
 
-  useEffect(() => {
-    if (focused) return
-    const parsed = parsear(raw)
-    if (value !== parsed) {
-      setRaw(value == null ? '' : String(value).replace('.', ','))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value])
+  // Sin foco se muestra lo tipeado si todavía representa el valor (conserva "1,50");
+  // si el valor cambió desde afuera, se muestra el valor nuevo. Derivado en el render,
+  // sin effect que sincronice estado.
+  const formateado = value == null ? '' : String(value).replace('.', ',')
+  const mostrado = focused || parsear(raw) === value ? raw : formateado
 
   return (
     <input
       type="text"
       inputMode={enteros ? 'numeric' : 'decimal'}
-      value={raw}
+      value={mostrado}
       placeholder={placeholder}
+      aria-label={ariaLabel}
       disabled={disabled}
       autoFocus={autoFocus}
       onKeyDown={onKeyDown}
-      onFocus={() => setFocused(true)}
+      onFocus={() => { if (mostrado !== raw) setRaw(mostrado); setFocused(true) }}
       onBlur={() => setFocused(false)}
       className={className ?? inputNumeroClass}
       onChange={e => {

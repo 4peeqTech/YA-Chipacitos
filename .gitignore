@@ -36,6 +36,9 @@ yarn-error.log*
 # credenciales de prueba (dev only, nunca al repo)
 docs/qa-credenciales-dev.md
 
+# planillas del negocio (recetas, márgenes, sueldos): el repo es público
+docs/nomenclador/fuentes/
+
 # vercel
 .vercel
 

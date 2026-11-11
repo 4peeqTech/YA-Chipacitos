@@ -31,7 +31,10 @@ import {
 interface ProveedorOption {
   id: string
   nombre: string
+  estado: string
 }
+
+const etiquetaProveedor = (p: ProveedorOption) => (p.estado === 'activo' ? p.nombre : `${p.nombre} (archivado)`)
 
 interface CatalogoItem {
   id: string
@@ -81,12 +84,15 @@ const emptyForm = (): Partial<PlantillaLinea> => ({
 
 function FilaPlantilla({
   linea,
+  archivado,
   nombreProveedor,
   onToggleActivo,
   onEditar,
   onEliminar,
 }: {
   linea: PlantillaLinea
+  /** A2a: el insumo está archivado, así que generar_solicitud_base() saltea la línea. */
+  archivado: boolean
   nombreProveedor: (id: string) => string
   onToggleActivo: (l: PlantillaLinea) => void
   onEditar: (l: PlantillaLinea) => void
@@ -117,7 +123,16 @@ function FilaPlantilla({
           <GripVertical size={15} />
         </button>
       </td>
-      <td className="px-4 py-3 text-[#f0f0f0] font-medium">{linea.descripcion}</td>
+      <td className="px-4 py-3 text-[#f0f0f0] font-medium">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {linea.descripcion}
+          {archivado && (
+            <span className="rounded-full bg-surface2 px-2 py-0.5 text-2xs font-semibold text-muted" title="Queda en la plantilla: si reactivás el insumo, vuelve a entrar.">
+              Insumo archivado · no entra al pedido base
+            </span>
+          )}
+        </span>
+      </td>
       <td className="px-4 py-3 text-[#888]">{nombreProveedor(linea.proveedor_id)}</td>
       <td className="px-4 py-3 text-[#888]">{linea.cantidad} {linea.unidad}</td>
       <td className="px-4 py-3">
@@ -162,12 +177,15 @@ export default function PedidoBaseClient({
   itemsCatalogo,
   sugerencias,
   ultimaBase,
+  itemsArchivados,
 }: {
   plantillaInicial: PlantillaLinea[]
   proveedores: ProveedorOption[]
   itemsCatalogo: CatalogoItem[]
   sugerencias: SugerenciaSobrestock[]
   ultimaBase: UltimaBase | null
+  /** Ids de insumos archivados que siguen en la plantilla (A2a). */
+  itemsArchivados: string[]
 }) {
   const supabase = createClient()
   const toast = useToasts()
@@ -183,7 +201,10 @@ export default function PedidoBaseClient({
   const [sugerenciasVigentes, setSugerenciasVigentes] = useState(sugerencias)
   const [baseAbierta, setBaseAbierta] = useState(ultimaBase?.estado === 'abierta')
 
-  const nombreProveedor = (id: string) => proveedores.find(p => p.id === id)?.nombre ?? '—'
+  const nombreProveedor = (id: string) => {
+    const p = proveedores.find(x => x.id === id)
+    return p ? etiquetaProveedor(p) : '—'
+  }
   const activas = lineas.filter(l => l.activo)
 
   function abrirCrear() {
@@ -218,10 +239,13 @@ export default function PedidoBaseClient({
 
   // Limita el select de proveedor a los asociados al ítem elegido — si no hay
   // ítem (línea libre) o el ítem no tiene proveedores cargados, se ve la lista completa.
+  // B3 (E19): solo activos, más el guardado en la línea si se archivó.
   function proveedoresParaForm(): ProveedorOption[] {
+    const actual = editando?.proveedor_id
+    const disponibles = proveedores.filter(p => p.estado === 'activo' || p.id === actual)
     const item = itemsCatalogo.find(i => i.id === form.item_id)
-    if (!item || !item.proveedoresAsociados.length) return proveedores
-    return proveedores.filter(p => item.proveedoresAsociados.includes(p.id))
+    if (!item || !item.proveedoresAsociados.length) return disponibles
+    return disponibles.filter(p => item.proveedoresAsociados.includes(p.id) || p.id === actual)
   }
 
   async function guardar() {
@@ -377,6 +401,7 @@ export default function PedidoBaseClient({
                       <FilaPlantilla
                         key={l.id}
                         linea={l}
+                        archivado={!!l.item_id && itemsArchivados.includes(l.item_id)}
                         nombreProveedor={nombreProveedor}
                         onToggleActivo={toggleActivo}
                         onEditar={abrirEditar}
@@ -411,7 +436,7 @@ export default function PedidoBaseClient({
             <label className={labelClass}>Proveedor *</label>
             <select className={inputClass} value={form.proveedor_id ?? ''} onChange={e => setForm(f => ({ ...f, proveedor_id: e.target.value }))}>
               <option value="">Seleccionar...</option>
-              {proveedoresParaForm().map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              {proveedoresParaForm().map(p => <option key={p.id} value={p.id}>{etiquetaProveedor(p)}</option>)}
             </select>
           </div>
           <div>

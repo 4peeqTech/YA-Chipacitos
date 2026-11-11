@@ -40,6 +40,17 @@ export function formatearMoneda(monto: number): string {
   return monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 }
 
+/**
+ * Con centavos. `formatearMoneda` redondea a pesos, que alcanza para un gasto o
+ * un reporte; en una factura de proveedor no, porque el número tiene que poder
+ * compararse contra el papel, centavo por centavo.
+ */
+export function formatearMonedaExacta(monto: number): string {
+  return monto.toLocaleString('es-AR', {
+    style: 'currency', currency: 'ARS', minimumFractionDigits: 2, maximumFractionDigits: 2,
+  })
+}
+
 export function formatearNumero(n: number, decimales = 2): string {
   return formatDecimal(n, decimales)
 }

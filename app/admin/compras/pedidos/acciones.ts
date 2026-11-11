@@ -1,0 +1,164 @@
+'use server'
+
+import { refresh } from 'next/cache'
+import { z } from 'zod'
+import { createClientTipado } from '@/lib/supabase/server'
+import { ok, fallo, type Resultado } from '@/lib/acciones'
+
+// La autorización la hacen las RPC (tiene_acceso_compras()): estas acciones son
+// alcanzables por POST directo, nunca confiar en lo que muestra la UI.
+// Si la RPC rechaza (casi siempre porque otra persona cambió el pedido), también
+// se refresca: la pantalla queda con el estado real y el error explica qué pasó.
+
+const Linea = z.object({
+  id: z.uuid().nullable().optional(),
+  item_id: z.uuid().nullable().optional(),
+  descripcion: z.string().trim().min(1),
+  unidad: z.string().trim().nullable().optional(),
+  cantidad: z.number().positive(),
+})
+
+const GuardarPedido = z.object({
+  pedidoId: z.uuid().nullable(),
+  proveedorId: z.uuid().nullable(),
+  localFacturacionId: z.uuid().nullable(),
+  lineas: z.array(Linea),
+})
+
+export async function guardarPedido(
+  entrada: z.input<typeof GuardarPedido>,
+): Promise<Resultado<{ id: string; numero: number; cambios: boolean }>> {
+  const parsed = GuardarPedido.safeParse(entrada)
+  if (!parsed.success) return fallo(null, 'Cada línea necesita una descripción y una cantidad mayor a 0.')
+  const { pedidoId, proveedorId, localFacturacionId, lineas } = parsed.data
+  try {
+    const supabase = await createClientTipado()
+    // A2b (E12): la unidad de una línea con insumo sale del insumo, no de lo que
+    // mande la pantalla. Si el insumo no tiene unidad, queda la de la línea.
+    const itemIds = [...new Set(lineas.map(l => l.item_id).filter((id): id is string => !!id))]
+    const unidadDe = new Map<string, string | null>()
+    if (itemIds.length) {
+      const { data: items, error: errItems } = await supabase.from('compras_items').select('id, unidad').in('id', itemIds)
+      if (errItems) return fallo(errItems, 'No se pudo guardar el pedido.')
+      for (const i of items ?? []) unidadDe.set(i.id, i.unidad?.trim() || null)
+    }
+    const { data, error } = await supabase.rpc('compras_guardar_pedido', {
+      p_pedido_id: pedidoId ?? undefined,
+      p_proveedor_id: proveedorId ?? undefined,
+      p_local_facturacion_id: localFacturacionId ?? undefined,
+      p_items: lineas.map(l => ({
+        id: l.id ?? null,
+        item_id: l.item_id ?? null,
+        descripcion: l.descripcion,
+        unidad: (l.item_id ? unidadDe.get(l.item_id) : null) || l.unidad || null,
+        cantidad: l.cantidad,
+      })),
+    })
+    if (error) { refresh(); return fallo(error, 'No se pudo guardar el pedido.') }
+    // cambios = false: guardó sin tocar nada (sin evento y el mensaje se conserva).
+    const res = z.object({ id: z.uuid(), numero: z.number(), cambios: z.boolean() }).safeParse(data)
+    if (!res.success) return fallo(null, 'El pedido se guardó, pero no pudimos leer su número. Recargá la página.')
+    refresh()
+    return ok(res.data)
+  } catch (e) {
+    return fallo(e, 'No se pudo guardar el pedido.')
+  }
+}
+
+const GuardarMensaje = z.object({
+  pedidoId: z.uuid(),
+  mensaje: z.string().trim().min(1),
+  localFacturacionId: z.uuid().nullable(),
+})
+
+export async function guardarMensaje(entrada: z.input<typeof GuardarMensaje>): Promise<Resultado<null>> {
+  const parsed = GuardarMensaje.safeParse(entrada)
+  if (!parsed.success) return fallo(null, 'El mensaje está vacío.')
+  try {
+    const supabase = await createClientTipado()
+    // Por RPC: registra el cambio de local y la (re)generación en el historial y
+    // no deja cambiar el local de un pedido facturado.
+    const { error } = await supabase.rpc('compras_guardar_mensaje_pedido', {
+      p_pedido_id: parsed.data.pedidoId,
+      p_mensaje: parsed.data.mensaje,
+      p_local_facturacion_id: parsed.data.localFacturacionId ?? undefined,
+    })
+    if (error) { refresh(); return fallo(error, 'No se pudo guardar el mensaje del pedido.') }
+    refresh()
+    return ok(null)
+  } catch (e) {
+    return fallo(e, 'No se pudo guardar el mensaje del pedido.')
+  }
+}
+
+const SoloPedido = z.object({ pedidoId: z.uuid() })
+
+async function rpcSobrePedido(
+  fn: 'compras_marcar_pedido_enviado' | 'compras_reabrir_pedido',
+  entrada: z.input<typeof SoloPedido>,
+  fallback: string,
+  extra: { p_reenvio?: boolean } = {},
+): Promise<Resultado<null>> {
+  const parsed = SoloPedido.safeParse(entrada)
+  if (!parsed.success) return fallo(null, fallback)
+  try {
+    const supabase = await createClientTipado()
+    const { error } = await supabase.rpc(fn, { p_pedido_id: parsed.data.pedidoId, ...extra })
+    if (error) { refresh(); return fallo(error, fallback) }
+    refresh()
+    return ok(null)
+  } catch (e) {
+    return fallo(e, fallback)
+  }
+}
+
+export async function marcarPedidoEnviado(entrada: z.input<typeof SoloPedido>): Promise<Resultado<null>> {
+  return rpcSobrePedido('compras_marcar_pedido_enviado', entrada, 'No se pudo marcar el pedido como enviado.')
+}
+
+/** Reenvío explícito: queda en el historial con el mensaje que salió. */
+export async function marcarPedidoReenviado(entrada: z.input<typeof SoloPedido>): Promise<Resultado<null>> {
+  return rpcSobrePedido('compras_marcar_pedido_enviado', entrada, 'No se pudo registrar el reenvío.', { p_reenvio: true })
+}
+
+export async function reabrirPedido(entrada: z.input<typeof SoloPedido>): Promise<Resultado<null>> {
+  return rpcSobrePedido('compras_reabrir_pedido', entrada, 'No se pudo reabrir el pedido.')
+}
+
+const EliminarPedido = z.object({ pedidoId: z.uuid(), motivo: z.string().trim().min(1).max(500) })
+
+export async function eliminarPedido(entrada: z.input<typeof EliminarPedido>): Promise<Resultado<null>> {
+  const parsed = EliminarPedido.safeParse(entrada)
+  if (!parsed.success) return fallo(null, 'Contanos por qué eliminás el pedido.')
+  try {
+    const supabase = await createClientTipado()
+    const { error } = await supabase.rpc('compras_eliminar_pedido', {
+      p_pedido_id: parsed.data.pedidoId,
+      p_motivo: parsed.data.motivo,
+    })
+    if (error) { refresh(); return fallo(error, 'No se pudo eliminar el pedido.') }
+    refresh()
+    return ok(null)
+  } catch (e) {
+    return fallo(e, 'No se pudo eliminar el pedido.')
+  }
+}
+
+const CerrarPedido = z.object({ pedidoId: z.uuid(), motivo: z.string().trim().min(1).max(500) })
+
+export async function cerrarPedidoManual(entrada: z.input<typeof CerrarPedido>): Promise<Resultado<null>> {
+  const parsed = CerrarPedido.safeParse(entrada)
+  if (!parsed.success) return fallo(null, 'Contanos por qué cerrás el pedido.')
+  try {
+    const supabase = await createClientTipado()
+    const { error } = await supabase.rpc('compras_cerrar_pedido_manual', {
+      p_pedido_id: parsed.data.pedidoId,
+      p_motivo: parsed.data.motivo,
+    })
+    if (error) { refresh(); return fallo(error, 'No se pudo cerrar el pedido.') }
+    refresh()
+    return ok(null)
+  } catch (e) {
+    return fallo(e, 'No se pudo cerrar el pedido.')
+  }
+}

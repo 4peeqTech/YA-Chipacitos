@@ -28,6 +28,36 @@ export function calcularRangoPreset(preset: PresetRango, ahora: Date): RangoFech
   return { desde: formatearFecha(desde), hasta: formatearFecha(hasta) }
 }
 
+const FECHA = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * El período de Reportes desde la URL (?desde=&hasta=). Si falta o no es una
+ * fecha válida (o está al revés), vale el mes actual.
+ */
+export function rangoDeParams(desde: string | undefined, hasta: string | undefined, ahora: Date): RangoFechas {
+  if (desde && hasta && FECHA.test(desde) && FECHA.test(hasta) && desde <= hasta
+    && !Number.isNaN(Date.parse(desde)) && !Number.isNaN(Date.parse(hasta))) {
+    return { desde, hasta }
+  }
+  return calcularRangoPreset('mes_actual', ahora)
+}
+
+/** 'YYYY-MM-DD' del día siguiente: tope exclusivo para filtrar un timestamptz por día. */
+export function diaSiguiente(fecha: string): string {
+  const d = new Date(`${fecha}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+// "Últimos N días / meses" hasta hoy (A2c, ficha del insumo): del mismo día N
+// atrás a hoy, en hora local. 3 meses al 06/10 → del 06/07 al 06/10.
+export function calcularRangoUltimos(cantidad: number, ahora: Date, unidad: 'dias' | 'meses' = 'dias'): RangoFechas {
+  const desde = unidad === 'meses'
+    ? new Date(ahora.getFullYear(), ahora.getMonth() - cantidad, ahora.getDate())
+    : new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - cantidad)
+  return { desde: formatearFecha(desde), hasta: formatearFecha(ahora) }
+}
+
 // Compara fechas como texto 'YYYY-MM-DD' — comparación lexicográfica
 // válida para ese formato, evita reconstruir un Date por cada fila.
 // `fecha` puede venir como 'YYYY-MM-DD' (columna date) o como timestamp

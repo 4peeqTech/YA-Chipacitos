@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { mensajeError } from '@/lib/errores'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 interface Fila {
   idVenta: string
@@ -101,22 +102,9 @@ export default function PosberryClient() {
 
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-[#e8c547] font-semibold uppercase tracking-wider">Desde</label>
-            <input
-              type="date"
-              value={desde}
-              onChange={e => setDesde(e.target.value)}
-              className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] [color-scheme:dark] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547]"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-[#e8c547] font-semibold uppercase tracking-wider">Hasta</label>
-            <input
-              type="date"
-              value={hasta}
-              onChange={e => setHasta(e.target.value)}
-              className="bg-[#1a1a1a] border border-[#2a2a2a] text-[#f0f0f0] [color-scheme:dark] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#e8c547]"
-            />
+            <label className="text-xs text-accent-fg font-semibold uppercase tracking-wider">Período</label>
+            <DateRangePicker desde={desde} hasta={hasta}
+              onChange={(d, h) => { setDesde(d); setHasta(h) }} />
           </div>
           <button
             onClick={cargar}

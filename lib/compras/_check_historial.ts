@@ -1,0 +1,159 @@
+// Chequeo de las funciones puras del historial del pedido (B1).
+// Correr con: npx tsx lib/compras/_check_historial.ts
+import {
+  agruparEventos, combinarDiffs, etiquetaEvento, leerEvento, partesDiff, partesLineas, textoDiff, textosCabeceraRemito, textosDevolucion,
+  type DiffLineas, type EventoCrudo,
+} from './historialPedido'
+
+const linea = (id: string, descripcion: string, cantidad: number, unidad: string | null = null, item_id: string | null = null) =>
+  ({ id, item_id, descripcion, unidad, cantidad, cantidad_base: null as number | null, unidad_base: null as string | null })
+const cambio = (
+  id: string, descripcion: string, de: number, a: number,
+  unidad: string | null = null, antesUnidad: string | null = unidad, antesDescripcion = descripcion,
+) => ({ ...linea(id, descripcion, a, unidad), antes: { cantidad: de, unidad: antesUnidad, descripcion: antesDescripcion, item_id: null, cantidad_base: null as number | null } })
+
+// A2b: remito con kg reales.
+const conKg = (cajasDe: number, cajasA: number, kgDe: number | null, kgA: number | null) => ({
+  ...cambio('r1', 'Queso Barra', cajasDe, cajasA, 'Caja'),
+  cantidad_base: kgA, unidad_base: 'kg',
+  antes: { cantidad: cajasDe, unidad: 'Caja', descripcion: 'Queso Barra', item_id: null, cantidad_base: kgDe },
+})
+const remitoEditadoKg = leerEvento(ev0('remito_editado', { remito_id: 'R', secuencia: 1, cambiados: [conKg(2, 2, 32.9, 33.4)] }))
+const dosEdicionesKg = combinarDiffs([{ cambiados: [conKg(2, 2, 32.9, 33.4)] }, { cambiados: [conKg(2, 2, 33.4, 33)] }])
+const remitoFactura = leerEvento(ev0('remito_creado', {
+  remito_id: 'R', secuencia: 1, fecha: '2026-10-05', origen: 'factura', factura_id: 'F', factura_numero: 'A-1',
+  lineas: [{ ...linea('r1', 'Queso Barra', 2, 'Caja', 'QB'), cantidad_base: 33.4, unidad_base: 'kg' }],
+}))
+const remitoViejo = leerEvento(ev0('remito_creado', { remito_id: 'R', secuencia: 1, fecha: '2026-09-01' }))
+const remitoBackfill = leerEvento(ev0('remito_creado', { remito_id: 'R', secuencia: 2, fecha: '2026-09-01', origen: 'manual', factura_id: null, numero: null, backfill: true }))
+function ev0(tipo: string, detalle: unknown): EventoCrudo {
+  return { id: `k-${tipo}`, pedido_id: 'p1', tipo, detalle, fecha: '2026-10-05T17:00:00Z', persona_id: 'ana', persona: 'Ana' }
+}
+
+let n = 0
+const ev = (tipo: string, minuto: number, detalle: unknown, persona = 'ana'): EventoCrudo => ({
+  id: `e${++n}`, pedido_id: 'p1', tipo, detalle,
+  fecha: new Date(Date.UTC(2026, 9, 5, 17, 0) + minuto * 60_000).toISOString(),
+  persona_id: persona, persona: persona === 'ana' ? 'Ana' : 'Beto',
+})
+// B4
+const textosB4 = (e: ReturnType<typeof leerEvento>) => {
+  const t = textosDevolucion(e, 37)
+  return [t.codigo, ...t.partes].filter(Boolean).join(' · ')
+}
+const devMerc = leerEvento(ev0('devolucion_registrada', {
+  devolucion_id: 'd1', secuencia: 1, motivo: 'Mercadería en mal estado', devuelve_mercaderia: true, corrige_precio: false, repone: true,
+  lineas: [{ ...linea('x1', 'Queso Barra', 1, 'Caja', 'QB'), cantidad_base: 16.4, unidad_base: 'kg', pedido_item_id: 'pi' }],
+}))
+const devReclamo = leerEvento(ev0('devolucion_registrada', { devolucion_id: 'd2', secuencia: 2, motivo: 'Facturado y no entregado', devuelve_mercaderia: false, corrige_precio: false, repone: false }))
+const nc = leerEvento(ev0('nota_credito', { factura_id: 'nc1', numero: '0001-00000123', total: 50517.5, devolucion_id: 'd1', secuencia: 1, gasto: 'descontado' }))
+const ordenB4 = agruparEventos([
+  { id: 'nc1', pedido_id: 'p1', tipo: 'nota_credito', detalle: { factura_id: 'nc1', numero: '1', devolucion_id: 'd1', secuencia: 1 }, fecha: '2026-10-05T17:00:00.100Z', persona_id: 'ana', persona: 'Ana' },
+  { id: 'e-d1', pedido_id: 'p1', tipo: 'devolucion_registrada', detalle: { devolucion_id: 'd1', secuencia: 1, devuelve_mercaderia: true, repone: false }, fecha: '2026-10-05T17:00:00.400Z', persona_id: 'ana', persona: 'Ana' },
+]).flatMap(en => en.eventos)
+
+const textoEntrada = (d: unknown) => {
+  const diff = d as DiffLineas
+  return textoDiff(diff)
+}
+
+const queso = (de: number, a: number) => ({ cambiados: [cambio('l1', 'Queso', de, a, 'kg')] })
+
+// 6
+const g6 = agruparEventos([ev('items_editados', 0, queso(40, 45)), ev('items_editados', 3, queso(45, 50))])
+// 7
+const g7 = agruparEventos([ev('items_editados', 0, queso(40, 45)), ev('items_editados', 6, queso(45, 50))])
+// 8
+const g8 = agruparEventos([
+  ev('items_editados', 0, queso(40, 45)),
+  ev('items_editados', 1, { agregados: [linea('l9', 'Sal', 1)] }, 'beto'),
+  ev('items_editados', 2, queso(45, 50)),
+])
+// 9
+const g9 = agruparEventos([ev('items_editados', 0, queso(40, 45)), ev('items_editados', 2, queso(45, 40))])
+// 10
+const g10 = agruparEventos([
+  ev('items_editados', 0, { agregados: [linea('l2', 'Sal', 2, 'Bolsa')] }),
+  ev('items_editados', 1, { quitados: [linea('l2', 'Sal', 2, 'Bolsa')] }),
+  ev('mensaje', 2, { accion: 'generado' }),
+])
+// 11
+const g11 = agruparEventos([ev('items_editados', 0, queso(40, 45)), ev('mensaje', 1, { accion: 'regenerado' })])
+// 12
+const g12 = agruparEventos([
+  ev('items_editados', 0, queso(40, 45)), ev('enviado', 1, { mensaje: 'hola' }), ev('items_editados', 2, queso(45, 50)),
+])
+// 13
+const malo = leerEvento(ev('items_editados', 0, { cambiados: 'no' }))
+// 15: creado y enviado en el mismo instante, enviado primero en la lista
+const g15 = agruparEventos([ev('enviado', 0, {}), ev('creado', 0, { origen: 'manual' })])
+
+// Generó → editó (borra el mensaje) → generó otra vez: la segunda se lee "Regeneró".
+const gRegen = agruparEventos([
+  ev('mensaje', 0, { accion: 'generado' }),
+  ev('enviado', 1, { mensaje: 'hola' }),
+  ev('items_editados', 10, queso(40, 45)),
+  ev('mensaje', 11, { accion: 'generado' }),
+])
+
+const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
+  { nombre: 'primer mensaje: Generó', real: gRegen[0]?.etiqueta, esperado: 'Generó el mensaje' },
+  { nombre: 'generado después de otro mensaje: Regeneró', real: gRegen[2]?.eventos.map(e => etiquetaEvento(e)).join(','), esperado: 'Editó ítems,Regeneró el mensaje' },
+  { nombre: '1 cantidad con unidad', real: partesDiff(queso(40, 45))[0].texto, esperado: 'Queso 40 → 45 kg' },
+  { nombre: '2a unidad null → kg', real: partesDiff({ cambiados: [cambio('l1', 'Queso', 40, 40, 'kg', null)] })[0].texto, esperado: 'Queso 40 → 40 kg' },
+  { nombre: '2b unidad kg → Caja', real: partesDiff({ cambiados: [cambio('l1', 'Queso', 40, 40, 'Caja', 'kg')] })[0].texto, esperado: 'Queso 40 kg → 40 Caja' },
+  { nombre: '3a agregó', real: partesDiff({ agregados: [linea('l2', 'Sal', 2, 'Bolsa')] })[0].texto, esperado: 'agregó Sal 2 Bolsa' },
+  { nombre: '3b quitó', real: partesDiff({ quitados: [linea('l3', 'Huevos', 90, 'unidades')] })[0].texto, esperado: 'quitó Huevos 90 unidades' },
+  {
+    nombre: '4 textoDiff completo',
+    real: textoDiff({ cambiados: [cambio('l1', 'Queso', 40, 45, 'kg')], agregados: [linea('l2', 'Sal', 2, 'Bolsa')] }),
+    esperado: 'Editó ítems: Queso 40 → 45 kg; agregó Sal 2 Bolsa',
+  },
+  { nombre: '5 decimales', real: partesDiff({ cambiados: [cambio('l1', 'Harina', 1.5, 2.25, 'kg')] })[0].texto, esperado: 'Harina 1,5 → 2,25 kg' },
+  { nombre: '5b descripción + cantidad', real: partesDiff({ cambiados: [cambio('l1', 'Bolsas 20x30', 10, 12, null, null, 'Bolsas chicas')] })[0].texto, esperado: 'Bolsas chicas → Bolsas 20x30: 10 → 12' },
+  { nombre: '5c solo descripción', real: partesDiff({ cambiados: [cambio('l1', 'Bolsas 20x30', 10, 10, null, null, 'Bolsas chicas')] })[0].texto, esperado: 'Bolsas chicas → Bolsas 20x30' },
+  { nombre: '6 mismo usuario a 3 min: una entrada', real: g6.length, esperado: 1 },
+  { nombre: '6 combinado 40 → 50', real: textoEntrada(g6[0]?.eventos[0]?.d), esperado: 'Editó ítems: Queso 40 → 50 kg' },
+  { nombre: '6 rango desde/hasta', real: g6[0]?.desde !== g6[0]?.hasta, esperado: true },
+  { nombre: '7 a 6 min: dos entradas', real: g7.length, esperado: 2 },
+  { nombre: '8 otro usuario en el medio: tres entradas', real: g8.length, esperado: 3 },
+  { nombre: '9 vuelve al valor original: sin entrada', real: g9.length, esperado: 0 },
+  { nombre: '10 agregado y quitado desaparece, queda el mensaje', real: g10.map(e => e.etiqueta).join(','), esperado: 'Generó el mensaje' },
+  { nombre: '11 ítems + mensaje: una entrada "Editó el pedido"', real: `${g11.length}|${g11[0]?.etiqueta}|${g11[0]?.eventos.length}`, esperado: '1|Editó el pedido|2' },
+  { nombre: '12 enviado corta el grupo', real: g12.length, esperado: 3 },
+  { nombre: '13 detalle mal formado', real: `${malo.d}|${etiquetaEvento(malo)}`, esperado: 'null|Editó ítems' },
+  { nombre: '13b tipo desconocido no tira', real: agruparEventos([ev('otro', 0, null)])[0]?.etiqueta, esperado: 'otro' },
+  { nombre: '14 local con de null', real: etiquetaEvento(leerEvento(ev('local_cambiado', 0, { de: null, a: { id: 'x', nombre: 'Paraguay 388' } }))), esperado: 'Asignó el local de facturación' },
+  { nombre: '14b local con de', real: etiquetaEvento(leerEvento(ev('local_cambiado', 0, { de: { id: 'y', nombre: 'A' }, a: { id: 'x', nombre: 'B' } }))), esperado: 'Cambió el local de facturación' },
+  { nombre: '15 empate creado / enviado', real: g15.map(e => e.tipo).join(','), esperado: 'creado,enviado' },
+  // A2b: remitos con kg
+  { nombre: 'A2b remito_editado solo kg', real: remitoEditadoKg.d && 'cambiados' in remitoEditadoKg.d ? partesDiff(remitoEditadoKg.d as DiffLineas)[0]?.texto : null, esperado: 'Queso Barra 2 Caja · 32,9 → 33,4 kg' },
+  { nombre: 'A2b dos ediciones de kg se combinan', real: partesDiff(dosEdicionesKg)[0]?.texto, esperado: 'Queso Barra 2 Caja · 32,9 → 33 kg' },
+  { nombre: 'A2b kg que vuelven al original: sin cambio', real: partesDiff(combinarDiffs([{ cambiados: [conKg(2, 2, 32.9, 33.4)] }, { cambiados: [conKg(2, 2, 33.4, 32.9)] }])).length, esperado: 0 },
+  { nombre: 'A2b cajas y kg', real: partesDiff({ cambiados: [conKg(2, 3, 33.4, 49.9)] })[0]?.texto, esperado: 'Queso Barra 2 → 3 Caja (33,4 → 49,9 kg)' },
+  { nombre: 'A2b agregado con kg', real: partesDiff({ agregados: [{ ...linea('r2', 'Queso Barra', 2, 'Caja'), cantidad_base: 33.4, unidad_base: 'kg' }] })[0]?.texto, esperado: 'agregó Queso Barra 2 Caja (33,4 kg)' },
+  { nombre: 'A2b remito desde factura parsea', real: remitoFactura.tipo === 'remito_creado' && remitoFactura.d ? `${remitoFactura.d.origen}|${remitoFactura.d.factura_numero}|${partesLineas(remitoFactura.d.lineas ?? [])[0]?.texto}` : null, esperado: 'factura|A-1|Queso Barra 2 Caja (33,4 kg)' },
+  { nombre: 'A2b remito_creado viejo sigue parseando', real: remitoViejo.d != null, esperado: true },
+  { nombre: 'A2b remito_creado de backfill parsea', real: remitoBackfill.d != null, esperado: true },
+  { nombre: 'A2b cabecera del remito', real: textosCabeceraRemito({ fecha: { de: '2026-10-03', a: '2026-10-04' }, numero: { de: null, a: '0001-123' } }).join(' | '), esperado: 'Fecha: 03/10 → 04/10 | N° del proveedor: — → 0001-123' },
+  { nombre: 'creado desde solicitud', real: etiquetaEvento(leerEvento(ev('creado', 0, { origen: 'solicitud', solicitud_id: 's1' }))), esperado: 'Creado desde una solicitud' },
+  // B4: devoluciones y notas de crédito
+  { nombre: 'B4 devolución con mercadería', real: `${etiquetaEvento(devMerc)} · ${textosB4(devMerc)}`, esperado: 'Devolvió mercadería al proveedor · D-0037-01 · Mercadería en mal estado · El proveedor repone' },
+  { nombre: 'B4 reclamo a la factura', real: `${etiquetaEvento(devReclamo)} · ${textosB4(devReclamo)}`, esperado: 'Registró un reclamo a la factura · D-0037-02 · Facturado y no entregado' },
+  { nombre: 'B4 corrección de precio', real: etiquetaEvento(leerEvento(ev0('devolucion_registrada', { devolucion_id: 'd3', secuencia: 3, motivo: 'Precio mal facturado', devuelve_mercaderia: false, corrige_precio: true, repone: false }))), esperado: 'Registró una corrección de precio' },
+  { nombre: 'B4 devolución anulada', real: textosB4(leerEvento(ev0('devolucion_anulada', { devolucion_id: 'd1', secuencia: 1, motivo_anulacion: 'se cargó por error', tenia_nota_credito: true }))), esperado: 'D-0037-01 · Motivo: se cargó por error · también se anuló su nota de crédito' },
+  { nombre: 'B4 nota de crédito', real: `${etiquetaEvento(nc)} · ${textosB4(nc)}`, esperado: 'Nota de crédito · D-0037-01 · N° 0001-00000123 · $ 50.517,50 · descontada del gasto' },
+  { nombre: 'B4 NC anulada', real: etiquetaEvento(leerEvento(ev0('nota_credito_anulada', { factura_id: 'nc1', numero: '0001-00000123', motivo: 'x' }))), esperado: 'Anuló la nota de crédito' },
+  { nombre: 'B4 la lineas de la devolución se leen', real: devMerc.tipo === 'devolucion_registrada' && devMerc.d ? partesLineas(devMerc.d.lineas ?? [])[0]?.texto : null, esperado: 'Queso Barra 1 Caja (16,4 kg)' },
+  { nombre: 'B4 la NC de la misma transacción va después de su devolución', real: ordenB4.map(e => e.tipo).join(','), esperado: 'devolucion_registrada,nota_credito' },
+  { nombre: 'B4 detalle mal formado: solo la etiqueta', real: leerEvento(ev0('devolucion_registrada', { secuencia: 1 })).d, esperado: null },
+]
+
+let fallas = 0
+for (const c of casos) {
+  const ok = c.real === c.esperado
+  if (!ok) fallas++
+  console.log(`${ok ? 'OK ' : 'MAL'} ${c.nombre}${ok ? '' : ` → ${JSON.stringify(c.real)} (esperado ${JSON.stringify(c.esperado)})`}`)
+}
+console.log(fallas ? `\n${fallas} fallas` : `\n${casos.length} casos OK`)
+process.exit(fallas ? 1 : 0)

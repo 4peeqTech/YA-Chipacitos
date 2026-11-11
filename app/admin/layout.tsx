@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { LayoutDashboard, Wallet, BarChart3, RefreshCw, ListTodo, HelpCircle } from 'lucide-react'
@@ -5,6 +6,8 @@ import Header from '@/components/ui/Header'
 import BottomNav from '@/components/ui/BottomNav'
 import Sidebar from '@/components/ui/Sidebar'
 import NotificationBell from '@/components/ui/NotificationBell'
+import AvisoRedireccion from '@/components/ui/AvisoRedireccion'
+import { ProveedorAcceso } from '@/components/ui/AccesoModulos'
 import { IconClipboardCheck } from '@tabler/icons-react'
 import { esRolConModulos, getModuloPorPath } from '@/lib/modulos'
 
@@ -49,6 +52,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
+      {/* Cuenta el rebote de proxy.ts cuando el link pedía un módulo sin permiso */}
+      <Suspense fallback={null}><AvisoRedireccion /></Suspense>
+
       {/* Sidebar solo desktop */}
       <Sidebar
         nombre={profile?.nombre || 'Admin'}
@@ -77,7 +83,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </header>
 
         <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6">
-          {children}
+          {/* Los links entre pantallas se apagan si el módulo destino no está permitido */}
+          <ProveedorAcceso rol={profile.rol} modulosPermitidos={modulosPermitidos}>
+            {children}
+          </ProveedorAcceso>
         </main>
 
         {/* Bottom nav solo mobile — fijo abajo */}

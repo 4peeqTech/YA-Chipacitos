@@ -3,22 +3,34 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import Card from '@/components/ui/Card'
 import Link from 'next/link'
+import { tieneAccesoCompras } from '@/lib/modulos'
+import TableroCompras, { type ResumenTablero } from './TableroCompras'
 
 export default async function AdminDashboard() {
   const supabase = await createClient()
   const hoy = new Date().toISOString().split('T')[0]
+
+  // B5: la franja de compras, solo para quien tiene compras (la RPC además lo exige).
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: perfil } = user
+    ? await supabase.from('profiles').select('rol, modulos_permitidos').eq('id', user.id).single()
+    : { data: null }
+  const conCompras = tieneAccesoCompras(perfil?.rol, perfil?.modulos_permitidos)
 
   const [
     { data: ventasHoy },
     { count: pedidosPendientes },
     { count: pedidosEnviados },
     { count: alertas },
+    tablero,
   ] = await Promise.all([
     supabase.from('ventas_posberry').select('importe').eq('fecha', hoy),
     supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('estado', 'pendiente'),
     supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('estado', 'enviado').gte('enviado_at', hoy),
     supabase.from('conciliaciones').select('*', { count: 'exact', head: true }).eq('tiene_alerta', true).eq('fecha', hoy),
+    conCompras ? supabase.rpc('compras_tablero_resumen') : Promise.resolve(null),
   ])
+  if (tablero?.error) console.error('[dashboard] compras_tablero_resumen', tablero.error.message)
 
   const totalVendido = ventasHoy?.reduce((s, v) => s + (v.importe || 0), 0) || 0
 
@@ -58,6 +70,15 @@ export default async function AdminDashboard() {
           </Link>
         </div>
       ) : null}
+
+      {conCompras && (
+        <TableroCompras
+          resumen={(tablero?.data ?? null) as ResumenTablero | null}
+          error={!!tablero?.error}
+          rol={perfil?.rol ?? null}
+          modulosPermitidos={perfil?.modulos_permitidos ?? []}
+        />
+      )}
 
       {/* Accesos rápidos */}
       <div>

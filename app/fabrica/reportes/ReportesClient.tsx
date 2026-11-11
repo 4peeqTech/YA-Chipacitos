@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { BarChart3, CalendarRange, Snowflake, Gauge, Target, Undo2 } from 'lucide-react'
+import { IconArrowBackUp, IconCalendarWeek, IconChartBar, IconGauge, IconSnowflake, IconTarget } from '@tabler/icons-react'
 import { calcularRangoPreset, fechaEnRango, type PresetRango, type RangoFechas } from '@/lib/compras/rangoFechas'
 import {
   calcularCumplimientoProyeccion, calcularKpisFabrica,
@@ -13,6 +13,7 @@ import EmbolsadoResumen from '@/components/fabrica/reportes/EmbolsadoResumen'
 import DevolucionesResumen from '@/components/fabrica/reportes/DevolucionesResumen'
 import RendimientoPorOperario from '@/components/fabrica/reportes/RendimientoPorOperario'
 import CumplimientoProyeccion from '@/components/fabrica/reportes/CumplimientoProyeccion'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 export type ProduccionFilaUI = ProduccionFila
 export type EmbolsadoFilaUI = EmbolsadoFila
@@ -28,11 +29,11 @@ type Tab = 'produccion' | 'embolsado' | 'devoluciones' | 'rendimiento' | 'cumpli
 type PresetUI = PresetRango | 'personalizado'
 
 const TABS: { key: Tab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
-  { key: 'produccion', label: 'Producción', icon: BarChart3 },
-  { key: 'embolsado', label: 'Congelados', icon: Snowflake },
-  { key: 'devoluciones', label: 'Devoluciones', icon: Undo2 },
-  { key: 'rendimiento', label: 'Rendimiento', icon: Gauge },
-  { key: 'cumplimiento', label: 'Cumplimiento', icon: Target },
+  { key: 'produccion', label: 'Producción', icon: IconChartBar },
+  { key: 'embolsado', label: 'Congelados', icon: IconSnowflake },
+  { key: 'devoluciones', label: 'Devoluciones', icon: IconArrowBackUp },
+  { key: 'rendimiento', label: 'Rendimiento', icon: IconGauge },
+  { key: 'cumplimiento', label: 'Cumplimiento', icon: IconTarget },
 ]
 
 const PRESETS: { key: PresetUI; label: string }[] = [
@@ -108,13 +109,13 @@ export default function ReportesClient({
     <div className="w-full px-4 py-4 lg:px-8 lg:py-6 space-y-4 max-w-2xl mx-auto">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-['Syne'] font-bold text-[#f0f0f0]">
-          <BarChart3 size={20} className="text-[#e8c547]" /> Reportes
+          <IconChartBar size={20} className="text-[#e8c547]" /> Reportes
         </h1>
         <p className="text-[#888] text-xs mt-0.5">Producción, congelados, devoluciones, rendimiento y cumplimiento del período elegido.</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <CalendarRange size={14} className="text-[#666]" />
+        <IconCalendarWeek size={14} className="text-[#666]" />
         {PRESETS.map(p => (
           <button
             key={p.key}
@@ -137,21 +138,13 @@ export default function ReportesClient({
       </div>
 
       {preset === 'personalizado' && (
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="date"
-            value={rangoPersonalizado.desde}
-            onChange={e => setRangoPersonalizado(prev => ({ ...prev, desde: e.target.value }))}
-            className={`${inputClass} flex-1 min-w-[132px]`}
-          />
-          <span className="text-[#666] text-xs shrink-0">al</span>
-          <input
-            type="date"
-            value={rangoPersonalizado.hasta}
-            onChange={e => setRangoPersonalizado(prev => ({ ...prev, hasta: e.target.value }))}
-            className={`${inputClass} flex-1 min-w-[132px]`}
-          />
-        </div>
+        <DateRangePicker
+          atajos={false}
+          limpiable={false}
+          desde={rangoPersonalizado.desde}
+          hasta={rangoPersonalizado.hasta}
+          onChange={(desde, hasta) => setRangoPersonalizado(prev => ({ ...prev, desde, hasta }))}
+        />
       )}
 
       <KpisFabrica kpis={kpis} />

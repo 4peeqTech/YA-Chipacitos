@@ -1,0 +1,1036 @@
+'use client'
+
+import { useMemo, useRef, useState, useTransition } from 'react'
+import Link from 'next/link'
+import {
+  AlertTriangle, ArrowRight, Ban, Check, Info, Loader2, PackageCheck, PackageX, Plus, ReceiptText, Share2, Trash2, Undo2, Wallet, X,
+} from 'lucide-react'
+import SelectBuscador, { type OpcionSelect } from '@/components/ui/SelectBuscador'
+import InputNumero from '@/components/ui/InputNumero'
+import DatePicker from '@/components/ui/DatePicker'
+import Modal from '@/components/ui/Modal'
+import { ChipGroup, SegmentedControl } from '@/components/ui/Chip'
+import { Field, controlClass } from '@/components/ui/Field'
+import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
+import { formatearFecha, formatearFechaHora, formatearMonedaExacta } from '@/lib/formato'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { rutaDe } from '@/lib/compras/rutas'
+import { codigoPedido } from '@/lib/compras/codigos'
+import {
+  ALICUOTAS, avisaPorPapel, diferenciaPapel, etiquetaAlicuota, subtotalLinea, variacionPrecio,
+} from '@/lib/compras/totalesFactura'
+import type { DiferenciaVista } from '@/lib/compras/diferencias'
+import {
+  avisoNominal, avisoRemito, cortoBase, equivalenteBase, etiquetaCobraPor, numeroCorto, type CobraPor,
+} from '@/lib/compras/unidades'
+import { conUnidad } from '../modelo'
+import type { NombresInsumo } from '../remitos/RemitoForm'
+import type { ImpactoItem } from '../remitos/modelo'
+import {
+  anularFactura, buscarGastosCandidatos, confirmarFactura, descartarFactura, guardarFactura, type GastoCandidato,
+} from './acciones'
+import CabeceraFactura from './CabeceraFactura'
+import CompartirFacturaModal from './CompartirFacturaModal'
+import ConfirmarFacturaModal, { type EleccionGasto } from './ConfirmarFacturaModal'
+import DiferenciasPanel from './DiferenciasPanel'
+import DevolucionModal, { type DiferenciaOrigen } from '../devoluciones/DevolucionModal'
+import NotaCreditoModal from '../devoluciones/NotaCreditoModal'
+import {
+  agregarDelPedido, armarEnvio, cambiarPrecioPor, cambiosDePrecio, estadoInicial, etiquetaPrecioPor, facturaDuplicada,
+  faltantesDelPedido, lineaLibre, mensajeProblema, muestraCobraPor, pedidosFacturables, precioRefEnLinea,
+  preciosDelProveedor, resumenRecepcion, tieneRemitos, totales, validar,
+  type ContextoPedido, type EstadoFactura, type FacturaVista, type LineaFactura,
+} from './modelo'
+import type { FacturaItemFila, InsumoFactura, PedidoFactura, PrecioRef } from './datos'
+import type { LineaPendiente } from '../datos'
+
+const botonPrimario = 'presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50'
+const botonSecundario = 'presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2 disabled:opacity-50'
+
+/** Las dos salidas de FA1/FA2, con lo que pasa con el stock en cada una. */
+function PreguntaMercaderia({
+  open, numero, pedido, onResponder, onCerrar,
+}: {
+  open: boolean
+  numero: string
+  pedido: PedidoFactura | null
+  onResponder: (llego: boolean) => void
+  onCerrar: () => void
+}) {
+  const opciones: { llego: boolean; icono: typeof PackageCheck; titulo: string; detalle: string }[] = [
+    {
+      llego: true,
+      icono: PackageCheck,
+      titulo: 'Sí, ya llegó',
+      detalle: 'Registramos un remito con lo que dice la factura y el stock suma.',
+    },
+    {
+      llego: false,
+      icono: PackageX,
+      titulo: 'No, llega después',
+      detalle: 'El pedido queda “Facturado · falta recibir”. El stock no se mueve hasta que cargues el remito.',
+    },
+  ]
+  return (
+    <Modal open={open} onClose={onCerrar} title="¿Ya llegó la mercadería?" size="lg">
+      <div className="space-y-4">
+        <CabeceraFactura numero={numero} pedido={pedido} />
+        <p className="text-sm text-muted">
+          Este pedido no tiene ningún remito cargado. Contanos si la mercadería ya está en el depósito: de eso
+          depende que el stock suba ahora o cuando llegue.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {opciones.map(o => (
+            <button
+              key={o.titulo}
+              type="button"
+              onClick={() => onResponder(o.llego)}
+              className="presionable flex flex-col items-start gap-2 rounded-xl border border-border bg-surface2 p-4 text-left hover:border-accent"
+            >
+              <o.icono size={22} className="text-accent-fg" />
+              <span className="text-sm font-bold text-text">{o.titulo}</span>
+              <span className="text-xs text-muted">{o.detalle}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-end border-t border-border pt-3">
+          <button type="button" onClick={onCerrar} className={botonSecundario}>Cancelar</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// TODO(config): motivos de anulación a compras_config si Marcos quiere editarlos.
+const MOTIVOS_ANULAR = ['Cargada al pedido equivocado', 'Datos mal cargados', 'La anuló el proveedor', 'Otro'] as const
+type MotivoAnular = (typeof MOTIVOS_ANULAR)[number]
+
+/** FA8: anular pide motivo, así que va en su propio paso en vez del confirm común. */
+function AnularFacturaModal({
+  open, numero, pedido, generoRemito, gasto, bloqueo, pendiente, onAnular, onCerrar,
+}: {
+  open: boolean
+  numero: string
+  pedido: PedidoFactura | null
+  generoRemito: boolean
+  /** Qué pasa con su gasto al anular. */
+  gasto: 'se_borra' | 'se_desvincula' | null
+  /** Por qué no se puede anular todavía (lo mismo que frena la RPC). */
+  bloqueo: string | null
+  pendiente: boolean
+  onAnular: (motivo: string) => void
+  onCerrar: () => void
+}) {
+  const [motivo, setMotivo] = useState<MotivoAnular | ''>('')
+  const [otro, setOtro] = useState('')
+  const [intento, setIntento] = useState(false)
+  const texto = motivo === 'Otro' ? otro.trim() : motivo
+
+  function anular() {
+    setIntento(true)
+    if (!texto) return
+    onAnular(texto)
+  }
+
+  return (
+    <Modal open={open} onClose={onCerrar} title="Anular factura" accent="red" size="lg">
+      <div className="space-y-5">
+        <CabeceraFactura numero={numero} pedido={pedido} />
+        {bloqueo ? (
+          <p className="flex items-start gap-2 rounded-xl border border-warning bg-warning-bg px-3 py-2.5 text-sm font-medium text-warning">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" /> {bloqueo}
+          </p>
+        ) : (
+          <p className="text-sm text-text">
+            La factura queda registrada como anulada y el pedido vuelve a estar sin facturar.
+            {generoRemito && <> Se elimina el remito que había generado y el stock vuelve atrás.</>}
+            {gasto === 'se_borra' && <> Se borra el gasto pendiente de pago que había creado.</>}
+            {gasto === 'se_desvincula' && <> El gasto que habías cargado a mano se desvincula y queda anotado en sus observaciones.</>}
+          </p>
+        )}
+
+        {!bloqueo && (<>
+        <Field label="¿Por qué la anulás?" obligatorio>
+          <ChipGroup
+            opciones={MOTIVOS_ANULAR.map(m => ({ value: m, label: m }))}
+            value={motivo as MotivoAnular}
+            onChange={setMotivo}
+          />
+        </Field>
+
+        {motivo === 'Otro' && (
+          <Field label="Contanos el motivo" obligatorio>
+            <textarea
+              aria-label="Motivo de la anulación"
+              value={otro}
+              onChange={e => setOtro(e.target.value)}
+              rows={3}
+              maxLength={500}
+              autoFocus
+              placeholder="Ej.: el proveedor mandó la factura corregida"
+              className={controlClass}
+            />
+          </Field>
+        )}
+
+        {intento && !texto && (
+          <p className="text-sm text-brand-red">{motivo === 'Otro' ? 'Escribí el motivo.' : 'Elegí un motivo.'}</p>
+        )}
+
+        <p className="flex items-start gap-2 text-xs text-muted">
+          <Info size={14} className="mt-0.5 shrink-0" />
+          Queda registrado con quién y cuándo. Después podés cargar la factura corregida en el pedido que corresponda.
+        </p>
+        </>)}
+
+        <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onCerrar} disabled={pendiente} className={botonSecundario}>Volver</button>
+          {!bloqueo && (
+            <button
+              type="button"
+              onClick={anular}
+              disabled={pendiente}
+              className="presionable min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+            >
+              {pendiente ? <Loader2 size={16} className="animate-spin" /> : <Ban size={16} />} Anular factura
+            </button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+export default function FacturaForm({
+  factura,
+  items,
+  facturas,
+  pedidos,
+  pedidoIdInicial,
+  lineas,
+  precios,
+  insumos,
+  stockPorItem,
+  diferencias,
+  localGasto,
+  localesGasto,
+  onCambios,
+  onListo,
+  onConfirmada,
+  onCancelar,
+}: {
+  factura: FacturaVista | null
+  items: FacturaItemFila[]
+  facturas: FacturaVista[]
+  pedidos: PedidoFactura[]
+  pedidoIdInicial: string | null
+  lineas: LineaPendiente[]
+  precios: PrecioRef[]
+  insumos: InsumoFactura[]
+  stockPorItem: Record<string, number>
+  /** Diferencias con lo recibido de esta factura (F5). */
+  diferencias: DiferenciaVista[]
+  /** Local con el que viene elegido el gasto al confirmar. */
+  localGasto: string
+  localesGasto: string[]
+  onCambios: () => void
+  onListo: () => void
+  /** Después de confirmar: con diferencias, la pantalla deja la factura abierta para resolverlas. */
+  onConfirmada?: (facturaId: string, diferencias: number) => void
+  onCancelar: () => void
+}) {
+  const confirmar = useConfirmar()
+  const toast = useToast()
+  const [isPending, startTransition] = useTransition()
+  const [pedidoId, setPedidoId] = useState(factura?.pedidoId ?? pedidoIdInicial ?? '')
+  const [intentoGuardar, setIntentoGuardar] = useState(false)
+  const [preguntaAbierta, setPreguntaAbierta] = useState(false)
+  const [anularAbierto, setAnularAbierto] = useState(false)
+  const [compartirAbierto, setCompartirAbierto] = useState(false)
+  // B4: devolución desde la factura (o desde una diferencia) y NC que llega después.
+  const [registrando, setRegistrando] = useState<{ diferencia: DiferenciaOrigen | null } | null>(null)
+  const [cargandoNc, setCargandoNc] = useState<string | null>(null)
+  // Paso final de confirmación: llego = respuesta de FA1/FA2 (null si no hubo que preguntar).
+  const [confirmacion, setConfirmacion] = useState<{ llego: boolean | null } | null>(null)
+  const [candidatos, setCandidatos] = useState<GastoCandidato[] | null>(null)
+  const [errorCandidatos, setErrorCandidatos] = useState<string | null>(null)
+  // Si se cierra y se vuelve a abrir rápido, la búsqueda vieja no pisa a la nueva.
+  const busqueda = useRef(0)
+
+  const estadoFactura = factura?.estado ?? 'borrador'
+  const soloLectura = estadoFactura !== 'borrador'
+
+  const insumosPorId = useMemo(() => new Map(insumos.map(i => [i.id, i])), [insumos])
+  const pedido = useMemo(() => pedidos.find(p => p.id === pedidoId) ?? null, [pedidos, pedidoId])
+  const lineasDelPedido = useMemo(() => lineas.filter(l => l.pedido_id === pedidoId), [lineas, pedidoId])
+
+  const ctx = useMemo<ContextoPedido | null>(() => {
+    if (!pedido) return null
+    return { pedido, lineas: lineasDelPedido, precios: preciosDelProveedor(precios, pedido.proveedor_id), insumos: insumosPorId }
+  }, [pedido, lineasDelPedido, precios, insumosPorId])
+
+  const [estado, setEstado] = useState<EstadoFactura>(() => estadoInicial(factura, items, ctx))
+
+  // Las líneas que teníamos al abrir: la RPC las usa para no borrar lo que la
+  // pantalla nunca llegó a mostrar.
+  const idsConocidos = useRef<string[]>(items.map(i => i.id))
+  // Id de la factura una vez creada. Sin esto, si el guardado anda pero la
+  // confirmación falla, el reintento crearía una segunda factura del mismo
+  // pedido y chocaría contra el índice único.
+  const idGuardado = useRef<string | null>(factura?.id ?? null)
+
+  const nombres = useMemo(() => {
+    const res: Record<string, NombresInsumo> = {}
+    for (const i of insumos) res[i.id] = { nombre: i.nombre, unidad: i.unidad }
+    for (const l of lineasDelPedido) {
+      if (l.item_id && !res[l.item_id]) res[l.item_id] = { nombre: l.descripcion ?? 'Insumo', unidad: l.unidad }
+    }
+    return res
+  }, [insumos, lineasDelPedido])
+
+  const t = useMemo(() => totales(estado), [estado])
+  const duplicada = useMemo(
+    () => facturaDuplicada(estado.numero, pedido?.proveedor_id ?? null, factura?.id ?? null, facturas),
+    [estado.numero, pedido, factura, facturas],
+  )
+  const faltantes = useMemo(() => faltantesDelPedido(estado, ctx), [estado, ctx])
+  const problema = validar(estado)
+  const diferencia = diferenciaPapel(t.total, estado.totalPapel)
+  const avisaPapel = avisaPorPapel(t.total, estado.totalPapel)
+  const sinRemitos = pedido != null && !tieneRemitos(pedido)
+
+  /** Lo que sumaría al stock el remito "desde factura" (FA1). */
+  const impactoStock = useMemo<ImpactoItem[]>(() => {
+    const porItem = new Map<string, number>()
+    for (const l of estado.lineas) {
+      if (!l.itemId || !l.cantidad || l.cantidad <= 0) continue
+      porItem.set(l.itemId, (porItem.get(l.itemId) ?? 0) + l.cantidad)
+    }
+    return [...porItem.entries()].map(([itemId, delta]) => {
+      const antes = stockPorItem[itemId] ?? 0
+      return { itemId, delta, antes, despues: antes + delta }
+    })
+  }, [estado.lineas, stockPorItem])
+
+  // E7: "Actualizar precios" también cambia cómo cobra el proveedor (con aviso).
+  const cambiosPrecio = useMemo(() => cambiosDePrecio(estado), [estado])
+  const preciosACambiar = cambiosPrecio.precios
+
+  function cambiar(fn: (e: EstadoFactura) => EstadoFactura) {
+    setEstado(fn)
+    onCambios()
+  }
+
+  function actualizarLinea(clave: string, fn: (l: LineaFactura) => LineaFactura) {
+    cambiar(e => ({ ...e, lineas: e.lineas.map(l => (l.clave === clave ? fn(l) : l)) }))
+  }
+
+  function elegirPedido(id: string) {
+    setPedidoId(id)
+    const p = pedidos.find(x => x.id === id) ?? null
+    const nuevas = p
+      ? estadoInicial(null, [], {
+        pedido: p,
+        lineas: lineas.filter(l => l.pedido_id === id),
+        precios: preciosDelProveedor(precios, p.proveedor_id),
+        insumos: insumosPorId,
+      })
+      : estadoInicial(null, [], null)
+    setEstado(e => ({ ...nuevas, numero: e.numero, fecha: e.fecha, vencimiento: e.vencimiento }))
+    setIntentoGuardar(false)
+    onCambios()
+  }
+
+  /** Guarda el borrador y devuelve su id, o null si algo falló (ya avisado). */
+  async function guardar(): Promise<string | null> {
+    const yaExiste = idGuardado.current
+    const r = await guardarFactura({
+      facturaId: yaExiste,
+      pedidoId: yaExiste ? null : pedidoId,
+      numero: estado.numero.trim(),
+      fecha: estado.fecha,
+      vencimiento: estado.vencimiento || null,
+      totalPapel: estado.totalPapel,
+      observaciones: estado.observaciones.trim() || null,
+      lineas: armarEnvio(estado),
+      idsConocidos: idsConocidos.current,
+    })
+    if (!r.ok) { toast.error(r.error); return null }
+    idGuardado.current = r.data.id
+    // Las líneas nuevas ya tienen id: se lo pegamos a las del formulario para
+    // que un segundo guardado (o un reintento) las actualice en vez de
+    // duplicarlas, y para que la RPC vea que las conocemos todas.
+    idsConocidos.current = r.data.items
+    setEstado(e => ({ ...e, lineas: e.lineas.map((l, i) => ({ ...l, id: r.data.items[i] ?? l.id })) }))
+    return r.data.id
+  }
+
+  function revisar(paraConfirmar: boolean): boolean {
+    if (!pedido) { toast.error('Elegí el pedido al que corresponde la factura.'); return false }
+    const p = validar(estado, paraConfirmar)
+    if (p) { setIntentoGuardar(true); toast.error(mensajeProblema(p)); return false }
+    if (duplicada) {
+      setIntentoGuardar(true)
+      toast.error(`Ya cargaste esa factura de ${pedido.proveedores?.nombre ?? 'este proveedor'} (pedido ${duplicada.codigo}).`)
+      return false
+    }
+    return true
+  }
+
+  function onGuardarBorrador() {
+    if (!revisar(false)) return
+    startTransition(async () => {
+      const id = await guardar()
+      if (!id) return
+      toast.success(factura ? 'Borrador actualizado' : 'Factura guardada como borrador')
+      onListo()
+    })
+  }
+
+  function onConfirmar() {
+    if (!revisar(true)) return
+    if (sinRemitos) { setPreguntaAbierta(true); return }
+    pedirConfirmacion(null)
+  }
+
+  /** Abre el paso final y, mientras tanto, busca si el gasto ya estaba cargado a mano (FA10). */
+  function pedirConfirmacion(llego: boolean | null) {
+    setPreguntaAbierta(false)
+    setConfirmacion({ llego })
+    setCandidatos(null)
+    setErrorCandidatos(null)
+    const n = ++busqueda.current
+    if (!pedido) { setCandidatos([]); return }
+    buscarGastosCandidatos({ proveedorId: pedido.proveedor_id, monto: t.total, fecha: estado.fecha })
+      .then(r => {
+        if (n !== busqueda.current) return
+        setCandidatos(r.ok ? r.data : [])
+        setErrorCandidatos(r.ok ? null : r.error)
+      })
+      .catch(() => {
+        if (n !== busqueda.current) return
+        setCandidatos([])
+        setErrorCandidatos('No pudimos buscar los gastos cargados a mano.')
+      })
+  }
+
+  function cerrarConfirmacion() {
+    busqueda.current++
+    setConfirmacion(null)
+  }
+
+  function onConfirmarFinal(gasto: EleccionGasto) {
+    const llego = confirmacion?.llego ?? null
+    startTransition(async () => {
+      const id = await guardar()
+      if (!id) return
+      const r = await confirmarFactura({
+        facturaId: id,
+        mercaderiaLlego: llego,
+        actualizarPrecios: estado.actualizarPrecios,
+        gastoExistenteId: gasto.gastoExistenteId,
+        gastoLocal: gasto.gastoLocal,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      const partes = ['Factura confirmada']
+      if (r.data.remitoGenerado) partes.push(`remito ${r.data.remitoGenerado}`)
+      partes.push(r.data.gastoCreado ? 'gasto creado' : 'gasto vinculado')
+      if (r.data.preciosActualizados > 0) {
+        partes.push(r.data.preciosActualizados === 1 ? '1 precio de referencia actualizado' : `${r.data.preciosActualizados} precios de referencia actualizados`)
+      }
+      if (r.data.diferencias > 0) {
+        partes.push(r.data.diferencias === 1 ? '1 diferencia con lo recibido' : `${r.data.diferencias} diferencias con lo recibido`)
+      }
+      toast.success(partes.join(' · '))
+      setConfirmacion(null)
+      if (onConfirmada) onConfirmada(id, r.data.diferencias)
+      else onListo()
+    })
+  }
+
+  function onAnular(motivo: string) {
+    if (!factura) return
+    startTransition(async () => {
+      const r = await anularFactura({ facturaId: factura.id, motivo })
+      if (!r.ok) { toast.error(r.error); return }
+      const partes = ['Factura anulada']
+      if (r.data.remitoEliminado) partes.push(`remito ${r.data.remitoEliminado} eliminado`)
+      if (r.data.gasto === 'eliminado') partes.push('gasto borrado')
+      if (r.data.gasto === 'desvinculado') partes.push('gasto desvinculado')
+      toast.success(partes.join(' · '))
+      onListo()
+    })
+  }
+
+  // Lo mismo que frena compras_anular_factura, dicho antes de pedir el motivo.
+  const ajustadas = diferencias.filter(d => d.resolucion === 'ajusta_stock').length
+  // B4 (E18): sus notas de crédito confirmadas.
+  const notasCredito = factura ? facturas.filter(f => f.tipoComprobante === 'nota_credito' && f.facturaOrigenId === factura.id && f.estado === 'confirmada') : []
+  const bloqueoAnular = notasCredito.length > 0
+    ? `Esta factura tiene notas de crédito (${notasCredito.map(n => `N° ${n.numero}${n.devolucionCodigo ? ` (${n.devolucionCodigo})` : ''}`).join(', ')}). Anulalas desde sus devoluciones antes de anular la factura.`
+    : factura?.gastoEstado === 'Pagado' || factura?.gastoEstado === 'Parcial'
+    ? `El gasto de esta factura ya está ${factura.gastoEstado === 'Pagado' ? 'pagado' : 'pagado en parte'}: no se puede anular. Para corregirla, vas a tener que registrar una nota de crédito.`
+    : ajustadas > 0
+      ? 'Esta factura tiene diferencias que ya ajustaron el stock. Revertí esos ajustes (en "Diferencias con lo recibido") antes de anularla.'
+      : null
+
+  function onDescartar() {
+    if (!factura) return
+    confirmar({
+      titulo: 'Descartar borrador',
+      mensaje: 'Se borra el borrador de la factura. No movió stock ni tocó el pedido, así que no queda rastro.',
+      textoConfirmar: 'Descartar',
+      peligroso: true,
+      onConfirmar: () => startTransition(async () => {
+        const r = await descartarFactura(factura.id)
+        if (!r.ok) { toast.error(r.error); return }
+        toast.success('Borrador descartado')
+        onListo()
+      }),
+    })
+  }
+
+  const opcionesPedido: OpcionSelect[] = pedidosFacturables(pedidos, facturas).map(p => ({
+    value: p.id,
+    label: `${codigoPedido(p.numero)} · ${p.proveedores?.nombre ?? '—'}${p.enviado_en ? ` — enviado ${formatearFecha(p.enviado_en.slice(0, 10))}` : ''}`,
+    grupo: p.estado_recepcion === 'recibido' ? 'Recibidos' : 'Esperando mercadería',
+  }))
+
+  return (
+    <div className="space-y-5">
+      {/* 1. Pedido */}
+      <section className="space-y-2">
+        <Field label="Pedido" obligatorio>
+          {factura ? (
+            <p className="flex min-h-11 items-center text-sm text-text">
+              {pedido
+                ? <LinkEntidad entidad={{ tipo: 'pedido', id: pedido.id }}>{codigoPedido(pedido.numero)}</LinkEntidad>
+                : <span className="font-mono tabular-nums">—</span>}
+              <span className="text-muted">&nbsp;·&nbsp;{pedido?.proveedores?.nombre ?? '—'}</span>
+            </p>
+          ) : (
+            <SelectBuscador value={pedidoId} onChange={elegirPedido} opciones={opcionesPedido} placeholderVacio="Elegí un pedido…" />
+          )}
+        </Field>
+        {pedido && (
+          <p className="text-xs text-muted">
+            {pedido.enviado_en && <>Enviado el {formatearFecha(pedido.enviado_en.slice(0, 10))} · </>}
+            {resumenRecepcion(pedido, lineasDelPedido)}
+          </p>
+        )}
+      </section>
+
+      {!pedido ? (
+        <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
+          Elegí el pedido para cargar su factura. Solo aparecen los pedidos enviados que todavía no tienen una.
+        </p>
+      ) : (
+        <>
+          {/* 2. Datos de la factura */}
+          <section className="grid gap-4 sm:grid-cols-[1fr_9rem_9rem]">
+            <Field label="Número de la factura" obligatorio>
+              <input
+                type="text"
+                inputMode="numeric"
+                aria-label="Número de la factura, como figura en el papel"
+                placeholder="0003-00012345"
+                disabled={soloLectura}
+                className={`${controlClass} min-h-11 font-mono tabular-nums ${intentoGuardar && (problema?.tipo === 'sin_numero' || duplicada) ? 'border-brand-red' : ''}`}
+                value={estado.numero}
+                onChange={e => { const v = e.target.value; cambiar(s => ({ ...s, numero: v })) }}
+              />
+            </Field>
+            <Field label="Fecha" obligatorio>
+              <DatePicker
+                ariaLabel="Fecha de la factura"
+                disabled={soloLectura}
+                className={`${controlClass} min-h-11 ${intentoGuardar && problema?.tipo === 'sin_fecha' ? 'border-brand-red' : ''}`}
+                value={estado.fecha}
+                onChange={fecha => cambiar(s => ({ ...s, fecha }))}
+              />
+            </Field>
+            <Field label="Vence">
+              {soloLectura && !estado.vencimiento ? (
+                <p className="flex min-h-11 items-center text-sm text-muted">Sin vencimiento</p>
+              ) : (
+                <DatePicker
+                  ariaLabel="Fecha de vencimiento de la factura"
+                  min={estado.fecha || undefined}
+                  limpiable
+                  disabled={soloLectura}
+                  className={`${controlClass} min-h-11 ${intentoGuardar && problema?.tipo === 'vencimiento_antes' ? 'border-brand-red' : ''}`}
+                  value={estado.vencimiento}
+                  onChange={vencimiento => cambiar(s => ({ ...s, vencimiento }))}
+                />
+              )}
+            </Field>
+          </section>
+
+          {duplicada && (
+            <p className="flex items-start gap-1.5 rounded-xl border border-warning bg-warning-bg px-3 py-2 text-xs font-medium text-warning">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              Ya cargaste una factura con este número para {pedido.proveedores?.nombre ?? 'este proveedor'}
+              {duplicada.pedidoNumero != null && <> (pedido <span className="font-mono tabular-nums">{duplicada.codigo}</span>)</>}.
+              Revisá el número antes de guardar.
+            </p>
+          )}
+
+          {/* 3. Líneas */}
+          <section className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-bold text-text">Qué dice la factura</h4>
+              <span className="text-xs text-muted">
+                {tieneRemitos(pedido) ? 'Prellenado con lo que llegó por remitos.' : 'Prellenado con lo que se pidió.'}
+              </span>
+            </div>
+
+            {estado.lineas.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted">
+                La factura todavía no tiene líneas. Agregá al menos una.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border rounded-xl border border-border">
+                {estado.lineas.map(l => {
+                  const refLinea = precioRefEnLinea(l)
+                  const variacion = variacionPrecio(l.precioUnitario, refLinea)
+                  const vacia = intentoGuardar && problema?.tipo === 'linea_incompleta' && problema.clave === l.clave
+                  // A2b: cajas + kg + $/kg.
+                  const conCobro = muestraCobraPor(l)
+                  const porBase = conCobro && l.precioPor === 'base'
+                  const base = l.unidades ? cortoBase(l.unidades.unidadBase) : 'kg'
+                  const faltaKg = intentoGuardar && (problema?.tipo === 'falta_kg' || problema?.tipo === 'base_sin_cantidad') && problema.clave === l.clave
+                  const nominal = l.unidades && l.cantidad ? equivalenteBase(l.cantidad, l.unidades) : null
+                  const avisoKgRemito = porBase && l.recibidoBaseCompleto && l.unidades
+                    ? avisoRemito(l.cantidadBase, l.recibidoBase, l.unidades) : null
+                  const avisoKgNominal = porBase && l.unidades ? avisoNominal(l.cantidadBase, l.cantidad, l.unidades) : null
+                  return (
+                    <li key={l.clave} className="space-y-2 px-3 py-3">
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="text"
+                          aria-label="Descripción de la línea, como figura en la factura"
+                          placeholder="Descripción, como figura en la factura"
+                          disabled={soloLectura}
+                          className={`${controlClass} min-h-11 flex-1 ${vacia ? 'border-brand-red' : ''}`}
+                          value={l.descripcion}
+                          onChange={e => { const v = e.target.value; actualizarLinea(l.clave, x => ({ ...x, descripcion: v })) }}
+                        />
+                        {!soloLectura && (
+                          <button
+                            type="button"
+                            onClick={() => cambiar(e => ({ ...e, lineas: e.lineas.filter(x => x.clave !== l.clave) }))}
+                            aria-label={`Quitar la línea ${l.descripcion || 'sin descripción'}`}
+                            title="Quitar esta línea"
+                            className="presionable flex size-11 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-surface2 hover:text-brand-red"
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-end gap-2">
+                        <div className="flex items-end gap-1.5">
+                          <div className="w-24">
+                            <span className="mb-1 block text-2xs uppercase tracking-wider text-muted" aria-hidden>Cantidad</span>
+                            <InputNumero
+                              value={l.cantidad}
+                              onChange={v => actualizarLinea(l.clave, x => ({ ...x, cantidad: v }))}
+                              placeholder="0"
+                              min={0}
+                              disabled={soloLectura}
+                              className={`${controlClass} min-h-11 text-right tabular-nums ${faltaKg && problema?.tipo === 'base_sin_cantidad' ? 'border-brand-red' : ''}`}
+                              ariaLabel={`Cantidad facturada de ${l.descripcion || 'la línea'}`}
+                            />
+                          </div>
+                          {l.itemId && l.unidad && <span className="flex min-h-11 max-w-16 items-center truncate text-xs text-muted">{l.unidad}</span>}
+                        </div>
+                        {conCobro && l.unidades && (
+                          <div>
+                            <span className="mb-1 block text-2xs uppercase tracking-wider text-muted" aria-hidden>Cobra por</span>
+                            {soloLectura ? (
+                              <span className="flex min-h-11 items-center text-sm text-text">{etiquetaPrecioPor(l)}</span>
+                            ) : (
+                              <SegmentedControl<CobraPor>
+                                opciones={[
+                                  { value: 'unidad', label: etiquetaCobraPor('unidad', l.unidades) },
+                                  { value: 'base', label: etiquetaCobraPor('base', l.unidades) },
+                                ]}
+                                value={l.precioPor}
+                                onChange={v => actualizarLinea(l.clave, x => cambiarPrecioPor(x, v))}
+                              />
+                            )}
+                          </div>
+                        )}
+                        {porBase && (
+                          <div className="w-24">
+                            <span className="mb-1 block text-2xs uppercase tracking-wider text-muted" aria-hidden>{base === 'kg' ? 'Kg' : base}</span>
+                            <InputNumero
+                              value={l.cantidadBase}
+                              onChange={v => actualizarLinea(l.clave, x => ({ ...x, cantidadBase: v }))}
+                              placeholder={nominal != null ? `≈ ${numeroCorto(nominal)}` : base}
+                              min={0}
+                              disabled={soloLectura}
+                              className={`${controlClass} min-h-11 text-right tabular-nums ${faltaKg && problema?.tipo === 'falta_kg' ? 'border-brand-red' : ''}`}
+                              ariaLabel={`${base === 'kg' ? 'Kg' : base} facturados de ${l.descripcion || 'la línea'}`}
+                            />
+                          </div>
+                        )}
+                        <div className="w-32">
+                          <span className="mb-1 block text-2xs uppercase tracking-wider text-muted" aria-hidden>
+                            {conCobro ? `Precio por ${etiquetaPrecioPor(l)}` : 'Precio por unidad'}
+                          </span>
+                          <InputNumero
+                            value={l.precioUnitario}
+                            onChange={v => actualizarLinea(l.clave, x => ({ ...x, precioUnitario: v }))}
+                            placeholder="0"
+                            min={0}
+                            disabled={soloLectura}
+                            className={`${controlClass} min-h-11 text-right tabular-nums`}
+                            ariaLabel={`Precio por ${conCobro ? etiquetaPrecioPor(l) : 'unidad'} de ${l.descripcion || 'la línea'}`}
+                          />
+                        </div>
+                        <div className="w-24">
+                          <label className="mb-1 block text-2xs uppercase tracking-wider text-muted" htmlFor={`iva-${l.clave}`}>IVA</label>
+                          <select
+                            id={`iva-${l.clave}`}
+                            aria-label={`Alícuota de IVA de ${l.descripcion || 'la línea'}`}
+                            disabled={soloLectura}
+                            className={`${controlClass} min-h-11`}
+                            value={String(l.alicuotaIva)}
+                            onChange={e => { const v = Number(e.target.value); actualizarLinea(l.clave, x => ({ ...x, alicuotaIva: v })) }}
+                          >
+                            {ALICUOTAS.map(a => <option key={a} value={a}>{etiquetaAlicuota(a)}</option>)}
+                          </select>
+                        </div>
+                        <div className="ml-auto text-right">
+                          <span className="block text-2xs uppercase tracking-wider text-muted">Subtotal</span>
+                          <span className="block min-h-11 pt-2.5 text-sm font-semibold tabular-nums text-text">{formatearMonedaExacta(subtotalLinea(l))}</span>
+                        </div>
+                      </div>
+
+                      <p className="flex flex-wrap gap-x-3 text-xs text-muted tabular-nums">
+                        {l.pedido != null && <span>Pedido {conUnidad(l.pedido, l.unidad)}</span>}
+                        {l.recibido != null && l.recibido > 0 && (
+                          <span>
+                            llegó {conUnidad(l.recibido, l.unidad)}
+                            {conCobro && l.recibidoBaseCompleto && l.recibidoBase != null && <> · {numeroCorto(l.recibidoBase, 2)} {base} (remito)</>}
+                          </span>
+                        )}
+                        {porBase && !(l.recibidoBaseCompleto && l.recibidoBase != null) && nominal != null && (
+                          <span>≈ {numeroCorto(nominal)} {base} nominal</span>
+                        )}
+                        {porBase && l.precioUnitario != null && l.unidades && (
+                          <span>≈ {formatearMonedaExacta(equivalenteBase(l.precioUnitario, l.unidades))} por {l.unidades.unidad || 'unidad'} nominal</span>
+                        )}
+                        {variacion != null && (
+                          <span className={variacion > 0 ? 'font-semibold text-warning' : 'font-semibold text-success'}>
+                            {variacion > 0 ? '↑' : '↓'} {Math.abs(variacion)} % vs. el último precio ({formatearMonedaExacta(refLinea ?? 0)}{conCobro ? ` /${etiquetaPrecioPor(l)}` : ''})
+                          </span>
+                        )}
+                        {!l.itemId && <span>No mueve stock</span>}
+                      </p>
+                      {(avisoKgRemito || avisoKgNominal) && (
+                        <div className="space-y-0.5">
+                          {[avisoKgRemito, avisoKgNominal].filter(Boolean).map(a => (
+                            <p key={a} className="flex items-start gap-1.5 text-xs font-medium text-warning">
+                              <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {a}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            {!soloLectura && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => cambiar(e => ({ ...e, lineas: [...e.lineas, lineaLibre()] }))}
+                  className={botonSecundario}
+                >
+                  <Plus size={15} /> Agregar una línea
+                </button>
+                <span className="text-xs text-muted">Para el flete u otros cargos que no son mercadería.</span>
+              </div>
+            )}
+
+            {!soloLectura && faltantes.length > 0 && (
+              <div className="space-y-1.5 rounded-xl border border-dashed border-border px-3 py-2.5">
+                <p className="text-xs text-muted">Del pedido no está en la factura:</p>
+                <div className="flex flex-wrap gap-2">
+                  {faltantes.map(f => (
+                    <button
+                      key={f.pedido_item_id}
+                      type="button"
+                      onClick={() => ctx && cambiar(e => ({ ...e, lineas: [...e.lineas, agregarDelPedido(f, ctx)] }))}
+                      className="presionable min-h-11 sm:min-h-9 inline-flex items-center gap-1 rounded-full border border-border bg-surface2 px-3 text-xs font-medium text-text hover:border-accent"
+                    >
+                      <Plus size={13} /> {f.descripcion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* 4. Pie */}
+          <section className="space-y-3 rounded-xl bg-surface2 px-4 py-3" aria-live="polite">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">Totales</h4>
+            <dl className="space-y-1 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">Subtotal sin IVA</dt>
+                <dd className="tabular-nums text-text">{formatearMonedaExacta(t.subtotal)}</dd>
+              </div>
+              {t.porAlicuota.map(g => (
+                <div key={g.alicuota} className="flex justify-between gap-3">
+                  <dt className="text-muted">IVA {etiquetaAlicuota(g.alicuota)} <span className="text-2xs">sobre {formatearMonedaExacta(g.base)}</span></dt>
+                  <dd className="tabular-nums text-text">{formatearMonedaExacta(g.iva)}</dd>
+                </div>
+              ))}
+              <div className="flex justify-between gap-3 border-t border-border pt-1.5">
+                <dt className="font-bold text-text">Total</dt>
+                <dd className="text-lg font-bold tabular-nums text-text">{formatearMonedaExacta(t.total)}</dd>
+              </div>
+            </dl>
+
+            {soloLectura && estado.totalPapel == null ? null : (
+            <div className="grid gap-3 sm:grid-cols-[11rem_1fr] sm:items-end">
+              <Field label="Total según el papel">
+                <InputNumero
+                  value={estado.totalPapel}
+                  onChange={v => cambiar(s => ({ ...s, totalPapel: v }))}
+                  placeholder="Opcional"
+                  min={0}
+                  disabled={soloLectura}
+                  className={`${controlClass} min-h-11 text-right tabular-nums ${avisaPapel ? 'border-warning' : ''}`}
+                  ariaLabel="Total según el papel de la factura"
+                />
+              </Field>
+              {avisaPapel ? (
+                <p className="flex items-start gap-1.5 pb-2.5 text-xs font-medium text-warning">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  Hay {formatearMonedaExacta(Math.abs(diferencia ?? 0))} de diferencia con el total calculado. Revisá las cantidades, los precios o las alícuotas.
+                </p>
+              ) : (
+                <p className="pb-2.5 text-xs text-muted">
+                  {diferencia != null ? 'Coincide con el total calculado.' : 'Si lo cargás, avisamos cuando no coincide con el total calculado.'}
+                </p>
+              )}
+            </div>
+            )}
+
+            {!soloLectura && (
+              <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-text">
+                <input
+                  type="checkbox"
+                  checked={estado.actualizarPrecios}
+                  onChange={e => { const v = e.target.checked; cambiar(s => ({ ...s, actualizarPrecios: v })) }}
+                  className="size-5 shrink-0 cursor-pointer accent-accent"
+                />
+                Actualizar los precios de referencia de {pedido.proveedores?.nombre ?? 'este proveedor'} con los de esta factura
+              </label>
+            )}
+          </section>
+
+          {soloLectura && !estado.observaciones ? null : (
+          <Field label="Observaciones">
+            <textarea
+              rows={2}
+              aria-label="Observaciones de la factura"
+              disabled={soloLectura}
+              placeholder="Lo que quieras recordar de esta factura"
+              className={`${controlClass} py-2`}
+              value={estado.observaciones}
+              onChange={e => { const v = e.target.value; cambiar(s => ({ ...s, observaciones: v })) }}
+            />
+          </Field>
+          )}
+
+          {/* Estado de una factura que ya no se edita */}
+          {factura && estadoFactura === 'confirmada' && (
+            <p className="flex items-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm text-muted">
+              <Check size={15} className="shrink-0 text-success" />
+              Confirmada{factura.confirmadaEn && <> el {formatearFechaHora(factura.confirmadaEn)}</>}
+              {factura.confirmadaPor && <> por {factura.confirmadaPor}</>}.
+              {factura.mercaderiaLlego === false && <> El pedido todavía espera la mercadería.</>}
+            </p>
+          )}
+          {factura && estadoFactura === 'confirmada' && (
+            factura.gastoId ? (
+              <Link
+                href={rutaDe({ tipo: 'gasto', id: factura.gastoId })}
+                className="flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2.5 text-sm transition-colors hover:bg-surface2"
+              >
+                <span className="flex items-center gap-2 text-text">
+                  <Wallet size={15} className="shrink-0 text-accent-fg" />
+                  <span>
+                    Gasto {factura.gastoEstado ? factura.gastoEstado.toLowerCase() : 'vinculado'}
+                    <span className="text-muted">
+                      {factura.gastoLocal && <> · {factura.gastoLocal}</>}
+                      {' · '}{factura.gastoGenerado ? 'se creó al confirmar' : 'cargado a mano y vinculado'}
+                    </span>
+                  </span>
+                </span>
+                <ArrowRight size={14} className="text-muted" />
+              </Link>
+            ) : (
+              <p className="flex items-start gap-2 rounded-xl border border-border px-3 py-2.5 text-sm text-muted">
+                <Wallet size={15} className="mt-0.5 shrink-0" />
+                Esta factura no tiene un gasto vinculado: se confirmó antes de que se crearan solos. Si hace falta, cargalo desde Gastos.
+              </p>
+            )
+          )}
+          {factura && estadoFactura === 'confirmada' && (
+            <DiferenciasPanel
+              diferencias={diferencias}
+              estadoRecepcion={pedido?.estado_recepcion ?? factura.pedidoEstadoRecepcion}
+              stockPorItem={stockPorItem}
+              onRegistrarDevolucion={d => setRegistrando({ diferencia: { id: d.id, itemId: d.itemId, descripcion: d.descripcion, diferencia: d.diferencia } })}
+              onCargarNotaCredito={id => setCargandoNc(id)}
+            />
+          )}
+          {factura && estadoFactura === 'confirmada' && notasCredito.length > 0 && (
+            <section className="space-y-2" aria-labelledby="titulo-nc">
+              <h4 id="titulo-nc" className="flex items-center gap-2 text-sm font-bold text-text">
+                <ReceiptText size={16} className="text-accent" /> Notas de crédito
+              </h4>
+              <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+                {notasCredito.map(n => (
+                  <li key={n.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
+                    <span className="text-text">
+                      <LinkEntidad entidad={{ tipo: 'factura', id: n.id }}>{n.numero}</LinkEntidad>
+                      {n.devolucionId && <span className="text-muted"> · <LinkEntidad entidad={{ tipo: 'devolucion', id: n.devolucionId, pedidoId: n.pedidoId }} variante="texto">{n.devolucionCodigo ?? 'devolución'}</LinkEntidad></span>}
+                    </span>
+                    <span className="tabular-nums font-semibold text-text">−{formatearMonedaExacta(n.total)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-right text-sm tabular-nums text-muted">
+                Neto de la factura: <span className="font-semibold text-text">{formatearMonedaExacta(factura.total - factura.notasCreditoTotal)}</span>
+              </p>
+            </section>
+          )}
+          {factura && estadoFactura === 'anulada' && (
+            <p className="flex items-start gap-2 rounded-xl border border-border bg-danger-bg px-3 py-2.5 text-sm text-brand-red">
+              <Ban size={15} className="mt-0.5 shrink-0" />
+              <span>
+                Anulada{factura.anuladaEn && <> el {formatearFechaHora(factura.anuladaEn)}</>}
+                {factura.anuladaPor && <> por {factura.anuladaPor}</>}.
+                {factura.anuladaMotivo && <> Motivo: {factura.anuladaMotivo}</>}
+              </span>
+            </p>
+          )}
+        </>
+      )}
+
+      {/* Pie de acciones: pegado abajo en celular, donde el formulario es largo */}
+      <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-border bg-surface px-4 py-3 sm:static sm:mx-0 sm:flex-row sm:items-center sm:bg-transparent sm:px-0 sm:pb-0">
+        {factura && estadoFactura === 'borrador' && (
+          <button type="button" onClick={onDescartar} disabled={isPending} className="presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-text hover:bg-danger-bg disabled:opacity-50 sm:mr-auto">
+            <Trash2 size={15} className="text-brand-red" /> Descartar borrador
+          </button>
+        )}
+        {factura && estadoFactura === 'confirmada' && (
+          <button type="button" onClick={() => setAnularAbierto(true)} disabled={isPending} className="presionable min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-text hover:bg-danger-bg disabled:opacity-50 sm:mr-auto">
+            <Ban size={15} className="text-brand-red" /> Anular factura
+          </button>
+        )}
+        <div className="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row">
+          <button type="button" onClick={onCancelar} disabled={isPending} className={botonSecundario}>
+            {soloLectura ? 'Cerrar' : 'Cancelar'}
+          </button>
+          {factura && estadoFactura === 'confirmada' && factura.tipoComprobante === 'factura' && (
+            <button type="button" onClick={() => setRegistrando({ diferencia: null })} disabled={isPending} className={botonSecundario}>
+              <Undo2 size={16} /> Registrar devolución
+            </button>
+          )}
+          {factura && estadoFactura === 'confirmada' && factura.tipoComprobante === 'factura' && (
+            <button type="button" onClick={() => setCompartirAbierto(true)} disabled={isPending} className={botonPrimario}>
+              <Share2 size={16} /> Compartir
+            </button>
+          )}
+          {!soloLectura && (
+            <>
+              <button type="button" onClick={onGuardarBorrador} disabled={isPending || !pedido} className={botonSecundario}>
+                {isPending && <Loader2 size={16} className="animate-spin" />} Guardar borrador
+              </button>
+              <button type="button" onClick={onConfirmar} disabled={isPending || !pedido} className={botonPrimario}>
+                {isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />} Confirmar factura
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <AnularFacturaModal
+        open={anularAbierto}
+        numero={factura?.numero ?? ''}
+        pedido={pedido}
+        generoRemito={pedido?.compras_remitos.some(r => r.origen === 'factura') ?? false}
+        gasto={factura?.gastoId ? (factura.gastoGenerado ? 'se_borra' : 'se_desvincula') : null}
+        bloqueo={bloqueoAnular}
+        pendiente={isPending}
+        onAnular={motivo => { setAnularAbierto(false); onAnular(motivo) }}
+        onCerrar={() => setAnularAbierto(false)}
+      />
+
+      {factura && (
+        <>
+          <DevolucionModal
+            key={registrando ? `reg-${registrando.diferencia?.id ?? 'factura'}` : 'reg-cerrado'}
+            pedidoId={factura.pedidoId}
+            esAdmin
+            abierto={registrando != null}
+            diferencia={registrando?.diferencia ?? null}
+            onCerrar={() => setRegistrando(null)}
+          />
+          <NotaCreditoModal
+            key={cargandoNc ?? 'nc-cerrado'}
+            pedidoId={factura.pedidoId}
+            devolucionId={cargandoNc}
+            abierto={cargandoNc != null}
+            onCerrar={() => setCargandoNc(null)}
+          />
+        </>
+      )}
+
+      {factura && compartirAbierto && (
+        <CompartirFacturaModal facturaId={factura.id} numero={factura.numero} onCerrar={() => setCompartirAbierto(false)} />
+      )}
+
+      {confirmacion && (
+        <ConfirmarFacturaModal
+          open
+          numero={estado.numero}
+          pedido={pedido}
+          total={t.total}
+          vencimiento={estado.vencimiento}
+          llego={confirmacion.llego}
+          impacto={impactoStock}
+          nombres={nombres}
+          preciosACambiar={estado.actualizarPrecios ? preciosACambiar : 0}
+          cambiosCobraPor={estado.actualizarPrecios ? cambiosPrecio.cobraPor : []}
+          avisoPapel={avisaPapel ? Math.abs(diferencia ?? 0) : null}
+          candidatos={candidatos}
+          errorCandidatos={errorCandidatos}
+          localDefault={localGasto}
+          locales={localesGasto}
+          pendiente={isPending}
+          onConfirmar={onConfirmarFinal}
+          onCerrar={cerrarConfirmacion}
+        />
+      )}
+
+      <PreguntaMercaderia
+        open={preguntaAbierta}
+        numero={estado.numero}
+        pedido={pedido}
+        onResponder={pedirConfirmacion}
+        onCerrar={() => setPreguntaAbierta(false)}
+      />
+    </div>
+  )
+}

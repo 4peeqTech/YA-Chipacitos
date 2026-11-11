@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { mensajeError } from '@/lib/errores'
 import Card from '@/components/ui/Card'
 import SelectBuscador from '@/components/ui/SelectBuscador'
+import DatePicker from '@/components/ui/DatePicker'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 
 interface Props { urlInicial: string }
 
@@ -166,22 +168,15 @@ export default function ImportarClient({ urlInicial }: Props) {
             {modo === 'dia' ? (
               <div>
                 <label className="block text-xs font-medium text-[#f0f0f0] mb-1">Fecha</label>
-                <input type="date" value={fecha} onChange={e => { setFecha(e.target.value); setResultado(null); setConciliacion([]) }}
-                  className="w-full border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm bg-[#1a1a1a] text-[#f0f0f0] [color-scheme:dark] focus:outline-none focus:border-[#e8c547]" />
+                <DatePicker value={fecha} onChange={v => { setFecha(v); setResultado(null); setConciliacion([]) }}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-surface2 text-text focus:outline-none focus:border-accent" />
               </div>
             ) : (
               <div className="space-y-2">
                 <div>
-                  <label className="block text-xs font-medium text-[#f0f0f0] mb-1">Desde</label>
-                  <input type="date" value={fechaDesde} max={fechaHasta}
-                    onChange={e => { setFechaDesde(e.target.value); setResultado(null); setConciliacion([]) }}
-                    className="w-full border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm bg-[#1a1a1a] text-[#f0f0f0] [color-scheme:dark] focus:outline-none focus:border-[#e8c547]" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[#f0f0f0] mb-1">Hasta</label>
-                  <input type="date" value={fechaHasta} min={fechaDesde}
-                    onChange={e => { setFechaHasta(e.target.value); setResultado(null); setConciliacion([]) }}
-                    className="w-full border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm bg-[#1a1a1a] text-[#f0f0f0] [color-scheme:dark] focus:outline-none focus:border-[#e8c547]" />
+                  <label className="block text-xs font-medium text-text mb-1">Período</label>
+                  <DateRangePicker desde={fechaDesde} hasta={fechaHasta} limpiable={false}
+                    onChange={(d, h) => { setFechaDesde(d); setFechaHasta(h); setResultado(null); setConciliacion([]) }} />
                 </div>
                 <p className="text-[11px] text-[#888] text-center">{dias} día{dias !== 1 ? 's' : ''}</p>
               </div>

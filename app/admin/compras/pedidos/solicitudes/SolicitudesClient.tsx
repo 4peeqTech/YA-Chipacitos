@@ -1,10 +1,13 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Inbox, ClipboardList, TrendingUp, Truck, ChevronRight,
-  Ban, Send, History, Scale, PackageMinus, PackagePlus, Undo2,
+  Ban, Send, History, Scale, PackageMinus, PackagePlus, Undo2, ClipboardCheck,
 } from 'lucide-react'
+import { IconCalendarX } from '@tabler/icons-react'
+import { BadgeFueraDeDia } from '@/components/ui/Badge'
 import { formatearNumero } from '@/lib/formato'
 import { createClient } from '@/lib/supabase/client'
 import Modal from '@/components/ui/Modal'
@@ -14,12 +17,19 @@ import InputNumero from '@/components/ui/InputNumero'
 import DateRangeInputs from '@/components/ui/DateRangeInputs'
 import ClearFiltersButton from '@/components/ui/ClearFiltersButton'
 import { useToasts, ToastStack } from '@/components/ui/Toast'
+import { useToast } from '@/components/ui/ProveedorUI'
+import { codigoPedido } from '@/lib/compras/codigos'
+import { rutaDe } from '@/lib/compras/rutas'
+import LinkEntidad from '@/components/ui/LinkEntidad'
+import { useAlCambiarParam, useQuitarParams } from '@/components/ui/useParamDeepLink'
 import { mensajeError } from '@/lib/errores'
 
 interface ConteoRef {
   semana_desde: string
   semana_hasta: string
   masas_proyectadas: number
+  fuera_de_dia: boolean
+  motivo_fuera_de_dia: string | null
 }
 
 interface SolicitudItem {
@@ -53,7 +63,10 @@ export interface Solicitud {
 interface ProveedorOption {
   id: string
   nombre: string
+  estado: string
 }
+
+const etiquetaProveedor = (p: ProveedorOption) => (p.estado === 'activo' ? p.nombre : `${p.nombre} (archivado)`)
 
 const ESTADO_BADGE: Record<Solicitud['estado'], string> = {
   abierta: 'bg-yellow-900/50 text-yellow-300',
@@ -68,6 +81,10 @@ const ESTADO_LABEL: Record<Solicitud['estado'], string> = {
 }
 
 /** Cantidad con la sugerencia de sobrestock aplicada. */
+function ordenarItems(items: SolicitudItem[]) {
+  return [...items].sort((a, b) => (a.orden - b.orden) || a.descripcion.localeCompare(b.descripcion))
+}
+
 function cantidadConDescuento(i: SolicitudItem) {
   return Math.max(0, i.cantidad_sugerida - (i.descuento_sugerido ?? 0))
 }
@@ -95,21 +112,33 @@ export default function SolicitudesClient({
   proveedores,
   proveedoresPorItem,
   sobrestockPorConteoItem,
+  pedidosPorSolicitud,
+  solicitudInicial,
 }: {
   solicitudesIniciales: Solicitud[]
   proveedores: ProveedorOption[]
   proveedoresPorItem: Record<string, string[]>
   sobrestockPorConteoItem: Record<string, number>
+  pedidosPorSolicitud: Record<string, { id: string; numero: number; proveedor: string }[]>
+  /** ?solicitud=<id>: abre esa solicitud. */
+  solicitudInicial?: string
 }) {
   const supabase = createClient()
   const toast = useToasts()
+  // El de la app: sobrevive al salto a la tab Pedidos.
+  const toastGlobal = useToast()
+  const router = useRouter()
 
   const [solicitudes, setSolicitudes] = useState(solicitudesIniciales)
   const [filtro, setFiltro] = useState<'abiertas' | 'todas'>('abiertas')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
-  const [abiertaId, setAbiertaId] = useState<string | null>(null)
-  const [items, setItems] = useState<SolicitudItem[]>([])
+  const [abiertaId, setAbiertaId] = useState<string | null>(() =>
+    solicitudesIniciales.some(s => s.id === solicitudInicial) ? solicitudInicial ?? null : null)
+  const [items, setItems] = useState<SolicitudItem[]>(() => {
+    const s = solicitudesIniciales.find(x => x.id === solicitudInicial)
+    return s ? ordenarItems(s.compras_solicitud_items) : []
+  })
   const [guardado, setGuardado] = useState<'idle' | 'guardando' | 'guardado'>('idle')
   const [confirmando, setConfirmando] = useState<'generar' | 'descartar' | null>(null)
   const [procesando, setProcesando] = useState(false)
@@ -117,14 +146,19 @@ export default function SolicitudesClient({
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const abierta = solicitudes.find(s => s.id === abiertaId) ?? null
-  const nombreProveedor = (id: string) => proveedores.find(p => p.id === id)?.nombre ?? '—'
+  const nombreProveedor = (id: string) => {
+    const p = proveedores.find(x => x.id === id)
+    return p ? etiquetaProveedor(p) : '—'
+  }
 
   // Limita el select a los proveedores asociados al ítem; sin ítem (línea libre)
-  // o sin asociaciones cargadas, se ve la lista completa.
-  function proveedoresParaItem(itemId: string | null): ProveedorOption[] {
+  // o sin asociaciones cargadas, se ve la lista completa. B3 (E19): solo
+  // activos, más el actual de la línea si se archivó (si no, el select lo esconde).
+  function proveedoresParaItem(itemId: string | null, actual: string): ProveedorOption[] {
+    const disponibles = proveedores.filter(p => p.estado === 'activo' || p.id === actual)
     const asociados = itemId ? proveedoresPorItem[itemId] : undefined
-    if (!asociados?.length) return proveedores
-    return proveedores.filter(p => asociados.includes(p.id))
+    if (!asociados?.length) return disponibles
+    return disponibles.filter(p => asociados.includes(p.id) || p.id === actual)
   }
 
   const pendientes = solicitudes.filter(s => s.estado === 'abierta').length
@@ -141,15 +175,26 @@ export default function SolicitudesClient({
     setTimeout(() => setGuardado('guardado'), 300)
   }
 
+  const quitarParam = useQuitarParams('solicitud')
+  useAlCambiarParam(solicitudInicial, id => {
+    const s = solicitudes.find(x => x.id === id)
+    if (s) abrir(s)
+  })
+
   function abrir(s: Solicitud) {
     setAbiertaId(s.id)
-    setItems([...s.compras_solicitud_items].sort((a, b) => (a.orden - b.orden) || a.descripcion.localeCompare(b.descripcion)))
+    setItems(ordenarItems(s.compras_solicitud_items))
     setGuardado('idle')
   }
 
-  function cerrar() {
+  function soltar() {
     setAbiertaId(null)
     setItems([])
+  }
+
+  function cerrar() {
+    quitarParam()
+    soltar()
   }
 
   function excesoDe(s: Solicitud, i: SolicitudItem): number | null {
@@ -225,12 +270,29 @@ export default function SolicitudesClient({
     if (!abierta) return
     setProcesando(true)
     const { data: creados, error } = await supabase.rpc('convertir_solicitud_a_pedidos', { p_solicitud_id: abierta.id })
-    setProcesando(false)
-    if (error) { toast.error(mensajeError(error, 'No se pudieron generar los pedidos')); return }
+    if (error) { setProcesando(false); toast.error(mensajeError(error, 'No se pudieron generar los pedidos')); return }
     setSolicitudes(prev => prev.map(s => s.id === abierta.id ? { ...s, estado: 'convertida' } : s))
-    toast.success(`${creados} pedido${creados === 1 ? '' : 's'} en borrador — revisalos en la tab Pedidos`)
+
+    // Se salta a la tab Pedidos con el primero abierto; los demás quedan arriba en la lista.
+    const { data: pedidos } = await supabase
+      .from('compras_pedidos')
+      .select('id, numero')
+      .eq('solicitud_id', abierta.id)
+      .order('numero')
+    setProcesando(false)
     setConfirmando(null)
-    cerrar()
+    // Sin limpiar la URL: el salto a Pedidos de abajo la reemplaza entera.
+    soltar()
+    const primero = pedidos?.[0]
+    if (!primero) {
+      toast.success(`${creados} pedido${creados === 1 ? '' : 's'} en borrador — revisalos en la tab Pedidos`)
+      return
+    }
+    const codigos = pedidos.map(p => codigoPedido(p.numero))
+    toastGlobal.success(codigos.length === 1
+      ? `Pedido ${codigos[0]} generado en borrador`
+      : `${codigos.length} pedidos generados en borrador: ${codigos.join(', ')}`)
+    router.push(rutaDe({ tipo: 'pedido', id: primero.id }))
   }
 
   async function confirmarDescartar() {
@@ -303,7 +365,10 @@ export default function SolicitudesClient({
                   {s.tipo === 'base' ? <ClipboardList size={18} /> : <TrendingUp size={18} />}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#f0f0f0] font-medium truncate">{origenSolicitud(s)}</p>
+                  <p className="flex items-center gap-2 text-sm text-[#f0f0f0] font-medium min-w-0">
+                    <span className="truncate">{origenSolicitud(s)}</span>
+                    {s.fabrica_conteos?.fuera_de_dia && <BadgeFueraDeDia motivo={s.fabrica_conteos.motivo_fuera_de_dia} />}
+                  </p>
                   <p className="text-xs text-[#666] mt-0.5">{new Date(s.created_at).toLocaleDateString('es-AR')} · {s.compras_solicitud_items.length} ítems</p>
                 </div>
                 {contarSobrestock(s) > 0 && (
@@ -336,11 +401,30 @@ export default function SolicitudesClient({
             </div>
 
             {abierta.tipo === 'complementario' && abierta.fabrica_conteos && (
-              <div className="flex items-center gap-2 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-4 py-3">
                 <Scale size={16} className="text-[#e8c547] shrink-0" />
-                <p className="text-sm text-[#ccc]">
+                <p className="flex-1 min-w-48 text-sm text-[#ccc]">
                   Masas proyectadas ({formatearFechaCorta(abierta.fabrica_conteos.semana_desde)} a {formatearFechaCorta(abierta.fabrica_conteos.semana_hasta)}): <span className="text-[#f0f0f0] font-bold">{abierta.fabrica_conteos.masas_proyectadas}</span>
                 </p>
+                {abierta.conteo_id && (
+                  <LinkEntidad
+                    entidad={{ tipo: 'conteo', id: abierta.conteo_id }}
+                    variante="chip"
+                    onNavegar={cerrar}
+                    className="min-h-11 sm:min-h-9 px-3 text-xs font-semibold text-text"
+                  >
+                    <ClipboardCheck size={13} /> Ver el conteo
+                  </LinkEntidad>
+                )}
+                {abierta.fabrica_conteos.fuera_de_dia && (
+                  <p className="basis-full flex items-start gap-1.5 text-sm text-amber-400">
+                    <IconCalendarX size={16} className="shrink-0 mt-0.5" />
+                    <span>
+                      Fábrica cerró este conteo fuera de su día.
+                      {abierta.fabrica_conteos.motivo_fuera_de_dia && <span className="text-[#ccc]"> Motivo: {abierta.fabrica_conteos.motivo_fuera_de_dia}</span>}
+                    </span>
+                  </p>
+                )}
               </div>
             )}
 
@@ -429,7 +513,7 @@ export default function SolicitudesClient({
                             onChange={e => cambiarProveedor(i.id, e.target.value)}
                             className={selectClass}
                           >
-                            {proveedoresParaItem(i.item_id).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                            {proveedoresParaItem(i.item_id, i.proveedor_id).map(p => <option key={p.id} value={p.id}>{etiquetaProveedor(p)}</option>)}
                           </select>
                         </td>
                         <td className="px-4 py-2.5 text-center">
@@ -480,7 +564,22 @@ export default function SolicitudesClient({
             )}
 
             {abierta.estado === 'convertida' && (
-              <p className="text-sm text-[#56d68a]">Convertida el {abierta.convertida_en ? new Date(abierta.convertida_en).toLocaleDateString('es-AR') : '—'}. Los pedidos ya están en la bandeja de Pedidos.</p>
+              <div className="space-y-2">
+                <p className="text-sm text-[#56d68a]">Convertida el {abierta.convertida_en ? new Date(abierta.convertida_en).toLocaleDateString('es-AR') : '—'}.</p>
+                {(pedidosPorSolicitud[abierta.id] ?? []).length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">Pedidos que generó</p>
+                    <ul className="divide-y divide-border rounded-xl border border-border">
+                      {pedidosPorSolicitud[abierta.id].map(p => (
+                        <li key={p.id} className="flex min-h-11 items-center gap-2 px-3 py-2 text-sm">
+                          <LinkEntidad entidad={{ tipo: 'pedido', id: p.id }} className="font-medium text-text">{codigoPedido(p.numero)}</LinkEntidad>
+                          <span className="text-muted">· {p.proveedor}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             )}
             {abierta.estado === 'descartada' && (
               <p className="text-sm text-[#888]">Descartada el {abierta.convertida_en ? new Date(abierta.convertida_en).toLocaleDateString('es-AR') : '—'}.</p>
