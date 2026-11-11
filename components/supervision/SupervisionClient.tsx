@@ -4,25 +4,30 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  IconBuildingStore, IconChartBar, IconClipboardCheck, IconClipboardPlus, IconCloudUpload, IconHistory, IconRefresh, type Icon,
+  IconBuildingStore, IconChartBar, IconClipboardCheck, IconClipboardList, IconClipboardPlus, IconCloudUpload, IconHistory, IconRefresh,
+  type Icon,
 } from '@tabler/icons-react'
 import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { catalogoDeTipo } from '@/lib/supervision/calculos'
-import { cargarVisitas } from '@/lib/supervision/datos'
-import { TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type TipoVisita, type VisitaSupervision } from '@/lib/supervision/tipos'
+import { cargarRequerimientos, cargarVisitas } from '@/lib/supervision/datos'
+import {
+  TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type RequerimientoSupervision, type TipoVisita, type VisitaSupervision,
+} from '@/lib/supervision/tipos'
 import NuevaVisita from './NuevaVisita'
 import ListaVisitas from './ListaVisitas'
 import AnalisisSupervision from './AnalisisSupervision'
 import LugaresSupervision from './LugaresSupervision'
+import RequerimientosSupervision from './RequerimientosSupervision'
 import { CLAVE_BORRADOR } from './ui'
 
-export type VistaSupervision = 'nueva' | 'visitas' | 'analisis' | 'lugares'
+export type VistaSupervision = 'nueva' | 'visitas' | 'analisis' | 'requerimientos' | 'lugares'
 
 const VISTAS: { key: VistaSupervision; label: string; corto: string; icono: Icon }[] = [
   { key: 'nueva', label: 'Nueva visita', corto: 'Nueva', icono: IconClipboardPlus },
   { key: 'visitas', label: 'Visitas', corto: 'Visitas', icono: IconHistory },
   { key: 'analisis', label: 'Análisis', corto: 'Análisis', icono: IconChartBar },
+  { key: 'requerimientos', label: 'Requerimientos', corto: 'Requer.', icono: IconClipboardList },
   { key: 'lugares', label: 'Lugares', corto: 'Lugares', icono: IconBuildingStore },
 ]
 
@@ -31,18 +36,20 @@ interface Props {
   esAdmin: boolean
   bloques: BloqueSupervision[]
   visitasIniciales: VisitaSupervision[]
+  requerimientosIniciales: RequerimientoSupervision[]
   errorCarga: boolean
   nombreUsuario: string
   vistaInicial: VistaSupervision
   aviso: string | null
 }
 
-export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, bloques, visitasIniciales, errorCarga, nombreUsuario, vistaInicial, aviso }: Props) {
+export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, bloques, visitasIniciales, requerimientosIniciales, errorCarga, nombreUsuario, vistaInicial, aviso }: Props) {
   const [supabase] = useState(() => createClient())
   const pathname = usePathname()
   const toast = useToasts()
   const [vista, setVista] = useState<VistaSupervision>(vistaInicial)
   const [visitas, setVisitas] = useState(visitasIniciales)
+  const [requerimientos, setRequerimientos] = useState(requerimientosIniciales)
   const [actualizando, setActualizando] = useState(false)
   const [borrador, setBorrador] = useState<{ id: string; sucursal: string } | null>(null)
   const [ahora, setAhora] = useState(() => Date.now())
@@ -86,10 +93,11 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
 
   async function actualizar() {
     setActualizando(true)
-    const { visitas: nuevas, error } = await cargarVisitas(supabase)
+    const [{ visitas: nuevas, error }, reqs] = await Promise.all([cargarVisitas(supabase), cargarRequerimientos(supabase)])
     setActualizando(false)
-    if (error) { toast.error('No se pudieron traer las visitas. Revisá la conexión.'); return }
+    if (error || reqs.error) { toast.error('No se pudieron traer las visitas. Revisá la conexión.'); return }
     setVisitas(nuevas)
+    setRequerimientos(reqs.requerimientos)
     setAhora(Date.now())
     toast.success('Visitas actualizadas')
   }
@@ -106,16 +114,16 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
           <p className="mt-0.5 hidden text-sm text-muted sm:block">Checklist de la recorrida por las sucursales.</p>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div role="tablist" aria-label="Vista" className="grid flex-1 grid-cols-4 gap-1 rounded-xl border border-border bg-surface p-1 sm:flex-none">
+          <div role="tablist" aria-label="Vista" className="grid flex-1 grid-cols-5 gap-1 rounded-xl border border-border bg-surface p-1 sm:flex-none">
             {VISTAS.map(v => {
               const Icono = v.icono
               const activa = vista === v.key
               return (
                 <button key={v.key} type="button" role="tab" aria-selected={activa} aria-label={v.label} onClick={() => cambiarVista(v.key)}
-                  className={`inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-sm font-medium transition-colors sm:px-4 ${
+                  className={`inline-flex min-w-0 flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-lg px-1 py-1.5 text-2xs font-medium transition-colors sm:flex-row sm:gap-1.5 sm:px-4 sm:py-2 sm:text-sm ${
                     activa ? 'bg-accent text-black' : 'text-muted hover:bg-surface2 hover:text-text'
                   }`}>
-                  <Icono size={16} aria-hidden className="hidden shrink-0 min-[400px]:block" />
+                  <Icono size={16} aria-hidden className="shrink-0" />
                   <span className="sm:hidden">{v.corto}</span>
                   <span className="hidden sm:inline">{v.label}</span>
                 </button>
@@ -149,7 +157,7 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
       )}
 
       {vista === 'nueva' && (
-        <NuevaVisita lugares={lugares} bloques={bloques} visitas={visitas} nombreUsuario={nombreUsuario} ahora={ahora} toast={toast} />
+        <NuevaVisita lugares={lugares} bloques={bloques} visitas={visitas} requerimientos={requerimientos} nombreUsuario={nombreUsuario} ahora={ahora} toast={toast} />
       )}
       {(vista === 'visitas' || vista === 'analisis') && tipos.length > 1 && (
         <div role="group" aria-label="Tipo de visita" className="flex flex-wrap gap-1.5">
@@ -165,6 +173,10 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
       )}
       {vista === 'visitas' && <ListaVisitas key={tipo} sucursales={lugaresTipo} bloques={bloquesTipo} visitas={visitasTipo} ahora={ahora} />}
       {vista === 'analisis' && <AnalisisSupervision key={tipo} tipo={tipo} sucursales={lugaresTipo} bloques={bloquesTipo} visitas={visitasTipo} ahora={ahora} />}
+      {vista === 'requerimientos' && (
+        <RequerimientosSupervision requerimientos={requerimientos} lugares={lugares} ahora={ahora} toast={toast}
+          onGuardado={r => setRequerimientos(prev => prev.map(x => (x.id === r.id ? r : x)))} />
+      )}
       {vista === 'lugares' && (
         <LugaresSupervision sucursales={sucursales} esAdmin={esAdmin} toast={toast}
           onGuardado={l => setLugares(prev => prev.map(x => (x.id === l.id ? l : x)))} />

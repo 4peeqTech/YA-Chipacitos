@@ -1,7 +1,8 @@
 // Cálculos del checklist de supervisión. Funciones puras (sin imports de la
 // app) para poder testearlas con `npm test` (calculos.test.mjs).
 import type {
-  AtributosLugar, BloqueSupervision, ItemSupervision, LugarSupervision, ResumenVisita, Respuestas, Resultado, VisitaSupervision,
+  AtributosLugar, BloqueSupervision, ItemSupervision, LugarSupervision, PrioridadRequerimiento, RequerimientoSupervision,
+  ResumenVisita, Respuestas, Resultado, VisitaSupervision,
 } from './tipos'
 
 const redondear1 = (n: number) => Math.round(n * 10) / 10
@@ -336,6 +337,38 @@ export function sinVisitarDesde(visitas: VisitaSupervision[], sucursales: LugarS
 
 export function diasDesde(iso: string, ahora: number): number {
   return Math.max(0, Math.floor((ahora - Date.parse(iso)) / DIA))
+}
+
+// ── Requerimientos ─────────────────────────────────────────────────────────
+
+const ORDEN_PRIORIDAD: Record<PrioridadRequerimiento, number> = { urgente: 0, no_urgente: 1, cuando_se_pueda: 2, reunion: 3 }
+
+export const reqAbierto = (r: Pick<RequerimientoSupervision, 'estado'>) => r.estado === 'pendiente' || r.estado === 'en_gestion'
+
+/** Urgentes primero y, dentro de cada prioridad, los más viejos. */
+export function ordenarRequerimientos(rs: RequerimientoSupervision[]): RequerimientoSupervision[] {
+  return [...rs].sort((a, b) => ORDEN_PRIORIDAD[a.prioridad] - ORDEN_PRIORIDAD[b.prioridad] || a.created_at.localeCompare(b.created_at))
+}
+
+/** Los que siguen abiertos en un lugar (los que se muestran al empezar otra visita). */
+export function requerimientosAbiertos(rs: RequerimientoSupervision[], lugarId: string): RequerimientoSupervision[] {
+  return ordenarRequerimientos(rs.filter(r => r.lugar_id === lugarId && reqAbierto(r)))
+}
+
+export interface FiltrosRequerimientos {
+  lugar?: string
+  prioridad?: string
+  /** 'abiertos' (pendiente + en gestión), 'todos' o un estado puntual. */
+  estado?: string
+}
+
+export function filtrarRequerimientos(rs: RequerimientoSupervision[], f: FiltrosRequerimientos): RequerimientoSupervision[] {
+  const estado = f.estado ?? 'abiertos'
+  return ordenarRequerimientos(rs.filter(r =>
+    (!f.lugar || f.lugar === 'todos' || r.lugar_id === f.lugar)
+    && (!f.prioridad || f.prioridad === 'todas' || r.prioridad === f.prioridad)
+    && (estado === 'todos' || (estado === 'abiertos' ? reqAbierto(r) : r.estado === estado)),
+  ))
 }
 
 // ── CSV ────────────────────────────────────────────────────────────────────

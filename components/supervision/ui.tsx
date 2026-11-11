@@ -1,6 +1,7 @@
 import { IconEqual, IconTrendingDown, IconTrendingUp } from '@tabler/icons-react'
 import { nivelCumplimiento, textoPct } from '@/lib/supervision/calculos'
 import { COLOR_NIVEL } from '@/lib/supervision/formato'
+import { PRIORIDADES_REQ, type PrioridadRequerimiento } from '@/lib/supervision/tipos'
 
 export function Porcentaje({ pct, className = '' }: { pct: number | null | undefined; className?: string }) {
   const nivel = nivelCumplimiento(pct)
@@ -63,3 +64,20 @@ export function Tarjeta({ titulo, descripcion, children }: { titulo: string; des
 /** Clave del respaldo en el celular de la visita que se está completando. */
 export const CLAVE_BORRADOR = 'supervision:borrador'
 export const CLAVE_SUPERVISOR = 'supervision:supervisor'
+
+export const textoDe = <T extends string>(opciones: { valor: T; texto: string }[], v: T) => opciones.find(o => o.valor === v)?.texto ?? v
+
+const COLOR_PRIORIDAD: Record<PrioridadRequerimiento, string> = {
+  urgente: 'bg-danger-bg text-brand-red',
+  no_urgente: 'bg-accent-bg text-accent',
+  cuando_se_pueda: 'bg-surface2 text-muted',
+  reunion: 'bg-surface2 text-text',
+}
+
+export function ChipPrioridad({ prioridad }: { prioridad: PrioridadRequerimiento }) {
+  return (
+    <span className={`shrink-0 rounded-full px-2 py-0.5 text-2xs font-bold uppercase tracking-wider ${COLOR_PRIORIDAD[prioridad]}`}>
+      {textoDe(PRIORIDADES_REQ, prioridad)}
+    </span>
+  )
+}

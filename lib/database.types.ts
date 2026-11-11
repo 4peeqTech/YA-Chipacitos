@@ -5001,6 +5001,83 @@ export type Database = {
           },
         ]
       }
+      supervision_requerimientos: {
+        Row: {
+          categoria: string
+          creado_por: string | null
+          created_at: string
+          descripcion: string
+          estado: string
+          id: string
+          lugar_id: string
+          prioridad: string
+          responsable: string | null
+          respuesta: string
+          resuelto_at: string | null
+          updated_at: string
+          visita_id: string | null
+        }
+        Insert: {
+          categoria?: string
+          creado_por?: string | null
+          created_at?: string
+          descripcion: string
+          estado?: string
+          id?: string
+          lugar_id: string
+          prioridad?: string
+          responsable?: string | null
+          respuesta?: string
+          resuelto_at?: string | null
+          updated_at?: string
+          visita_id?: string | null
+        }
+        Update: {
+          categoria?: string
+          creado_por?: string | null
+          created_at?: string
+          descripcion?: string
+          estado?: string
+          id?: string
+          lugar_id?: string
+          prioridad?: string
+          responsable?: string | null
+          respuesta?: string
+          resuelto_at?: string | null
+          updated_at?: string
+          visita_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supervision_requerimientos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervision_requerimientos_lugar_id_fkey"
+            columns: ["lugar_id"]
+            isOneToOne: false
+            referencedRelation: "supervision_lugares"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervision_requerimientos_visita_id_fkey"
+            columns: ["visita_id"]
+            isOneToOne: false
+            referencedRelation: "supervision_visitas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervision_requerimientos_visita_id_fkey"
+            columns: ["visita_id"]
+            isOneToOne: false
+            referencedRelation: "supervision_visitas_items"
+            referencedColumns: ["visita_id"]
+          },
+        ]
+      }
       supervision_visitas: {
         Row: {
           anterior_fecha: string | null

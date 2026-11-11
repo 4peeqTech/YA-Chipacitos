@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { BloqueSupervision, ItemSupervision, LugarSupervision, VisitaSupervision } from './tipos'
+import type { BloqueSupervision, ItemSupervision, LugarSupervision, RequerimientoSupervision, VisitaSupervision } from './tipos'
 
 export const SELECT_VISITA = '*'
 
@@ -24,6 +24,14 @@ export async function cargarVisitas(supabase: SupabaseClient) {
   const { data, error } = await supabase.from('supervision_visitas').select(SELECT_VISITA)
     .order('fecha', { ascending: false }).limit(1000)
   return { visitas: (data ?? []) as VisitaSupervision[], error }
+}
+
+/** Requerimientos (los más nuevos primero). visitaId: solo los que nacieron en esa visita. */
+export async function cargarRequerimientos(supabase: SupabaseClient, visitaId?: string) {
+  let q = supabase.from('supervision_requerimientos').select('*').order('created_at', { ascending: false }).limit(1000)
+  if (visitaId) q = q.eq('visita_id', visitaId)
+  const { data, error } = await q
+  return { requerimientos: (data ?? []) as RequerimientoSupervision[], error }
 }
 
 /** Nombre del usuario y si es admin (solo admin borra visitas; la RLS lo hace cumplir). */

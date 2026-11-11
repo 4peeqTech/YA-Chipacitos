@@ -9,8 +9,10 @@ import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { calcularResumen, diferenciaPuntos, pendientesResueltos, textoPct } from '@/lib/supervision/calculos'
 import { fechaCorta, fechaHora, pesos } from '@/lib/supervision/formato'
-import type { BloqueSupervision, LugarSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
-import { BarraCumplimiento, ChipEnCurso, Porcentaje, Tarjeta, Tendencia } from './ui'
+import {
+  CATEGORIAS_REQ, ESTADOS_REQ, type BloqueSupervision, type LugarSupervision, type RequerimientoSupervision, type VisitaSupervision,
+} from '@/lib/supervision/tipos'
+import { BarraCumplimiento, ChipEnCurso, ChipPrioridad, Porcentaje, Tarjeta, Tendencia, textoDe } from './ui'
 
 interface Props {
   visita: VisitaSupervision
@@ -19,11 +21,13 @@ interface Props {
   esAdmin: boolean
   anterior: { id: string; fecha: string; pct: number | null } | null
   aviso: string | null
+  /** Los que nacieron en esta visita. */
+  requerimientos: RequerimientoSupervision[]
 }
 
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
-export default function DetalleVisita({ visita: v, lugares, bloques, esAdmin, anterior, aviso }: Props) {
+export default function DetalleVisita({ visita: v, lugares, bloques, esAdmin, anterior, aviso, requerimientos }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [supabase] = useState(() => createClient())
@@ -207,6 +211,21 @@ export default function DetalleVisita({ visita: v, lugares, bloques, esAdmin, an
               {bloques.map(b => <BarraCumplimiento key={b.id} titulo={b.titulo} pct={r.bloques[b.id] ?? null} />)}
             </div>
           </Tarjeta>
+
+          {requerimientos.length > 0 && (
+            <Tarjeta titulo={`Requerimientos (${requerimientos.length})`}>
+              <ul className="divide-y divide-border">
+                {requerimientos.map(q => (
+                  <li key={q.id} className="space-y-1 py-2.5 first:pt-0 last:pb-0">
+                    <p className="text-sm text-text">{q.descripcion}</p>
+                    <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                      <ChipPrioridad prioridad={q.prioridad} />{textoDe(CATEGORIAS_REQ, q.categoria)} · {textoDe(ESTADOS_REQ, q.estado)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </Tarjeta>
+          )}
 
           {v.obs_general && (
             <Tarjeta titulo="Observaciones generales">
