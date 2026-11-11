@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { IconChartBar, IconClipboardCheck, IconClipboardPlus, IconCloudUpload, IconHistory, IconRefresh, type Icon } from '@tabler/icons-react'
 import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
+import { catalogoDeTipo } from '@/lib/supervision/calculos'
 import { cargarVisitas } from '@/lib/supervision/datos'
-import type { BloqueSupervision, SucursalSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
+import type { BloqueSupervision, LugarSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
 import NuevaVisita from './NuevaVisita'
 import ListaVisitas from './ListaVisitas'
 import AnalisisSupervision from './AnalisisSupervision'
@@ -22,7 +23,7 @@ const VISTAS: { key: VistaSupervision; label: string; corto: string; icono: Icon
 ]
 
 interface Props {
-  sucursales: SucursalSupervision[]
+  lugares: LugarSupervision[]
   bloques: BloqueSupervision[]
   visitasIniciales: VisitaSupervision[]
   errorCarga: boolean
@@ -31,7 +32,7 @@ interface Props {
   aviso: string | null
 }
 
-export default function SupervisionClient({ sucursales, bloques, visitasIniciales, errorCarga, nombreUsuario, vistaInicial, aviso }: Props) {
+export default function SupervisionClient({ lugares, bloques, visitasIniciales, errorCarga, nombreUsuario, vistaInicial, aviso }: Props) {
   const [supabase] = useState(() => createClient())
   const pathname = usePathname()
   const toast = useToasts()
@@ -41,13 +42,22 @@ export default function SupervisionClient({ sucursales, bloques, visitasIniciale
   const [borrador, setBorrador] = useState<{ id: string; sucursal: string } | null>(null)
   const [ahora, setAhora] = useState(() => Date.now())
   const avisado = useRef(false)
+  // Visitas y Análisis todavía muestran solo sucursales (el filtro por tipo llega con F1b).
+  const sucursales = useMemo(() => lugares.filter(l => l.tipo === 'sucursal'), [lugares])
+  const bloquesSucursal = useMemo(() => catalogoDeTipo(bloques, 'sucursal'), [bloques])
+  const visitasSucursal = useMemo(() => {
+    const ids = new Set(sucursales.map(s => s.id))
+    return visitas.filter(v => ids.has(v.lugar_id))
+  }, [visitas, sucursales])
 
   useEffect(() => {
     // Una visita que quedó guardada solo en este celular (se cortó la conexión).
     try {
       const b = JSON.parse(localStorage.getItem(CLAVE_BORRADOR) ?? 'null')
       if (b?.visita?.id) {
-        const nombre = sucursales.find(s => s.id === b.visita.sucursal_id)?.nombre ?? ''
+        // Los borradores anteriores a la v2 traen sucursal_id.
+        const lugarId = b.visita.lugar_id ?? b.visita.sucursal_id
+        const nombre = lugares.find(l => l.id === lugarId)?.nombre ?? ''
         setBorrador({ id: b.visita.id, sucursal: nombre }) // eslint-disable-line react-hooks/set-state-in-effect
       }
     } catch {}
@@ -129,10 +139,10 @@ export default function SupervisionClient({ sucursales, bloques, visitasIniciale
       )}
 
       {vista === 'nueva' && (
-        <NuevaVisita sucursales={sucursales} bloques={bloques} visitas={visitas} nombreUsuario={nombreUsuario} ahora={ahora} toast={toast} />
+        <NuevaVisita lugares={lugares} bloques={bloques} visitas={visitas} nombreUsuario={nombreUsuario} ahora={ahora} toast={toast} />
       )}
-      {vista === 'visitas' && <ListaVisitas sucursales={sucursales} bloques={bloques} visitas={visitas} ahora={ahora} />}
-      {vista === 'analisis' && <AnalisisSupervision sucursales={sucursales} bloques={bloques} visitas={visitas} ahora={ahora} />}
+      {vista === 'visitas' && <ListaVisitas sucursales={sucursales} bloques={bloquesSucursal} visitas={visitasSucursal} ahora={ahora} />}
+      {vista === 'analisis' && <AnalisisSupervision sucursales={sucursales} bloques={bloquesSucursal} visitas={visitasSucursal} ahora={ahora} />}
     </div>
   )
 }

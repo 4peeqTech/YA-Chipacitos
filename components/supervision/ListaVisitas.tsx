@@ -10,12 +10,12 @@ import {
   type NivelCumplimiento, type Periodo,
 } from '@/lib/supervision/calculos'
 import { fechaHora } from '@/lib/supervision/formato'
-import type { BloqueSupervision, SucursalSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
+import type { BloqueSupervision, LugarSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
 import { ChipFiltro, OPCIONES_NIVEL } from './Filtros'
 import { ChipEnCurso, Porcentaje, Tendencia } from './ui'
 
 interface Props {
-  sucursales: SucursalSupervision[]
+  sucursales: LugarSupervision[]
   bloques: BloqueSupervision[]
   visitas: VisitaSupervision[]
   ahora: number
@@ -49,7 +49,7 @@ export default function ListaVisitas({ sucursales, bloques, visitas, ahora }: Pr
   const nombre = (id: string) => sucursales.find(s => s.id === id)?.nombre ?? id
   const total = bloques.reduce((n, b) => n + b.items.length, 0)
 
-  const zonas = useMemo(() => [...new Set(sucursales.map(s => s.zona))], [sucursales])
+  const zonas = useMemo(() => [...new Set(sucursales.map(s => s.zona).filter((z): z is string => !!z))], [sucursales])
   const supervisores = useMemo(() => [...new Set(visitas.map(v => v.supervisor_nombre))].sort((a, b) => a.localeCompare(b, 'es')), [visitas])
 
   const lista = useMemo(() => filtrarVisitas(visitas, {
@@ -117,7 +117,7 @@ export default function ListaVisitas({ sucursales, bloques, visitas, ahora }: Pr
                         className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface2 focus-visible:bg-surface2 focus-visible:outline-none lg:grid ${COLUMNAS}`}>
                         <div className="min-w-0 flex-1">
                           <p className="flex items-center gap-2 text-sm font-semibold text-text">
-                            <span className="truncate">{nombre(v.sucursal_id)}</span>
+                            <span className="truncate">{nombre(v.lugar_id)}</span>
                             {v.estado === 'en_curso' && <ChipEnCurso />}
                           </p>
                           {/* Celular: todo en un renglón; en la compu va en columnas. */}
