@@ -3,27 +3,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { IconChartBar, IconClipboardCheck, IconClipboardPlus, IconCloudUpload, IconHistory, IconRefresh, type Icon } from '@tabler/icons-react'
+import {
+  IconBuildingStore, IconChartBar, IconClipboardCheck, IconClipboardPlus, IconCloudUpload, IconHistory, IconRefresh, type Icon,
+} from '@tabler/icons-react'
 import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { catalogoDeTipo } from '@/lib/supervision/calculos'
 import { cargarVisitas } from '@/lib/supervision/datos'
-import type { BloqueSupervision, LugarSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
+import { TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type TipoVisita, type VisitaSupervision } from '@/lib/supervision/tipos'
 import NuevaVisita from './NuevaVisita'
 import ListaVisitas from './ListaVisitas'
 import AnalisisSupervision from './AnalisisSupervision'
+import LugaresSupervision from './LugaresSupervision'
 import { CLAVE_BORRADOR } from './ui'
 
-export type VistaSupervision = 'nueva' | 'visitas' | 'analisis'
+export type VistaSupervision = 'nueva' | 'visitas' | 'analisis' | 'lugares'
 
 const VISTAS: { key: VistaSupervision; label: string; corto: string; icono: Icon }[] = [
   { key: 'nueva', label: 'Nueva visita', corto: 'Nueva', icono: IconClipboardPlus },
   { key: 'visitas', label: 'Visitas', corto: 'Visitas', icono: IconHistory },
   { key: 'analisis', label: 'Análisis', corto: 'Análisis', icono: IconChartBar },
+  { key: 'lugares', label: 'Lugares', corto: 'Lugares', icono: IconBuildingStore },
 ]
 
 interface Props {
   lugares: LugarSupervision[]
+  esAdmin: boolean
   bloques: BloqueSupervision[]
   visitasIniciales: VisitaSupervision[]
   errorCarga: boolean
@@ -32,7 +37,7 @@ interface Props {
   aviso: string | null
 }
 
-export default function SupervisionClient({ lugares, bloques, visitasIniciales, errorCarga, nombreUsuario, vistaInicial, aviso }: Props) {
+export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, bloques, visitasIniciales, errorCarga, nombreUsuario, vistaInicial, aviso }: Props) {
   const [supabase] = useState(() => createClient())
   const pathname = usePathname()
   const toast = useToasts()
@@ -42,13 +47,18 @@ export default function SupervisionClient({ lugares, bloques, visitasIniciales, 
   const [borrador, setBorrador] = useState<{ id: string; sucursal: string } | null>(null)
   const [ahora, setAhora] = useState(() => Date.now())
   const avisado = useRef(false)
-  // Visitas y Análisis todavía muestran solo sucursales (el filtro por tipo llega con F1b).
-  const sucursales = useMemo(() => lugares.filter(l => l.tipo === 'sucursal'), [lugares])
-  const bloquesSucursal = useMemo(() => catalogoDeTipo(bloques, 'sucursal'), [bloques])
-  const visitasSucursal = useMemo(() => {
-    const ids = new Set(sucursales.map(s => s.id))
+  const [lugares, setLugares] = useState(lugaresIniciales)
+  // Visitas y Análisis muestran un tipo de visita por vez: sucursal, fábrica,
+  // depósito y mayoristas no se mezclan en un mismo promedio.
+  const tipos = useMemo(() => TIPOS_VISITA.filter(t => lugares.some(l => l.tipo === t.valor)), [lugares])
+  const [tipo, setTipo] = useState<TipoVisita>('sucursal')
+  const lugaresTipo = useMemo(() => lugares.filter(l => l.tipo === tipo), [lugares, tipo])
+  const bloquesTipo = useMemo(() => catalogoDeTipo(bloques, tipo), [bloques, tipo])
+  const visitasTipo = useMemo(() => {
+    const ids = new Set(lugaresTipo.map(s => s.id))
     return visitas.filter(v => ids.has(v.lugar_id))
-  }, [visitas, sucursales])
+  }, [visitas, lugaresTipo])
+  const sucursales = useMemo(() => lugares.filter(l => l.tipo === 'sucursal'), [lugares])
 
   useEffect(() => {
     // Una visita que quedó guardada solo en este celular (se cortó la conexión).
@@ -96,7 +106,7 @@ export default function SupervisionClient({ lugares, bloques, visitasIniciales, 
           <p className="mt-0.5 hidden text-sm text-muted sm:block">Checklist de la recorrida por las sucursales.</p>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div role="tablist" aria-label="Vista" className="grid flex-1 grid-cols-3 gap-1 rounded-xl border border-border bg-surface p-1 sm:flex-none">
+          <div role="tablist" aria-label="Vista" className="grid flex-1 grid-cols-4 gap-1 rounded-xl border border-border bg-surface p-1 sm:flex-none">
             {VISTAS.map(v => {
               const Icono = v.icono
               const activa = vista === v.key
@@ -105,7 +115,7 @@ export default function SupervisionClient({ lugares, bloques, visitasIniciales, 
                   className={`inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-sm font-medium transition-colors sm:px-4 ${
                     activa ? 'bg-accent text-black' : 'text-muted hover:bg-surface2 hover:text-text'
                   }`}>
-                  <Icono size={16} aria-hidden className="shrink-0" />
+                  <Icono size={16} aria-hidden className="hidden shrink-0 min-[400px]:block" />
                   <span className="sm:hidden">{v.corto}</span>
                   <span className="hidden sm:inline">{v.label}</span>
                 </button>
@@ -141,8 +151,24 @@ export default function SupervisionClient({ lugares, bloques, visitasIniciales, 
       {vista === 'nueva' && (
         <NuevaVisita lugares={lugares} bloques={bloques} visitas={visitas} nombreUsuario={nombreUsuario} ahora={ahora} toast={toast} />
       )}
-      {vista === 'visitas' && <ListaVisitas sucursales={sucursales} bloques={bloquesSucursal} visitas={visitasSucursal} ahora={ahora} />}
-      {vista === 'analisis' && <AnalisisSupervision sucursales={sucursales} bloques={bloquesSucursal} visitas={visitasSucursal} ahora={ahora} />}
+      {(vista === 'visitas' || vista === 'analisis') && tipos.length > 1 && (
+        <div role="group" aria-label="Tipo de visita" className="flex flex-wrap gap-1.5">
+          {tipos.map(t => (
+            <button key={t.valor} type="button" aria-pressed={tipo === t.valor} onClick={() => setTipo(t.valor)}
+              className={`min-h-[36px] rounded-full border px-3 text-xs font-semibold transition-colors ${
+                tipo === t.valor ? 'border-accent bg-accent text-black' : 'border-border text-muted hover:border-accent/60 hover:text-text'
+              }`}>
+              {t.texto}
+            </button>
+          ))}
+        </div>
+      )}
+      {vista === 'visitas' && <ListaVisitas key={tipo} sucursales={lugaresTipo} bloques={bloquesTipo} visitas={visitasTipo} ahora={ahora} />}
+      {vista === 'analisis' && <AnalisisSupervision key={tipo} tipo={tipo} sucursales={lugaresTipo} bloques={bloquesTipo} visitas={visitasTipo} ahora={ahora} />}
+      {vista === 'lugares' && (
+        <LugaresSupervision sucursales={sucursales} esAdmin={esAdmin} toast={toast}
+          onGuardado={l => setLugares(prev => prev.map(x => (x.id === l.id ? l : x)))} />
+      )}
     </div>
   )
 }
