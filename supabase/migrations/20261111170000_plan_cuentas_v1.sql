@@ -1,0 +1,288 @@
+-- ============================================================================
+-- Plan de cuentas v1 (2026-11-11): el que mandó Nico, fijo.
+--
+-- Reemplaza la plan_cuentas de junio (rubro/categoría editables, 35 filas, que
+-- ningún gasto leía). La nueva tiene las 216 filas del Excel
+-- (docs/gastos/plan-cuentas-v1.xlsx) en 4 niveles: Tipo › Rubro › Categoría ›
+-- Cuenta. Se cargan todas, también las que todavía no se usan (ingresos,
+-- pasivos…): lo pidió Nico.
+--
+-- No se edita desde la app: RLS solo de lectura y sin permisos de escritura.
+-- Una versión nueva del plan entra con otra migración.
+--
+-- uso_gastos dice qué cuentas aparecen al cargar un gasto:
+--   'gasto'      → costos y gastos (van al resultado);
+--   'otro_pago'  → sale plata pero no es gasto (retiros, bienes de uso,
+--                  capital de préstamos, pago de IVA…);
+--   null         → no se elige en Gastos.
+--
+-- El insert lo genera scripts/plan-cuentas/xlsx_a_sql.py.
+-- ============================================================================
+
+drop table if exists public.plan_cuentas;
+
+create table public.plan_cuentas (
+  codigo           text primary key,
+  nombre           text not null,
+  nivel            smallint not null check (nivel between 1 and 4),
+  padre            text references public.plan_cuentas(codigo),
+  imputable        boolean not null,
+  tipo             text not null,
+  rubro_gasto      text,
+  categoria_gasto  text,
+  incluye          text,
+  tablero_fabrica  text,
+  tablero_locales  text,
+  uso_gastos       text check (uso_gastos in ('gasto', 'otro_pago')),
+  orden            integer not null,
+  constraint plan_cuentas_uso_imputable check (uso_gastos is null or imputable),
+  constraint plan_cuentas_padre_nivel check ((nivel = 1) = (padre is null))
+);
+
+create index plan_cuentas_padre_idx on public.plan_cuentas (padre);
+
+alter table public.plan_cuentas enable row level security;
+create policy plan_cuentas_lee on public.plan_cuentas for select to authenticated using (true);
+revoke insert, update, delete, truncate on public.plan_cuentas from anon, authenticated;
+
+insert into public.plan_cuentas (codigo, nombre, nivel, padre, imputable, tipo, rubro_gasto,
+  categoria_gasto, incluye, tablero_fabrica, tablero_locales, orden) values
+('1', 'ACTIVO', 1, null, false, 'Patrimonial · Activo', null, null, 'Bienes y derechos de la empresa. Acá van los movimientos del archivo de Ceci que NO son gasto: inversiones, anticipos de impuestos, pases entre cuentas.', null, null, 1),
+('1.1', 'Disponibilidades', 2, '1', false, 'Patrimonial · Activo', 'Disponibilidades', null, 'Efectivo y saldos en bancos y billeteras virtuales.', null, null, 2),
+('1.1.01', 'Cajas', 3, '1.1', false, 'Patrimonial · Activo', 'Disponibilidades', 'Cajas', 'Efectivo físico.', null, null, 3),
+('1.1.01.01', 'Caja de efectivo', 4, '1.1.01', true, 'Patrimonial · Activo', 'Disponibilidades', 'Cajas', 'Efectivo de cada local, de la fábrica y de administración (una caja por unidad, como dato de «cuenta que paga»). Recaudación en efectivo que cuenta Ceci; compras chicas que el encargado paga de la caja y carga en FUDO.', 'No va al resultado', 'No va al resultado', 4),
+('1.1.01.02', 'Valores a depositar', 4, '1.1.01', true, 'Patrimonial · Activo', 'Disponibilidades', 'Cajas', 'Cheques y e-cheqs de terceros recibidos (Supermax y otros clientes) hasta que se depositan o se endosan.', 'No va al resultado', 'No va al resultado', 5),
+('1.1.02', 'Bancos y billeteras virtuales', 3, '1.1', false, 'Patrimonial · Activo', 'Disponibilidades', 'Bancos y billeteras virtuales', 'Cuentas bancarias y de billeteras.', null, null, 6),
+('1.1.02.01', 'Bancos', 4, '1.1.02', true, 'Patrimonial · Activo', 'Disponibilidades', 'Bancos y billeteras virtuales', 'Cuentas bancarias (Santander de la fábrica y otras). Una subcuenta por cuenta bancaria.', 'No va al resultado', 'No va al resultado', 7),
+('1.1.02.02', 'Mercado Pago y otras billeteras', 4, '1.1.02', true, 'Patrimonial · Activo', 'Disponibilidades', 'Bancos y billeteras virtuales', 'Cuentas de Mercado Pago de cada local, de mayoristas y de la fábrica. Una subcuenta por cuenta.', 'No va al resultado', 'No va al resultado', 8),
+('1.1.03', 'Movimientos internos', 3, '1.1', false, 'Patrimonial · Activo', 'Disponibilidades', 'Movimientos internos', 'Plata que pasa de una cuenta propia a otra.', null, null, 9),
+('1.1.03.01', 'Transferencias internas en tránsito', 4, '1.1.03', true, 'Patrimonial · Activo', 'Disponibilidades', 'Movimientos internos', 'Pases entre cuentas propias de la misma razón social (de un Mercado Pago a Santander, recargas entre cuentas). Debe quedar en cero: lo que sale de una cuenta entra en otra.', 'No va al resultado', 'No va al resultado', 10),
+('1.2', 'Créditos', 2, '1', false, 'Patrimonial · Activo', 'Créditos', null, 'Lo que terceros o el fisco le deben a la empresa.', null, null, 11),
+('1.2.01', 'Créditos por ventas', 3, '1.2', false, 'Patrimonial · Activo', 'Créditos', 'Créditos por ventas', 'Ventas cobradas a plazo.', null, null, 12),
+('1.2.01.01', 'Deudores por ventas', 4, '1.2.01', true, 'Patrimonial · Activo', 'Créditos', 'Créditos por ventas', 'Remitos y facturas a cobrar de Supermax, mayoristas y distribuidores. Reemplaza el control en papel de los remitos de Supermax.', 'No va al resultado', 'No va al resultado', 13),
+('1.2.01.02', 'Saldos a cobrar de plataformas', 4, '1.2.01', true, 'Patrimonial · Activo', 'Créditos', 'Créditos por ventas', 'Lo que PedidosYa, Rappi o Mercado Pago tienen que liquidar por ventas ya hechas (antes de descontar sus comisiones).', 'No va al resultado', 'No va al resultado', 14),
+('1.2.02', 'Créditos fiscales', 3, '1.2', false, 'Patrimonial · Activo', 'Créditos', 'Créditos fiscales', 'Impuestos pagados a cuenta.', null, null, 15),
+('1.2.02.01', 'IVA crédito fiscal', 4, '1.2.02', true, 'Patrimonial · Activo', 'Créditos', 'Créditos fiscales', 'IVA de las compras con Factura A de las unidades responsables inscriptas. Se compensa con el débito fiscal en la posición mensual. Con el sistema neto de IVA, el gasto se registra sin IVA y el IVA viene acá.', 'No va al resultado', 'No va al resultado', 16),
+('1.2.02.02', 'Anticipos de Ganancias', 4, '1.2.02', true, 'Patrimonial · Activo', 'Créditos', 'Créditos fiscales', 'Anticipos del Impuesto a las Ganancias pagados durante el año.', 'No va al resultado', 'No va al resultado', 17),
+('1.2.02.03', 'Retenciones y percepciones sufridas', 4, '1.2.02', true, 'Patrimonial · Activo', 'Créditos', 'Créditos fiscales', 'Percepciones y retenciones de IVA, Ingresos Brutos y Ganancias que hacen bancos, Mercado Pago o clientes.', 'No va al resultado', 'No va al resultado', 18),
+('1.2.03', 'Otros créditos', 3, '1.2', false, 'Patrimonial · Activo', 'Créditos', 'Otros créditos', null, null, null, 19),
+('1.2.03.01', 'Anticipos a proveedores', 4, '1.2.03', true, 'Patrimonial · Activo', 'Créditos', 'Otros créditos', 'Pagos adelantados a proveedores antes de recibir la factura o la mercadería.', 'No va al resultado', 'No va al resultado', 20),
+('1.2.03.02', 'Adelantos al personal', 4, '1.2.03', true, 'Patrimonial · Activo', 'Créditos', 'Otros créditos', 'Adelantos de sueldo o de quincena que después se descuentan.', 'No va al resultado', 'No va al resultado', 21),
+('1.2.03.03', 'Cuentas corrientes con empresas del grupo', 4, '1.2.03', true, 'Patrimonial · Activo', 'Créditos', 'Otros créditos', 'Lo que una razón social del grupo le paga a otra o le debe (p. ej. Irigoyen paga a la fábrica la masa e insumos; devoluciones entre locales; gastos de una razón social pagados por otra). No es gasto: el gasto se registra una sola vez, en la unidad que corresponde.', 'No va al resultado', 'No va al resultado', 22),
+('1.3', 'Bienes de uso', 2, '1', false, 'Patrimonial · Activo', 'Bienes de uso', null, 'Bienes que duran más de un año y superan el monto mínimo de capitalización (propuesta: $500.000). Por debajo de ese monto van a «Pequeño equipamiento».', null, null, 23),
+('1.3.01', 'Bienes de uso', 3, '1.3', false, 'Patrimonial · Activo', 'Bienes de uso', 'Bienes de uso', null, null, null, 24),
+('1.3.01.01', 'Máquinas y equipos de producción', 4, '1.3.01', true, 'Patrimonial · Activo', 'Bienes de uso', 'Bienes de uso', 'Compresor, selladora, amasadora, horno, discomatic, molino de café, plaquetas o partes que alargan la vida útil del equipo.', '¿Y la plata?: inversiones', '¿Y la plata?: inversiones', 25),
+('1.3.01.02', 'Equipos de frío', 4, '1.3.01', true, 'Patrimonial · Activo', 'Bienes de uso', 'Bienes de uso', 'Heladeras, freezers, cámaras y abatidores nuevos de la fábrica, los locales o el depósito.', '¿Y la plata?: inversiones', '¿Y la plata?: inversiones', 26),
+('1.3.01.03', 'Instalaciones y mejoras en inmuebles', 4, '1.3.01', true, 'Patrimonial · Activo', 'Bienes de uso', 'Bienes de uso', 'Obras, tableros eléctricos, instalación de aire acondicionado, materiales para obras del depósito o de un local.', '¿Y la plata?: inversiones', '¿Y la plata?: inversiones', 27),
+('1.3.01.04', 'Rodados', 4, '1.3.01', true, 'Patrimonial · Activo', 'Bienes de uso', 'Bienes de uso', 'Vehículos del negocio (Kangoo con y sin cámara) y cuotas de planes de ahorro de vehículos que vayan a ser del negocio.', '¿Y la plata?: inversiones', '¿Y la plata?: inversiones', 28),
+('1.3.01.05', 'Muebles, útiles y equipos de computación', 4, '1.3.01', true, 'Patrimonial · Activo', 'Bienes de uso', 'Bienes de uso', 'Mobiliario de locales y oficina (banquetas, mesas), computadoras, impresoras, balanzas y ticketeras de valor mayor al mínimo.', '¿Y la plata?: inversiones', '¿Y la plata?: inversiones', 29),
+('1.3.01.06', 'Equipos en cadenas y clientes', 4, '1.3.01', true, 'Patrimonial · Activo', 'Bienes de uso', 'Bienes de uso', 'Exhibidoras (Metalcor), freezers y mesas que la empresa compra y coloca en supermercados (Supermax, Carrefour).', '¿Y la plata?: inversiones', '¿Y la plata?: inversiones', 30),
+('1.3.01.07', 'Cartelería y equipamiento de locales', 4, '1.3.01', true, 'Patrimonial · Activo', 'Bienes de uso', 'Bienes de uso', 'Carteles de chapa o neón, equipamiento de un local nuevo.', '¿Y la plata?: inversiones', '¿Y la plata?: inversiones', 31),
+('1.4', 'Cuentas transitorias', 2, '1', false, 'Patrimonial · Activo', 'Cuentas transitorias', null, 'Cuentas de paso: tienen que quedar en cero al cerrar el mes.', null, null, 32),
+('1.4.01', 'Partidas pendientes', 3, '1.4', false, 'Patrimonial · Activo', 'Cuentas transitorias', 'Partidas pendientes', null, null, null, 33),
+('1.4.01.01', 'Partidas pendientes de imputación', 4, '1.4.01', true, 'Patrimonial · Activo', 'Cuentas transitorias', 'Partidas pendientes', 'Movimientos que todavía no se sabe a qué cuenta van. El sistema no deja cerrar el mes con saldo en esta cuenta.', 'Administración central, marketing y otros', 'Otros gastos', 34),
+('1.4.01.02', 'Partidas a definir con el contador', 4, '1.4.01', true, 'Patrimonial · Activo', 'Cuentas transitorias', 'Partidas pendientes', 'Operaciones con tratamiento fiscal no resuelto. Hoy: la «compra de IVA» (factura que se paga por transferencia y vuelve en efectivo). No se crea una cuenta de gasto para esto: queda visible acá hasta que el contador defina.', 'Impuestos', 'Otros gastos', 35),
+('2', 'PASIVO', 1, null, false, 'Patrimonial · Pasivo', null, null, 'Deudas de la empresa.', null, null, 36),
+('2.1', 'Deudas comerciales', 2, '2', false, 'Patrimonial · Pasivo', 'Deudas comerciales', null, null, null, null, 37),
+('2.1.01', 'Proveedores y tarjetas', 3, '2.1', false, 'Patrimonial · Pasivo', 'Deudas comerciales', 'Proveedores y tarjetas', null, null, null, 38),
+('2.1.01.01', 'Proveedores', 4, '2.1.01', true, 'Patrimonial · Pasivo', 'Deudas comerciales', 'Proveedores y tarjetas', 'Facturas de proveedores recibidas y todavía no pagadas (es la «agenda de pagos» de Ceci).', 'No va al resultado', 'No va al resultado', 39),
+('2.1.01.02', 'Cheques diferidos y e-cheqs emitidos', 4, '2.1.01', true, 'Patrimonial · Pasivo', 'Deudas comerciales', 'Proveedores y tarjetas', 'Cheques propios entregados a proveedores que todavía no se debitaron.', 'No va al resultado', 'No va al resultado', 40),
+('2.1.01.03', 'Tarjetas de crédito a pagar', 4, '2.1.01', true, 'Patrimonial · Pasivo', 'Deudas comerciales', 'Proveedores y tarjetas', 'Saldo de las tarjetas de crédito. Cada consumo del resumen se registra en su cuenta de gasto y su unidad (lo personal, en 3.1.01.02); el pago del resumen cancela esta deuda.', 'No va al resultado', 'No va al resultado', 41),
+('2.2', 'Deudas laborales y sociales', 2, '2', false, 'Patrimonial · Pasivo', 'Deudas laborales y sociales', null, null, null, null, 42),
+('2.2.01', 'Remuneraciones y cargas a pagar', 3, '2.2', false, 'Patrimonial · Pasivo', 'Deudas laborales y sociales', 'Remuneraciones y cargas a pagar', null, null, null, 43),
+('2.2.01.01', 'Sueldos a pagar', 4, '2.2.01', true, 'Patrimonial · Pasivo', 'Deudas laborales y sociales', 'Remuneraciones y cargas a pagar', 'Sueldos y quincenas liquidados y no pagados (p. ej. la 2da quincena, que se paga del 1 al 10 del mes siguiente).', 'No va al resultado', 'No va al resultado', 44),
+('2.2.01.02', 'Cargas sociales a pagar', 4, '2.2.01', true, 'Patrimonial · Pasivo', 'Deudas laborales y sociales', 'Remuneraciones y cargas a pagar', 'F.931 (VEP) devengado y no pagado.', 'No va al resultado', 'No va al resultado', 45),
+('2.2.01.03', 'Sindicato y obra social a pagar', 4, '2.2.01', true, 'Patrimonial · Pasivo', 'Deudas laborales y sociales', 'Remuneraciones y cargas a pagar', 'Aportes al sindicato de panaderos y obra social a pagar.', 'No va al resultado', 'No va al resultado', 46),
+('2.2.01.04', 'Provisión de aguinaldo y vacaciones', 4, '2.2.01', true, 'Patrimonial · Pasivo', 'Deudas laborales y sociales', 'Remuneraciones y cargas a pagar', 'Parte del aguinaldo y de las vacaciones que se va devengando mes a mes.', 'No va al resultado', 'No va al resultado', 47),
+('2.3', 'Deudas fiscales', 2, '2', false, 'Patrimonial · Pasivo', 'Deudas fiscales', null, null, null, null, 48),
+('2.3.01', 'Impuestos a pagar', 3, '2.3', false, 'Patrimonial · Pasivo', 'Deudas fiscales', 'Impuestos a pagar', null, null, null, 49),
+('2.3.01.01', 'IVA a pagar', 4, '2.3.01', true, 'Patrimonial · Pasivo', 'Deudas fiscales', 'Impuestos a pagar', 'Saldo de IVA de la posición mensual (débito − crédito) y su pago. El pago de IVA no es gasto: ventas y compras se registran sin IVA.', 'No va al resultado', 'No va al resultado', 50),
+('2.3.01.02', 'Ingresos Brutos a pagar', 4, '2.3.01', true, 'Patrimonial · Pasivo', 'Deudas fiscales', 'Impuestos a pagar', 'DDJJ de Ingresos Brutos devengada y no pagada.', 'No va al resultado', 'No va al resultado', 51),
+('2.3.01.03', 'Impuesto a las Ganancias a pagar', 4, '2.3.01', true, 'Patrimonial · Pasivo', 'Deudas fiscales', 'Impuestos a pagar', 'Saldo de la DDJJ anual de Ganancias (p. ej. «Ganancias 2025»).', 'No va al resultado', 'No va al resultado', 52),
+('2.3.01.04', 'Planes de pago fiscales', 4, '2.3.01', true, 'Patrimonial · Pasivo', 'Deudas fiscales', 'Impuestos a pagar', 'Capital de las cuotas de planes de pago de IVA y del F.931. Los intereses van a 5.8.01.02.', '¿Y la plata?: cuotas de préstamos y planes (capital)', '¿Y la plata?: cuotas de préstamos y planes (capital)', 53),
+('2.4', 'Deudas financieras', 2, '2', false, 'Patrimonial · Pasivo', 'Deudas financieras', null, null, null, null, 54),
+('2.4.01', 'Préstamos', 3, '2.4', false, 'Patrimonial · Pasivo', 'Deudas financieras', 'Préstamos', null, null, null, 55),
+('2.4.01.01', 'Préstamos bancarios y de billeteras', 4, '2.4.01', true, 'Patrimonial · Pasivo', 'Deudas financieras', 'Préstamos', 'Préstamos de bancos y de Mercado Pago. Se registra el ingreso del préstamo y cada cuota: el capital acá y los intereses en 5.8.01.01.', '¿Y la plata?: cuotas de préstamos y planes (capital)', '¿Y la plata?: cuotas de préstamos y planes (capital)', 56),
+('2.4.01.02', 'Préstamos del socio', 4, '2.4.01', true, 'Patrimonial · Pasivo', 'Deudas financieras', 'Préstamos', 'Plata que el dueño pone en el negocio como préstamo, para devolver.', 'No va al resultado', 'No va al resultado', 57),
+('3', 'PATRIMONIO NETO', 1, null, false, 'Patrimonio neto', null, null, 'Lo que es de los dueños.', null, null, 58),
+('3.1', 'Cuenta particular del socio', 2, '3', false, 'Patrimonio neto', 'Cuenta particular del socio', null, 'Movimientos entre la empresa y el dueño.', null, null, 59),
+('3.1.01', 'Retiros y gastos personales', 3, '3.1', false, 'Patrimonio neto', 'Cuenta particular del socio', 'Retiros y gastos personales', null, null, null, 60),
+('3.1.01.01', 'Retiros del socio', 4, '3.1.01', true, 'Patrimonio neto', 'Cuenta particular del socio', 'Retiros y gastos personales', 'Efectivo o transferencias que retiran Ricardo o Pilu, incluido el «retiro de préstamo» (préstamo del negocio que retiró el dueño).', '¿Y la plata?: retiros del socio', '¿Y la plata?: retiros del socio', 61),
+('3.1.01.02', 'Gastos personales pagados por la empresa', 4, '3.1.01', true, 'Patrimonio neto', 'Cuenta particular del socio', 'Retiros y gastos personales', 'Gastos del dueño o su familia pagados con plata del negocio: consumos personales de la tarjeta, auto particular, luz de la casa, cuotas de un lote, compras personales.', '¿Y la plata?: retiros del socio', '¿Y la plata?: retiros del socio', 62),
+('3.2', 'Capital y resultados', 2, '3', false, 'Patrimonio neto', 'Capital y resultados', null, 'Lo define el estudio contable.', null, null, 63),
+('3.2.01', 'Capital y resultados', 3, '3.2', false, 'Patrimonio neto', 'Capital y resultados', 'Capital y resultados', null, null, null, 64),
+('3.2.01.01', 'Capital y aportes', 4, '3.2.01', true, 'Patrimonio neto', 'Capital y resultados', 'Capital y resultados', 'Capital de cada razón social y aportes de los socios.', 'No va al resultado', 'No va al resultado', 65),
+('3.2.01.02', 'Resultados acumulados', 4, '3.2.01', true, 'Patrimonio neto', 'Capital y resultados', 'Capital y resultados', 'Ganancias o pérdidas de ejercicios anteriores.', 'No va al resultado', 'No va al resultado', 66),
+('4', 'INGRESOS', 1, null, false, 'Resultado · Ingreso', null, null, 'No se cargan a mano: vienen de PostBerry (fábrica) y FUDO (locales). Se incluyen para completar el plan.', null, null, 67),
+('4.1', 'Ventas', 2, '4', false, 'Resultado · Ingreso', 'Ventas', null, null, null, null, 68),
+('4.1.01', 'Ventas de la fábrica', 3, '4.1', false, 'Resultado · Ingreso', 'Ventas', 'Ventas de la fábrica', 'Vienen de PostBerry.', null, null, 69),
+('4.1.01.01', 'Ventas a sucursales propias', 4, '4.1.01', true, 'Resultado · Ingreso', 'Ventas', 'Ventas de la fábrica', 'Masa, chipá, congelados e insumos que la fábrica vende a los locales propios, al precio de transferencia. Es venta interna: en el resultado del grupo se elimina contra 5.1.04.', 'Ventas (por canal)', '—', 70),
+('4.1.01.02', 'Ventas a cadenas de supermercados', 4, '4.1.01', true, 'Resultado · Ingreso', 'Ventas', 'Ventas de la fábrica', 'Supermax, Carrefour y otras cadenas.', 'Ventas (por canal)', '—', 71),
+('4.1.01.03', 'Ventas a mayoristas y distribuidores', 4, '4.1.01', true, 'Resultado · Ingreso', 'Ventas', 'Ventas de la fábrica', 'Clientes mayoristas y distribuidores, incluidas franquicias o locales que no son propios.', 'Ventas (por canal)', '—', 72),
+('4.1.01.04', 'Ventas a consumidor final (fábrica)', 4, '4.1.01', true, 'Resultado · Ingreso', 'Ventas', 'Ventas de la fábrica', 'Ventas al público hechas por la fábrica.', 'Ventas (por canal)', '—', 73),
+('4.1.02', 'Ventas de los locales', 3, '4.1', false, 'Resultado · Ingreso', 'Ventas', 'Ventas de los locales', 'Vienen de FUDO.', null, null, 74),
+('4.1.02.01', 'Ventas en mostrador', 4, '4.1.02', true, 'Resultado · Ingreso', 'Ventas', 'Ventas de los locales', 'Ventas del local en el mostrador (efectivo, transferencia, tarjeta).', '—', 'Ventas', 75),
+('4.1.02.02', 'Ventas por delivery y apps', 4, '4.1.02', true, 'Resultado · Ingreso', 'Ventas', 'Ventas de los locales', 'Ventas por PedidosYa, Rappi y delivery propio, por el importe bruto (las comisiones van a 5.5.03.01).', '—', 'Ventas', 76),
+('4.2', 'Otros ingresos', 2, '4', false, 'Resultado · Ingreso', 'Otros ingresos', null, null, null, null, 77),
+('4.2.01', 'Otros ingresos', 3, '4.2', false, 'Resultado · Ingreso', 'Otros ingresos', 'Otros ingresos', null, null, null, 78),
+('4.2.01.01', 'Ingresos financieros', 4, '4.2.01', true, 'Resultado · Ingreso', 'Otros ingresos', 'Otros ingresos', 'Intereses y rendimientos de saldos invertidos (p. ej. Mercado Pago).', 'Bancos, financieros e imprevistos', 'Otros gastos', 79),
+('4.2.01.02', 'Otros ingresos varios', 4, '4.2.01', true, 'Resultado · Ingreso', 'Otros ingresos', 'Otros ingresos', 'Recuperos, venta de bienes usados, reintegros.', 'Administración central, marketing y otros', 'Otros gastos', 80),
+('5', 'COSTOS Y GASTOS', 1, null, false, 'Resultado · Costo y gasto', null, null, 'Todo lo que es gasto del mes y va al resultado. La unidad (fábrica, administración central o local) NO forma parte de la cuenta: es un dato aparte de cada comprobante.', null, null, 81),
+('5.1', 'Costo de mercadería y producción', 2, '5', false, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', null, 'Lo que se compra para producir o para vender.', null, null, 82),
+('5.1.01', 'Materias primas', 3, '5.1', false, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Materias primas', 'Ingredientes que se usan para producir. La cuenta sale del artículo comprado, no del proveedor.', null, null, 83),
+('5.1.01.01', 'Ingredientes base de la masa', 4, '5.1.01', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Materias primas', 'Almidón y fécula de mandioca, harinas, quesos, grasas, manteca, leche y premezclas para la masa. Hoy, casi todo lo de Global/Alexis (pedido base y complementario). El detalle por ingrediente lo da el maestro de artículos de compras.', 'Materia prima e insumos', 'Otras compras', 84),
+('5.1.01.02', 'Huevos', 4, '5.1.01', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Materias primas', 'Huevos para producción.', 'Materia prima e insumos', 'Otras compras', 85),
+('5.1.01.03', 'Rellenos y saborizantes', 4, '5.1.01', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Materias primas', 'Jamón, salame, fiambres, quesos especiales (azul, cheddar), maíz crema, anís, orégano y otros sabores de las variedades.', 'Materia prima e insumos', 'Otras compras', 86),
+('5.1.01.04', 'Otros ingredientes', 4, '5.1.01', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Materias primas', 'Sal, azúcar, aceite y otros ingredientes menores; compras de ingredientes a proveedores no habituales.', 'Materia prima e insumos', 'Otras compras', 87),
+('5.1.02', 'Packaging e insumos de producción y venta', 3, '5.1', false, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Packaging e insumos de producción y venta', 'Envases y materiales que acompañan al producto.', null, null, 88),
+('5.1.02.01', 'Bolsas y envases', 4, '5.1.02', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Packaging e insumos de producción y venta', 'Bolsas de congelados, de papel, camiseta, de consorcio, bobinas de polietileno.', 'Materia prima e insumos', 'Otras compras', 89),
+('5.1.02.02', 'Cajas y materiales de embalaje', 4, '5.1.02', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Packaging e insumos de producción y venta', 'Cajas de congelados, cajitas felices, cajas de cartón corrugado, cajones, cajas plásticas, cinta de embalar.', 'Materia prima e insumos', 'Otras compras', 90),
+('5.1.02.03', 'Etiquetas, códigos y tintas de fechado', 4, '5.1.02', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Packaging e insumos de producción y venta', 'Autoadhesivos, códigos de barra, cartuchos de la fechadora, rollos y tickets de balanza.', 'Materia prima e insumos', 'Otras compras', 91),
+('5.1.02.04', 'Descartables de producción', 4, '5.1.02', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Packaging e insumos de producción y venta', 'Guantes, cofias, mangas pasteleras, moldes y otros descartables de cocina y producción.', 'Materia prima e insumos', 'Otras compras', 92),
+('5.1.02.05', 'Descartables de atención al público', 4, '5.1.02', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Packaging e insumos de producción y venta', 'Vasos y tapas de café, vasos de smoothies, servilletas, rollos térmicos de ticketera.', 'Materia prima e insumos', 'Otras compras', 93),
+('5.1.03', 'Mercadería para reventa', 3, '5.1', false, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Mercadería para reventa', 'Lo que los locales (o la fábrica) compran y venden tal cual, o usan en la cafetería.', null, null, 94),
+('5.1.03.01', 'Panificados y congelados de terceros', 4, '5.1.03', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Mercadería para reventa', 'Facturas congeladas, ravioles, churros, frutos congelados y otros productos elaborados por terceros.', 'Materia prima e insumos', 'Otras compras', 95),
+('5.1.03.02', 'Bebidas y lácteos', 4, '5.1.03', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Mercadería para reventa', 'Leche líquida, bebidas, gaseosas, jugos y lácteos para la venta o la cafetería.', 'Materia prima e insumos', 'Otras compras', 96),
+('5.1.03.03', 'Café e insumos de cafetería', 4, '5.1.03', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Mercadería para reventa', 'Café, azúcar en sobres, frutas, hielo y otros insumos para cafetería, jugos y smoothies.', 'Materia prima e insumos', 'Otras compras', 97),
+('5.1.03.04', 'Otros productos e insumos del local', 4, '5.1.03', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Mercadería para reventa', 'Dulce de leche, membrillo, condimentos y compras menores de supermercado para el local que no entran en las cuentas anteriores.', 'Materia prima e insumos', 'Otras compras', 98),
+('5.1.04', 'Compras internas', 3, '5.1', false, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Compras internas', 'Lo que un local le compra a la fábrica o a otro local del grupo.', null, null, 99),
+('5.1.04.01', 'Compras de masa y productos a la fábrica', 4, '5.1.04', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Compras internas', 'Masa, chipá y congelados que el local compra a la fábrica, al precio de transferencia. No se carga a mano: sale de los presupuestos de PostBerry. En el resultado del grupo se elimina contra 4.1.01.01.', '—', 'Compras a fábrica', 100),
+('5.1.04.02', 'Compras de insumos a la fábrica y a otros locales', 4, '5.1.04', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Compras internas', 'Bolsas, cajitas y otros insumos que el local compra a la fábrica, y mercadería que un local le pasa a otro.', '—', 'Compras a fábrica', 101),
+('5.1.05', 'Diferencias de inventario', 3, '5.1', false, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Diferencias de inventario', 'Para cuando el sistema lleve stock.', null, null, 102),
+('5.1.05.01', 'Mermas y diferencias de stock', 4, '5.1.05', true, 'Resultado · Costo y gasto', 'Costo de mercadería y producción', 'Diferencias de inventario', 'Diferencias entre el stock teórico y el contado, vencimientos y roturas. Se usa cuando haya inventario en el sistema.', 'Materia prima e insumos', 'Otras compras', 103),
+('5.2', 'Gastos de personal', 2, '5', false, 'Resultado · Costo y gasto', 'Gastos de personal', null, 'Todo lo que cuesta la gente que trabaja en el negocio.', null, null, 104),
+('5.2.01', 'Remuneraciones', 3, '5.2', false, 'Resultado · Costo y gasto', 'Gastos de personal', 'Remuneraciones', 'Personal en relación de dependencia.', null, null, 105),
+('5.2.01.01', 'Sueldos y jornales', 4, '5.2.01', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Remuneraciones', 'Sueldos y quincenas del personal registrado (producción, reparto, atención, encargados, administración, compras, RRHH, community manager en nómina). Se imputan por quincena: la 2da va en el mes que se trabajó.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 106),
+('5.2.01.02', 'Horas extras y adicionales', 4, '5.2.01', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Remuneraciones', 'Horas extras, jornadas adicionales y premios liquidados en el recibo.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 107),
+('5.2.01.03', 'Aguinaldo', 4, '5.2.01', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Remuneraciones', 'Sueldo anual complementario de junio y diciembre.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 108),
+('5.2.01.04', 'Vacaciones y licencias', 4, '5.2.01', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Remuneraciones', 'Vacaciones y licencias pagas liquidadas.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 109),
+('5.2.01.05', 'Retribución del director', 4, '5.2.01', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Remuneraciones', 'Sueldo fijo mensual del director (desde septiembre 2026, $5,4 M repartidos entre Paraguay, San Lorenzo y Córdoba).', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 110),
+('5.2.02', 'Personal contratado y eventual', 3, '5.2', false, 'Resultado · Costo y gasto', 'Gastos de personal', 'Personal contratado y eventual', 'Gente que trabaja sin estar en la nómina.', null, null, 111),
+('5.2.02.01', 'Reemplazos, francos y eventos', 4, '5.2.02', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Personal contratado y eventual', 'Pagos por fuera de la nómina: cubre francos, reemplazos, trabajo en eventos (Festival Vivo), pagos semanales fijos («emme»).', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 112),
+('5.2.02.02', 'Colaboradores monotributistas', 4, '5.2.02', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Personal contratado y eventual', 'Personas que facturan sus servicios a la empresa como monotributistas, y el monotributo o Ingresos Brutos que la empresa les paga.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 113),
+('5.2.03', 'Cargas sociales', 3, '5.2', false, 'Resultado · Costo y gasto', 'Gastos de personal', 'Cargas sociales', 'Contribuciones y aportes sobre los sueldos.', null, null, 114),
+('5.2.03.01', 'Contribuciones patronales (F.931)', 4, '5.2.03', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Cargas sociales', 'VEP del F.931: sólo la parte de cada unidad, según el prorrateo por empleado de RRHH. El VEP se paga una vez y el sistema lo reparte entre unidades.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Cargas sociales', 115),
+('5.2.03.02', 'Sindicato', 4, '5.2.03', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Cargas sociales', 'Aportes y cuotas al sindicato de panaderos.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Cargas sociales', 116),
+('5.2.03.03', 'Obra social y cobertura médica', 4, '5.2.03', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Cargas sociales', 'Obra social y coberturas médicas del personal (CAIP).', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Cargas sociales', 117),
+('5.2.03.04', 'Seguro de riesgos del trabajo (ART)', 4, '5.2.03', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Cargas sociales', 'Cuota de la ART, si se paga aparte del F.931.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Cargas sociales', 118),
+('5.2.04', 'Otros gastos de personal', 3, '5.2', false, 'Resultado · Costo y gasto', 'Gastos de personal', 'Otros gastos de personal', null, null, null, 119),
+('5.2.04.01', 'Comida del personal', 4, '5.2.04', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Otros gastos de personal', 'Viandas y menús del personal de fábrica y locales.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 120),
+('5.2.04.02', 'Ropa y elementos de trabajo', 4, '5.2.04', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Otros gastos de personal', 'Uniformes, botas, delantales y elementos de seguridad.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 121),
+('5.2.04.03', 'Capacitación', 4, '5.2.04', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Otros gastos de personal', 'Cursos y capacitaciones del personal y de encargados.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 122),
+('5.2.04.04', 'Atenciones al personal', 4, '5.2.04', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Otros gastos de personal', 'Tortas de cumpleaños, regalos (día del padre), premios y agasajos.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 123),
+('5.2.04.05', 'Exámenes médicos y trámites del personal', 4, '5.2.04', true, 'Resultado · Costo y gasto', 'Gastos de personal', 'Otros gastos de personal', 'Libreta sanitaria, exámenes y gastos médicos, carnet de conducir del repartidor.', 'Personal (unidad Adm. central → «Adm. central, marketing y otros»)', 'Sueldos', 124),
+('5.3', 'Gastos de funcionamiento', 2, '5', false, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', null, 'Lo que cuesta tener abiertos y funcionando la fábrica, los locales y la oficina.', null, null, 125),
+('5.3.01', 'Servicios', 3, '5.3', false, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Servicios', null, null, null, 126),
+('5.3.01.01', 'Energía eléctrica', 4, '5.3.01', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Servicios', 'Facturas de DPEC.', 'Servicios y alquiler', 'Servicios', 127),
+('5.3.01.02', 'Agua', 4, '5.3.01', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Servicios', 'Facturas de agua.', 'Servicios y alquiler', 'Servicios', 128),
+('5.3.01.03', 'Gas', 4, '5.3.01', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Servicios', 'Gas natural y garrafas (Distrigas).', 'Servicios y alquiler', 'Servicios', 129),
+('5.3.01.04', 'Internet y telefonía', 4, '5.3.01', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Servicios', 'Internet de locales y fábrica, celulares de administración, compras y RRHH, recargas.', 'Servicios y alquiler', 'Servicios', 130),
+('5.3.01.05', 'Seguridad y monitoreo', 4, '5.3.01', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Servicios', 'Monitoreo de alarmas (Proegur) y servicios de seguridad.', 'Servicios y alquiler', 'Servicios', 131),
+('5.3.02', 'Alquileres', 3, '5.3', false, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Alquileres', null, null, null, 132),
+('5.3.02.01', 'Alquiler de locales', 4, '5.3.02', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Alquileres', 'Alquiler de los locales comerciales.', 'Servicios y alquiler', 'Alquiler', 133),
+('5.3.02.02', 'Alquiler de fábrica, depósitos y oficinas', 4, '5.3.02', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Alquileres', 'Alquiler del inmueble de la fábrica, depósitos y oficinas.', 'Servicios y alquiler', 'Alquiler', 134),
+('5.3.03', 'Mantenimiento y reparaciones', 3, '5.3', false, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Mantenimiento y reparaciones', 'Arreglos que mantienen algo funcionando. Si el arreglo agrega vida útil o es una mejora grande, va a Bienes de uso.', null, null, 135),
+('5.3.03.01', 'Máquinas y equipos de producción', 4, '5.3.03', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Mantenimiento y reparaciones', 'Arreglos y repuestos de selladora, discomatic, amasadora, horno, balanza, rayadora, zorras, correas, bujes; técnicos e ingenieros.', 'Mantenimiento', 'Otros gastos', 136),
+('5.3.03.02', 'Equipos de frío y climatización', 4, '5.3.03', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Mantenimiento y reparaciones', 'Arreglos de cámaras, abatidor, heladeras, freezers y aires acondicionados.', 'Mantenimiento', 'Otros gastos', 137),
+('5.3.03.03', 'Edificios e instalaciones', 4, '5.3.03', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Mantenimiento y reparaciones', 'Pintura, electricidad, plomería, herrería, albañilería y arreglos de locales, fábrica, oficina y depósito.', 'Mantenimiento', 'Otros gastos', 138),
+('5.3.03.04', 'Equipos informáticos', 4, '5.3.03', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Mantenimiento y reparaciones', 'Reparación de computadoras, impresoras y redes.', 'Mantenimiento', 'Otros gastos', 139),
+('5.3.03.05', 'Ferretería y materiales de mantenimiento', 4, '5.3.03', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Mantenimiento y reparaciones', 'Ferretería, focos, pilas, pegamentos, cintas, enduido, mangueras y materiales menores.', 'Mantenimiento', 'Otros gastos', 140),
+('5.3.04', 'Limpieza e higiene', 3, '5.3', false, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Limpieza e higiene', null, null, null, 141),
+('5.3.04.01', 'Servicio de limpieza', 4, '5.3.04', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Limpieza e higiene', 'Personal o empresa de limpieza contratada.', 'Mantenimiento', 'Otros gastos', 142),
+('5.3.04.02', 'Artículos de limpieza', 4, '5.3.04', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Limpieza e higiene', 'Productos de limpieza y aromatizantes (Saphirus).', 'Mantenimiento', 'Otros gastos', 143),
+('5.3.04.03', 'Control de plagas y habilitaciones sanitarias', 4, '5.3.04', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Limpieza e higiene', 'Desinfección, cebos y certificados de control de plagas.', 'Mantenimiento', 'Otros gastos', 144),
+('5.3.05', 'Pequeño equipamiento', 3, '5.3', false, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Pequeño equipamiento', 'Bienes que duran, pero de valor menor al mínimo de capitalización.', null, null, 145),
+('5.3.05.01', 'Utensilios y menaje', 4, '5.3.05', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Pequeño equipamiento', 'Tazas, jarras, espátulas, utensilios y materiales de cocina.', 'Administración central, marketing y otros', 'Otros gastos', 146),
+('5.3.05.02', 'Equipos menores', 4, '5.3.05', true, 'Resultado · Costo y gasto', 'Gastos de funcionamiento', 'Pequeño equipamiento', 'Monitores, balanzas chicas, extractores, banquetas y otros equipos de valor menor al mínimo de capitalización.', 'Administración central, marketing y otros', 'Otros gastos', 147),
+('5.4', 'Logística y vehículos', 2, '5', false, 'Resultado · Costo y gasto', 'Logística y vehículos', null, 'Reparto, viajes y vehículos.', null, null, 148),
+('5.4.01', 'Combustible y movilidad', 3, '5.4', false, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Combustible y movilidad', null, null, null, 149),
+('5.4.01.01', 'Combustible', 4, '5.4.01', true, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Combustible y movilidad', 'Combustible de las Kangoo (con y sin cámara) y de otros vehículos del negocio.', 'Combustible y fletes', 'Otros gastos', 150),
+('5.4.01.02', 'Peajes y estacionamiento', 4, '5.4.01', true, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Combustible y movilidad', 'Peajes y estacionamientos.', 'Combustible y fletes', 'Otros gastos', 151),
+('5.4.01.03', 'Viáticos', 4, '5.4.01', true, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Combustible y movilidad', 'Comidas, alojamiento y gastos de viaje del personal de reparto o de compras (viajes a Chaco, Santa Fe, Resistencia).', 'Combustible y fletes', 'Otros gastos', 152),
+('5.4.01.04', 'Taxis y aplicaciones de movilidad', 4, '5.4.01', true, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Combustible y movilidad', 'Uber, remises y taxis por trabajo.', 'Combustible y fletes', 'Otros gastos', 153),
+('5.4.02', 'Vehículos', 3, '5.4', false, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Vehículos', null, null, null, 154),
+('5.4.02.01', 'Service, reparaciones y repuestos', 4, '5.4.02', true, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Vehículos', 'Service, arreglos, repuestos, neumáticos y accesorios de los vehículos.', 'Combustible y fletes', 'Otros gastos', 155),
+('5.4.02.02', 'VTV y habilitaciones de vehículos', 4, '5.4.02', true, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Vehículos', 'VTV, matafuegos, certificado de plagas del vehículo con cámara, ploteos obligatorios.', 'Combustible y fletes', 'Otros gastos', 156),
+('5.4.03', 'Fletes y envíos', 3, '5.4', false, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Fletes y envíos', null, null, null, 157),
+('5.4.03.01', 'Fletes y transporte de terceros', 4, '5.4.03', true, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Fletes y envíos', 'Fletes y transporte contratado (Vía Cargo, Expreso Demonte, Fríos del NEA, envío de equipos).', 'Combustible y fletes', 'Otros gastos', 158),
+('5.4.03.02', 'Correo y cadetería', 4, '5.4.03', true, 'Resultado · Costo y gasto', 'Logística y vehículos', 'Fletes y envíos', 'Envíos por correo y cadetes.', 'Combustible y fletes', 'Otros gastos', 159),
+('5.5', 'Gastos de comercialización', 2, '5', false, 'Resultado · Costo y gasto', 'Gastos de comercialización', null, 'Lo que cuesta vender y hacer conocer la marca.', null, null, 160),
+('5.5.01', 'Marketing y publicidad', 3, '5.5', false, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Marketing y publicidad', null, null, null, 161),
+('5.5.01.01', 'Publicidad en medios', 4, '5.5.01', true, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Marketing y publicidad', 'Publicidad en TV, radio, redes y pautas pagas.', 'Administración central, marketing y otros', 'Otros gastos', 162),
+('5.5.01.02', 'Patrocinios y eventos', 4, '5.5.01', true, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Marketing y publicidad', 'Sponsoreo de eventos deportivos o culturales y su cartelería.', 'Administración central, marketing y otros', 'Otros gastos', 163),
+('5.5.01.03', 'Diseño y contenidos', 4, '5.5.01', true, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Marketing y publicidad', 'Diseñadores, ilustraciones, fotografía y community manager externo (que factura).', 'Administración central, marketing y otros', 'Otros gastos', 164),
+('5.5.01.04', 'Merchandising y material promocional', 4, '5.5.01', true, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Marketing y publicidad', 'Remeras, gorras, banderines, escarapelas, vinilos, telas para stand.', 'Administración central, marketing y otros', 'Otros gastos', 165),
+('5.5.02', 'Gastos en cadenas y clientes', 3, '5.5', false, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Gastos en cadenas y clientes', 'Gastos para vender en supermercados.', null, null, 166),
+('5.5.02.01', 'Material de exhibición y cartelería en cadenas', 4, '5.5.02', true, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Gastos en cadenas y clientes', 'Carteles, ploteos, ganchos y material POP en Supermax, Carrefour y otras cadenas.', 'Administración central, marketing y otros', 'Otros gastos', 167),
+('5.5.02.02', 'Mantenimiento de exhibidoras en clientes', 4, '5.5.02', true, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Gastos en cadenas y clientes', 'Arreglos, focos y mantenimiento de exhibidoras, freezers y vidrieras en cadenas.', 'Administración central, marketing y otros', 'Otros gastos', 168),
+('5.5.02.03', 'Degustaciones y promociones', 4, '5.5.02', true, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Gastos en cadenas y clientes', 'Degustaciones, promotoras y acciones en el punto de venta.', 'Administración central, marketing y otros', 'Otros gastos', 169),
+('5.5.03', 'Comisiones de venta y cobro', 3, '5.5', false, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Comisiones de venta y cobro', null, null, null, 170),
+('5.5.03.01', 'Comisiones de apps de delivery', 4, '5.5.03', true, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Comisiones de venta y cobro', 'Comisiones y cargos de PedidosYa, Rappi y el delivery de FUDO.', 'Administración central, marketing y otros', 'Comisiones', 171),
+('5.5.03.02', 'Comisiones de medios de cobro', 4, '5.5.03', true, 'Resultado · Costo y gasto', 'Gastos de comercialización', 'Comisiones de venta y cobro', 'Comisiones de Mercado Pago, posnet y tarjetas.', 'Administración central, marketing y otros', 'Comisiones', 172),
+('5.6', 'Gastos de administración', 2, '5', false, 'Resultado · Costo y gasto', 'Gastos de administración', null, 'Lo que cuesta administrar el negocio.', null, null, 173),
+('5.6.01', 'Honorarios profesionales', 3, '5.6', false, 'Resultado · Costo y gasto', 'Gastos de administración', 'Honorarios profesionales', null, null, null, 174),
+('5.6.01.01', 'Estudio contable e impositivo', 4, '5.6.01', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Honorarios profesionales', 'Honorarios del estudio contable y de los contadores de cada razón social.', 'Honorarios, sistemas y seguros', 'Otros gastos', 175),
+('5.6.01.02', 'Asesoramiento legal', 4, '5.6.01', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Honorarios profesionales', 'Honorarios de abogados.', 'Honorarios, sistemas y seguros', 'Otros gastos', 176),
+('5.6.01.03', 'Escribanía, gestoría y aranceles', 4, '5.6.01', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Honorarios profesionales', 'Escribanos, cambio de titularidad, contratos y comodatos, certificaciones del Consejo Profesional.', 'Honorarios, sistemas y seguros', 'Otros gastos', 177),
+('5.6.01.04', 'Otros servicios profesionales', 4, '5.6.01', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Honorarios profesionales', 'Otros profesionales externos que no son consultoría de proyectos.', 'Honorarios, sistemas y seguros', 'Otros gastos', 178),
+('5.6.02', 'Sistemas y tecnología', 3, '5.6', false, 'Resultado · Costo y gasto', 'Gastos de administración', 'Sistemas y tecnología', null, null, null, 179),
+('5.6.02.01', 'Sistemas de gestión', 4, '5.6.02', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Sistemas y tecnología', 'Abonos de PostBerry, FUDO, sistema de mayoristas y el sistema propio.', 'Honorarios, sistemas y seguros', 'Servicios', 180),
+('5.6.02.02', 'Otras suscripciones y software', 4, '5.6.02', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Sistemas y tecnología', 'Humand (RRHH), aplicaciones, almacenamiento en la nube y otras suscripciones.', 'Honorarios, sistemas y seguros', 'Servicios', 181),
+('5.6.03', 'Seguros', 3, '5.6', false, 'Resultado · Costo y gasto', 'Gastos de administración', 'Seguros', null, null, null, 182),
+('5.6.03.01', 'Seguros de vehículos', 4, '5.6.03', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Seguros', 'Seguros de las Kangoo y otros vehículos del negocio.', 'Honorarios, sistemas y seguros', 'Otros gastos', 183),
+('5.6.03.02', 'Seguros de responsabilidad civil', 4, '5.6.03', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Seguros', 'Seguro de responsabilidad civil de locales y fábrica.', 'Honorarios, sistemas y seguros', 'Otros gastos', 184),
+('5.6.03.03', 'Seguros de bienes e integrales', 4, '5.6.03', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Seguros', 'Seguros integrales de comercio, de la oficina y de equipos.', 'Honorarios, sistemas y seguros', 'Otros gastos', 185),
+('5.6.04', 'Gastos de oficina', 3, '5.6', false, 'Resultado · Costo y gasto', 'Gastos de administración', 'Gastos de oficina', null, null, null, 186),
+('5.6.04.01', 'Librería, papelería e impresiones', 4, '5.6.04', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Gastos de oficina', 'Librería, talonarios de remitos, impresiones.', 'Administración central, marketing y otros', 'Otros gastos', 187),
+('5.6.04.02', 'Insumos y accesorios informáticos', 4, '5.6.04', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Gastos de oficina', 'Cartuchos de impresora, cables, mouse, adaptadores.', 'Administración central, marketing y otros', 'Otros gastos', 188),
+('5.6.05', 'Consultoría y proyectos', 3, '5.6', false, 'Resultado · Costo y gasto', 'Gastos de administración', 'Consultoría y proyectos', 'Gastos que no se repiten todos los meses.', null, null, 189),
+('5.6.05.01', 'Consultoría de gestión', 4, '5.6.05', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Consultoría y proyectos', 'Consultoras y proyectos de mejora (4PEEQ).', 'Administración central, marketing y otros', 'Otros gastos', 190),
+('5.6.05.02', 'Proyectos de expansión y franquicias', 4, '5.6.05', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Consultoría y proyectos', 'Armado de la carpeta y del manual de franquicias y otros proyectos de crecimiento.', 'Administración central, marketing y otros', 'Otros gastos', 191),
+('5.6.06', 'Gastos varios', 3, '5.6', false, 'Resultado · Costo y gasto', 'Gastos de administración', 'Gastos varios', 'Último recurso.', null, null, 192),
+('5.6.06.01', 'Gastos varios', 4, '5.6.06', true, 'Resultado · Costo y gasto', 'Gastos de administración', 'Gastos varios', 'Sólo gastos menores que no entran en ninguna otra cuenta. Si un mes supera el 1% de los gastos totales, se revisa y se reclasifica.', 'Administración central, marketing y otros', 'Otros gastos', 193),
+('5.7', 'Impuestos y tasas', 2, '5', false, 'Resultado · Costo y gasto', 'Impuestos y tasas', null, 'Impuestos que son gasto. El IVA y Ganancias NO están acá (ver 2.3).', null, null, 194),
+('5.7.01', 'Impuestos sobre las ventas', 3, '5.7', false, 'Resultado · Costo y gasto', 'Impuestos y tasas', 'Impuestos sobre las ventas', null, null, null, 195),
+('5.7.01.01', 'Ingresos Brutos', 4, '5.7.01', true, 'Resultado · Costo y gasto', 'Impuestos y tasas', 'Impuestos sobre las ventas', 'DDJJ mensual de Ingresos Brutos (Rentas) de cada razón social.', 'Impuestos', 'Impuestos', 196),
+('5.7.01.02', 'Monotributo de la unidad', 4, '5.7.01', true, 'Resultado · Costo y gasto', 'Impuestos y tasas', 'Impuestos sobre las ventas', 'Cuota mensual del monotributo, si una unidad está en el régimen simplificado.', '—', 'Impuestos', 197),
+('5.7.02', 'Tasas y otros impuestos', 3, '5.7', false, 'Resultado · Costo y gasto', 'Impuestos y tasas', 'Tasas y otros impuestos', null, null, null, 198),
+('5.7.02.01', 'Tasas municipales', 4, '5.7.02', true, 'Resultado · Costo y gasto', 'Impuestos y tasas', 'Tasas y otros impuestos', 'Tasa de Seguridad e Higiene, ACOR y otras tasas municipales.', 'Impuestos', 'Impuestos', 199),
+('5.7.02.02', 'Patentes, sellos e inmobiliario', 4, '5.7.02', true, 'Resultado · Costo y gasto', 'Impuestos y tasas', 'Tasas y otros impuestos', 'Patente de los vehículos, impuesto de sellos, impuesto inmobiliario.', 'Impuestos', 'Impuestos', 200),
+('5.7.02.03', 'IVA no computable', 4, '5.7.02', true, 'Resultado · Costo y gasto', 'Impuestos y tasas', 'Tasas y otros impuestos', 'IVA de compras que la unidad no puede usar como crédito fiscal (saldo a favor que no se aprovecha, según el criterio que defina el contador).', 'Impuestos', 'Impuestos', 201),
+('5.8', 'Resultados financieros', 2, '5', false, 'Resultado · Costo y gasto', 'Resultados financieros', null, 'Costo de la plata y de los bancos.', null, null, 202),
+('5.8.01', 'Intereses y recargos', 3, '5.8', false, 'Resultado · Costo y gasto', 'Resultados financieros', 'Intereses y recargos', null, null, null, 203),
+('5.8.01.01', 'Intereses de préstamos', 4, '5.8.01', true, 'Resultado · Costo y gasto', 'Resultados financieros', 'Intereses y recargos', 'Parte de intereses de las cuotas de préstamos bancarios y de Mercado Pago.', 'Bancos, financieros e imprevistos', 'Otros gastos', 204),
+('5.8.01.02', 'Intereses de planes de pago fiscales', 4, '5.8.01', true, 'Resultado · Costo y gasto', 'Resultados financieros', 'Intereses y recargos', 'Intereses de los planes de pago de IVA, F.931 y otros impuestos.', 'Bancos, financieros e imprevistos', 'Otros gastos', 205),
+('5.8.01.03', 'Recargos y punitorios', 4, '5.8.01', true, 'Resultado · Costo y gasto', 'Resultados financieros', 'Intereses y recargos', 'Intereses por pagar fuera de término (impuestos, servicios, proveedores).', 'Bancos, financieros e imprevistos', 'Otros gastos', 206),
+('5.8.02', 'Gastos bancarios', 3, '5.8', false, 'Resultado · Costo y gasto', 'Resultados financieros', 'Gastos bancarios', null, null, null, 207),
+('5.8.02.01', 'Comisiones y mantenimiento de cuentas', 4, '5.8.02', true, 'Resultado · Costo y gasto', 'Resultados financieros', 'Gastos bancarios', 'Mantenimiento de cuentas y comisiones bancarias.', 'Bancos, financieros e imprevistos', 'Otros gastos', 208),
+('5.8.02.02', 'Impuesto a los débitos y créditos bancarios', 4, '5.8.02', true, 'Resultado · Costo y gasto', 'Resultados financieros', 'Gastos bancarios', 'Impuesto al cheque (0,6% de cada débito y crédito).', 'Bancos, financieros e imprevistos', 'Otros gastos', 209),
+('5.8.02.03', 'Descuento de cheques', 4, '5.8.02', true, 'Resultado · Costo y gasto', 'Resultados financieros', 'Gastos bancarios', 'Costo de descontar o cambiar cheques.', 'Bancos, financieros e imprevistos', 'Otros gastos', 210),
+('5.9', 'Otros resultados', 2, '5', false, 'Resultado · Costo y gasto', 'Otros resultados', null, null, null, null, 211),
+('5.9.01', 'Diferencias y pérdidas', 3, '5.9', false, 'Resultado · Costo y gasto', 'Otros resultados', 'Diferencias y pérdidas', null, null, null, 212),
+('5.9.01.01', 'Diferencias de caja', 4, '5.9.01', true, 'Resultado · Costo y gasto', 'Otros resultados', 'Diferencias y pérdidas', 'Faltantes y sobrantes de los arqueos de caja de los locales y de la fábrica.', 'Bancos, financieros e imprevistos', 'Otros gastos', 213),
+('5.9.01.02', 'Pérdidas extraordinarias', 4, '5.9.01', true, 'Resultado · Costo y gasto', 'Otros resultados', 'Diferencias y pérdidas', 'Robos, siniestros y pérdidas no habituales.', 'Bancos, financieros e imprevistos', 'Otros gastos', 214),
+('5.9.02', 'Impuesto a las Ganancias', 3, '5.9', false, 'Resultado · Impuesto a las Ganancias', 'Otros resultados', 'Impuesto a las Ganancias', null, null, null, 215),
+('5.9.02.01', 'Impuesto a las Ganancias del ejercicio', 4, '5.9.02', true, 'Resultado · Impuesto a las Ganancias', 'Otros resultados', 'Impuesto a las Ganancias', 'Cargo anual de Ganancias que determina el contador. No entra en el Tablero, que muestra el resultado antes de Ganancias. Los anticipos van a 1.2.02.02.', 'No va al Tablero (resultado antes de Ganancias)', 'No va al Tablero (resultado antes de Ganancias)', 216);
+
+update public.plan_cuentas set uso_gastos = 'gasto'
+  where imputable and tipo = 'Resultado · Costo y gasto'
+    -- Compras de masa a la fábrica: salen de los presupuestos de PostBerry.
+    and codigo <> '5.1.04.01';
+
+update public.plan_cuentas set uso_gastos = 'otro_pago'
+  where imputable and (
+    codigo in (
+      '1.1.03.01',              -- transferencias internas
+      '1.2.02.02',              -- anticipos de Ganancias
+      '2.3.01.01',              -- pago de IVA
+      '2.3.01.03',              -- pago de Ganancias
+      '2.3.01.04',              -- capital de planes de pago fiscales
+      '2.4.01.01'               -- capital de préstamos
+    )
+    or padre in (
+      '1.2.03',                 -- anticipos a proveedores, adelantos, empresas del grupo
+      '1.3.01',                 -- bienes de uso
+      '1.4.01',                 -- partidas pendientes
+      '3.1.01'                  -- retiros y gastos personales del socio
+    )
+  );

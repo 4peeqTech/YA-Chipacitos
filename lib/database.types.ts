@@ -4484,36 +4484,59 @@ export type Database = {
       }
       plan_cuentas: {
         Row: {
-          activo: boolean
-          categoria: string | null
-          created_at: string | null
-          flujo: string | null
-          id: string
+          categoria_gasto: string | null
+          codigo: string
+          imputable: boolean
+          incluye: string | null
+          nivel: number
+          nombre: string
           orden: number
-          rubro: string
-          variabilidad: string | null
+          padre: string | null
+          rubro_gasto: string | null
+          tablero_fabrica: string | null
+          tablero_locales: string | null
+          tipo: string
+          uso_gastos: string | null
         }
         Insert: {
-          activo?: boolean
-          categoria?: string | null
-          created_at?: string | null
-          flujo?: string | null
-          id?: string
-          orden?: number
-          rubro: string
-          variabilidad?: string | null
+          categoria_gasto?: string | null
+          codigo: string
+          imputable: boolean
+          incluye?: string | null
+          nivel: number
+          nombre: string
+          orden: number
+          padre?: string | null
+          rubro_gasto?: string | null
+          tablero_fabrica?: string | null
+          tablero_locales?: string | null
+          tipo: string
+          uso_gastos?: string | null
         }
         Update: {
-          activo?: boolean
-          categoria?: string | null
-          created_at?: string | null
-          flujo?: string | null
-          id?: string
+          categoria_gasto?: string | null
+          codigo?: string
+          imputable?: boolean
+          incluye?: string | null
+          nivel?: number
+          nombre?: string
           orden?: number
-          rubro?: string
-          variabilidad?: string | null
+          padre?: string | null
+          rubro_gasto?: string | null
+          tablero_fabrica?: string | null
+          tablero_locales?: string | null
+          tipo?: string
+          uso_gastos?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "plan_cuentas_padre_fkey"
+            columns: ["padre"]
+            isOneToOne: false
+            referencedRelation: "plan_cuentas"
+            referencedColumns: ["codigo"]
+          },
+        ]
       }
       producto_mapeos: {
         Row: {

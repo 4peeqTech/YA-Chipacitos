@@ -1,329 +1,155 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { mensajeError } from '@/lib/errores'
+import { useMemo, useState } from 'react'
+import { IconChevronRight, IconListTree } from '@tabler/icons-react'
+import PageHeader from '@/components/ui/PageHeader'
+import SearchInput from '@/components/ui/SearchInput'
+import EmptyState from '@/components/ui/EmptyState'
+import { ChipGroup } from '@/components/ui/Chip'
+import { ETIQUETA_USO, buscarCuentas, rutaDe, type CuentaPlan } from '@/lib/gastos/plan'
 
-interface Cuenta {
-  id: string
-  rubro: string
-  categoria: string | null
-  activo: boolean
-  orden: number
-  variabilidad: 'VARIABLE' | 'FIJO' | null
-  flujo: 'INGRESO' | 'EGRESO' | null
+type Vista = 'todo' | 'gastos'
+
+const VISTAS: { value: Vista; label: string }[] = [
+  { value: 'todo', label: 'Todo el plan' },
+  { value: 'gastos', label: 'Las que se eligen en Gastos' },
+]
+
+/** Lo que no aporta en el renglón: el Excel lo repite en las cuentas que no van al resultado. */
+const SIN_TABLERO = new Set(['No va al resultado', '—'])
+
+function UsoBadge({ c }: { c: CuentaPlan }) {
+  if (!c.usoGastos) return null
+  const clase = c.usoGastos === 'gasto' ? 'border-accent/40 text-text' : 'border-border text-muted'
+  return (
+    <span className={`whitespace-nowrap rounded-md border px-1.5 text-2xs font-semibold ${clase}`}>
+      {ETIQUETA_USO[c.usoGastos]}
+    </span>
+  )
 }
 
-type Grouped = Record<string, Cuenta[]>
+function Tablero({ c }: { c: CuentaPlan }) {
+  const fab = c.tableroFabrica && !SIN_TABLERO.has(c.tableroFabrica) ? c.tableroFabrica : null
+  const loc = c.tableroLocales && !SIN_TABLERO.has(c.tableroLocales) ? c.tableroLocales : null
+  if (!fab && !loc) return null
+  if (fab === loc) return <p className="text-2xs text-muted">Tablero: {fab}</p>
+  return (
+    <p className="text-2xs text-muted">
+      Tablero:{fab && <> fábrica y administración → {fab}</>}{fab && loc && ' ·'}{loc && <> locales → {loc}</>}
+    </p>
+  )
+}
 
-export default function PlanCuentasClient() {
-  const [cuentas, setCuentas] = useState<Cuenta[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+function Cuenta({ c, ruta }: { c: CuentaPlan; ruta?: string[] }) {
+  return (
+    <li className="space-y-1 px-4 py-3">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="font-mono text-xs tabular-nums text-muted">{c.codigo}</span>
+        <span className="min-w-0 font-medium text-text">{c.nombre}</span>
+        <UsoBadge c={c} />
+      </div>
+      {ruta && ruta.length > 0 && <p className="text-xs text-muted">{ruta.join(' › ')}</p>}
+      {c.incluye && <p className="text-sm text-muted">{c.incluye}</p>}
+      <Tablero c={c} />
+    </li>
+  )
+}
 
-  // Inline edit state
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editValue, setEditValue] = useState('')
+export default function PlanCuentasClient({ plan, error }: { plan: CuentaPlan[]; error: boolean }) {
+  const [q, setQ] = useState('')
+  const [vista, setVista] = useState<Vista>('todo')
 
-  // New categoria state
-  const [addingCatIn, setAddingCatIn] = useState<string | null>(null)
-  const [newCatValue, setNewCatValue] = useState('')
+  const visibles = useMemo(
+    () => plan.filter(c => !c.imputable || vista === 'todo' || c.usoGastos != null),
+    [plan, vista],
+  )
+  const hijos = useMemo(() => {
+    const m = new Map<string | null, CuentaPlan[]>()
+    for (const c of visibles) m.set(c.padre, [...(m.get(c.padre) ?? []), c])
+    return m
+  }, [visibles])
 
-  // New rubro state
-  const [addingRubro, setAddingRubro] = useState(false)
-  const [newRubroValue, setNewRubroValue] = useState('')
-
-  const editRef = useRef<HTMLInputElement>(null)
-  const newCatRef = useRef<HTMLInputElement>(null)
-  const newRubroRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    load()
-  }, [])
-
-  useEffect(() => {
-    if (editingId && editRef.current) editRef.current.focus()
-  }, [editingId])
-
-  useEffect(() => {
-    if (addingCatIn && newCatRef.current) newCatRef.current.focus()
-  }, [addingCatIn])
-
-  useEffect(() => {
-    if (addingRubro && newRubroRef.current) newRubroRef.current.focus()
-  }, [addingRubro])
-
-  async function load() {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch('/api/plan-cuentas')
-      if (!res.ok) throw new Error('No se pudo cargar el plan de cuentas')
-      const data = await res.json()
-      setCuentas(Array.isArray(data) ? data : [])
-      // Expand all rubros by default
-      const rubros = [...new Set((Array.isArray(data) ? data : []).map((c: Cuenta) => c.rubro))]
-      setExpanded(new Set(rubros))
-    } catch (e) {
-      setError(mensajeError(e, 'No se pudo cargar el plan de cuentas'))
-    } finally {
-      setLoading(false)
+  // Cuántas cuentas imputables cuelgan de cada nodo (para esconder ramas vacías).
+  const cuenta = useMemo(() => {
+    const n = new Map<string, number>()
+    const contar = (c: CuentaPlan): number => {
+      const total = c.imputable ? 1 : (hijos.get(c.codigo) ?? []).reduce((s, h) => s + contar(h), 0)
+      n.set(c.codigo, total)
+      return total
     }
-  }
+    for (const t of hijos.get(null) ?? []) contar(t)
+    return n
+  }, [hijos])
 
-  const grouped: Grouped = cuentas.reduce<Grouped>((acc, c) => {
-    if (!acc[c.rubro]) acc[c.rubro] = []
-    acc[c.rubro].push(c)
-    return acc
-  }, {})
-
-  const rubros = Object.keys(grouped).sort((a, b) => {
-    const oA = grouped[a][0]?.orden ?? 999
-    const oB = grouped[b][0]?.orden ?? 999
-    return oA - oB
-  })
-
-  const toggleExpand = (rubro: string) => {
-    setExpanded(prev => {
-      const next = new Set(prev)
-      next.has(rubro) ? next.delete(rubro) : next.add(rubro)
-      return next
-    })
-  }
-
-  async function patchField(c: Cuenta, field: string, value: unknown) {
-    await fetch('/api/plan-cuentas', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: c.id, [field]: value }),
-    })
-    setCuentas(prev => prev.map(x => x.id === c.id ? { ...x, [field]: value } : x))
-  }
-
-  async function toggleActivo(c: Cuenta) {
-    await fetch('/api/plan-cuentas', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: c.id, activo: !c.activo }),
-    })
-    setCuentas(prev => prev.map(x => x.id === c.id ? { ...x, activo: !x.activo } : x))
-  }
-
-  async function saveEdit(c: Cuenta) {
-    const val = editValue.trim()
-    if (!val || val === (c.categoria ?? c.rubro)) { setEditingId(null); return }
-    if (c.categoria !== null) {
-      await fetch('/api/plan-cuentas', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: c.id, categoria: val }),
-      })
-      setCuentas(prev => prev.map(x => x.id === c.id ? { ...x, categoria: val } : x))
-    }
-    setEditingId(null)
-  }
-
-  async function deleteItem(c: Cuenta) {
-    if (!confirm(`¿Eliminar "${c.categoria ?? c.rubro}"?`)) return
-    await fetch('/api/plan-cuentas', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: c.id }),
-    })
-    setCuentas(prev => prev.filter(x => x.id !== c.id))
-  }
-
-  async function addCategoria(rubro: string) {
-    const val = newCatValue.trim()
-    if (!val) { setAddingCatIn(null); return }
-    const maxOrden = Math.max(...(grouped[rubro]?.map(c => c.orden) ?? [0]))
-    const res = await fetch('/api/plan-cuentas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rubro, categoria: val.toUpperCase(), orden: maxOrden + 1 }),
-    })
-    const nueva = await res.json()
-    setCuentas(prev => [...prev, nueva])
-    setNewCatValue('')
-    setAddingCatIn(null)
-  }
-
-  async function addRubro() {
-    const val = newRubroValue.trim()
-    if (!val) { setAddingRubro(false); return }
-    const maxOrden = Math.max(...cuentas.map(c => c.orden), 0)
-    const res = await fetch('/api/plan-cuentas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rubro: val.toUpperCase(), categoria: null, orden: maxOrden + 10 }),
-    })
-    const nuevo = await res.json()
-    setCuentas(prev => [...prev, nuevo])
-    setExpanded(prev => new Set([...prev, val.toUpperCase()]))
-    setNewRubroValue('')
-    setAddingRubro(false)
-  }
-
-  const inputClass = 'bg-[#0a0a0a] border border-[#e8c547] text-[#f0f0f0] rounded px-2 py-1 text-sm focus:outline-none w-full'
-
-  if (loading) return <div className="text-[#555] py-10 text-center">Cargando…</div>
+  const buscando = q.trim() !== ''
+  const resultados = useMemo(
+    () => (buscando ? buscarCuentas(visibles.filter(c => c.imputable), q) : []),
+    [buscando, visibles, q],
+  )
+  const conHijos = (codigo: string) => (hijos.get(codigo) ?? []).filter(h => (cuenta.get(h.codigo) ?? 0) > 0)
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#f0f0f0]">Plan de cuentas</h1>
-        <p className="text-[#888] text-sm mt-0.5">Rubros y categorías para clasificar gastos</p>
-      </div>
-
-      {error && (
-        <div className="bg-red-900/30 border border-red-800 rounded-xl p-3 text-red-300 text-sm">{error}</div>
-      )}
+      <PageHeader
+        icono={IconListTree}
+        titulo="Plan de cuentas"
+        descripcion="Las cuentas con las que se clasifica cada gasto. Es el plan fijo del negocio: no se cambia desde acá."
+      />
 
       <div className="space-y-3">
-        {rubros.map(rubro => (
-          <div key={rubro} className="bg-[#111111] border border-[#2a2a2a] rounded-xl overflow-hidden">
-            {/* Rubro header */}
-            <button
-              onClick={() => toggleExpand(rubro)}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#1a1a1a] transition-colors"
-            >
-              <span className="text-xs font-bold text-[#e8c547] uppercase tracking-widest">{rubro}</span>
-              <div className="flex items-center gap-3">
-                <span className="text-[#555] text-xs">{grouped[rubro].length} categorías</span>
-                <span className={`text-[#555] text-xs transition-transform ${expanded.has(rubro) ? '' : '-rotate-90'}`}>▼</span>
-              </div>
-            </button>
-
-            {expanded.has(rubro) && (
-              <div className="border-t border-[#2a2a2a]">
-                {grouped[rubro].map(c => (
-                  <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#1a1a1a] last:border-0 hover:bg-[#1a1a1a] group">
-                    {editingId === c.id ? (
-                      <input
-                        ref={editRef}
-                        className={inputClass}
-                        value={editValue}
-                        onChange={e => setEditValue(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') saveEdit(c)
-                          if (e.key === 'Escape') setEditingId(null)
-                        }}
-                        onBlur={() => saveEdit(c)}
-                      />
-                    ) : (
-                      <span className={`flex-1 text-sm ${c.activo ? 'text-[#f0f0f0]' : 'text-[#444] line-through'}`}>
-                        {c.categoria ?? <span className="italic text-[#555]">Sin categoría</span>}
-                      </span>
-                    )}
-
-                    {/* Variabilidad */}
-                    <select
-                      value={c.variabilidad ?? ''}
-                      onChange={e => patchField(c, 'variabilidad', e.target.value || null)}
-                      className="bg-[#0a0a0a] border border-[#2a2a2a] text-xs rounded px-2 py-1 focus:outline-none focus:border-[#e8c547] text-[#888]"
-                    >
-                      <option value="">— Var/Fijo</option>
-                      <option value="VARIABLE">Variable</option>
-                      <option value="FIJO">Fijo</option>
-                    </select>
-
-                    {/* Flujo */}
-                    <select
-                      value={c.flujo ?? ''}
-                      onChange={e => patchField(c, 'flujo', e.target.value || null)}
-                      className="bg-[#0a0a0a] border border-[#2a2a2a] text-xs rounded px-2 py-1 focus:outline-none focus:border-[#e8c547] text-[#888]"
-                    >
-                      <option value="">— Ing/Egr</option>
-                      <option value="INGRESO">Ingreso</option>
-                      <option value="EGRESO">Egreso</option>
-                    </select>
-
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {editingId !== c.id && c.categoria !== null && (
-                        <button
-                          onClick={() => { setEditingId(c.id); setEditValue(c.categoria ?? '') }}
-                          className="text-[#555] hover:text-[#f0f0f0] text-xs px-1.5 py-0.5 rounded hover:bg-[#2a2a2a]"
-                        >
-                          ✏️
-                        </button>
-                      )}
-                      <button
-                        onClick={() => toggleActivo(c)}
-                        className={`text-xs px-2 py-0.5 rounded border ${
-                          c.activo
-                            ? 'border-green-800 text-green-500 hover:bg-green-900/20'
-                            : 'border-[#2a2a2a] text-[#444] hover:bg-[#2a2a2a]'
-                        }`}
-                      >
-                        {c.activo ? 'Activo' : 'Inactivo'}
-                      </button>
-                      <button
-                        onClick={() => deleteItem(c)}
-                        className="text-[#333] hover:text-red-500 text-xs px-1.5 py-0.5 rounded hover:bg-red-900/20"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Agregar categoría */}
-                {addingCatIn === rubro ? (
-                  <div className="px-4 py-2.5 flex items-center gap-2 border-t border-[#1a1a1a]">
-                    <input
-                      ref={newCatRef}
-                      className={inputClass}
-                      placeholder="Nueva categoría…"
-                      value={newCatValue}
-                      onChange={e => setNewCatValue(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') addCategoria(rubro)
-                        if (e.key === 'Escape') { setAddingCatIn(null); setNewCatValue('') }
-                      }}
-                      onBlur={() => addCategoria(rubro)}
-                    />
-                    <button onClick={() => addCategoria(rubro)} className="text-[#e8c547] text-xs whitespace-nowrap">Guardar</button>
-                    <button onClick={() => { setAddingCatIn(null); setNewCatValue('') }} className="text-[#555] text-xs">Cancelar</button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setAddingCatIn(rubro)}
-                    className="w-full text-left px-4 py-2 text-xs text-[#444] hover:text-[#888] hover:bg-[#1a1a1a] transition-colors"
-                  >
-                    + Agregar categoría
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-
-        {/* Agregar rubro */}
-        {addingRubro ? (
-          <div className="bg-[#111111] border border-[#e8c547] rounded-xl px-4 py-3 flex items-center gap-2">
-            <input
-              ref={newRubroRef}
-              className={inputClass}
-              placeholder="Nombre del rubro…"
-              value={newRubroValue}
-              onChange={e => setNewRubroValue(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') addRubro()
-                if (e.key === 'Escape') { setAddingRubro(false); setNewRubroValue('') }
-              }}
-            />
-            <button onClick={addRubro} className="text-[#e8c547] text-xs font-bold whitespace-nowrap px-3">Guardar</button>
-            <button onClick={() => { setAddingRubro(false); setNewRubroValue('') }} className="text-[#555] text-xs whitespace-nowrap">Cancelar</button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setAddingRubro(true)}
-            className="w-full bg-[#111111] border border-dashed border-[#2a2a2a] rounded-xl px-4 py-3 text-sm text-[#555] hover:text-[#888] hover:border-[#444] transition-colors"
-          >
-            + Agregar rubro
-          </button>
-        )}
+        <SearchInput value={q} onChange={setQ} placeholder="Buscar: luz, alquiler, sueldos, 5.3.01…" />
+        <ChipGroup opciones={VISTAS} value={vista} onChange={setVista} />
       </div>
+
+      {error ? (
+        <EmptyState icono={IconListTree} titulo="No se pudo traer el plan de cuentas" descripcion="Recargá la página. Si sigue sin aparecer, avisanos." />
+      ) : buscando ? (
+        resultados.length === 0 ? (
+          <EmptyState icono={IconListTree} titulo="Ninguna cuenta coincide" descripcion="Probá con otra palabra o con parte del código." />
+        ) : (
+          <section className="space-y-2" aria-label="Resultados de la búsqueda">
+            <p className="text-sm text-muted">{resultados.length === 1 ? '1 cuenta' : `${resultados.length} cuentas`}</p>
+            <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+              {resultados.map(c => <Cuenta key={c.codigo} c={c} ruta={rutaDe(plan, c.codigo)} />)}
+            </ul>
+          </section>
+        )
+      ) : (
+        (hijos.get(null) ?? []).filter(t => (cuenta.get(t.codigo) ?? 0) > 0).map(tipo => (
+          <section key={tipo.codigo} className="space-y-2" aria-labelledby={`tipo-${tipo.codigo}`}>
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 id={`tipo-${tipo.codigo}`} className="text-sm font-semibold uppercase tracking-wide text-text">
+                <span className="font-mono text-muted">{tipo.codigo}</span> {tipo.nombre}
+              </h2>
+              <span className="text-xs text-muted">{cuenta.get(tipo.codigo)} cuentas</span>
+            </div>
+            {tipo.incluye && <p className="text-sm text-muted">{tipo.incluye}</p>}
+            <div className="space-y-2">
+              {conHijos(tipo.codigo).map(rubro => (
+                <details key={rubro.codigo} className="group overflow-hidden rounded-2xl border border-border bg-surface">
+                  <summary className="presionable flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-2 hover:bg-surface2 [&::-webkit-details-marker]:hidden">
+                    <IconChevronRight size={16} className="shrink-0 text-muted transition-transform group-open:rotate-90" aria-hidden />
+                    <span className="font-mono text-xs tabular-nums text-muted">{rubro.codigo}</span>
+                    <span className="min-w-0 flex-1 font-semibold text-text">{rubro.nombre}</span>
+                    <span className="whitespace-nowrap text-xs text-muted">{cuenta.get(rubro.codigo)}</span>
+                  </summary>
+                  {rubro.incluye && <p className="border-t border-border px-4 py-2 text-sm text-muted">{rubro.incluye}</p>}
+                  {conHijos(rubro.codigo).map(cat => (
+                    <div key={cat.codigo} className="border-t border-border">
+                      <h3 className="bg-surface2/60 px-4 py-2 text-xs font-semibold text-muted">
+                        <span className="font-mono tabular-nums">{cat.codigo}</span> {cat.nombre}
+                      </h3>
+                      <ul className="divide-y divide-border">
+                        {conHijos(cat.codigo).map(c => <Cuenta key={c.codigo} c={c} />)}
+                      </ul>
+                    </div>
+                  ))}
+                </details>
+              ))}
+            </div>
+          </section>
+        ))
+      )}
     </div>
   )
 }
