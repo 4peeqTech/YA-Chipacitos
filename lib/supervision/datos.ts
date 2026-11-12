@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { BloqueSupervision, ItemSupervision, LugarSupervision, RequerimientoSupervision, VisitaSupervision } from './tipos'
+import type {
+  BloqueSupervision, EquipoSupervision, ItemSupervision, LugarSupervision, MovimientoEquipo, ParametroSupervision,
+  RequerimientoSupervision, VisitaSupervision,
+} from './tipos'
 
 export const SELECT_VISITA = '*'
 
@@ -32,6 +35,21 @@ export async function cargarRequerimientos(supabase: SupabaseClient, visitaId?: 
   if (visitaId) q = q.eq('visita_id', visitaId)
   const { data, error } = await q
   return { requerimientos: (data ?? []) as RequerimientoSupervision[], error }
+}
+
+/** Equipos entregados a mayoristas, con su historial (lo más nuevo primero), y los parámetros. */
+export async function cargarEquipos(supabase: SupabaseClient) {
+  const [eq, mov, par] = await Promise.all([
+    supabase.from('supervision_equipos').select('*').order('created_at'),
+    supabase.from('supervision_equipos_movimientos').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false }),
+    supabase.from('supervision_parametros').select('clave, valor, descripcion'),
+  ])
+  return {
+    equipos: (eq.data ?? []) as EquipoSupervision[],
+    movimientos: (mov.data ?? []) as MovimientoEquipo[],
+    parametros: (par.data ?? []) as ParametroSupervision[],
+    error: eq.error ?? mov.error ?? par.error,
+  }
 }
 
 /** Nombre del usuario y si es admin (solo admin borra visitas; la RLS lo hace cumplir). */

@@ -41,7 +41,8 @@ export default function NuevaVisita({ lugares, bloques, visitas, requerimientos,
   const [supabase] = useState(() => createClient())
   // Primero el tipo de visita y después el lugar. Si hay un solo tipo con
   // lugares, no se pregunta; si el tipo tiene un solo lugar, se elige solo.
-  const tiposDisponibles = useMemo(() => TIPOS_VISITA.filter(t => lugares.some(l => l.tipo === t.valor)), [lugares])
+  const tiposDisponibles = useMemo(() => TIPOS_VISITA.filter(t =>
+    lugares.some(l => l.tipo === t.valor) && bloques.some(b => (b.tipos ?? ['sucursal']).includes(t.valor))), [lugares, bloques])
   const [tipo, setTipo] = useState<TipoVisita>(() => tiposDisponibles[0]?.valor ?? 'sucursal')
   const [lugarId, setLugarId] = useState<string | null>(null)
   const [supervisor, setSupervisor] = useState(nombreUsuario)

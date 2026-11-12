@@ -11,6 +11,7 @@ export const supervision: SeccionManual = {
   resumen: 'El checklist de la recorrida: empezar una visita, completarla desde el celular, anotar requerimientos, ver el análisis y los datos de cada sucursal.',
   actualizado: '2026-11-12',
   novedades: [
+    { fecha: '2026-11-12', texto: 'En **Lugares**: **Clientes mayoristas**, **Equipos** entregados (con su historial) y **Parámetros**.' },
     { fecha: '2026-11-12', texto: 'Checklists de **Fábrica** y **Depósito**: se eligen en **Tipo de visita** al empezar.' },
     { fecha: '2026-11-11', texto: '**Requerimientos**: lo que falta, lo que hay que reparar o una idea, con seguimiento propio. Los abiertos aparecen al empezar otra visita al mismo lugar.' },
     { fecha: '2026-11-11', texto: 'Checklist de sucursal actualizado (85 ítems), bloques nuevos de **Limpieza de baño** y **Seguridad e higiene**, ítems según el tipo de horno y el jugo, y la pestaña **Lugares**.' },
@@ -127,6 +128,43 @@ export const supervision: SeccionManual = {
             { texto: 'Tocá **Guardar** en esa fila.' },
           ],
         },
+      ],
+    },
+    {
+      ancla: 'mayoristas',
+      titulo: 'Clientes mayoristas',
+      bloques: [
+        { tipo: 'parrafo', texto: 'En **Lugares → Clientes mayoristas** está la ficha de cada cliente: dirección, tipo de local, si cocina o solo vende congelado, de quién es el freezer y el horno, y el contacto. Se carga una vez y se corrige cuando algo cambia. Es una lista propia de supervisión, aparte de los pedidos mayoristas.' },
+        {
+          tipo: 'pasos',
+          pasos: [
+            { texto: 'Tocá **Nuevo cliente** y completá la ficha. Si es una cadena, cargá cada local por separado (por ejemplo, Supermax con cada sucursal).' },
+            { texto: 'Tocá **Guardar**. Para corregirla, tocá el lápiz al lado del cliente.' },
+          ],
+        },
+        { tipo: 'tip', texto: 'Si el cliente tiene un freezer u horno de Ya! en **Equipos**, cuenta como de Ya! aunque la ficha diga otra cosa.' },
+      ],
+    },
+    {
+      ancla: 'equipos',
+      titulo: 'Equipos entregados',
+      bloques: [
+        { tipo: 'parrafo', texto: 'En **Lugares → Equipos** están las exhibidoras, hornos, freezers y heladeras que Ya! entrega a los clientes. Cada uno necesita al menos el **código interno** (el de la etiqueta), el **número de serie** o el **lote**.' },
+        {
+          tipo: 'pasos',
+          pasos: [
+            { texto: 'Tocá **Nuevo equipo**, completá los datos y elegí el cliente si ya está entregado.' },
+            { texto: 'Para cambiarlo de cliente, mandarlo a reparar o retirarlo, abrí el equipo y tocá **Registrar un movimiento**. Queda en el historial con la fecha y el responsable.' },
+            { texto: 'Para corregir la marca, el número o las observaciones, tocá **Editar datos**.' },
+          ],
+        },
+      ],
+    },
+    {
+      ancla: 'parametros',
+      titulo: 'Parámetros',
+      bloques: [
+        { tipo: 'parrafo', texto: 'En **Lugares → Parámetros** está el **tiempo máximo en exhibidora** del producto cocido, para los clientes que cocinan. Es un valor provisorio (3 horas) que se ajusta con las primeras visitas. Lo cambia un administrador.' },
       ],
     },
     {
