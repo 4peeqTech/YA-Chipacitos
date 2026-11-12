@@ -24,6 +24,14 @@ export const TIPOS_VISITA: { valor: TipoVisita; texto: string }[] = [
   { valor: 'mayorista', texto: 'Cliente mayorista' },
 ]
 
+/** Cómo se nombra el lugar de cada tipo en pantalla (singular, plural). */
+export const NOMBRE_LUGAR: Record<TipoVisita, { uno: string; varios: string }> = {
+  sucursal: { uno: 'sucursal', varios: 'sucursales' },
+  fabrica: { uno: 'lugar', varios: 'lugares' },
+  deposito: { uno: 'lugar', varios: 'lugares' },
+  mayorista: { uno: 'cliente', varios: 'clientes' },
+}
+
 /** Atributos que activan ítems condicionales. Si falta uno, el ítem se muestra. */
 export interface AtributosLugar {
   horno?: 'rotativo' | 'convector' | 'ya' | 'cliente'

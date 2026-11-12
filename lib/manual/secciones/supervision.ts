@@ -9,8 +9,9 @@ export const supervision: SeccionManual = {
   roles: ['admin'],
   modulos: ['supervision'],
   resumen: 'El checklist de la recorrida: empezar una visita, completarla desde el celular, anotar requerimientos, ver el análisis y los datos de cada sucursal.',
-  actualizado: '2026-11-11',
+  actualizado: '2026-11-12',
   novedades: [
+    { fecha: '2026-11-12', texto: 'Checklists de **Fábrica** y **Depósito**: se eligen en **Tipo de visita** al empezar.' },
     { fecha: '2026-11-11', texto: '**Requerimientos**: lo que falta, lo que hay que reparar o una idea, con seguimiento propio. Los abiertos aparecen al empezar otra visita al mismo lugar.' },
     { fecha: '2026-11-11', texto: 'Checklist de sucursal actualizado (85 ítems), bloques nuevos de **Limpieza de baño** y **Seguridad e higiene**, ítems según el tipo de horno y el jugo, y la pestaña **Lugares**.' },
   ],
@@ -31,7 +32,8 @@ export const supervision: SeccionManual = {
           tipo: 'pasos',
           pasos: [
             { texto: 'Entrá a **Supervisión de locales** y quedate en **Nueva visita**.' },
-            { texto: 'Elegí la sucursal. Cada una muestra hace cuánto fue la última visita y su porcentaje.' },
+            { texto: 'Elegí el **Tipo de visita**: Sucursal, Fábrica o Depósito.' },
+            { texto: 'Si es una sucursal, elegila. Cada una muestra hace cuánto fue la última visita y su porcentaje. Fábrica y Depósito son un solo lugar y se eligen solos.' },
             { texto: 'Revisá tu nombre y el del encargado: el encargado viene cargado de **Lugares** y lo podés cambiar si hoy está otra persona.' },
             { texto: 'Tocá **Comenzar visita en …**.' },
           ],
@@ -53,6 +55,22 @@ export const supervision: SeccionManual = {
             'Al final está el **Cierre**: lo que quedó sin responder pasa a No cumple, marcado como "sin responder".',
           ],
         },
+      ],
+    },
+    {
+      ancla: 'fabrica-deposito',
+      titulo: 'Visitas a fábrica y depósito',
+      bloques: [
+        { tipo: 'parrafo', texto: 'Tienen su propio checklist y, al final, los mismos bloques de **Limpieza de baño** y **Seguridad e higiene** que las sucursales. También se cargan requerimientos en el cierre.' },
+        {
+          tipo: 'lista',
+          items: [
+            '**Fábrica:** presentación del personal, masa y producción, orden y limpieza, frío, limpieza de maquinaria, vestuario y equipos.',
+            '**Depósito:** el control de ingresos y egresos, orden, limpieza, el freezer de chipacitos grandes y las salidas a eventos.',
+          ],
+        },
+        { tipo: 'tip', texto: 'Las planillas de ingresos, egresos y salidas a eventos del depósito no están en el sistema: pedíselas al encargado del depósito y revisá que estén al día. En el conteo al azar, anotá en la observación qué insumos contaste.' },
+        { tipo: 'parrafo', texto: 'En **Visitas** y **Análisis**, elegí arriba el tipo: cada uno tiene su propio promedio y no se mezcla con las sucursales.' },
       ],
     },
     {
@@ -123,7 +141,6 @@ export const supervision: SeccionManual = {
             '**CSV** baja una fila por ítem y por visita, con la diferencia de arqueo, para abrir en Excel.',
           ],
         },
-        { tipo: 'tip', texto: 'Cuando haya visitas a fábrica, depósito o mayoristas, arriba vas a poder elegir el tipo: cada uno tiene su propio promedio y no se mezclan.' },
       ],
     },
     {

@@ -111,7 +111,7 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
           <h1 className="flex items-center gap-2 font-['Syne'] text-xl font-bold text-text sm:text-2xl">
             <IconClipboardCheck size={22} className="text-accent" aria-hidden /> Supervisión de locales
           </h1>
-          <p className="mt-0.5 hidden text-sm text-muted sm:block">Checklist de la recorrida por las sucursales.</p>
+          <p className="mt-0.5 hidden text-sm text-muted sm:block">Checklist de la recorrida por las sucursales, la fábrica y el depósito.</p>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <div role="tablist" aria-label="Vista" className="grid flex-1 grid-cols-5 gap-1 rounded-xl border border-border bg-surface p-1 sm:flex-none">
@@ -171,7 +171,7 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
           ))}
         </div>
       )}
-      {vista === 'visitas' && <ListaVisitas key={tipo} sucursales={lugaresTipo} bloques={bloquesTipo} visitas={visitasTipo} ahora={ahora} />}
+      {vista === 'visitas' && <ListaVisitas key={tipo} tipo={tipo} sucursales={lugaresTipo} bloques={bloquesTipo} visitas={visitasTipo} ahora={ahora} />}
       {vista === 'analisis' && <AnalisisSupervision key={tipo} tipo={tipo} sucursales={lugaresTipo} bloques={bloquesTipo} visitas={visitasTipo} ahora={ahora} />}
       {vista === 'requerimientos' && (
         <RequerimientosSupervision requerimientos={requerimientos} lugares={lugares} ahora={ahora} toast={toast}
