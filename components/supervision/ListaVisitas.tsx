@@ -10,7 +10,7 @@ import {
   type NivelCumplimiento, type Periodo,
 } from '@/lib/supervision/calculos'
 import { fechaHora } from '@/lib/supervision/formato'
-import type { BloqueSupervision, LugarSupervision, VisitaSupervision } from '@/lib/supervision/tipos'
+import { NOMBRE_LUGAR, type BloqueSupervision, type LugarSupervision, type TipoVisita, type VisitaSupervision } from '@/lib/supervision/tipos'
 import { ChipFiltro, OPCIONES_NIVEL } from './Filtros'
 import { ChipEnCurso, Porcentaje, Tendencia } from './ui'
 
@@ -19,6 +19,7 @@ interface Props {
   bloques: BloqueSupervision[]
   visitas: VisitaSupervision[]
   ahora: number
+  tipo?: TipoVisita
 }
 
 const ESTADOS = [
@@ -43,7 +44,9 @@ function grupoDe(iso: string, ahora: number): string {
   return new Date(iso).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', month: 'long', year: 'numeric' })
 }
 
-export default function ListaVisitas({ sucursales, bloques, visitas, ahora }: Props) {
+export default function ListaVisitas({ sucursales, bloques, visitas, ahora, tipo = 'sucursal' }: Props) {
+  const n = NOMBRE_LUGAR[tipo]
+  const mayus = (s: string) => s[0].toUpperCase() + s.slice(1)
   const [f, setF] = useState(INICIAL)
   const cambiar = (k: keyof typeof INICIAL) => (v: string) => setF(prev => ({ ...prev, [k]: v }))
   const nombre = (id: string) => sucursales.find(s => s.id === id)?.nombre ?? id
@@ -69,14 +72,16 @@ export default function ListaVisitas({ sucursales, bloques, visitas, ahora }: Pr
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <SearchInput value={f.texto} onChange={cambiar('texto')} placeholder="Buscar sucursal, supervisor o encargado" className="w-full sm:max-w-md lg:w-96 lg:shrink-0" />
+        <SearchInput value={f.texto} onChange={cambiar('texto')} placeholder={`Buscar ${n.uno}, supervisor o encargado`} className="w-full sm:max-w-md lg:w-96 lg:shrink-0" />
         <div className="flex flex-wrap items-center gap-2">
           <ChipFiltro nombre="Período" valor={f.periodo} porDefecto="todo" mostrarValor icono={IconCalendar}
             opciones={PERIODOS.map(p => ({ valor: p.valor, texto: p.texto }))} onChange={cambiar('periodo')} />
           <ChipFiltro nombre="Estado" valor={f.estado} porDefecto="todas" opciones={ESTADOS} onChange={cambiar('estado')} />
           <ChipFiltro nombre="Nivel" valor={f.nivel} porDefecto="todos" opciones={OPCIONES_NIVEL} onChange={cambiar('nivel')} />
-          <ChipFiltro nombre="Zona" valor={f.zona} porDefecto="todas"
-            opciones={[{ valor: 'todas', texto: 'Todas las zonas' }, ...zonas.map(z => ({ valor: z, texto: z }))]} onChange={cambiar('zona')} />
+          {zonas.length > 1 && (
+            <ChipFiltro nombre="Zona" valor={f.zona} porDefecto="todas"
+              opciones={[{ valor: 'todas', texto: 'Todas las zonas' }, ...zonas.map(z => ({ valor: z, texto: z }))]} onChange={cambiar('zona')} />
+          )}
           {supervisores.length > 1 && (
             <ChipFiltro nombre="Supervisor" valor={f.supervisor} porDefecto="todos"
               opciones={[{ valor: 'todos', texto: 'Todos' }, ...supervisores.map(s => ({ valor: s, texto: s }))]} onChange={cambiar('supervisor')} />
@@ -98,7 +103,7 @@ export default function ListaVisitas({ sucursales, bloques, visitas, ahora }: Pr
       ) : (
         <div className="overflow-hidden rounded-card border border-border bg-surface">
           <div className={`hidden border-b border-border px-4 py-2.5 text-2xs font-semibold uppercase tracking-wider text-muted lg:grid ${COLUMNAS}`}>
-            <span>Sucursal</span><span>Fecha</span><span>Supervisor</span><span>Encargado</span><span>Respondidos</span>
+            <span>{mayus(n.uno)}</span><span>Fecha</span><span>Supervisor</span><span>Encargado</span><span>Respondidos</span>
             <span className="text-right">Cumplimiento</span><span />
           </div>
           {grupos.map(([grupo, vs]) => (

@@ -14,7 +14,7 @@ import {
   sinVisitarDesde, textoPct, type NivelCumplimiento, type Periodo,
 } from '@/lib/supervision/calculos'
 import { fechaCorta, fechaHora, pesos } from '@/lib/supervision/formato'
-import { TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type TipoVisita, type VisitaSupervision } from '@/lib/supervision/tipos'
+import { NOMBRE_LUGAR, TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type TipoVisita, type VisitaSupervision } from '@/lib/supervision/tipos'
 import { ChipFiltro, OPCIONES_NIVEL } from './Filtros'
 import { Tarjeta } from './ui'
 
@@ -40,6 +40,9 @@ const corto = (titulo: string) => titulo.split(' ')[0].replace(/[,.]$/, '')
 
 export default function AnalisisSupervision({ sucursales, bloques, visitas, ahora, tipo = 'sucursal' }: Props) {
   const [f, setF] = useState(INICIAL)
+  const n = NOMBRE_LUGAR[tipo]
+  const fem = tipo === 'sucursal' // "la sucursal" / "el lugar", "el cliente"
+  const Uno = n.uno[0].toUpperCase() + n.uno.slice(1), Varios = n.varios[0].toUpperCase() + n.varios.slice(1)
   const [celda, setCelda] = useState<{ visita: VisitaSupervision; bloque: BloqueSupervision; sucursal: string } | null>(null)
   const cambiar = (k: keyof typeof INICIAL) => (v: string) => setF(prev => ({ ...prev, [k]: v }))
 
@@ -87,8 +90,10 @@ export default function AnalisisSupervision({ sucursales, bloques, visitas, ahor
       <div className="flex flex-wrap items-center gap-2">
         <ChipFiltro nombre="Período" valor={f.periodo} porDefecto="90d" mostrarValor icono={IconCalendar}
           opciones={PERIODOS.map(p => ({ valor: p.valor, texto: p.texto }))} onChange={cambiar('periodo')} />
-        <ChipFiltro nombre="Zona" valor={f.zona} porDefecto="todas"
-          opciones={[{ valor: 'todas', texto: 'Todas las zonas' }, ...zonas.map(z => ({ valor: z, texto: z }))]} onChange={cambiar('zona')} />
+        {zonas.length > 1 && (
+          <ChipFiltro nombre="Zona" valor={f.zona} porDefecto="todas"
+            opciones={[{ valor: 'todas', texto: 'Todas las zonas' }, ...zonas.map(z => ({ valor: z, texto: z }))]} onChange={cambiar('zona')} />
+        )}
         {supervisores.length > 1 && (
           <ChipFiltro nombre="Supervisor" valor={f.supervisor} porDefecto="todos"
             opciones={[{ valor: 'todos', texto: 'Todos' }, ...supervisores.map(s => ({ valor: s, texto: s }))]} onChange={cambiar('supervisor')} />
@@ -105,14 +110,14 @@ export default function AnalisisSupervision({ sucursales, bloques, visitas, ahor
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard icon={<IconClipboardCheck size={20} />} label="Visitas cerradas" value={String(a.cerradas.length)}
-          detalle={`${a.ultimas.length} sucursal${a.ultimas.length === 1 ? '' : 'es'} visitada${a.ultimas.length === 1 ? '' : 's'}`} />
+          detalle={`${a.ultimas.length} ${a.ultimas.length === 1 ? n.uno : n.varios} visitad${fem ? 'a' : 'o'}${a.ultimas.length === 1 ? '' : 's'}`} />
         <KpiCard icon={<IconPercentage size={20} />} label="Cumplimiento promedio" value={textoPct(a.promedio)}
           tono={a.promedio == null ? 'neutro' : a.promedio >= 85 ? 'exito' : a.promedio >= 65 ? 'neutro' : 'peligro'}
-          detalle={difPromedio == null ? 'Última visita de cada sucursal' : `${difPromedio > 0 ? '+' : difPromedio < 0 ? '−' : ''}${Math.abs(difPromedio)} pts vs. período anterior`} />
-        <KpiCard icon={<IconAlertTriangle size={20} />} label="Sucursales en rojo" value={String(a.enRojo.length)}
-          tono={a.enRojo.length ? 'peligro' : 'exito'} detalle={a.enRojo.length ? nombres(a.enRojo) : 'Ninguna por debajo de 65 %'} />
+          detalle={difPromedio == null ? `Última visita de cada ${n.uno}` : `${difPromedio > 0 ? '+' : difPromedio < 0 ? '−' : ''}${Math.abs(difPromedio)} pts vs. período anterior`} />
+        <KpiCard icon={<IconAlertTriangle size={20} />} label={`${Varios} en rojo`} value={String(a.enRojo.length)}
+          tono={a.enRojo.length ? 'peligro' : 'exito'} detalle={a.enRojo.length ? nombres(a.enRojo) : `${fem ? 'Ninguna' : 'Ninguno'} por debajo de 65 %`} />
         <KpiCard icon={<IconCalendarOff size={20} />} label="Sin visitar en 30 días" value={String(sinVisitar.length)}
-          tono={sinVisitar.length ? 'alerta' : 'exito'} detalle={sinVisitar.length ? nombres(sinVisitar) : 'Todas visitadas'} />
+          tono={sinVisitar.length ? 'alerta' : 'exito'} detalle={sinVisitar.length ? nombres(sinVisitar) : fem ? 'Todas visitadas' : 'Todos visitados'} />
       </div>
 
       {a.cerradas.length === 0 ? (
@@ -121,7 +126,7 @@ export default function AnalisisSupervision({ sucursales, bloques, visitas, ahor
         </div>
       ) : (
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_440px]">
-          <Tarjeta titulo="Sucursal × bloque" descripcion="Última visita cerrada de cada sucursal. Tocá una celda para ver los ítems.">
+          <Tarjeta titulo={`${Uno} × bloque`} descripcion={`Última visita cerrada de cada ${n.uno}. Tocá una celda para ver los ítems.`}>
             <div className="-mx-4 overflow-x-auto px-4">
               <table className="w-full border-separate border-spacing-[3px] text-xs">
                 <thead>
@@ -179,13 +184,13 @@ export default function AnalisisSupervision({ sucursales, bloques, visitas, ahor
               <p className="text-sm text-muted">Sin incumplimientos registrados.</p>
             ) : (
               <ol className="divide-y divide-border">
-                {a.top.map(({ itemId, veces, sucursales: n }, i) => (
+                {a.top.map(({ itemId, veces, sucursales: cant }, i) => (
                   <li key={itemId} className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
                     <span className="w-5 shrink-0 text-right font-['Syne'] text-sm font-bold text-faint">{i + 1}</span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-text">{textoItem.get(itemId)?.texto}</p>
                       <p className="text-xs text-muted">
-                        {corto(textoItem.get(itemId)?.bloque ?? '')} · {veces} {veces === 1 ? 'visita' : 'visitas'} · {n} {n === 1 ? 'sucursal' : 'sucursales'}
+                        {corto(textoItem.get(itemId)?.bloque ?? '')} · {veces} {veces === 1 ? 'visita' : 'visitas'} · {cant} {cant === 1 ? n.uno : n.varios}
                       </p>
                     </div>
                   </li>
@@ -205,7 +210,7 @@ export default function AnalisisSupervision({ sucursales, bloques, visitas, ahor
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-2xs uppercase tracking-wider text-muted">
-                    <th className="py-1.5 pr-3 font-semibold">Sucursal</th>
+                    <th className="py-1.5 pr-3 font-semibold">{Uno}</th>
                     <th className="py-1.5 pr-3 text-right font-semibold">Visitas</th>
                     <th className="py-1.5 pr-3 text-right font-semibold">Total</th>
                     <th className="py-1.5 pr-3 text-right font-semibold">Mayor</th>
