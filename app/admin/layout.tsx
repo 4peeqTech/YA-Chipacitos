@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { LayoutDashboard, Wallet, BarChart3, RefreshCw, ListTodo, HelpCircle } from 'lucide-react'
 import Header from '@/components/ui/Header'
+import { BadgeEntorno } from '@/components/ui/Badge'
 import BottomNav from '@/components/ui/BottomNav'
 import Sidebar from '@/components/ui/Sidebar'
 import NotificationBell from '@/components/ui/NotificationBell'
@@ -72,7 +73,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
         {/* Header desktop */}
         <header className="hidden lg:flex items-center justify-between px-6 py-4 bg-[#111111] border-b border-[#2a2a2a] sticky top-0 z-30">
-          <div />
+          <BadgeEntorno />
           <div className="flex items-center gap-4">
             <NotificationBell />
             <div className="flex items-center gap-3">
