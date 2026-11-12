@@ -177,7 +177,7 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
       )}
 
       {vista === 'nueva' && (
-        <NuevaVisita lugares={lugares} bloques={bloques} visitas={visitas} requerimientos={requerimientos} nombreUsuario={nombreUsuario} ahora={ahora} toast={toast} />
+        <NuevaVisita lugares={lugares} bloques={bloques} visitas={visitas} requerimientos={requerimientos} equipos={equipos} nombreUsuario={nombreUsuario} ahora={ahora} toast={toast} />
       )}
       {(vista === 'visitas' || vista === 'analisis') && tipos.length > 1 && (
         <div role="group" aria-label="Tipo de visita" className="flex flex-wrap gap-1.5">
@@ -212,7 +212,7 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
           {seccionLugares === 'sucursales' && <LugaresSupervision sucursales={sucursales} esAdmin={esAdmin} toast={toast} onGuardado={guardarLugar} />}
           {seccionLugares === 'mayoristas' && <MayoristasSupervision mayoristas={mayoristas} equipos={equipos} onGuardado={guardarLugar} toast={toast} />}
           {seccionLugares === 'equipos' && (
-            <EquiposSupervision equipos={equipos} movimientos={movimientos} clientes={mayoristas} toast={toast} onRecargar={recargarEquipos}
+            <EquiposSupervision equipos={equipos} movimientos={movimientos} clientes={mayoristas} visitas={visitas} toast={toast} onRecargar={recargarEquipos}
               onGuardado={e => setEquipos(prev => (prev.some(x => x.id === e.id) ? prev.map(x => (x.id === e.id ? e : x)) : [...prev, e]))} />
           )}
           {seccionLugares === 'parametros' && (

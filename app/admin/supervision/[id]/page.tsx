@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { bloquesDeVisita } from '@/lib/supervision/calculos'
-import { SELECT_VISITA, cargarCatalogo, cargarRequerimientos, cargarUsuario } from '@/lib/supervision/datos'
+import { SELECT_VISITA, cargarCatalogo, cargarEquipos, cargarRequerimientos, cargarUsuario } from '@/lib/supervision/datos'
 import type { ResumenVisita, VisitaSupervision } from '@/lib/supervision/tipos'
 import DetalleVisita from '@/components/supervision/DetalleVisita'
 
@@ -33,8 +33,9 @@ export default async function DetalleVisitaPage({ params, searchParams }: {
     : { data: null }
 
   const lugar = catalogo.lugares.find(l => l.id === visita.lugar_id)
+  const eq = lugar?.tipo === 'mayorista' ? await cargarEquipos(supabase) : null
   return (
-    <DetalleVisita visita={visita} lugares={catalogo.lugares} bloques={bloquesDeVisita(visita, catalogo.bloques, lugar)} requerimientos={[...requerimientos].reverse()} esAdmin={usuario.esAdmin}
+    <DetalleVisita visita={visita} lugares={catalogo.lugares} bloques={bloquesDeVisita(visita, catalogo.bloques, lugar)} requerimientos={[...requerimientos].reverse()} equipos={eq?.equipos} esAdmin={usuario.esAdmin}
       anterior={anterior ? { id: anterior.id as string, fecha: anterior.fecha as string, pct: (anterior.resumen as ResumenVisita | null)?.pct ?? null } : null}
       aviso={aviso === 'cerrada' ? 'Visita cerrada' : null} />
   )
