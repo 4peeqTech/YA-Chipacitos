@@ -5,6 +5,7 @@ import SWRegister from '@/components/ui/SWRegister'
 import BarraNavegacion from '@/components/ui/BarraNavegacion'
 import InstallPrompt from '@/components/ui/InstallPrompt'
 import ProveedorUI from '@/components/ui/ProveedorUI'
+import { FranjaEntorno } from '@/components/ui/Badge'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
       </head>
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
+        <FranjaEntorno />
         <SWRegister />
         <InstallPrompt />
         <Suspense fallback={null}><BarraNavegacion /></Suspense>

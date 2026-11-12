@@ -40,20 +40,37 @@ export function BadgeDiff() {
   return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-danger-bg text-brand-red">Diferencia</span>
 }
 
-// Pill visible cuando el bundle apunta a otro proyecto que no es prod —
-// reemplaza "grepear el JS del deploy" como método de detección.
-/** `corto`: en celular dice "Dev" (el header operativo no tiene lugar para más). */
+// Aviso de entorno de prueba: se ve cuando el bundle apunta a un proyecto de
+// Supabase que no es el de producción (QA y local usan la base de dev). Así
+// nadie carga datos reales en QA creyendo que está en el sistema de verdad.
+// En producción no aparece nada.
+const esEntornoPrueba = () => refDeUrl(process.env.NEXT_PUBLIC_SUPABASE_URL) !== REF_PROD
+const EXPLICACION = 'Estás en el entorno de prueba: lo que cargues o cambies acá no afecta los datos reales del sistema.'
+
+/** `corto`: en celular dice "Prueba" (el header operativo no tiene lugar para más). */
 export function BadgeEntorno({ corto = false }: { corto?: boolean }) {
-  const ref = refDeUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)
-  if (ref === REF_PROD) return null
+  if (!esEntornoPrueba()) return null
+  const completo = 'Entorno de prueba · no afecta los datos reales'
   return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wide bg-danger-bg text-brand-red">
+    <span title={EXPLICACION}
+      className="inline-flex items-center whitespace-nowrap rounded-full border border-warning/40 bg-warning-bg px-2.5 py-0.5 text-2xs font-semibold text-warning">
       {corto ? (
         <>
-          <span className="sm:hidden">Dev</span>
-          <span className="hidden sm:inline">Datos de dev</span>
+          <span className="sm:hidden">Prueba</span>
+          <span className="hidden sm:inline lg:hidden">Entorno de prueba</span>
+          <span className="hidden lg:inline">{completo}</span>
         </>
-      ) : 'Datos de dev'}
+      ) : completo}
+      <span className="sr-only">. {EXPLICACION}</span>
     </span>
+  )
+}
+
+/** Franja fina a rayas arriba de todas las pantallas del entorno de prueba. */
+export function FranjaEntorno() {
+  if (!esEntornoPrueba()) return null
+  return (
+    <div aria-hidden
+      className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-1 bg-[repeating-linear-gradient(135deg,var(--color-warning)_0_10px,#111_10px_20px)]" />
   )
 }
