@@ -6,11 +6,12 @@ import EmptyState from '@/components/ui/EmptyState'
 import Modal from '@/components/ui/Modal'
 import type { useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
+import { ultimoControl } from '@/lib/supervision/calculos'
 import { fechaCorta } from '@/lib/supervision/formato'
 import {
   MODALIDADES, MOVIMIENTOS, SITUACIONES, TIPOS_EQUIPO,
   type EquipoSupervision, type LugarSupervision, type ModalidadEquipo, type MovimientoEquipo, type SituacionEquipo,
-  type TipoEquipo, type TipoMovimiento,
+  type TipoEquipo, type TipoMovimiento, type VisitaSupervision, ESTADOS_EQUIPO,
 } from '@/lib/supervision/tipos'
 import { ChipFiltro } from './Filtros'
 import { textoDe } from './ui'
@@ -275,11 +276,13 @@ function MoverModal({ equipo, clientes, onCerrar, onMovido, toast }: {
 
 const INICIAL = { cliente: 'todos', tipo: 'todos', situacion: 'todas' }
 
-export default function EquiposSupervision({ equipos, movimientos, clientes, onGuardado, onRecargar, toast }: {
+export default function EquiposSupervision({ equipos, movimientos, clientes, visitas, onGuardado, onRecargar, toast }: {
   equipos: EquipoSupervision[]
   movimientos: MovimientoEquipo[]
   /** Los clientes mayoristas activos. */
   clientes: LugarSupervision[]
+  /** Para el último control de cada equipo. */
+  visitas: VisitaSupervision[]
   onGuardado: (e: EquipoSupervision) => void
   /** Vuelve a traer equipos y movimientos (después de un movimiento). */
   onRecargar: () => Promise<void>
@@ -325,6 +328,7 @@ export default function EquiposSupervision({ equipos, movimientos, clientes, onG
         <ul className="divide-y divide-border rounded-xl border border-border">
           {lista.map(e => {
             const historial = movimientos.filter(m => m.equipo_id === e.id)
+            const control = ultimoControl(e.id, visitas)
             const esteAbierto = abierto === e.id
             return (
               <li key={e.id}>
@@ -337,6 +341,14 @@ export default function EquiposSupervision({ equipos, movimientos, clientes, onG
                       <span className={`font-semibold ${COLOR_SITUACION[e.situacion]}`}>{textoDe(SITUACIONES, e.situacion)}</span>
                       {e.lugar_id && <span className="text-text"> · {nombre(e.lugar_id)}</span>}
                       <span className="text-faint"> · {textoDe(MODALIDADES, e.modalidad)}</span>
+                    </p>
+                    <p className="text-xs text-muted">
+                      Último control:{' '}
+                      {!control ? <span className="text-faint">sin controlar</span> : (
+                        <span className={!control.presente || control.estado === 'malo' ? 'font-semibold text-brand-red' : 'text-text'}>
+                          {fechaCorta(control.fecha)} · {!control.presente ? 'no estaba en el local' : control.estado ? textoDe(ESTADOS_EQUIPO, control.estado) : ''}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <IconChevronDown size={18} className={`mt-0.5 shrink-0 text-muted transition-transform ${esteAbierto ? 'rotate-180' : ''}`} aria-hidden />

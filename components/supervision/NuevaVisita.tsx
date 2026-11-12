@@ -13,7 +13,7 @@ import {
 } from '@/lib/supervision/calculos'
 import { COLOR_NIVEL, fechaHora } from '@/lib/supervision/formato'
 import {
-  TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type RequerimientoSupervision, type TipoVisita, type VisitaSupervision,
+  TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type EquipoSupervision, type RequerimientoSupervision, type TipoVisita, type VisitaSupervision,
 } from '@/lib/supervision/tipos'
 import { CLAVE_SUPERVISOR, ChipPrioridad, Porcentaje } from './ui'
 
@@ -22,6 +22,8 @@ interface Props {
   bloques: BloqueSupervision[]
   visitas: VisitaSupervision[]
   requerimientos: RequerimientoSupervision[]
+  /** Los equipos de Ya! activan ítems en las visitas a mayoristas. */
+  equipos: EquipoSupervision[]
   nombreUsuario: string
   ahora: number
   toast: ReturnType<typeof useToasts>
@@ -36,7 +38,7 @@ const ELEGIR: Record<TipoVisita, string> = {
 
 const INPUT = 'w-full rounded-xl border border-border bg-surface2 px-3 py-2.5 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none'
 
-export default function NuevaVisita({ lugares, bloques, visitas, requerimientos, nombreUsuario, ahora, toast }: Props) {
+export default function NuevaVisita({ lugares, bloques, visitas, requerimientos, equipos, nombreUsuario, ahora, toast }: Props) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   // Primero el tipo de visita y después el lugar. Si hay un solo tipo con
@@ -76,7 +78,7 @@ export default function NuevaVisita({ lugares, bloques, visitas, requerimientos,
     [visitas],
   )
   const sucursal = lugares.find(l => l.id === lugarId) ?? null
-  const bloquesLugar = useMemo(() => (sucursal ? catalogoPara(bloques, sucursal) : []), [bloques, sucursal])
+  const bloquesLugar = useMemo(() => (sucursal ? catalogoPara(bloques, sucursal, equipos) : []), [bloques, sucursal, equipos])
   const enCurso = lugarId ? visitaEnCurso(visitas, lugarId) : null
   const anterior = lugarId ? ultimaCerrada(visitas, lugarId) : null
   const pendientes = useMemo(() => pendientesDe(anterior, bloquesLugar), [anterior, bloquesLugar])

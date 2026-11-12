@@ -1,7 +1,7 @@
 // Cálculos del checklist de supervisión. Funciones puras (sin imports de la
 // app) para poder testearlas con `npm test` (calculos.test.mjs).
 import type {
-  AtributosLugar, BloqueSupervision, EquipoSupervision, ItemSupervision, LugarSupervision, PrioridadRequerimiento, RequerimientoSupervision,
+  AtributosLugar, ControlEquipo, EstadoEquipo, BloqueSupervision, EquipoSupervision, ItemSupervision, LugarSupervision, PrioridadRequerimiento, RequerimientoSupervision,
   ResumenVisita, Respuestas, Resultado, VisitaSupervision,
 } from './tipos'
 
@@ -356,6 +356,37 @@ export function sinVisitarDesde(visitas: VisitaSupervision[], sucursales: LugarS
 
 export function diasDesde(iso: string, ahora: number): number {
   return Math.max(0, Math.floor((ahora - Date.parse(iso)) / DIA))
+}
+
+// ── Control de equipos (mayoristas) ───────────────────────────────────────
+
+/** Un equipo está controlado si se respondió si está y, si está, si coincide y su estado. */
+export const equipoControlado = (c: ControlEquipo | undefined) =>
+  c?.presente === false || (c?.presente === true && c.coincide != null && !!c.estado)
+
+/**
+ * Resultado del ítem de equipos (mq1): No cumple si algún equipo no está, no
+ * coincide con el registro o está en mal estado, aunque falte controlar otros;
+ * Cumple si están todos controlados y bien; null mientras falte alguno.
+ */
+export function resultadoMq1(control: Record<string, ControlEquipo>, equipoIds: string[]): Resultado | null {
+  if (!equipoIds.length) return null
+  const cs = equipoIds.map(id => control?.[id])
+  if (cs.some(c => c?.presente === false || c?.coincide === false || c?.estado === 'malo')) return 'NC'
+  return cs.every(equipoControlado) ? 'C' : null
+}
+
+export interface UltimoControl { visitaId: string; fecha: string; presente: boolean; estado: EstadoEquipo | null }
+
+/** El control más reciente de un equipo en una visita cerrada (lo busca por equipo, no por cliente). */
+export function ultimoControl(equipoId: string, visitas: VisitaSupervision[]): UltimoControl | null {
+  let mejor: UltimoControl | null = null
+  for (const v of visitas) {
+    const c = v.control_equipos?.[equipoId]
+    if (v.estado !== 'cerrada' || !c || c.presente == null) continue
+    if (!mejor || v.fecha > mejor.fecha) mejor = { visitaId: v.id, fecha: v.fecha, presente: c.presente, estado: c.estado ?? null }
+  }
+  return mejor
 }
 
 // ── Requerimientos ─────────────────────────────────────────────────────────

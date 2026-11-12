@@ -10,8 +10,10 @@ import { createClient } from '@/lib/supabase/client'
 import { calcularResumen, diferenciaPuntos, pendientesResueltos, textoPct } from '@/lib/supervision/calculos'
 import { fechaCorta, fechaHora, pesos } from '@/lib/supervision/formato'
 import {
-  CATEGORIAS_REQ, ESTADOS_REQ, type BloqueSupervision, type LugarSupervision, type RequerimientoSupervision, type VisitaSupervision,
+  CATEGORIAS_REQ, ESTADOS_EQUIPO, ESTADOS_REQ, TIPOS_EQUIPO,
+  type BloqueSupervision, type EquipoSupervision, type LugarSupervision, type RequerimientoSupervision, type VisitaSupervision,
 } from '@/lib/supervision/tipos'
+import { identificacion } from './EquiposSupervision'
 import { BarraCumplimiento, ChipEnCurso, ChipPrioridad, Porcentaje, Tarjeta, Tendencia, textoDe } from './ui'
 
 interface Props {
@@ -23,11 +25,13 @@ interface Props {
   aviso: string | null
   /** Los que nacieron en esta visita. */
   requerimientos: RequerimientoSupervision[]
+  /** Mayoristas: los equipos que se controlaron (para nombrarlos). */
+  equipos?: EquipoSupervision[]
 }
 
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
-export default function DetalleVisita({ visita: v, lugares, bloques, esAdmin, anterior, aviso, requerimientos }: Props) {
+export default function DetalleVisita({ visita: v, lugares, bloques, esAdmin, anterior, aviso, requerimientos, equipos = [] }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [supabase] = useState(() => createClient())
@@ -211,6 +215,36 @@ export default function DetalleVisita({ visita: v, lugares, bloques, esAdmin, an
               {bloques.map(b => <BarraCumplimiento key={b.id} titulo={b.titulo} pct={r.bloques[b.id] ?? null} />)}
             </div>
           </Tarjeta>
+
+          {Object.keys(v.control_equipos ?? {}).length > 0 && (
+            <Tarjeta titulo="Equipos de Ya!">
+              <ul className="divide-y divide-border">
+                {Object.entries(v.control_equipos).map(([id, c]) => {
+                  const e = equipos.find(x => x.id === id)
+                  const mal = c.presente === false || c.coincide === false || c.estado === 'malo'
+                  return (
+                    <li key={id} className="space-y-0.5 py-2.5 first:pt-0 last:pb-0">
+                      <p className="text-sm text-text">{e ? `${textoDe(TIPOS_EQUIPO, e.tipo)} · ${identificacion(e)}` : 'Equipo dado de baja'}</p>
+                      <p className={`text-xs ${mal ? 'font-semibold text-brand-red' : 'text-muted'}`}>
+                        {c.presente === false ? 'No estaba en el local' : [
+                          c.presente ? 'En el local' : 'Sin controlar',
+                          c.coincide === false ? 'el número no coincide' : c.coincide ? 'coincide' : null,
+                          c.estado ? `estado ${textoDe(ESTADOS_EQUIPO, c.estado).toLowerCase()}` : null,
+                        ].filter(Boolean).join(' · ')}
+                      </p>
+                      {c.obs && <p className="border-l-2 border-border pl-2 text-xs text-muted">{c.obs}</p>}
+                    </li>
+                  )
+                })}
+              </ul>
+            </Tarjeta>
+          )}
+
+          {v.recomendaciones && (
+            <Tarjeta titulo="Recomendaciones dejadas al cliente">
+              <p className="whitespace-pre-wrap text-sm text-text">{v.recomendaciones}</p>
+            </Tarjeta>
+          )}
 
           {requerimientos.length > 0 && (
             <Tarjeta titulo={`Requerimientos (${requerimientos.length})`}>

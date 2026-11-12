@@ -11,6 +11,7 @@ export const supervision: SeccionManual = {
   resumen: 'El checklist de la recorrida: empezar una visita, completarla desde el celular, anotar requerimientos, ver el análisis y los datos de cada sucursal.',
   actualizado: '2026-11-12',
   novedades: [
+    { fecha: '2026-11-12', texto: 'Visitas a **clientes mayoristas**: ítems según la ficha del cliente, control de los equipos de Ya! y recomendaciones al cierre.' },
     { fecha: '2026-11-12', texto: 'En **Lugares**: **Clientes mayoristas**, **Equipos** entregados (con su historial) y **Parámetros**.' },
     { fecha: '2026-11-12', texto: 'Checklists de **Fábrica** y **Depósito**: se eligen en **Tipo de visita** al empezar.' },
     { fecha: '2026-11-11', texto: '**Requerimientos**: lo que falta, lo que hay que reparar o una idea, con seguimiento propio. Los abiertos aparecen al empezar otra visita al mismo lugar.' },
@@ -33,7 +34,7 @@ export const supervision: SeccionManual = {
           tipo: 'pasos',
           pasos: [
             { texto: 'Entrá a **Supervisión de locales** y quedate en **Nueva visita**.' },
-            { texto: 'Elegí el **Tipo de visita**: Sucursal, Fábrica o Depósito.' },
+            { texto: 'Elegí el **Tipo de visita**: Sucursal, Fábrica, Depósito o Cliente mayorista.' },
             { texto: 'Si es una sucursal, elegila. Cada una muestra hace cuánto fue la última visita y su porcentaje. Fábrica y Depósito son un solo lugar y se eligen solos.' },
             { texto: 'Revisá tu nombre y el del encargado: el encargado viene cargado de **Lugares** y lo podés cambiar si hoy está otra persona.' },
             { texto: 'Tocá **Comenzar visita en …**.' },
@@ -131,6 +132,25 @@ export const supervision: SeccionManual = {
       ],
     },
     {
+      ancla: 'visita-mayorista',
+      titulo: 'Visitas a clientes mayoristas',
+      bloques: [
+        { tipo: 'parrafo', texto: 'Se mira cómo el cliente conserva, cocina y exhibe el producto. Los ítems salen de su ficha: uno que solo vende congelado ve entre 7 y 10; uno que cocina, entre 19 y 22, según los equipos de Ya! que tenga.' },
+        {
+          tipo: 'lista',
+          titulo: 'Durante la visita',
+          items: [
+            '**Equipos de Ya! Chipacitos:** por cada equipo del cliente marcá si está en el local, si el número de serie o el código coincide con el registro, y su estado (bueno, regular o malo). El ítem se completa solo: **No cumple** si alguno no está, no coincide o está en mal estado.',
+            '**Editar ficha:** si cambió algo del cliente (por ejemplo, ahora cocina), corregilo ahí. Los ítems de la visita se actualizan sin perder lo que ya respondiste.',
+            '**Agregar equipo:** si encontrás un equipo de Ya! que no estaba registrado, cargalo ahí mismo.',
+            'El ítem del tiempo en exhibidora muestra el máximo configurado en **Parámetros**.',
+            'En el **Cierre**, anotá las **Recomendaciones dejadas al cliente**.',
+          ],
+        },
+        { tipo: 'tip', texto: 'Las visitas a mayoristas no llevan los bloques de baño y seguridad ni requerimientos.' },
+      ],
+    },
+    {
       ancla: 'mayoristas',
       titulo: 'Clientes mayoristas',
       bloques: [
@@ -158,6 +178,7 @@ export const supervision: SeccionManual = {
             { texto: 'Para corregir la marca, el número o las observaciones, tocá **Editar datos**.' },
           ],
         },
+        { tipo: 'parrafo', texto: 'Cada equipo muestra su **Último control**: la fecha y el estado de la última visita cerrada que lo controló. En rojo si estaba en mal estado o no estaba en el local.' },
       ],
     },
     {

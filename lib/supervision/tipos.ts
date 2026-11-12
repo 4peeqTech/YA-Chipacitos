@@ -111,6 +111,23 @@ export interface ResumenVisita {
 
 export type EstadoVisita = 'en_curso' | 'cerrada'
 
+export type EstadoEquipo = 'bueno' | 'regular' | 'malo'
+
+export const ESTADOS_EQUIPO: { valor: EstadoEquipo; texto: string }[] = [
+  { valor: 'bueno', texto: 'Bueno' },
+  { valor: 'regular', texto: 'Regular' },
+  { valor: 'malo', texto: 'Malo' },
+]
+
+/** Control de un equipo en la visita. */
+export interface ControlEquipo {
+  presente?: boolean
+  /** El número de serie o el código interno coincide con el registro. */
+  coincide?: boolean
+  estado?: EstadoEquipo
+  obs?: string
+}
+
 export interface VisitaSupervision {
   id: string
   lugar_id: string
@@ -128,6 +145,10 @@ export interface VisitaSupervision {
   resumen: ResumenVisita | null
   /** Ítems que se mostraron al iniciar. Null en las visitas anteriores a la v2. */
   items_visibles: string[] | null
+  /** Mayoristas: el control de cada equipo de Ya! en el local, por id de equipo. */
+  control_equipos: Record<string, ControlEquipo>
+  /** Mayoristas: lo que se le recomendó al cliente. */
+  recomendaciones: string
   creado_por: string | null
   updated_at: string
 }

@@ -5238,6 +5238,7 @@ export type Database = {
           anterior_fecha: string | null
           anterior_id: string | null
           cierre: string | null
+          control_equipos: Json
           creado_por: string | null
           created_at: string
           encargado: string | null
@@ -5249,6 +5250,7 @@ export type Database = {
           obs_general: string
           obs_previas: Json
           pendientes_previos: string[]
+          recomendaciones: string
           respuestas: Json
           resumen: Json | null
           supervisor_nombre: string
@@ -5258,6 +5260,7 @@ export type Database = {
           anterior_fecha?: string | null
           anterior_id?: string | null
           cierre?: string | null
+          control_equipos?: Json
           creado_por?: string | null
           created_at?: string
           encargado?: string | null
@@ -5269,6 +5272,7 @@ export type Database = {
           obs_general?: string
           obs_previas?: Json
           pendientes_previos?: string[]
+          recomendaciones?: string
           respuestas?: Json
           resumen?: Json | null
           supervisor_nombre: string
@@ -5278,6 +5282,7 @@ export type Database = {
           anterior_fecha?: string | null
           anterior_id?: string | null
           cierre?: string | null
+          control_equipos?: Json
           creado_por?: string | null
           created_at?: string
           encargado?: string | null
@@ -5289,6 +5294,7 @@ export type Database = {
           obs_general?: string
           obs_previas?: Json
           pendientes_previos?: string[]
+          recomendaciones?: string
           respuestas?: Json
           resumen?: Json | null
           supervisor_nombre?: string

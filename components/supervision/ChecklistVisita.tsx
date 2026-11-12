@@ -9,10 +9,17 @@ import {
 import Modal from '@/components/ui/Modal'
 import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
-import { calcularResumen, completarSinResponder, idsSinResponder, textoPct } from '@/lib/supervision/calculos'
+import {
+  bloquesDeVisita, calcularResumen, catalogoPara, completarSinResponder, idsDe, idsSinResponder, resultadoMq1, textoPct,
+} from '@/lib/supervision/calculos'
 import { fechaHora } from '@/lib/supervision/formato'
-import type { BloqueSupervision, ItemSupervision, RequerimientoSupervision, Respuestas, Resultado, VisitaSupervision } from '@/lib/supervision/tipos'
+import type {
+  BloqueSupervision, ControlEquipo, EquipoSupervision, ItemSupervision, LugarSupervision, ParametroSupervision, RequerimientoSupervision,
+  Respuestas, Resultado, VisitaSupervision,
+} from '@/lib/supervision/tipos'
 import RequerimientosVisita from './RequerimientosVisita'
+import { AccionesMayorista, ControlEquipos } from './VisitaMayorista'
+import { Resultado as ChipResultado } from './AnalisisSupervision'
 import { CLAVE_BORRADOR, Porcentaje } from './ui'
 
 // Checklist de una visita. Cada cambio se guarda en el celular al instante
@@ -45,6 +52,19 @@ interface Props {
   bloques: BloqueSupervision[]
   /** Los de esta visita; null si el tipo de visita no lleva requerimientos (mayoristas). */
   requerimientos: RequerimientoSupervision[] | null
+  parametros?: ParametroSupervision[]
+  /**
+   * Visita a un cliente mayorista: su ficha, sus equipos de Ya! en uso y el
+   * catálogo de mayoristas completo. Los ítems visibles se recalculan si se
+   * corrige la ficha o se agrega un equipo durante la visita.
+   */
+  mayorista?: { lugar: LugarSupervision; equipos: EquipoSupervision[]; catalogo: BloqueSupervision[] }
+}
+
+/** El valor de un parámetro para mostrar junto al ítem (hoy, horas de mx2). */
+function textoParametro(p: ParametroSupervision | undefined): string | null {
+  const horas = p?.valor?.horas
+  return typeof horas === 'number' ? `Máximo: ${horas} h` : null
 }
 
 /** Pausa antes de reintentar un guardado, con algo de azar para no chocar con otro reintento. */
@@ -52,7 +72,7 @@ const pausaReintento = () => new Promise(r => setTimeout(r, 800 + Math.random() 
 const corto = (titulo: string) => titulo.split(' ')[0].replace(/[,.]$/, '')
 const CIERRE = 'cierre'
 
-export default function ChecklistVisita({ inicial, sucursal, bloques, requerimientos }: Props) {
+export default function ChecklistVisita({ inicial, sucursal, bloques: bloquesProp, requerimientos, parametros = [], mayorista }: Props) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const toast = useToasts()
@@ -70,6 +90,17 @@ export default function ChecklistVisita({ inicial, sucursal, bloques, requerimie
   const enVuelo = useRef<Promise<boolean> | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const [cliente, setCliente] = useState(mayorista?.lugar ?? null)
+  const [equiposCliente, setEquiposCliente] = useState(mayorista?.equipos ?? [])
+  // Mayoristas: los ítems salen de items_visibles, que cambia si se corrige la ficha.
+  const catalogoM = mayorista?.catalogo
+  const bloquesDe = (v: Pick<VisitaSupervision, 'items_visibles'>) => (catalogoM ? bloquesDeVisita(v, catalogoM, undefined) : bloquesProp)
+  const visibles = visita.items_visibles
+  const bloques = useMemo(
+    () => (catalogoM ? bloquesDeVisita({ items_visibles: visibles }, catalogoM, undefined) : bloquesProp),
+    [catalogoM, visibles, bloquesProp],
+  )
+  const idMq1 = mayorista?.catalogo.flatMap(b => b.items).find(i => i.condicion === 'con_equipos')?.id ?? null
   const items = useMemo(() => new Map(bloques.flatMap(b => b.items.map(i => [i.id, i]))), [bloques])
   const total = items.size
   const pendientes = useMemo(() => visita.pendientes_previos.filter(id => items.has(id)), [visita.pendientes_previos, items])
@@ -125,7 +156,8 @@ export default function ChecklistVisita({ inicial, sucursal, bloques, requerimie
       obs_general: snap.obs_general,
       estado: snap.estado,
       cierre: snap.cierre,
-      resumen: calcularResumen(snap.respuestas, bloques),
+      resumen: calcularResumen(snap.respuestas, bloquesDe(snap)),
+      ...(mayorista ? { items_visibles: snap.items_visibles, control_equipos: snap.control_equipos ?? {}, recomendaciones: snap.recomendaciones ?? '' } : {}),
     }
     const intentar = () => supabase.from('supervision_visitas').update(fila).eq('id', snap.id).select('id')
     let { data, error } = await intentar()
@@ -227,6 +259,34 @@ export default function ChecklistVisita({ inicial, sucursal, bloques, requerimie
     cambiar(v => ({ ...v, respuestas: { ...v.respuestas, [id]: { ...(v.respuestas[id] ?? {}), obs } } }))
   }
 
+  /** mq1 sale del control de los equipos: se reescribe con cada cambio (conserva la observación). */
+  function conMq1(respuestas: Respuestas, control: Record<string, ControlEquipo>, equipos: EquipoSupervision[]): Respuestas {
+    if (!idMq1) return respuestas
+    const r = resultadoMq1(control, equipos.map(e => e.id))
+    const previa = respuestas[idMq1] ?? {}
+    const nuevas = { ...respuestas }
+    if (r) nuevas[idMq1] = { ...(previa.obs ? { obs: previa.obs } : {}), r }
+    else if (previa.obs) nuevas[idMq1] = { obs: previa.obs }
+    else delete nuevas[idMq1]
+    return nuevas
+  }
+
+  function controlar(equipoId: string, cambios: ControlEquipo) {
+    cambiar(v => {
+      const control = { ...(v.control_equipos ?? {}), [equipoId]: { ...(v.control_equipos?.[equipoId] ?? {}), ...cambios } }
+      return { ...v, control_equipos: control, respuestas: conMq1(v.respuestas, control, equiposCliente) }
+    })
+  }
+
+  /** Ficha corregida o equipo nuevo: se recalculan los ítems de la visita, sin perder respuestas. */
+  function recalcular(lugar: LugarSupervision, equipos: EquipoSupervision[]) {
+    if (!mayorista) return
+    setCliente(lugar)
+    setEquiposCliente(equipos)
+    const visibles = idsDe(catalogoPara(mayorista.catalogo, lugar, equipos))
+    cambiar(v => ({ ...v, items_visibles: visibles, respuestas: conMq1(v.respuestas, v.control_equipos ?? {}, equipos) }))
+  }
+
   /** Diferencia de arqueo: se guarda tal cual para el análisis; vacío la borra. */
   function anotarMonto(id: string, texto: string) {
     const n = texto.trim() === '' ? null : Number(texto)
@@ -291,6 +351,7 @@ export default function ChecklistVisita({ inicial, sucursal, bloques, requerimie
               <p className="truncate text-xs text-muted lg:text-sm">
                 {visita.encargado ? `Con ${visita.encargado} · ` : ''}{visita.supervisor_nombre} · {fechaHora(visita.fecha)}
               </p>
+
             </div>
             <div className="shrink-0 text-right lg:hidden">
               <Porcentaje pct={resumen.pct} className="block text-2xl leading-none" />
@@ -348,6 +409,14 @@ export default function ChecklistVisita({ inicial, sucursal, bloques, requerimie
         </nav>
       </div>
 
+      {/* Mayoristas: corregir la ficha o sumar un equipo sin salir (fuera de la barra fija, para no agrandarla). */}
+      {cliente && visita.estado === 'en_curso' && (
+        <div className="mt-3">
+          <AccionesMayorista cliente={cliente} toast={toast}
+            onFicha={l => recalcular(l, equiposCliente)}
+            onEquipo={e => recalcular(cliente, e.situacion === 'en_uso' && e.lugar_id === cliente.id ? [...equiposCliente, e] : equiposCliente)} />
+        </div>
+      )}
       <div className="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)]">
         {/* Compu: lista de bloques. */}
         <nav aria-label="Bloques" className="sticky hidden space-y-1 lg:block" style={{ top: altoHeader + altoBarra + 16 }}>
@@ -401,6 +470,12 @@ export default function ChecklistVisita({ inicial, sucursal, bloques, requerimie
                     <li key={it.id} className="grid grid-cols-1 gap-2.5 px-4 py-3.5 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-center 2xl:grid-cols-[minmax(0,1fr)_420px] lg:gap-x-5 lg:px-5">
                       <div className="space-y-1">
                         <p className="text-sm leading-snug text-text">{it.texto}</p>
+                        {it.parametro && textoParametro(parametros.find(p => p.clave === it.parametro)) && (
+                          <p className="text-xs font-semibold text-accent">{textoParametro(parametros.find(p => p.clave === it.parametro))}</p>
+                        )}
+                        {it.id === idMq1 && (
+                          <p className="text-xs text-muted">Se completa solo con el control de los equipos de abajo.</p>
+                        )}
                         {obsPrevia && <p className="border-l-2 border-brand-red/60 pl-2 text-xs text-muted">La vez pasada: {obsPrevia}</p>}
                         {!a.r && (
                           <p className="inline-flex items-center gap-1 text-2xs font-semibold text-warning">
@@ -409,6 +484,9 @@ export default function ChecklistVisita({ inicial, sucursal, bloques, requerimie
                         )}
                         {a.auto && <p className="text-2xs font-semibold text-warning">Quedó sin responder al cerrar</p>}
                       </div>
+                      {it.id === idMq1 ? (
+                        <div className="flex items-center lg:justify-end"><ChipResultado r={a.r ?? null} auto={!!a.auto} /></div>
+                      ) : (
                       <div role="group" aria-label="Resultado" className="grid grid-cols-3 gap-1.5">
                         {OPCIONES.map(o => {
                           const marcado = a.r === o.valor
@@ -422,6 +500,13 @@ export default function ChecklistVisita({ inicial, sucursal, bloques, requerimie
                           )
                         })}
                       </div>
+                      )}
+                      {it.id === idMq1 && (
+                        <div className="lg:col-span-2">
+                          <ControlEquipos equipos={equiposCliente} control={visita.control_equipos ?? {}} editable={visita.estado === 'en_curso'}
+                            onCambiar={controlar} />
+                        </div>
+                      )}
                       {verObs ? (
                         <textarea value={a.obs ?? ''} onChange={e => observar(it.id, e.target.value)} rows={2}
                           autoFocus={conObs.has(it.id) && !a.obs}
@@ -461,6 +546,14 @@ export default function ChecklistVisita({ inicial, sucursal, bloques, requerimie
                   className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline">
                   <IconListSearch size={16} aria-hidden /> Ir al primero sin responder
                 </button>
+              )}
+              {mayorista && (
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted">Recomendaciones dejadas al cliente</span>
+                  <textarea value={visita.recomendaciones ?? ''} onChange={e => cambiar(v => ({ ...v, recomendaciones: e.target.value }))} rows={3}
+                    placeholder="Por ejemplo: precalentar el horno antes de la primera tanda"
+                    className="w-full rounded-xl border border-border bg-surface2 px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none" />
+                </label>
               )}
               {requerimientos && (
                 <RequerimientosVisita visitaId={inicial.id} lugarId={inicial.lugar_id} enCurso={visita.estado === 'en_curso'}
