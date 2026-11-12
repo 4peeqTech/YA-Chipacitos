@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { IconDeviceFloppy, IconLoader2 } from '@tabler/icons-react'
 import type { useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
-import type { AtributosLugar, LugarSupervision } from '@/lib/supervision/tipos'
+import type { AtributosLugar, LugarSupervision, ParametroSupervision } from '@/lib/supervision/tipos'
 import { Tarjeta } from './ui'
 
 // Atributos de cada sucursal: deciden qué ítems ve el supervisor (la forma de
@@ -144,5 +144,55 @@ function Dato({ titulo, valor }: { titulo: string; valor: string }) {
       <dt className="text-2xs font-semibold uppercase tracking-wider text-muted">{titulo}</dt>
       <dd className={`truncate ${valor === 'Sin dato' ? 'text-faint' : 'text-text'}`}>{valor}</dd>
     </div>
+  )
+}
+
+/** Valores que ajusta el admin. Hoy: el tiempo máximo en exhibidora del ítem mx2. */
+export function ParametrosSupervision({ parametros, esAdmin, onGuardado, toast }: {
+  parametros: ParametroSupervision[]
+  esAdmin: boolean
+  onGuardado: (p: ParametroSupervision) => void
+  toast: ReturnType<typeof useToasts>
+}) {
+  const [supabase] = useState(() => createClient())
+  const mx2 = parametros.find(p => p.clave === 'mx2_tiempo_max')
+  const actual = typeof mx2?.valor?.horas === 'number' ? (mx2.valor.horas as number) : null
+  const [horas, setHoras] = useState(actual == null ? '' : String(actual))
+  const [guardando, setGuardando] = useState(false)
+
+  async function guardar() {
+    const n = Number(horas.replace(',', '.'))
+    if (!Number.isFinite(n) || n <= 0) { toast.error('Escribí una cantidad de horas mayor a 0.'); return }
+    setGuardando(true)
+    const { data, error } = await supabase.from('supervision_parametros')
+      .update({ valor: { horas: n } }).eq('clave', 'mx2_tiempo_max').select('clave, valor, descripcion')
+    setGuardando(false)
+    if (error || !data?.length) { toast.error('No se pudo guardar. Solo lo cambia un administrador.'); return }
+    onGuardado(data[0] as ParametroSupervision)
+    toast.success('Tiempo máximo guardado')
+  }
+
+  return (
+    <Tarjeta titulo="Parámetros" descripcion="Valores que se le muestran al supervisor junto al ítem que los usa.">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="space-y-1">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-muted">Tiempo máximo en exhibidora (horas)</span>
+          {esAdmin ? (
+            <input type="number" inputMode="decimal" min="0" step="0.5" className={`${CAMPO} w-40 tabular-nums`} value={horas}
+              onChange={e => setHoras(e.target.value)} />
+          ) : (
+            <p className="text-sm text-text">{actual == null ? 'Sin dato' : `${actual} h`}</p>
+          )}
+        </label>
+        {esAdmin && (
+          <button type="button" onClick={guardar} disabled={guardando || horas === String(actual ?? '')}
+            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-bold text-black hover:opacity-90 disabled:cursor-not-allowed disabled:bg-surface2 disabled:text-faint">
+            {guardando ? <IconLoader2 size={16} className="animate-spin" aria-hidden /> : <IconDeviceFloppy size={16} aria-hidden />}
+            Guardar
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-faint">Producto cocido de los clientes que cocinan (ítem mx2). Es un valor provisorio: se ajusta con las primeras visitas.</p>
+    </Tarjeta>
   )
 }

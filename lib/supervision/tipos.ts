@@ -40,8 +40,29 @@ export interface AtributosLugar {
   freezer?: 'ya' | 'cliente'
   /** Cantidad de equipos de Ya! en uso (lo completa la app a partir del registro). */
   equipos?: number
+  // Ficha del cliente mayorista.
+  direccion?: string
+  rubro?: RubroMayorista
+  contacto?: string
   [clave: string]: unknown
 }
+
+export type RubroMayorista = 'supermercado' | 'panaderia' | 'cafeteria' | 'otro'
+
+export const RUBROS: { valor: RubroMayorista; texto: string }[] = [
+  { valor: 'supermercado', texto: 'Supermercado' },
+  { valor: 'panaderia', texto: 'Panadería' },
+  { valor: 'cafeteria', texto: 'Cafetería' },
+  { valor: 'otro', texto: 'Otro' },
+]
+export const PERFILES: { valor: 'cocina' | 'congelado'; texto: string }[] = [
+  { valor: 'cocina', texto: 'Cocina y vende cocido' },
+  { valor: 'congelado', texto: 'Solo vende congelado' },
+]
+export const DUENOS_EQUIPO: { valor: 'ya' | 'cliente'; texto: string }[] = [
+  { valor: 'ya', texto: 'De Ya! Chipacitos' },
+  { valor: 'cliente', texto: 'Del cliente' },
+]
 
 export interface LugarSupervision {
   id: string
@@ -151,4 +172,71 @@ export interface RequerimientoSupervision {
   creado_por: string | null
   created_at: string
   updated_at: string
+}
+
+// ── Equipos entregados a mayoristas ────────────────────────────────────────
+
+export type TipoEquipo = 'exhibidora' | 'horno' | 'freezer' | 'heladera' | 'otro'
+export type ModalidadEquipo = 'comodato' | 'prestamo' | 'otro'
+export type SituacionEquipo = 'en_uso' | 'en_reparacion' | 'retirado'
+export type TipoMovimiento = 'alta' | 'entrega' | 'traslado' | 'reparacion' | 'retiro'
+
+export const TIPOS_EQUIPO: { valor: TipoEquipo; texto: string }[] = [
+  { valor: 'exhibidora', texto: 'Exhibidora' },
+  { valor: 'horno', texto: 'Horno' },
+  { valor: 'freezer', texto: 'Freezer' },
+  { valor: 'heladera', texto: 'Heladera' },
+  { valor: 'otro', texto: 'Otro' },
+]
+export const MODALIDADES: { valor: ModalidadEquipo; texto: string }[] = [
+  { valor: 'comodato', texto: 'Comodato' },
+  { valor: 'prestamo', texto: 'Préstamo' },
+  { valor: 'otro', texto: 'Otro' },
+]
+export const SITUACIONES: { valor: SituacionEquipo; texto: string }[] = [
+  { valor: 'en_uso', texto: 'En uso' },
+  { valor: 'en_reparacion', texto: 'En reparación' },
+  { valor: 'retirado', texto: 'Retirado' },
+]
+export const MOVIMIENTOS: { valor: TipoMovimiento; texto: string }[] = [
+  { valor: 'alta', texto: 'Alta' },
+  { valor: 'entrega', texto: 'Entrega' },
+  { valor: 'traslado', texto: 'Traslado' },
+  { valor: 'reparacion', texto: 'Reparación' },
+  { valor: 'retiro', texto: 'Retiro' },
+]
+
+export interface EquipoSupervision {
+  id: string
+  tipo: TipoEquipo
+  marca_modelo: string
+  nro_serie: string | null
+  nro_lote: string | null
+  codigo_interno: string | null
+  /** Cliente asignado; null si está en reparación o retirado. */
+  lugar_id: string | null
+  fecha_entrega: string | null
+  modalidad: ModalidadEquipo
+  situacion: SituacionEquipo
+  observaciones: string
+  created_at: string
+  updated_at: string
+}
+
+export interface MovimientoEquipo {
+  id: string
+  equipo_id: string
+  tipo: TipoMovimiento
+  lugar_origen: string | null
+  lugar_destino: string | null
+  fecha: string
+  responsable: string | null
+  nota: string
+  created_at: string
+}
+
+export interface ParametroSupervision {
+  clave: string
+  valor: Record<string, unknown>
+  descripcion: string
 }

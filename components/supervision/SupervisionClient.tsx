@@ -10,14 +10,17 @@ import {
 import { ToastStack, useToasts } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { catalogoDeTipo } from '@/lib/supervision/calculos'
-import { cargarRequerimientos, cargarVisitas } from '@/lib/supervision/datos'
+import { cargarEquipos, cargarRequerimientos, cargarVisitas } from '@/lib/supervision/datos'
 import {
-  TIPOS_VISITA, type BloqueSupervision, type LugarSupervision, type RequerimientoSupervision, type TipoVisita, type VisitaSupervision,
+  TIPOS_VISITA, type BloqueSupervision, type EquipoSupervision, type LugarSupervision, type MovimientoEquipo, type ParametroSupervision,
+  type RequerimientoSupervision, type TipoVisita, type VisitaSupervision,
 } from '@/lib/supervision/tipos'
 import NuevaVisita from './NuevaVisita'
 import ListaVisitas from './ListaVisitas'
 import AnalisisSupervision from './AnalisisSupervision'
-import LugaresSupervision from './LugaresSupervision'
+import LugaresSupervision, { ParametrosSupervision } from './LugaresSupervision'
+import MayoristasSupervision from './MayoristasSupervision'
+import EquiposSupervision from './EquiposSupervision'
 import RequerimientosSupervision from './RequerimientosSupervision'
 import { CLAVE_BORRADOR } from './ui'
 
@@ -37,19 +40,24 @@ interface Props {
   bloques: BloqueSupervision[]
   visitasIniciales: VisitaSupervision[]
   requerimientosIniciales: RequerimientoSupervision[]
+  equiposIniciales: { equipos: EquipoSupervision[]; movimientos: MovimientoEquipo[]; parametros: ParametroSupervision[] }
   errorCarga: boolean
   nombreUsuario: string
   vistaInicial: VistaSupervision
   aviso: string | null
 }
 
-export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, bloques, visitasIniciales, requerimientosIniciales, errorCarga, nombreUsuario, vistaInicial, aviso }: Props) {
+export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, bloques, visitasIniciales, requerimientosIniciales, equiposIniciales, errorCarga, nombreUsuario, vistaInicial, aviso }: Props) {
   const [supabase] = useState(() => createClient())
   const pathname = usePathname()
   const toast = useToasts()
   const [vista, setVista] = useState<VistaSupervision>(vistaInicial)
   const [visitas, setVisitas] = useState(visitasIniciales)
   const [requerimientos, setRequerimientos] = useState(requerimientosIniciales)
+  const [equipos, setEquipos] = useState(equiposIniciales.equipos)
+  const [movimientos, setMovimientos] = useState(equiposIniciales.movimientos)
+  const [parametros, setParametros] = useState(equiposIniciales.parametros)
+  const [seccionLugares, setSeccionLugares] = useState<'sucursales' | 'mayoristas' | 'equipos' | 'parametros'>('sucursales')
   const [actualizando, setActualizando] = useState(false)
   const [borrador, setBorrador] = useState<{ id: string; sucursal: string } | null>(null)
   const [ahora, setAhora] = useState(() => Date.now())
@@ -57,7 +65,9 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
   const [lugares, setLugares] = useState(lugaresIniciales)
   // Visitas y Análisis muestran un tipo de visita por vez: sucursal, fábrica,
   // depósito y mayoristas no se mezclan en un mismo promedio.
-  const tipos = useMemo(() => TIPOS_VISITA.filter(t => lugares.some(l => l.tipo === t.valor)), [lugares])
+  // Un tipo se ofrece cuando tiene lugares y un checklist cargado.
+  const tipos = useMemo(() => TIPOS_VISITA.filter(t =>
+    lugares.some(l => l.tipo === t.valor) && catalogoDeTipo(bloques, t.valor).length > 0), [lugares, bloques])
   const [tipo, setTipo] = useState<TipoVisita>('sucursal')
   const lugaresTipo = useMemo(() => lugares.filter(l => l.tipo === tipo), [lugares, tipo])
   const bloquesTipo = useMemo(() => catalogoDeTipo(bloques, tipo), [bloques, tipo])
@@ -66,6 +76,16 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
     return visitas.filter(v => ids.has(v.lugar_id))
   }, [visitas, lugaresTipo])
   const sucursales = useMemo(() => lugares.filter(l => l.tipo === 'sucursal'), [lugares])
+  const mayoristas = useMemo(() => lugares.filter(l => l.tipo === 'mayorista').sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')), [lugares])
+  const guardarLugar = (l: LugarSupervision) => setLugares(prev => (prev.some(x => x.id === l.id) ? prev.map(x => (x.id === l.id ? l : x)) : [...prev, l]))
+
+  async function recargarEquipos() {
+    const r = await cargarEquipos(supabase)
+    if (r.error) { toast.error('No se pudieron traer los equipos. Revisá la conexión.'); return }
+    setEquipos(r.equipos)
+    setMovimientos(r.movimientos)
+    setParametros(r.parametros)
+  }
 
   useEffect(() => {
     // Una visita que quedó guardada solo en este celular (se cortó la conexión).
@@ -178,8 +198,28 @@ export default function SupervisionClient({ lugares: lugaresIniciales, esAdmin, 
           onGuardado={r => setRequerimientos(prev => prev.map(x => (x.id === r.id ? r : x)))} />
       )}
       {vista === 'lugares' && (
-        <LugaresSupervision sucursales={sucursales} esAdmin={esAdmin} toast={toast}
-          onGuardado={l => setLugares(prev => prev.map(x => (x.id === l.id ? l : x)))} />
+        <div className="space-y-4">
+          <div role="group" aria-label="Sección" className="flex flex-wrap gap-1.5">
+            {([['sucursales', 'Sucursales'], ['mayoristas', 'Clientes mayoristas'], ['equipos', 'Equipos'], ['parametros', 'Parámetros']] as const).map(([k, t]) => (
+              <button key={k} type="button" aria-pressed={seccionLugares === k} onClick={() => setSeccionLugares(k)}
+                className={`min-h-[36px] rounded-full border px-3 text-xs font-semibold transition-colors ${
+                  seccionLugares === k ? 'border-accent bg-accent text-black' : 'border-border text-muted hover:border-accent/60 hover:text-text'
+                }`}>
+                {t}
+              </button>
+            ))}
+          </div>
+          {seccionLugares === 'sucursales' && <LugaresSupervision sucursales={sucursales} esAdmin={esAdmin} toast={toast} onGuardado={guardarLugar} />}
+          {seccionLugares === 'mayoristas' && <MayoristasSupervision mayoristas={mayoristas} equipos={equipos} onGuardado={guardarLugar} toast={toast} />}
+          {seccionLugares === 'equipos' && (
+            <EquiposSupervision equipos={equipos} movimientos={movimientos} clientes={mayoristas} toast={toast} onRecargar={recargarEquipos}
+              onGuardado={e => setEquipos(prev => (prev.some(x => x.id === e.id) ? prev.map(x => (x.id === e.id ? e : x)) : [...prev, e]))} />
+          )}
+          {seccionLugares === 'parametros' && (
+            <ParametrosSupervision parametros={parametros} esAdmin={esAdmin} toast={toast}
+              onGuardado={p => setParametros(prev => prev.map(x => (x.clave === p.clave ? p : x)))} />
+          )}
+        </div>
       )}
     </div>
   )

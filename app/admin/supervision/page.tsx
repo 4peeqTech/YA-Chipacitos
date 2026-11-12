@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { cargarCatalogo, cargarRequerimientos, cargarUsuario, cargarVisitas } from '@/lib/supervision/datos'
+import { cargarCatalogo, cargarEquipos, cargarRequerimientos, cargarUsuario, cargarVisitas } from '@/lib/supervision/datos'
 import SupervisionClient, { type VistaSupervision } from '@/components/supervision/SupervisionClient'
 
 export const metadata = { title: 'Supervisión de locales | YA! Chipacitos' }
@@ -16,8 +16,8 @@ export default async function SupervisionPage({ searchParams }: { searchParams: 
   if (!user) redirect('/login')
 
   const { vista, aviso } = await searchParams
-  const [catalogo, { visitas, error }, reqs, usuario] = await Promise.all([
-    cargarCatalogo(supabase), cargarVisitas(supabase), cargarRequerimientos(supabase), cargarUsuario(supabase, user.id),
+  const [catalogo, { visitas, error }, reqs, eq, usuario] = await Promise.all([
+    cargarCatalogo(supabase), cargarVisitas(supabase), cargarRequerimientos(supabase), cargarEquipos(supabase), cargarUsuario(supabase, user.id),
   ])
 
   return (
@@ -27,7 +27,8 @@ export default async function SupervisionPage({ searchParams }: { searchParams: 
       bloques={catalogo.bloques}
       visitasIniciales={visitas}
       requerimientosIniciales={reqs.requerimientos}
-      errorCarga={!!(error ?? catalogo.error ?? reqs.error)}
+      equiposIniciales={eq}
+      errorCarga={!!(error ?? catalogo.error ?? reqs.error ?? eq.error)}
       nombreUsuario={usuario.nombre}
       vistaInicial={VISTAS.includes(vista as VistaSupervision) ? (vista as VistaSupervision) : 'nueva'}
       aviso={aviso === 'eliminada' ? 'Visita eliminada' : null}

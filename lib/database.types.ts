@@ -4916,6 +4916,140 @@ export type Database = {
         }
         Relationships: []
       }
+      supervision_equipos: {
+        Row: {
+          codigo_interno: string | null
+          creado_por: string | null
+          created_at: string
+          fecha_entrega: string | null
+          id: string
+          lugar_id: string | null
+          marca_modelo: string
+          modalidad: string
+          nro_lote: string | null
+          nro_serie: string | null
+          observaciones: string
+          situacion: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          codigo_interno?: string | null
+          creado_por?: string | null
+          created_at?: string
+          fecha_entrega?: string | null
+          id?: string
+          lugar_id?: string | null
+          marca_modelo?: string
+          modalidad?: string
+          nro_lote?: string | null
+          nro_serie?: string | null
+          observaciones?: string
+          situacion?: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          codigo_interno?: string | null
+          creado_por?: string | null
+          created_at?: string
+          fecha_entrega?: string | null
+          id?: string
+          lugar_id?: string | null
+          marca_modelo?: string
+          modalidad?: string
+          nro_lote?: string | null
+          nro_serie?: string | null
+          observaciones?: string
+          situacion?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supervision_equipos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervision_equipos_lugar_id_fkey"
+            columns: ["lugar_id"]
+            isOneToOne: false
+            referencedRelation: "supervision_lugares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supervision_equipos_movimientos: {
+        Row: {
+          creado_por: string | null
+          created_at: string
+          equipo_id: string
+          fecha: string
+          id: string
+          lugar_destino: string | null
+          lugar_origen: string | null
+          nota: string
+          responsable: string | null
+          tipo: string
+        }
+        Insert: {
+          creado_por?: string | null
+          created_at?: string
+          equipo_id: string
+          fecha?: string
+          id?: string
+          lugar_destino?: string | null
+          lugar_origen?: string | null
+          nota?: string
+          responsable?: string | null
+          tipo: string
+        }
+        Update: {
+          creado_por?: string | null
+          created_at?: string
+          equipo_id?: string
+          fecha?: string
+          id?: string
+          lugar_destino?: string | null
+          lugar_origen?: string | null
+          nota?: string
+          responsable?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supervision_equipos_movimientos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervision_equipos_movimientos_equipo_id_fkey"
+            columns: ["equipo_id"]
+            isOneToOne: false
+            referencedRelation: "supervision_equipos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervision_equipos_movimientos_lugar_destino_fkey"
+            columns: ["lugar_destino"]
+            isOneToOne: false
+            referencedRelation: "supervision_lugares"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervision_equipos_movimientos_lugar_origen_fkey"
+            columns: ["lugar_origen"]
+            isOneToOne: false
+            referencedRelation: "supervision_lugares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supervision_items: {
         Row: {
           activo: boolean
@@ -5000,6 +5134,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      supervision_parametros: {
+        Row: {
+          clave: string
+          descripcion: string
+          updated_at: string
+          valor: Json
+        }
+        Insert: {
+          clave: string
+          descripcion?: string
+          updated_at?: string
+          valor: Json
+        }
+        Update: {
+          clave?: string
+          descripcion?: string
+          updated_at?: string
+          valor?: Json
+        }
+        Relationships: []
       }
       supervision_requerimientos: {
         Row: {
@@ -7384,6 +7539,38 @@ export type Database = {
       reordenar_plantilla_base: {
         Args: { p_ids: string[] }
         Returns: undefined
+      }
+      supervision_mover_equipo: {
+        Args: {
+          p_destino: string
+          p_equipo: string
+          p_fecha: string
+          p_nota: string
+          p_responsable: string
+          p_tipo: string
+        }
+        Returns: {
+          codigo_interno: string | null
+          creado_por: string | null
+          created_at: string
+          fecha_entrega: string | null
+          id: string
+          lugar_id: string | null
+          marca_modelo: string
+          modalidad: string
+          nro_lote: string | null
+          nro_serie: string | null
+          observaciones: string
+          situacion: string
+          tipo: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "supervision_equipos"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       tiene_acceso_compras: { Args: never; Returns: boolean }
       tiene_acceso_fabrica: { Args: never; Returns: boolean }

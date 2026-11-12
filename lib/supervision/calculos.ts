@@ -1,7 +1,7 @@
 // Cálculos del checklist de supervisión. Funciones puras (sin imports de la
 // app) para poder testearlas con `npm test` (calculos.test.mjs).
 import type {
-  AtributosLugar, BloqueSupervision, ItemSupervision, LugarSupervision, PrioridadRequerimiento, RequerimientoSupervision,
+  AtributosLugar, BloqueSupervision, EquipoSupervision, ItemSupervision, LugarSupervision, PrioridadRequerimiento, RequerimientoSupervision,
   ResumenVisita, Respuestas, Resultado, VisitaSupervision,
 } from './tipos'
 
@@ -31,11 +31,30 @@ export function itemVisible(item: Pick<ItemSupervision, 'condicion'>, a: Atribut
 
 const tiposDe = (b: BloqueSupervision) => b.tipos?.length ? b.tipos : ['sucursal']
 
+type EquipoMinimo = Pick<EquipoSupervision, 'tipo' | 'lugar_id' | 'situacion'>
+
+/**
+ * Los atributos de un lugar completados con el registro de equipos: un freezer
+ * u horno de Ya! en uso en el cliente manda sobre lo cargado a mano en la
+ * ficha, y equipos cuenta los que tiene en uso.
+ */
+export function atributosEfectivos(lugar: Pick<LugarSupervision, 'id' | 'atributos'>, equipos: EquipoMinimo[] = []): AtributosLugar {
+  const enUso = equipos.filter(e => e.lugar_id === lugar.id && e.situacion === 'en_uso')
+  const a: AtributosLugar = { ...(lugar.atributos ?? {}) }
+  if (enUso.some(e => e.tipo === 'freezer')) a.freezer = 'ya'
+  if (enUso.some(e => e.tipo === 'horno')) a.horno = 'ya'
+  if (enUso.length) a.equipos = enUso.length
+  return a
+}
+
 /** Bloques del tipo del lugar con los ítems que le aplican; sin bloques vacíos. */
-export function catalogoPara(bloques: BloqueSupervision[], lugar: Pick<LugarSupervision, 'tipo' | 'atributos'>): BloqueSupervision[] {
+export function catalogoPara(
+  bloques: BloqueSupervision[], lugar: Pick<LugarSupervision, 'id' | 'tipo' | 'atributos'>, equipos: EquipoMinimo[] = [],
+): BloqueSupervision[] {
+  const a = atributosEfectivos(lugar, equipos)
   return bloques
     .filter(b => tiposDe(b).includes(lugar.tipo))
-    .map(b => ({ ...b, items: b.items.filter(i => itemVisible(i, lugar.atributos ?? {})) }))
+    .map(b => ({ ...b, items: b.items.filter(i => itemVisible(i, a)) }))
     .filter(b => b.items.length > 0)
 }
 
