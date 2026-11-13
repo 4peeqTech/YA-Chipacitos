@@ -1,8 +1,9 @@
 const FUDO_AUTH_URL = 'https://auth.fu.do/api'
 const FUDO_API_URL = 'https://api.fu.do/v1alpha1'
 
-function slugSucursal(sucursal: string): string {
-  return sucursal.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+/** 'YA! SAENZ PEÑA' → 'YA_SAENZ_PENA': sin tildes ni Ñ, que no van en el nombre de una variable. */
+export function slugSucursal(sucursal: string): string {
+  return sucursal.normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
 }
 
 // Credenciales por sucursal: viven en variables de entorno (FUDO_API_KEY_<SLUG> /
