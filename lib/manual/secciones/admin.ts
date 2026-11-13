@@ -75,7 +75,24 @@ export const admin: SeccionManual = {
       titulo: 'Fudo / Caja',
       bloques: [
         { tipo: 'parrafo', texto: 'Consulta en vivo de Fudo, sucursal por sucursal: gastos, ventas y movimientos de caja, filtrando por tipo y rango de fechas. Solo para mirar: los gastos de Fudo para pagar y clasificar ya están en **Gastos**.' },
-        { tipo: 'tip', texto: 'Los datos se traen directamente de la API de Fudo. Si no aparecen datos, verificá la conexión con el admin técnico.' },
+        { tipo: 'tip', texto: 'Los datos se traen directamente de la API de Fudo. Si un local no trae datos, revisá sus claves en **Integraciones › Conexión Fudo**.' },
+      ],
+    },
+    {
+      ancla: 'conexion-fudo',
+      titulo: 'Conexión Fudo',
+      bloques: [
+        { tipo: 'parrafo', texto: 'En **Integraciones › Conexión Fudo** están todos los locales: cuáles usan Fudo, si sus claves andan y cuándo trajeron datos por última vez. Con esas claves el sistema trae los gastos, las ventas y la caja de cada local.' },
+        {
+          tipo: 'pasos',
+          pasos: [
+            { texto: 'En Fudo, entrá con el usuario administrador del local y abrí tu usuario: ahí están el **API Key** y el **API Secret**.' },
+            { texto: 'En el local, tocá **Conectar Fudo** (o **Cambiar claves** si ya tenía) y pegá los dos, completos.' },
+            { texto: 'Tocá **Probar y guardar**. Si Fudo las rechaza, no se guardan y te dice por qué. Si andan, el local trae sus gastos en ese momento.' },
+          ],
+        },
+        { tipo: 'parrafo', texto: '**Local nuevo:** tocá **Agregar local**, poné el nombre y la caja (de dónde sale lo que el local paga en efectivo) y, si usa Fudo, cargá sus claves a continuación.' },
+        { tipo: 'tip', texto: 'Las claves se guardan cifradas y no se vuelven a mostrar. Si cambian en Fudo, se reemplazan acá. **Desconectar** borra las claves y el local deja de traer datos; lo que ya se trajo queda.' },
       ],
     },
     {

@@ -81,6 +81,7 @@ function LineaFudo({ fudo, actualizando, onActualizar }: { fudo: EstadoFudo; act
       {conError.length > 0 && (
         <span className="text-warning" title={conError.map(l => `${l.local}: ${l.ultimoError}`).join('\n')}>
           · no se pudo actualizar: {conError.map(l => l.local.replace(/^YA! /, '')).join(', ')}
+          {' '}<Link href="/admin/integraciones/fudo" className="font-semibold underline decoration-2 underline-offset-4">Revisar la conexión</Link>
         </span>
       )}
       <button type="button" onClick={onActualizar} disabled={actualizando}

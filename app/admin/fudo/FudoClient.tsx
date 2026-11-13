@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { AlertTriangle, Ban, Hash, Landmark, Loader2, RefreshCw, Search, Sigma } from 'lucide-react'
 import PageHeader from '@/components/ui/PageHeader'
 import KpiCard from '@/components/ui/KpiCard'
@@ -201,6 +202,11 @@ export default function FudoClient() {
         icono={Landmark}
         titulo="Fudo / Caja"
         descripcion="Consultá en Fudo los gastos, las ventas y los movimientos de caja de cada sucursal."
+        acciones={
+          <Link href="/admin/integraciones/fudo" className="presionable min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-border px-4 text-sm font-semibold text-text hover:bg-surface2">
+            Conexión Fudo
+          </Link>
+        }
       />
 
       <div className="space-y-4 rounded-2xl border border-border bg-surface p-4">

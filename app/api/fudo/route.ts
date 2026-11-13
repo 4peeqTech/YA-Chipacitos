@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `Sucursal "${sucursal}" no encontrada o inactiva` }, { status: 400 })
   }
 
-  const credenciales = getFudoCredentials(sucursal)
+  const credenciales = await getFudoCredentials(sucursal)
   if (!credenciales) {
     return NextResponse.json({ error: `Sucursal "${sucursal}" sin credenciales Fudo configuradas` }, { status: 400 })
   }

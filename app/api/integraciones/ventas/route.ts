@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
   // ── Fudo: una consulta por sucursal activa, en paralelo ──────────────────
   const resultadosFudo = await Promise.all(
     (locales ?? []).map(async (local) => {
-      const credenciales = getFudoCredentials(local.sucursal)
+      const credenciales = await getFudoCredentials(local.sucursal)
       if (!credenciales) {
         return { sucursal: local.sucursal, error: 'Sin credenciales Fudo configuradas' as string | null, monto: 0, ventas: 0, detalle: [] as FilaDetalle[] }
       }

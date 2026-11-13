@@ -3017,6 +3017,54 @@ export type Database = {
         }
         Relationships: []
       }
+      fudo_conexiones: {
+        Row: {
+          actualizado_por: string | null
+          api_key: string
+          local: string
+          probada_en: string | null
+          probada_error: string | null
+          probada_ok: boolean | null
+          secret_id: string
+          updated_at: string
+        }
+        Insert: {
+          actualizado_por?: string | null
+          api_key: string
+          local: string
+          probada_en?: string | null
+          probada_error?: string | null
+          probada_ok?: boolean | null
+          secret_id: string
+          updated_at?: string
+        }
+        Update: {
+          actualizado_por?: string | null
+          api_key?: string
+          local?: string
+          probada_en?: string | null
+          probada_error?: string | null
+          probada_ok?: boolean | null
+          secret_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fudo_conexiones_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fudo_conexiones_local_fkey"
+            columns: ["local"]
+            isOneToOne: true
+            referencedRelation: "locales_config"
+            referencedColumns: ["sucursal"]
+          },
+        ]
+      }
       fudo_gastos: {
         Row: {
           cancelado: boolean | null
@@ -7217,6 +7265,46 @@ export type Database = {
         Args: { p_fecha: string }
         Returns: boolean
       }
+      fudo_conexion_desconectar: {
+        Args: { p_local?: string }
+        Returns: undefined
+      }
+      fudo_conexion_guardar: {
+        Args: {
+          p_api_key?: string
+          p_api_secret?: string
+          p_local?: string
+          p_probada_error?: string
+          p_probada_ok?: boolean
+        }
+        Returns: undefined
+      }
+      fudo_conexion_leer: {
+        Args: { p_local?: string }
+        Returns: {
+          api_key: string
+          api_secret: string
+        }[]
+      }
+      fudo_conexiones_estado: {
+        Args: never
+        Returns: {
+          activo: boolean
+          api_key_fin: string
+          caja: string
+          con_claves: boolean
+          gastos: number
+          orden: number
+          probada_en: string
+          probada_error: string
+          probada_ok: boolean
+          sucursal: string
+          tiene_fudo: boolean
+          ultimo_error: string
+          ultimo_error_en: string
+          ultimo_ok: string
+        }[]
+      }
       gastos_agregar_adjunto: {
         Args: {
           p_gasto_id?: string
@@ -7455,6 +7543,10 @@ export type Database = {
           p_tamanio_id: string
           p_turno: string
         }
+        Returns: string
+      }
+      locales_agregar: {
+        Args: { p_caja?: string; p_sucursal?: string }
         Returns: string
       }
       mover_stock_terminado: {

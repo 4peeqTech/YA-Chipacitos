@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
 
   const porSucursal = await Promise.all(
     (locales ?? []).map(async (local) => {
-      const credenciales = getFudoCredentials(local.sucursal)
+      const credenciales = await getFudoCredentials(local.sucursal)
       if (!credenciales) {
         return { sucursal: local.sucursal, error: 'Sin credenciales Fudo configuradas', filas: [] as FilaCaja[] }
       }

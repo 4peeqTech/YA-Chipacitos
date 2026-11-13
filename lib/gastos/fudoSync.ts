@@ -110,7 +110,7 @@ const CAMPOS = 'fields[expense]=amount,date,description,status,canceled,dueDate,
 
 /** Todos los gastos de una sucursal. `completo` = se leyeron todas las páginas. */
 export async function leerGastosFudo(sucursal: string): Promise<{ items: ItemFudo[]; completo: boolean }> {
-  const cred = getFudoCredentials(sucursal)
+  const cred = await getFudoCredentials(sucursal)
   if (!cred) throw new SinCredenciales()
   let token = await getFudoToken(cred.apiKey, cred.apiSecret)
   const items: ItemFudo[] = []
@@ -150,11 +150,12 @@ export interface ResultadoLocal {
 
 /**
  * Lee Fudo y aplica, sucursal por sucursal (en paralelo). Con `vencidoMinutos`
- * solo las que no se sincronizaron bien en esos minutos (al abrir la pantalla).
+ * solo las que no se sincronizaron bien en esos minutos (al abrir la pantalla);
+ * con `soloLocal`, solo esa (recién conectada en Conexión Fudo).
  */
 export async function sincronizarFudo(
   supabase: Cliente,
-  { origen, vencidoMinutos }: { origen: OrigenSync; vencidoMinutos?: number },
+  { origen, vencidoMinutos, soloLocal }: { origen: OrigenSync; vencidoMinutos?: number; soloLocal?: string },
 ): Promise<{ activo: boolean; locales: ResultadoLocal[] }> {
   if (!sincronizacionActiva()) return { activo: false, locales: [] }
 
@@ -167,7 +168,7 @@ export async function sincronizarFudo(
   const ultimoIntento = new Map<string, number>()
   for (const u of ultimos ?? []) if (!ultimoIntento.has(u.local)) ultimoIntento.set(u.local, Date.parse(u.creado_en))
 
-  const activos = (locales ?? []).filter(l => l.activo !== false).map(l => l.sucursal)
+  const activos = (locales ?? []).filter(l => l.activo !== false && (!soloLocal || l.sucursal === soloLocal)).map(l => l.sucursal)
   const resultados = await Promise.all(activos.map(async (local): Promise<ResultadoLocal> => {
     const ult = ultimoIntento.get(local)
     if (vencidoMinutos && ult && Date.now() - ult < vencidoMinutos * 60_000) return { local, ok: true, omitido: true }
