@@ -50,8 +50,8 @@ export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) 
     <div className="space-y-3">
       <FiltrosResumen
         filtros={[
-          { key: 'presentacionNombre', todos: 'Todas las presentaciones', opciones: opciones.presentacionNombre },
-          { key: 'saborNombre', todos: 'Todos los sabores', opciones: opciones.saborNombre },
+          { key: 'presentacionNombre', todos: 'Toda presentación', opciones: opciones.presentacionNombre },
+          { key: 'saborNombre', todos: 'Todo sabor', opciones: opciones.saborNombre },
         ]}
         valores={filtros}
         onChange={setFiltros}
