@@ -73,9 +73,9 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
     <div className="space-y-3">
       <FiltrosResumen
         filtros={[
-          { key: 'procedenciaNombre', todos: 'Todas las procedencias', opciones: opciones.procedenciaNombre },
-          { key: 'saborNombre', todos: 'Todos los sabores', opciones: opciones.saborNombre },
-          { key: 'presentacionNombre', todos: 'Todas las presentaciones', opciones: opciones.presentacionNombre },
+          { key: 'procedenciaNombre', todos: 'Toda procedencia', opciones: opciones.procedenciaNombre },
+          { key: 'saborNombre', todos: 'Todo sabor', opciones: opciones.saborNombre },
+          { key: 'presentacionNombre', todos: 'Toda presentación', opciones: opciones.presentacionNombre },
         ]}
         valores={filtros}
         onChange={setFiltros}
