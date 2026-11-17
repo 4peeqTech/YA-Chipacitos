@@ -4,7 +4,7 @@ import { IconFilterOff } from '@tabler/icons-react'
 
 export interface FiltroDef<K extends string> {
   key: K
-  /** Texto de la opción "todos", p. ej. "Todas las presentaciones". */
+  /** Nombre del campo; es también la opción "todos" (corto para que entre a 360px). */
   todos: string
   opciones: string[]
 }
@@ -30,7 +30,7 @@ export default function FiltrosResumen<K extends string>({
           key={f.key}
           value={valores[f.key] ?? ''}
           onChange={e => onChange({ ...valores, [f.key]: e.target.value })}
-          aria-label={f.todos}
+          aria-label={`Filtrar por ${f.todos.toLowerCase()}`}
           className={`${selectClass} sm:w-auto ${valores[f.key] ? 'border-[#e8c547]' : ''}`}
         >
           <option value="">{f.todos}</option>
