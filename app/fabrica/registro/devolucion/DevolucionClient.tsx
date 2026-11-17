@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { IconArrowBackUp, IconDeviceFloppy, IconMessage, IconRecycle, IconTrash } from '@tabler/icons-react'
+import { IconArrowBackUp, IconDeviceFloppy, IconMapPin, IconMessage, IconPencil, IconRecycle, IconTrash, IconX } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import SelectorDia from '@/components/fabrica/SelectorDia'
 import Card from '@/components/ui/Card'
@@ -31,6 +31,12 @@ export interface DevolucionRegistro {
   cantidadKg: number | null
   destino: Destino
   notas: string | null
+  saborId: string | null
+  tamanioId: string | null
+  presentacionId: string | null
+  motivoId: string
+  procedenciaId: string | null
+  procedenciaNombre: string | null
   saborNombre: string | null
   tamanioNombre: string | null
   presentacionNombre: string | null
@@ -60,6 +66,7 @@ export default function DevolucionClient({
   sabores,
   tamanios,
   presentaciones,
+  procedencias,
   motivos,
   devolucionesIniciales,
 }: {
@@ -69,6 +76,7 @@ export default function DevolucionClient({
   sabores: Parametro[]
   tamanios: Parametro[]
   presentaciones: Parametro[]
+  procedencias: Parametro[]
   motivos: MotivoParametro[]
   devolucionesIniciales: DevolucionRegistro[]
 }) {
@@ -83,6 +91,8 @@ export default function DevolucionClient({
   const [motivoId, setMotivoId] = useState('')
   const [destino, setDestino] = useState<Destino>('reinsercion')
   const [notas, setNotas] = useState('')
+  const [procedenciaId, setProcedenciaId] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [aEliminar, setAEliminar] = useState<DevolucionRegistro | null>(null)
   const [eliminando, setEliminando] = useState(false)
@@ -99,7 +109,6 @@ export default function DevolucionClient({
 
   function elegirMotivo(id: string) {
     setMotivoId(id)
-    setSaborId(sabores[0]?.id ?? '')
     setTamanioId(tamanios[0]?.id ?? '')
     setPresentacionId(presentaciones[0]?.id ?? '')
     setCantidadKg(0)
@@ -107,6 +116,8 @@ export default function DevolucionClient({
   }
 
   function resetFormulario() {
+    setEditingId(null)
+    setProcedenciaId('')
     setSaborId(sabores[0]?.id ?? '')
     setTamanioId(tamanios[0]?.id ?? '')
     setPresentacionId(presentaciones[0]?.id ?? '')
@@ -116,13 +127,34 @@ export default function DevolucionClient({
     setNotas('')
   }
 
+  function cargarParaEditar(d: DevolucionRegistro) {
+    setEditingId(d.id)
+    setMotivoId(d.motivoId)
+    setProcedenciaId(d.procedenciaId ?? '')
+    setSaborId(d.saborId ?? sabores[0]?.id ?? '')
+    setTamanioId(d.tamanioId ?? tamanios[0]?.id ?? '')
+    setPresentacionId(d.presentacionId ?? presentaciones[0]?.id ?? '')
+    setCantidadKg(d.cantidadKg ?? 0)
+    setDestino(d.destino)
+    setNotas(d.notas ?? '')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   async function guardar() {
     if (!motivo) {
       toast.error('Elegí un motivo')
       return
     }
-    if (pideDetalle && (!saborId || !tamanioId || !presentacionId)) {
-      toast.error('Elegí sabor, tamaño y presentación')
+    if (!procedenciaId) {
+      toast.error('Elegí de dónde viene la devolución')
+      return
+    }
+    if (!saborId) {
+      toast.error('Elegí el sabor')
+      return
+    }
+    if (pideDetalle && (!tamanioId || !presentacionId)) {
+      toast.error('Elegí tamaño y presentación')
       return
     }
     if (pideCantidad && (!cantidadKg || cantidadKg <= 0)) {
@@ -132,15 +164,16 @@ export default function DevolucionClient({
     setGuardando(true)
 
     const { data: id, error } = await supabase.rpc('guardar_devolucion_fabrica', {
-      p_id: null,
+      p_id: editingId,
       p_fecha: dia,
-      p_sabor_id: pideDetalle ? saborId : null,
+      p_sabor_id: saborId,
       p_tamanio_id: pideDetalle ? tamanioId : null,
       p_presentacion_id: pideDetalle ? presentacionId : null,
       p_cantidad_kg: pideCantidad ? cantidadKg : null,
       p_motivo_id: motivoId,
       p_destino: pideDetalle ? destino : motivo.destinoDefault,
       p_notas: notas.trim() || null,
+      p_procedencia_id: procedenciaId,
     })
 
     if (error) {
@@ -155,16 +188,22 @@ export default function DevolucionClient({
       cantidadKg: pideCantidad ? cantidadKg : null,
       destino: pideDetalle ? destino : motivo.destinoDefault,
       notas: notas.trim() || null,
-      saborNombre: pideDetalle ? (sabores.find(s => s.id === saborId)?.nombre ?? null) : null,
+      saborId,
+      tamanioId: pideDetalle ? tamanioId : null,
+      presentacionId: pideDetalle ? presentacionId : null,
+      motivoId,
+      procedenciaId,
+      procedenciaNombre: procedencias.find(p => p.id === procedenciaId)?.nombre ?? null,
+      saborNombre: sabores.find(s => s.id === saborId)?.nombre ?? null,
       tamanioNombre: pideDetalle ? (tamanios.find(t => t.id === tamanioId)?.nombre ?? null) : null,
       presentacionNombre: pideDetalle ? (presentaciones.find(p => p.id === presentacionId)?.nombre ?? null) : null,
       motivoNombre: motivo.nombre,
-      createdAt: new Date().toISOString(),
-      cargadoPor: null,
+      createdAt: devoluciones.find(d => d.id === editingId)?.createdAt ?? new Date().toISOString(),
+      cargadoPor: devoluciones.find(d => d.id === editingId)?.cargadoPor ?? null,
     }
 
-    setDevoluciones(prev => [nuevaEntrada, ...prev])
-    toast.success('Devolución guardada')
+    setDevoluciones(prev => editingId ? prev.map(d => d.id === editingId ? nuevaEntrada : d) : [nuevaEntrada, ...prev])
+    toast.success(editingId ? 'Devolución actualizada' : 'Devolución guardada')
     resetFormulario()
     setGuardando(false)
   }
@@ -179,6 +218,7 @@ export default function DevolucionClient({
       return
     }
     setDevoluciones(prev => prev.filter(d => d.id !== aEliminar.id))
+    if (editingId === aEliminar.id) resetFormulario()
     toast.success('Devolución eliminada')
     setAEliminar(null)
     setEliminando(false)
@@ -190,8 +230,22 @@ export default function DevolucionClient({
         <h1 className="flex items-center gap-2 text-xl font-['Syne'] font-bold text-[#f0f0f0]">
           <IconArrowBackUp size={20} className="text-[#e8c547]" /> Devolución
         </h1>
-        <p className="text-[#888] text-xs mt-0.5">Producto devuelto — reinsertá la masa o registrá la pérdida.</p>
+        <p className="text-[#888] text-xs mt-0.5">
+          {editingId ? 'Editando una devolución cargada.' : 'Producto devuelto — reinsertá la masa o registrá la pérdida.'}
+        </p>
       </div>
+
+      {editingId && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-[#e8c547]/40 bg-[#e8c547]/10 px-3 py-2">
+          <p className="text-xs text-[#f0f0f0]">Estás editando. Guardá los cambios o cancelá.</p>
+          <button
+            onClick={resetFormulario}
+            className="flex items-center gap-1 text-xs font-medium text-[#888] hover:text-[#f0f0f0] px-2.5 py-1.5 rounded-full border border-[#2a2a2a] transition-colors"
+          >
+            <IconX size={12} /> Cancelar
+          </button>
+        </div>
+      )}
 
       <div className="sticky top-0 z-10 bg-[#0a0a0a] py-2 -mx-4 px-4 lg:-mx-8 lg:px-8">
         <SelectorDia dia={dia} hoy={hoy} ayer={ayer} />
@@ -206,10 +260,17 @@ export default function DevolucionClient({
         </div>
       </Card>
 
-      {!motivo ? (
-        <p className="text-sm text-[#666] text-center py-6">Elegí un motivo para continuar.</p>
-      ) : pideDetalle ? (
+      {motivo && (
         <Card className="p-4 space-y-4">
+          <div>
+            <p className="text-xs text-[#888] mb-1.5">¿De dónde viene?</p>
+            <div className="flex flex-wrap gap-2">
+              {procedencias.map(p => (
+                <Chip key={p.id} active={procedenciaId === p.id} onClick={() => setProcedenciaId(p.id)}>{p.nombre}</Chip>
+              ))}
+            </div>
+          </div>
+
           <div>
             <p className="text-xs text-[#888] mb-1.5">Sabor</p>
             <div className="flex flex-wrap gap-2">
@@ -218,7 +279,13 @@ export default function DevolucionClient({
               ))}
             </div>
           </div>
+        </Card>
+      )}
 
+      {!motivo ? (
+        <p className="text-sm text-[#666] text-center py-6">Elegí un motivo para continuar.</p>
+      ) : pideDetalle ? (
+        <Card className="p-4 space-y-4">
           <div>
             <p className="text-xs text-[#888] mb-1.5">Tamaño</p>
             <div className="flex flex-wrap gap-2">
@@ -288,7 +355,7 @@ export default function DevolucionClient({
       ) : (
         <Card className="p-4 space-y-4">
           <p className="text-xs text-[#666]">
-            Se registra como {motivo.destinoDefault === 'perdida' ? 'Pérdida' : 'Reinserción'}, sin detalle del producto.
+            Se registra como {motivo.destinoDefault === 'perdida' ? 'Pérdida' : 'Reinserción'}, sin tamaño ni presentación.
           </p>
 
           {pideCantidad && (
@@ -321,7 +388,7 @@ export default function DevolucionClient({
         disabled={guardando || !motivo}
         className="w-full flex items-center justify-center gap-2 bg-[#e8c547] hover:opacity-90 text-black font-['Syne'] font-bold text-sm py-3.5 rounded-xl transition-all disabled:opacity-40"
       >
-        <IconDeviceFloppy size={16} /> {guardando ? 'Guardando...' : 'Guardar devolución'}
+        <IconDeviceFloppy size={16} /> {guardando ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Guardar devolución'}
       </button>
 
       <div className="space-y-2 pt-2">
@@ -337,15 +404,25 @@ export default function DevolucionClient({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f0] font-medium flex items-center gap-1.5">
                     {d.destino === 'reinsercion' ? <IconRecycle size={13} className="text-[#666]" /> : <IconTrash size={13} className="text-[#666]" />}
-                    {d.saborNombre ? `${d.tamanioNombre} · ${d.saborNombre}` : d.motivoNombre}
+                    {d.tamanioNombre ? `${d.tamanioNombre} · ${d.saborNombre}` : d.saborNombre ? `${d.motivoNombre} · ${d.saborNombre}` : d.motivoNombre}
                     {d.notas && <IconMessage size={13} className="text-[#e8c547] shrink-0" />}
                   </p>
                   <p className="text-xs text-[#666] mt-0.5">
-                    {d.saborNombre
-                      ? `${d.cantidadKg} kg · ${d.presentacionNombre} · ${d.motivoNombre}`
-                      : `${d.cantidadKg != null ? `${d.cantidadKg} kg · ` : ''}${d.motivoNombre}`}
+                    {[
+                      d.cantidadKg != null ? `${d.cantidadKg} kg` : null,
+                      d.presentacionNombre,
+                      d.tamanioNombre ? d.motivoNombre : null,
+                      d.procedenciaNombre ?? 'Sin procedencia',
+                    ].filter(Boolean).join(' · ')}
                   </p>
                 </div>
+                <button
+                  onClick={e => { e.stopPropagation(); cargarParaEditar(d) }}
+                  aria-label="Editar"
+                  className="shrink-0 w-9 h-9 flex items-center justify-center text-[#666] hover:text-[#e8c547] rounded-lg hover:bg-[#1a1a1a] transition-colors"
+                >
+                  <IconPencil size={15} />
+                </button>
                 <button
                   onClick={e => { e.stopPropagation(); setAEliminar(d) }}
                   aria-label="Eliminar"
@@ -384,8 +461,13 @@ export default function DevolucionClient({
               {detalle.destino === 'reinsercion' ? 'Reinserción' : 'Pérdida'}
               {detalle.cantidadKg != null && ` · ${detalle.cantidadKg} kg`}
             </p>
+            <p className="text-sm text-[#888] flex items-center gap-1.5">
+              <IconMapPin size={14} /> {detalle.procedenciaNombre ?? 'Sin procedencia'}
+            </p>
             {detalle.saborNombre && (
-              <p className="text-sm text-[#888]">{detalle.tamanioNombre} · {detalle.saborNombre} · {detalle.presentacionNombre}</p>
+              <p className="text-sm text-[#888]">
+                {[detalle.tamanioNombre, detalle.saborNombre, detalle.presentacionNombre].filter(Boolean).join(' · ')}
+              </p>
             )}
             {detalle.notas && (
               <div className="rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] p-3">

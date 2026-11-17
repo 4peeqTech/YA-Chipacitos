@@ -1,15 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { IconArrowBackUp, IconArrowsSort, IconCalendar, IconIceCream, IconMessage, IconPackage, IconRecycle, IconRuler } from '@tabler/icons-react'
+import { IconArrowBackUp, IconArrowsSort, IconCalendar, IconIceCream, IconMapPin, IconMessage, IconPackage, IconRecycle, IconRuler } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
-import { agruparDevoluciones, ordenarResumen, ordenInicial, type AgrupacionDevolucion, type DevolucionFila, type OrdenResumen } from '@/lib/fabrica/reportes'
+import { agruparDevoluciones, filtrarFilas, ordenarResumen, ordenInicial, valoresUnicos, type AgrupacionDevolucion, type DevolucionFila, type FiltrosResumen as Filtros, type OrdenResumen } from '@/lib/fabrica/reportes'
 import OrdenSelector from './OrdenSelector'
+import FiltrosResumen from './FiltrosResumen'
 
 const DIMENSIONES: { key: AgrupacionDevolucion; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
   { key: 'fecha', label: 'Día', icon: IconCalendar },
   { key: 'motivoNombre', label: 'Motivo', icon: IconArrowBackUp },
+  { key: 'procedenciaNombre', label: 'Procedencia', icon: IconMapPin },
   { key: 'destino', label: 'Destino', icon: IconRecycle },
   { key: 'saborNombre', label: 'Sabor', icon: IconIceCream },
   { key: 'tamanioNombre', label: 'Tamaño', icon: IconRuler },
@@ -25,6 +27,14 @@ function formatClave(dimension: AgrupacionDevolucion, clave: string) {
   return clave
 }
 
+const SIN_DETALLE = 'Sin detalle'
+
+function tituloFila(d: DevolucionFila) {
+  if (d.tamanioNombre !== SIN_DETALLE) return `${d.tamanioNombre} · ${d.saborNombre}`
+  if (d.saborNombre !== SIN_DETALLE) return `${d.motivoNombre} · ${d.saborNombre}`
+  return d.motivoNombre
+}
+
 function formatFecha(fecha: string) {
   return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -35,25 +45,43 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
 
   const [orden, setOrden] = useState<OrdenResumen>('kg_desc')
   const [fechaDesc, setFechaDesc] = useState(true)
+  const [filtros, setFiltros] = useState<Filtros<'procedenciaNombre' | 'saborNombre' | 'presentacionNombre'>>({})
 
   const cambiarDimension = (d: AgrupacionDevolucion) => {
     setDimension(d)
     setOrden(ordenInicial(d === 'fecha'))
   }
 
+  const filtradas = useMemo(() => filtrarFilas(filas, filtros), [filas, filtros])
+  const opciones = useMemo(() => ({
+    procedenciaNombre: valoresUnicos(filas, 'procedenciaNombre'),
+    saborNombre: valoresUnicos(filas, 'saborNombre'),
+    presentacionNombre: valoresUnicos(filas, 'presentacionNombre'),
+  }), [filas])
   const resumen = useMemo(
-    () => ordenarResumen(agruparDevoluciones(filas, dimension), orden, r => r.cantidadKg, r => r.cargas),
-    [filas, dimension, orden]
+    () => ordenarResumen(agruparDevoluciones(filtradas, dimension), orden, r => r.cantidadKg, r => r.cargas),
+    [filtradas, dimension, orden]
   )
   const total = useMemo(() => resumen.reduce((acc, r) => acc + r.cantidadKg, 0), [resumen])
   const maxKg = useMemo(() => Math.max(1, ...resumen.map(r => r.cantidadKg)), [resumen])
   const individuales = useMemo(
-    () => [...filas].sort((a, b) => fechaDesc ? b.fecha.localeCompare(a.fecha) : a.fecha.localeCompare(b.fecha)),
-    [filas, fechaDesc]
+    () => [...filtradas].sort((a, b) => fechaDesc ? b.fecha.localeCompare(a.fecha) : a.fecha.localeCompare(b.fecha)),
+    [filtradas, fechaDesc]
   )
 
   return (
     <div className="space-y-3">
+      <FiltrosResumen
+        filtros={[
+          { key: 'procedenciaNombre', todos: 'Todas las procedencias', opciones: opciones.procedenciaNombre },
+          { key: 'saborNombre', todos: 'Todos los sabores', opciones: opciones.saborNombre },
+          { key: 'presentacionNombre', todos: 'Todas las presentaciones', opciones: opciones.presentacionNombre },
+        ]}
+        valores={filtros}
+        onChange={setFiltros}
+      />
+
+      <p className="text-[11px] text-[#666] px-1">Agrupar por</p>
       <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4">
         {DIMENSIONES.map(d => {
           const Icon = d.icon
@@ -76,7 +104,7 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
 
       {resumen.length === 0 ? (
         <Card className="p-8 text-center">
-          <p className="text-sm text-[#888]">No hay devoluciones registradas en el período elegido.</p>
+          <p className="text-sm text-[#888]">No hay devoluciones registradas en el período elegido{filas.length > 0 ? ' con esos filtros' : ''}.</p>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -119,10 +147,10 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f0] font-medium flex items-center gap-1.5 truncate">
                     {d.destino === 'reinsercion' ? <IconRecycle size={13} className="text-[#666] shrink-0" /> : <IconPackage size={13} className="text-[#666] shrink-0" />}
-                    <span className="truncate">{d.saborNombre !== 'Sin detalle' ? `${d.tamanioNombre} · ${d.saborNombre}` : d.motivoNombre}</span>
+                    <span className="truncate">{tituloFila(d)}</span>
                     {d.notas && <IconMessage size={12} className="text-[#e8c547] shrink-0" />}
                   </p>
-                  <p className="text-xs text-[#666] mt-0.5">{formatFecha(d.fecha)} · {formatKg(d.cantidadKg)} · {d.motivoNombre}</p>
+                  <p className="text-xs text-[#666] mt-0.5 truncate">{formatFecha(d.fecha)} · {formatKg(d.cantidadKg)} · {d.procedenciaNombre}{d.tamanioNombre !== SIN_DETALLE ? ` · ${d.motivoNombre}` : ''}</p>
                 </div>
               </div>
             ))}
@@ -140,8 +168,13 @@ export default function DevolucionesResumen({ filas }: { filas: DevolucionFila[]
               {detalle.destino === 'reinsercion' ? <IconRecycle size={14} /> : <IconPackage size={14} />}
               {detalle.destino === 'reinsercion' ? 'Reinserción' : 'Pérdida'} · {formatKg(detalle.cantidadKg)}
             </p>
-            {detalle.saborNombre !== 'Sin detalle' && (
-              <p className="text-sm text-[#888]">{detalle.tamanioNombre} · {detalle.saborNombre} · {detalle.presentacionNombre}</p>
+            <p className="text-sm text-[#888] flex items-center gap-1.5">
+              <IconMapPin size={14} /> {detalle.procedenciaNombre}
+            </p>
+            {detalle.saborNombre !== SIN_DETALLE && (
+              <p className="text-sm text-[#888]">
+                {[detalle.tamanioNombre, detalle.saborNombre, detalle.presentacionNombre].filter(v => v !== SIN_DETALLE).join(' · ')}
+              </p>
             )}
             {detalle.notas && (
               <div className="rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] p-3">

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Package, Ruler, Utensils, Undo2, Users } from 'lucide-react'
+import { MapPin, Package, Ruler, Utensils, Undo2, Users } from 'lucide-react'
 import TablaMaestra from '@/components/ui/TablaMaestra'
 
 const TABS = [
@@ -9,6 +9,7 @@ const TABS = [
   { key: 'presentaciones', label: 'Presentaciones', Icon: Package },
   { key: 'tamanios', label: 'Tamaños', Icon: Ruler },
   { key: 'devolucion-motivos', label: 'Motivos de devolución', Icon: Undo2 },
+  { key: 'devolucion-procedencias', label: 'Procedencias', Icon: MapPin },
   { key: 'operarios', label: 'Operarios', Icon: Users },
 ] as const
 
@@ -64,7 +65,7 @@ export default function FabricaParametrosClient() {
             {
               key: 'requiere_detalle', tipo: 'checkbox', invertido: true,
               label: 'No pide detalle del producto',
-              ayuda: 'Se registra solo el motivo, sin sabor, tamaño ni presentación.',
+              ayuda: 'Se registra el motivo y el sabor, sin tamaño ni presentación.',
             },
             {
               key: 'requiere_cantidad', tipo: 'checkbox',
@@ -82,6 +83,15 @@ export default function FabricaParametrosClient() {
           ) : null}
         />
       )}
+      {tab === 'devolucion-procedencias' && (
+        <TablaMaestra
+          titulo="Procedencias"
+          singular="procedencia"
+          descripcion="Lugares de donde puede venir una devolución: sucursales, clientes mayoristas u otros"
+          apiPath="/api/fabrica-devolucion-procedencias"
+        />
+      )}
+
       {tab === 'operarios' && (
         <TablaMaestra
           titulo="Operarios"

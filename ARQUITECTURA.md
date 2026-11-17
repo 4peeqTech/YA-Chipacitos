@@ -1943,6 +1943,7 @@ día siguiente **entre las 21:00 y las 00:00 hora argentina**.
 | Q8 | **`Rol` es `string`.** Correcto porque los roles son dinámicos, pero se perdió todo el type-safety; los literales `'admin'`/`'squad'` se comparan a mano en decenas de lugares |
 | Q9 | **`console.error` como único logging.** Sin Sentry ni structured logs — los fallos del cron y de las sincronizaciones son invisibles |
 | Q10 | **Sin `types` generados de Supabase.** `supabase gen types typescript` daría tipado real de tablas y RPCs |
+| Q11 | **Permisos de acción hardcodeados por rol.** Quién edita qué (y hasta cuándo) y quién ve cada botón está escrito en el código y en las funciones SQL nombrando roles: p. ej. `fabrica_puede_editar_fecha` deja editar y borrar cargas de fábrica (producción, congelados, devoluciones) de cualquier fecha a `admin` y `supervisor_fabrica`, y al resto hoy/ayer; y en la app cada pantalla decide sola si muestra "Editar". Cada pedido del cliente ("que el supervisor pueda editar X") es una migración o un cambio de código. Objetivo: permisos de acción parametrizables por rol desde `/admin/roles`, trabajados en `dev` (ver Fase 3). Primer permiso a pasar al esquema: **editar devoluciones de fábrica de cualquier fecha** (pedido de Marcos, 2026-11-17; mientras tanto queda fijo para `supervisor_fabrica` y `admin`) |
 
 ---
 
@@ -2076,6 +2077,13 @@ Aplicar a las 7 tablas `compras_*`, `gastos`, `proveedores`, `plan_cuentas`,
 - Cerrar `pedido_mensajes` y `producto_mapeos` (S5) con policies reales.
 - Acotar `pedido_items` SELECT al dueño del pedido o los operadores del destino (S6).
 - Reemplazar `DESTINATARIO_DEFAULT_INFORME_ID` por un módulo `tareas_todas` (S9).
+- Permisos de acción parametrizables (Q11): además de los módulos, una lista de
+  acciones por rol (editar fuera de plazo, ver botones sensibles, borrar) editable
+  en `/admin/roles`, con un helper SQL tipo `tiene_permiso('fabrica.devolucion.editar_fuera_de_plazo')`
+  que reemplace los roles nombrados en las funciones. Primer caso: editar
+  devoluciones de fábrica de cualquier fecha (hoy fijo para `supervisor_fabrica` y
+  `admin` en `fabrica_puede_editar_fecha`).
+  Se trabaja en `dev`, no como hotfix.
 
 ### Fase 4 — Fuente única de verdad para los maestros (2 días)
 

@@ -3,8 +3,9 @@
 import { useMemo, useState } from 'react'
 import { IconCalendar, IconIceCream, IconPackage, IconRuler, IconUser } from '@tabler/icons-react'
 import Card from '@/components/ui/Card'
-import { agruparEmbolsado, ordenarResumen, ordenInicial, type AgrupacionEmbolsado, type EmbolsadoFila, type OrdenResumen } from '@/lib/fabrica/reportes'
+import { agruparEmbolsado, filtrarFilas, ordenarResumen, ordenInicial, valoresUnicos, type AgrupacionEmbolsado, type EmbolsadoFila, type FiltrosResumen as Filtros, type OrdenResumen } from '@/lib/fabrica/reportes'
 import OrdenSelector from './OrdenSelector'
+import FiltrosResumen from './FiltrosResumen'
 
 const DIMENSIONES: { key: AgrupacionEmbolsado; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
   { key: 'fecha', label: 'Día', icon: IconCalendar },
@@ -27,6 +28,7 @@ export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) 
   const [dimension, setDimension] = useState<AgrupacionEmbolsado>('presentacionNombre')
 
   const [orden, setOrden] = useState<OrdenResumen>('kg_desc')
+  const [filtros, setFiltros] = useState<Filtros<'presentacionNombre' | 'saborNombre'>>({})
 
   const cambiarDimension = (d: AgrupacionEmbolsado) => {
     setDimension(d)
@@ -34,14 +36,28 @@ export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) 
   }
 
   const resumen = useMemo(
-    () => ordenarResumen(agruparEmbolsado(filas, dimension), orden, r => r.cantidadKg, r => r.lineas),
-    [filas, dimension, orden]
+    () => ordenarResumen(agruparEmbolsado(filtrarFilas(filas, filtros), dimension), orden, r => r.cantidadKg, r => r.lineas),
+    [filas, filtros, dimension, orden]
   )
+  const opciones = useMemo(() => ({
+    presentacionNombre: valoresUnicos(filas, 'presentacionNombre'),
+    saborNombre: valoresUnicos(filas, 'saborNombre'),
+  }), [filas])
   const total = useMemo(() => resumen.reduce((acc, r) => acc + r.cantidadKg, 0), [resumen])
   const maxKg = useMemo(() => Math.max(1, ...resumen.map(r => r.cantidadKg)), [resumen])
 
   return (
     <div className="space-y-3">
+      <FiltrosResumen
+        filtros={[
+          { key: 'presentacionNombre', todos: 'Todas las presentaciones', opciones: opciones.presentacionNombre },
+          { key: 'saborNombre', todos: 'Todos los sabores', opciones: opciones.saborNombre },
+        ]}
+        valores={filtros}
+        onChange={setFiltros}
+      />
+
+      <p className="text-[11px] text-[#666] px-1">Agrupar por</p>
       <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4">
         {DIMENSIONES.map(d => {
           const Icon = d.icon
@@ -64,7 +80,7 @@ export default function EmbolsadoResumen({ filas }: { filas: EmbolsadoFila[] }) 
 
       {resumen.length === 0 ? (
         <Card className="p-8 text-center">
-          <p className="text-sm text-[#888]">No hay congelados cargados en el período elegido.</p>
+          <p className="text-sm text-[#888]">No hay congelados cargados en el período elegido{filas.length > 0 ? ' con esos filtros' : ''}.</p>
         </Card>
       ) : (
         <div className="space-y-3">

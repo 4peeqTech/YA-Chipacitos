@@ -64,6 +64,21 @@ export function ordenarResumen<T extends { clave: string }>(
   }
 }
 
+// Filtros de los resúmenes (Presentación, Sabor, Procedencia): cada clave es un
+// campo de texto de la fila y su valor el elegido; '' o ausente = todos.
+// Se aplican antes de agrupar, así se cruzan con la agrupación (p. ej. ½ kg por sabor).
+export type FiltrosResumen<K extends string> = Partial<Record<K, string>>
+
+export function filtrarFilas<T extends Record<K, unknown>, K extends string>(filas: T[], filtros: FiltrosResumen<K>): T[] {
+  const activos = (Object.entries(filtros) as [K, string | undefined][]).filter(([, v]) => v)
+  if (activos.length === 0) return filas
+  return filas.filter(f => activos.every(([k, v]) => f[k] === v))
+}
+
+export function valoresUnicos<T extends Record<K, unknown>, K extends string>(filas: T[], campo: K): string[] {
+  return [...new Set(filas.map(f => String(f[campo])))].sort((a, b) => a.localeCompare(b, 'es'))
+}
+
 export interface EmbolsadoFila {
   fecha: string
   presentacionNombre: string
@@ -103,6 +118,7 @@ export interface DevolucionFila {
   saborNombre: string
   tamanioNombre: string
   presentacionNombre: string
+  procedenciaNombre: string
   destino: 'reinsercion' | 'perdida'
   cantidadKg: number
   /** Opcionales: no los mira agruparDevoluciones, solo el detalle individual en DevolucionesResumen. */
@@ -110,7 +126,7 @@ export interface DevolucionFila {
   notas?: string | null
 }
 
-export type AgrupacionDevolucion = 'fecha' | 'motivoNombre' | 'saborNombre' | 'tamanioNombre' | 'presentacionNombre' | 'destino'
+export type AgrupacionDevolucion = 'fecha' | 'motivoNombre' | 'procedenciaNombre' | 'saborNombre' | 'tamanioNombre' | 'presentacionNombre' | 'destino'
 
 export interface ResumenDevolucion {
   clave: string
