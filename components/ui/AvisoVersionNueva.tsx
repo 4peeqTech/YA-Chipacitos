@@ -57,7 +57,7 @@ export default function AvisoVersionNueva() {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-bold text-accent-fg transition-opacity hover:opacity-90"
+          className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-bold text-black transition-opacity hover:opacity-90"
         >
           <RefreshCw size={15} /> Actualizar
         </button>
