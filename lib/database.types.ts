@@ -2485,6 +2485,27 @@ export type Database = {
         }
         Relationships: []
       }
+      fabrica_devolucion_procedencias: {
+        Row: {
+          activo: boolean
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          activo?: boolean
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          activo?: boolean
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
+      }
       fabrica_devoluciones: {
         Row: {
           cantidad_kg: number | null
@@ -2496,6 +2517,7 @@ export type Database = {
           motivo_id: string
           notas: string | null
           presentacion_id: string | null
+          procedencia_id: string | null
           sabor_id: string | null
           tamanio_id: string | null
           updated_at: string
@@ -2510,6 +2532,7 @@ export type Database = {
           motivo_id: string
           notas?: string | null
           presentacion_id?: string | null
+          procedencia_id?: string | null
           sabor_id?: string | null
           tamanio_id?: string | null
           updated_at?: string
@@ -2524,6 +2547,7 @@ export type Database = {
           motivo_id?: string
           notas?: string | null
           presentacion_id?: string | null
+          procedencia_id?: string | null
           sabor_id?: string | null
           tamanio_id?: string | null
           updated_at?: string
@@ -2548,6 +2572,13 @@ export type Database = {
             columns: ["presentacion_id"]
             isOneToOne: false
             referencedRelation: "fabrica_presentaciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fabrica_devoluciones_procedencia_id_fkey"
+            columns: ["procedencia_id"]
+            isOneToOne: false
+            referencedRelation: "fabrica_devolucion_procedencias"
             referencedColumns: ["id"]
           },
           {
@@ -7544,6 +7575,7 @@ export type Database = {
           p_motivo_id: string
           p_notas: string
           p_presentacion_id: string
+          p_procedencia_id?: string
           p_sabor_id: string
           p_tamanio_id: string
         }

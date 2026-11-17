@@ -15,20 +15,23 @@ export default async function FabricaDevolucionPage({
   const ayer = diaAnterior(hoy)
   const dia = (await searchParams).dia || hoy
 
-  const [{ data: sabores }, { data: tamanios }, { data: presentaciones }, { data: motivos }, { data: devoluciones }] =
+  const [{ data: sabores }, { data: tamanios }, { data: presentaciones }, { data: motivos }, { data: procedencias }, { data: devoluciones }] =
     await Promise.all([
       supabase.from('fabrica_sabores').select('id, nombre').eq('activo', true).order('orden'),
       supabase.from('fabrica_tamanios').select('id, nombre').eq('activo', true).order('orden'),
       supabase.from('fabrica_presentaciones').select('id, nombre').eq('activo', true).order('orden'),
       supabase.from('fabrica_devolucion_motivos').select('id, nombre, requiere_detalle, requiere_cantidad, destino_default').eq('activo', true).order('orden'),
+      supabase.from('fabrica_devolucion_procedencias').select('id, nombre').eq('activo', true).order('orden'),
       supabase
         .from('fabrica_devoluciones')
         .select(`
           id, fecha, cantidad_kg, destino, notas, created_at,
+          sabor_id, tamanio_id, presentacion_id, motivo_id, procedencia_id,
           sabor:fabrica_sabores(nombre),
           tamanio:fabrica_tamanios(nombre),
           presentacion:fabrica_presentaciones(nombre),
           motivo:fabrica_devolucion_motivos(nombre),
+          procedencia:fabrica_devolucion_procedencias(nombre),
           cargado_por:profiles(nombre)
         `)
         .eq('fecha', dia)
@@ -44,6 +47,7 @@ export default async function FabricaDevolucionPage({
       sabores={(sabores ?? []) as Parametro[]}
       tamanios={(tamanios ?? []) as Parametro[]}
       presentaciones={(presentaciones ?? []) as Parametro[]}
+      procedencias={(procedencias ?? []) as Parametro[]}
       motivos={((motivos ?? []) as any[]).map(m => ({
         id: m.id,
         nombre: m.nombre,
@@ -57,6 +61,12 @@ export default async function FabricaDevolucionPage({
         cantidadKg: d.cantidad_kg,
         destino: d.destino,
         notas: d.notas,
+        saborId: d.sabor_id,
+        tamanioId: d.tamanio_id,
+        presentacionId: d.presentacion_id,
+        motivoId: d.motivo_id,
+        procedenciaId: d.procedencia_id,
+        procedenciaNombre: d.procedencia?.nombre ?? null,
         saborNombre: d.sabor?.nombre ?? null,
         tamanioNombre: d.tamanio?.nombre ?? null,
         presentacionNombre: d.presentacion?.nombre ?? null,

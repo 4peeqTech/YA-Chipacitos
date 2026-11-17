@@ -28,10 +28,11 @@ export const fabrica: SeccionManual = {
           items: [
             '**Producción:** cada tanda de masa, con el operario que la hizo (es obligatorio indicarlo).',
             '**Congelados:** la masa que va a congelado, por sabor, tamaño y presentación.',
-            '**Devoluciones:** lo que vuelve y por qué (por ejemplo migas o error en el pedido). Según el motivo, el formulario pide solo los datos que corresponden, y podés dejar un comentario.',
+            '**Devoluciones:** lo que vuelve y por qué (por ejemplo migas o error en el pedido). Siempre elegís **de dónde viene** (una sucursal, Supermax u otro) y el **sabor**, también en las migas. Según el motivo, el formulario pide el resto de los datos que corresponden, y podés dejar un comentario.',
           ],
         },
-        { tipo: 'tip', texto: 'Podés cargar o corregir cualquier día, no solo hoy o ayer.' },
+        { tipo: 'tip', texto: 'Podés cargar o corregir cualquier día, no solo hoy o ayer. Para corregir una devolución, elegí el día arriba y tocá el lápiz de la que quedó mal cargada; después tocá **Guardar cambios**.' },
+        { tipo: 'tip', texto: 'Si falta un lugar en "de dónde viene", pedíselo a un administrador: la lista se arma en Fábrica › Parámetros › **Procedencias**.' },
       ],
     },
     {
@@ -54,6 +55,8 @@ export const fabrica: SeccionManual = {
       titulo: 'Reportes',
       bloques: [
         { tipo: 'parrafo', texto: 'En **Reportes** ves masa producida, fécula usada, rendimiento, congelados y devoluciones, con filtros por fechas y por operario.' },
+        { tipo: 'parrafo', texto: 'En **Congelados** y **Devoluciones** podés filtrar por presentación y por sabor a la vez, y en Devoluciones también por procedencia. Los filtros se combinan con **Agrupar por**: por ejemplo, elegís la presentación de ½ kg y agrupás por **Sabor** para ver cuánto se empaquetó de cada sabor.' },
+        { tipo: 'tip', texto: 'En Devoluciones, agrupá por **Procedencia** para ver qué sucursal o cliente devuelve más, y filtrá por sabor para ver qué devuelve cada uno.' },
       ],
     },
   ],

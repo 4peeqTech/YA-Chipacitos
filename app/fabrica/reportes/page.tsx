@@ -33,7 +33,8 @@ export default async function FabricaReportesPage() {
         motivo:fabrica_devolucion_motivos(nombre),
         sabor:fabrica_sabores(nombre),
         tamanio:fabrica_tamanios(nombre),
-        presentacion:fabrica_presentaciones(nombre)
+        presentacion:fabrica_presentaciones(nombre),
+        procedencia:fabrica_devolucion_procedencias(nombre)
       `),
     supabase
       .from('fabrica_conteos')
@@ -69,6 +70,7 @@ export default async function FabricaReportesPage() {
     saborNombre: d.sabor?.nombre ?? 'Sin detalle',
     tamanioNombre: d.tamanio?.nombre ?? 'Sin detalle',
     presentacionNombre: d.presentacion?.nombre ?? 'Sin detalle',
+    procedenciaNombre: d.procedencia?.nombre ?? 'Sin dato',
     destino: d.destino,
     cantidadKg: d.cantidad_kg ?? 0,
   }))

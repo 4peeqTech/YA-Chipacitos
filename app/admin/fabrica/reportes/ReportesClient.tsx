@@ -123,8 +123,8 @@ export default function ReportesClient({
         embolsados.map(e => [e.fecha, e.presentacionNombre, e.saborNombre, e.tamanioNombre, e.operarioNombre, e.cantidadKg]))
     } else if (tab === 'devoluciones') {
       descargarCsv(`fabrica_devoluciones_${rangoLabel}.csv`,
-        ['Fecha', 'Motivo', 'Destino', 'Sabor', 'Tamaño', 'Presentación', 'Cantidad (kg)', 'Notas'],
-        devolucionesRango.map(d => [d.fecha, d.motivoNombre, d.destino === 'reinsercion' ? 'Reinserción' : 'Pérdida', d.saborNombre, d.tamanioNombre, d.presentacionNombre, d.cantidadKg, d.notas ?? '']))
+        ['Fecha', 'Motivo', 'Destino', 'Procedencia', 'Sabor', 'Tamaño', 'Presentación', 'Cantidad (kg)', 'Notas'],
+        devolucionesRango.map(d => [d.fecha, d.motivoNombre, d.destino === 'reinsercion' ? 'Reinserción' : 'Pérdida', d.procedenciaNombre, d.saborNombre, d.tamanioNombre, d.presentacionNombre, d.cantidadKg, d.notas ?? '']))
     } else if (tab === 'rendimiento') {
       descargarCsv(`fabrica_rendimiento_${rangoLabel}.csv`,
         ['Operario', 'Fécula (kg)', 'Masa (kg)', 'Rendimiento', 'Cargas'],
