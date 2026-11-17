@@ -11,6 +11,9 @@ export const fabrica: SeccionManual = {
   resumen: 'Registro diario de producción, operarios, conteo semanal de stock y reportes de fábrica.',
   actualizado: '2026-09-23',
   pendiente: 'Resumen inicial. Los pasos detallados y las capturas se suman en una próxima entrega; el conteo semanal tiene su propia sección.',
+  novedades: [
+    { fecha: '2026-11-17', texto: 'Cuando sale una **versión nueva** del sistema aparece un cartel arriba. Guardá lo que estés cargando y tocá **Actualizar**.' },
+  ],
   apartados: [
     {
       ancla: 'que-puedo-hacer',

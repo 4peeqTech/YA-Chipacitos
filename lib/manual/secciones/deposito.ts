@@ -11,6 +11,9 @@ export const deposito: SeccionManual = {
   resumen: 'Pedidos de insumos y packaging de los locales: prepararlos, despacharlos y hablar con el local.',
   actualizado: '2026-09-23',
   pendiente: 'Esta sección viene del manual anterior. Se revisa y se suman capturas en una próxima entrega.',
+  novedades: [
+    { fecha: '2026-11-17', texto: 'Cuando sale una **versión nueva** del sistema aparece un cartel arriba. Guardá lo que estés cargando y tocá **Actualizar**.' },
+  ],
   apartados: [
     {
       ancla: 'que-puedo-hacer',

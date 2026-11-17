@@ -17,6 +17,11 @@ if (!entorno.ok) {
 }
 
 const nextConfig: NextConfig = {
+  // Commit del build, fijo en el bundle: AvisoVersionNueva lo compara con el
+  // que devuelve /api/entorno para avisar que hay un deploy más nuevo.
+  env: {
+    COMMIT_BUILD: process.env.VERCEL_GIT_COMMIT_SHA ?? '',
+  },
   transpilePackages: ['@4peeqtech/ticket-widget'],
   // La ruta del comprobante (B2) lee las fuentes y el logo con readFile: el
   // trazado no los ve solo. La clave es un glob (picomatch): los corchetes

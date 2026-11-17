@@ -5,6 +5,7 @@ import SWRegister from '@/components/ui/SWRegister'
 import BarraNavegacion from '@/components/ui/BarraNavegacion'
 import InstallPrompt from '@/components/ui/InstallPrompt'
 import ProveedorUI from '@/components/ui/ProveedorUI'
+import AvisoVersionNueva from '@/components/ui/AvisoVersionNueva'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <SWRegister />
         <InstallPrompt />
+        <AvisoVersionNueva />
         <Suspense fallback={null}><BarraNavegacion /></Suspense>
         <ProveedorUI>{children}</ProveedorUI>
       </body>
