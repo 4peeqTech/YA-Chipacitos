@@ -36,6 +36,9 @@ export const colaborador: SeccionManual = {
   modulos: [],
   resumen: 'Qué módulos tenés habilitados y cómo moverte por el sistema.',
   actualizado: '2026-09-23',
+  novedades: [
+    { fecha: '2026-11-17', texto: 'Cuando sale una **versión nueva** del sistema aparece un cartel arriba. Guardá lo que estés cargando y tocá **Actualizar**.' },
+  ],
   apartados: [
     {
       ancla: 'tu-acceso',

@@ -13,6 +13,7 @@ export const mayorista: SeccionManual = {
   resumen: 'Los pedidos de los locales: prepararlos, ajustarlos antes de mandar, despacharlos y hablar con el local.',
   actualizado: '2026-10-25',
   novedades: [
+    { fecha: '2026-11-17', texto: 'Cuando sale una **versión nueva** del sistema aparece un cartel arriba. Guardá lo que estés cargando y tocá **Actualizar**.' },
     { fecha: '2026-10-25', texto: 'Tu sección ahora se llama **Mayorista** (antes decía Fábrica) y tiene su propio menú: **Pedidos** y **Catálogo**. Si tenías guardada la dirección vieja, te lleva sola a la nueva.' },
     { fecha: '2026-10-25', texto: 'Los avisos se prenden o apagan desde la **campana** (ya no queda el cartel arriba) y tocar una notificación abre ese pedido. El sonido ahora anda en Safari.' },
     { fecha: '2026-10-23', texto: 'Cada producto tiene **su propio ícono** (masa, queso, jamón…), el mismo que ven los locales al pedir.' },

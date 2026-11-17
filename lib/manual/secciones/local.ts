@@ -11,6 +11,7 @@ export const local: SeccionManual = {
   resumen: 'Pedidos al mayorista, seguimiento, mensajes y recepción de lo que llega.',
   actualizado: '2026-10-22',
   novedades: [
+    { fecha: '2026-11-17', texto: 'Cuando sale una **versión nueva** del sistema aparece un cartel arriba. Guardá lo que estés cargando y tocá **Actualizar**.' },
     { fecha: '2026-10-22', texto: 'Pantalla **Pedir** nueva: arriba están **Tus habituales**, escribís la cantidad (con atajos **+5 / +10 / +25**) y listo, sin botón Agregar. Los productos sin stock se ven en gris.' },
     { fecha: '2026-10-21', texto: 'El carrito no se pierde, **Repetir el último** pedido y resumen antes de enviar. Se pueden pedir cantidades con decimales (por ejemplo 1,5).' },
     { fecha: '2026-10-21', texto: 'En **Pedidos** ves en vivo en qué está cada pedido y si el mayorista cambió algo antes de mandarlo.' },

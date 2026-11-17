@@ -12,6 +12,7 @@ export const admin: SeccionManual = {
   actualizado: '2026-09-23',
   pendiente: 'Esta sección viene del manual anterior. Se revisa módulo por módulo en próximas entregas; Compras y Fábrica tienen sus propias secciones.',
   novedades: [
+    { fecha: '2026-11-17', texto: 'Cuando sale una **versión nueva** del sistema aparece un cartel arriba. Guardá lo que estés cargando y tocá **Actualizar**.' },
     { fecha: '2026-10-23', texto: 'En **Catálogo** podés elegir el **ícono** de cada producto de fábrica. Si no elegís ninguno, sale solo del nombre.' },
   ],
   apartados: [
