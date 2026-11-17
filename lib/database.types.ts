@@ -3358,6 +3358,24 @@ export type Database = {
         }
         Relationships: []
       }
+      fudo_tokens: {
+        Row: {
+          api_key: string
+          token: string
+          vence: string
+        }
+        Insert: {
+          api_key: string
+          token: string
+          vence: string
+        }
+        Update: {
+          api_key?: string
+          token?: string
+          vence?: string
+        }
+        Relationships: []
+      }
       fudo_venta_items: {
         Row: {
           cantidad: number | null

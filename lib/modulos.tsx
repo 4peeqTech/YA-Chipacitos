@@ -37,7 +37,6 @@ export const MODULOS: Modulo[] = [
   { key: 'gastos_clasificar', label: 'Clasificar Fudo',    icon: <IconTags size={16} />, href: '/admin/gastos/clasificar', section: 'Gastos', soloAdmin: true },
   { key: 'plan_cuentas',      label: 'Plan de cuentas',    icon: <ClipboardList size={16} />, href: '/admin/plan-cuentas',      section: 'Gastos' },
   { key: 'resumen',           label: 'Resumen por local',  icon: <BarChart3 size={16} />, href: '/admin/resumen',           section: 'Gastos' },
-  { key: 'fudo',               label: 'Fudo / Caja',        icon: <Landmark size={16} />, href: '/admin/fudo',              section: 'Gastos' },
 
   // Pedidos de los locales al mayorista, solo para consultar (26-10). El tablero y el
   // stock son del rol mayorista en /mayorista; el catálogo, en Parámetros → Catálogo.
@@ -46,8 +45,7 @@ export const MODULOS: Modulo[] = [
   { key: 'posberry',     label: 'Ventas Posberry', icon: <TrendingUp size={16} />, href: '/admin/posberry',     section: 'Mayorista' },
   { key: 'conciliacion', label: 'Conciliación',   icon: <BarChart3 size={16} />, href: '/admin/conciliacion', section: 'Mayorista' },
 
-  { key: 'integraciones_ventas', label: 'Ventas',     icon: <Receipt size={16} />, href: '/admin/integraciones/ventas', section: 'Integraciones' },
-  { key: 'integraciones_cajas',  label: 'Cajas Fudo', icon: <Landmark size={16} />, href: '/admin/integraciones/cajas',  section: 'Integraciones' },
+  { key: 'integraciones_ventas', label: 'Ventas Fudo', icon: <Receipt size={16} />, href: '/admin/integraciones/ventas', section: 'Integraciones' },
   { key: 'integraciones_fudo',   label: 'Conexión Fudo', icon: <IconPlugConnected size={16} />, href: '/admin/integraciones/fudo', section: 'Integraciones', soloAdmin: true },
 
   { key: 'nomenclador',  label: 'Nomenclador',     icon: <IconBooks size={16} />, href: '/admin/nomenclador',  section: 'Parámetros' },

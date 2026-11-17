@@ -122,7 +122,7 @@ export async function leerGastosFudo(sucursal: string): Promise<{ items: ItemFud
     } catch (e) {
       // Un token guardado que Fudo ya no acepta: uno nuevo, una sola vez.
       if (pagina !== 1 || !(e instanceof Error) || !/ 401:/.test(e.message)) throw e
-      olvidarFudoToken(cred.apiKey)
+      await olvidarFudoToken(cred.apiKey)
       token = await getFudoToken(cred.apiKey, cred.apiSecret)
       raw = await fudoGet(token, path)
     }

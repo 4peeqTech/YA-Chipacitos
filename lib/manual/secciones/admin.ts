@@ -48,7 +48,7 @@ export const admin: SeccionManual = {
         { tipo: 'parrafo', texto: '**Gastos de Fudo.** La app trae los gastos que los locales cargan en Fudo al abrir Gastos o Pendientes, con el botón **Actualizar** y una vez por día. Lo que en Fudo está en **Cta. Cte.** entra como pendiente de pago (es deuda con el proveedor); lo pagado en efectivo entra pagado con la caja del local. Entran **Sin clasificar**: abrilos y elegí la cuenta (arriba de la lista hay un aviso con los que faltan). Acá se clasifican y se pagan; el monto, la fecha y el proveedor se corrigen en Fudo. La app **nunca cambia nada en Fudo**: si pagás acá, en Fudo sigue figurando impago.' },
         { tipo: 'parrafo', texto: '**Gastos que se repiten** (alquiler, sueldos, servicios): en **Gastos › Que se repiten** cargás el gasto una vez, con el día del mes, y la app lo crea cada mes como pendiente de pago. Si el monto cambia todos los meses (luz, agua), nace con el monto del mes anterior y marcado **monto a confirmar** hasta que lo confirmes o lo corrijas. Si un mes no corresponde, eliminá ese gasto: queda anulado y no se vuelve a generar.' },
         { tipo: 'parrafo', texto: 'En **Pendientes de pago** está lo que falta pagar, local por local y lo más viejo arriba. Lo atrasado se marca: por su vencimiento si tiene, o a los 30 días si no.' },
-        { tipo: 'parrafo', texto: 'En **Resumen por local** ves el total de gastos agrupados por sucursal y período. Lo que no es gasto no entra.' },
+        { tipo: 'parrafo', texto: 'En **Resumen por local** ves, por sucursal y período, los gastos por categoría y lo vendido según Fudo (ventas, ticket promedio y medio de pago). Lo que no es gasto no entra. Las ventas se ven en períodos de hasta 62 días.' },
         { tipo: 'parrafo', texto: '**Plan de cuentas.** Las cuentas son las del plan del negocio y no se cambian desde la app. En **Gastos › Plan de cuentas** está el plan completo, con lo que entra en cada cuenta y un buscador.' },
         {
           tipo: 'estados',
@@ -71,11 +71,19 @@ export const admin: SeccionManual = {
       ],
     },
     {
-      ancla: 'fudo',
-      titulo: 'Fudo / Caja',
+      ancla: 'ventas-fudo',
+      titulo: 'Ventas Fudo',
       bloques: [
-        { tipo: 'parrafo', texto: 'Consulta en vivo de Fudo, sucursal por sucursal: gastos, ventas y movimientos de caja, filtrando por tipo y rango de fechas. Solo para mirar: los gastos de Fudo para pagar y clasificar ya están en **Gastos**.' },
-        { tipo: 'tip', texto: 'Los datos se traen directamente de la API de Fudo. Si un local no trae datos, revisá sus claves en **Integraciones › Conexión Fudo**.' },
+        { tipo: 'parrafo', texto: 'En **Integraciones › Ventas Fudo** ves las ventas de cada local en un período, sacadas de Fudo, y las podés bajar en un CSV para Excel. Se consultan hasta 62 días por vez.' },
+        {
+          tipo: 'pasos',
+          pasos: [
+            { texto: 'Elegí la pestaña: **Ventas** (las ventas cerradas, con lo cobrado por medio de pago) o **Caja** (lo que entró por cobros de ventas y lo que salió por pagos de gastos, por medio de pago).' },
+            { texto: 'Elegí el período y los locales (todos o uno) y tocá **Consultar**. Los locales se traen de a poco: la barra muestra cuántos faltan.' },
+            { texto: 'Cuando terminan todos, tocá **Descargar CSV**: una fila por venta (o por movimiento) con la fecha y hora de Argentina.' },
+          ],
+        },
+        { tipo: 'tip', texto: 'Si un local no trae datos, revisá sus claves en **Integraciones › Conexión Fudo**. Los gastos de Fudo están en **Gastos**.' },
       ],
     },
     {

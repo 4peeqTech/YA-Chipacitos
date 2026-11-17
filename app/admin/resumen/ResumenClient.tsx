@@ -1,39 +1,49 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, BarChart3, ChevronDown, Package, RefreshCw, ShoppingBag, Store, Wallet } from 'lucide-react'
+import { AlertTriangle, BarChart3, ChevronDown, Receipt, RefreshCw, ShoppingBag, Store, Wallet } from 'lucide-react'
+import Link from 'next/link'
 import PageHeader from '@/components/ui/PageHeader'
 import KpiCard from '@/components/ui/KpiCard'
 import EmptyState from '@/components/ui/EmptyState'
 import DateRangePicker from '@/components/ui/DateRangePicker'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { Puntos } from '@/components/ui/Cargando'
 import { controlClass } from '@/components/ui/Field'
 import { formatearMoneda } from '@/lib/formato'
 import { calcularRangoPreset } from '@/lib/compras/rangoFechas'
 import { mensajeError } from '@/lib/errores'
+import { ESPERA_REINTENTO_MS, MAX_DIAS, PEDIR_ESPERA, validarPeriodo, type ResumenVentasLocal } from '@/lib/fudoVentas'
 
 interface CatRow { categoria: string; total: number }
-interface VentaRow { producto: string; cantidad: number; importe: number }
 interface LocalData {
   local: string
+  tieneFudo: boolean
   gastos: CatRow[]
-  ventas: VentaRow[]
   totalGastos: number
-  totalVendido: number
-  totalMontoVendido: number
 }
 
-const PRODUCTOS_VISIBLES = 8
+/** Las ventas de un local, que se piden a Fudo de a una. */
+type Ventas =
+  | { estado: 'sin_fudo' }
+  | { estado: 'espera' }
+  | { estado: 'listo'; r: ResumenVentasLocal }
+  | { estado: 'error'; error: string }
 
-function unidades(n: number): string {
-  return `${n.toLocaleString('es-AR', { maximumFractionDigits: 2 })} u`
+const EN_PARALELO = 3
+const num = (n: number) => n.toLocaleString('es-AR')
+
+function Vendido({ v }: { v: Ventas | undefined }) {
+  if (!v || v.estado === 'espera') return <Puntos />
+  if (v.estado === 'listo') return <>{formatearMoneda(v.r.total)}</>
+  return <>—</>
 }
 
-function TarjetaLocal({ d }: { d: LocalData }) {
+function TarjetaLocal({ d, ventas: v }: { d: LocalData; ventas: Ventas | undefined }) {
   const [abierta, setAbierta] = useState(true)
-  const [todosProductos, setTodosProductos] = useState(false)
   const mayorGasto = d.gastos[0]?.total ?? 0
-  const productos = todosProductos ? d.ventas : d.ventas.slice(0, PRODUCTOS_VISIBLES)
+  const medios = v?.estado === 'listo' ? Object.entries(v.r.porMedio).sort((a, b) => b[1] - a[1]) : []
+  const mayorMedio = medios[0]?.[1] ?? 0
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-surface">
@@ -53,11 +63,11 @@ function TarjetaLocal({ d }: { d: LocalData }) {
           </span>
           <span>
             <span className="block text-2xs uppercase tracking-wider text-muted">Vendido</span>
-            <span className="block text-sm font-semibold tabular-nums text-text">{d.totalMontoVendido > 0 ? formatearMoneda(d.totalMontoVendido) : '—'}</span>
+            <span className="block text-sm font-semibold tabular-nums text-text"><Vendido v={v} /></span>
           </span>
           <span className="hidden sm:block">
-            <span className="block text-2xs uppercase tracking-wider text-muted">Unidades</span>
-            <span className="block text-sm font-semibold tabular-nums text-text">{unidades(d.totalVendido)}</span>
+            <span className="block text-2xs uppercase tracking-wider text-muted">Ventas</span>
+            <span className="block text-sm font-semibold tabular-nums text-text">{v?.estado === 'listo' ? num(v.r.ventas) : '—'}</span>
           </span>
           <ChevronDown size={16} className={`shrink-0 text-muted transition-transform duration-200 ${abierta ? '' : '-rotate-90'}`} />
         </span>
@@ -96,40 +106,36 @@ function TarjetaLocal({ d }: { d: LocalData }) {
 
           <div className="space-y-3 p-4">
             <h3 className="flex items-center gap-2 text-sm font-bold text-text">
-              <ShoppingBag size={15} className="text-accent" /> Ventas por producto
-              <span className="font-normal text-muted">(Posberry)</span>
+              <ShoppingBag size={15} className="text-accent" /> Ventas
+              <span className="font-normal text-muted">(Fudo)</span>
             </h3>
-            {d.ventas.length === 0 ? (
-              <p className="text-sm text-muted">No hay ventas registradas para este local en el período.</p>
+            {!v || v.estado === 'espera' ? (
+              <p className="flex items-center gap-2 text-sm text-muted"><Puntos /> Trayendo de Fudo</p>
+            ) : v.estado === 'sin_fudo' ? (
+              <p className="text-sm text-muted">Este local no usa Fudo: sus ventas no están acá.</p>
+            ) : v.estado === 'error' ? (
+              <p className="text-sm text-warning">{v.error}</p>
+            ) : v.r.ventas === 0 ? (
+              <p className="text-sm text-muted">No hay ventas en Fudo para este local en el período.</p>
             ) : (
               <>
-                <table className="w-full text-sm">
-                  <thead className="text-2xs uppercase tracking-wider text-muted">
-                    <tr>
-                      <th className="pb-2 text-left font-semibold">Producto</th>
-                      <th className="pb-2 text-right font-semibold">Cantidad</th>
-                      <th className="pb-2 text-right font-semibold">Importe</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {productos.map(v => (
-                      <tr key={v.producto}>
-                        <td className="py-1.5 pr-3 text-text">{v.producto}</td>
-                        <td className="whitespace-nowrap py-1.5 text-right tabular-nums text-text">{v.cantidad.toLocaleString('es-AR')}</td>
-                        <td className="whitespace-nowrap py-1.5 pl-3 text-right tabular-nums text-muted">{v.importe > 0 ? formatearMoneda(v.importe) : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {d.ventas.length > PRODUCTOS_VISIBLES && (
-                  <button
-                    type="button"
-                    onClick={() => setTodosProductos(t => !t)}
-                    className="inline-flex min-h-11 items-center text-sm font-medium text-text underline decoration-accent decoration-2 underline-offset-4 hover:opacity-80"
-                  >
-                    {todosProductos ? 'Ver menos' : `Ver los ${d.ventas.length} productos`}
-                  </button>
-                )}
+                <p className="text-sm text-muted">
+                  <span className="font-semibold tabular-nums text-text">{num(v.r.ventas)}</span> ventas · ticket promedio{' '}
+                  <span className="font-semibold tabular-nums text-text">{formatearMoneda(v.r.ticket)}</span>
+                </p>
+                <ul className="space-y-2.5" aria-label="Cobrado por medio de pago">
+                  {medios.map(([medio, monto]) => (
+                    <li key={medio} className="space-y-1">
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="min-w-0 truncate text-text">{medio}</span>
+                        <span className="whitespace-nowrap font-semibold tabular-nums text-text">{formatearMoneda(monto)}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-surface2" aria-hidden>
+                        <div className="h-full rounded-full bg-accent" style={{ width: `${mayorMedio > 0 ? (monto / mayorMedio) * 100 : 0}%` }} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </>
             )}
           </div>
@@ -148,7 +154,9 @@ export default function ResumenClient() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [intento, setIntento] = useState(0)
+  const [ventas, setVentas] = useState<Record<string, Ventas>>({})
   const consulta = useRef(0)
+  const problemaVentas = validarPeriodo(desde, hasta)
 
   // Se consulta solo al cambiar el período: no hay botón que apretar.
   useEffect(() => {
@@ -169,17 +177,53 @@ export default function ResumenClient() {
       .finally(() => { if (n === consulta.current) setCargando(false) })
   }, [desde, hasta, intento])
 
+  // Las ventas, de Fudo: de a pocos locales a la vez, después de los gastos.
+  useEffect(() => {
+    if (!data || problemaVentas) return
+    const n = consulta.current
+    const conFudo = data.filter(d => d.tieneFudo).map(d => d.local)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVentas(Object.fromEntries(data.map(d => [d.local, d.tieneFudo ? { estado: 'espera' } : { estado: 'sin_fudo' }])))
+    const cola = [...conFudo]
+    const poner = (l: string, v: Ventas) => { if (n === consulta.current) setVentas(prev => ({ ...prev, [l]: v })) }
+    const trabajador = async () => {
+      for (let l = cola.shift(); l; l = cola.shift()) {
+        if (n !== consulta.current) return
+        for (let intento = 1; intento <= 2; intento++) {
+          try {
+            const qs = new URLSearchParams({ local: l, desde, hasta, tipo: 'ventas', solo: 'totales' })
+            const r = await fetch(`/api/fudo/ventas?${qs}`)
+            const j = await r.json().catch(() => ({ error: 'Fudo no respondió.' }))
+            // Si Fudo pide esperar, se reintenta una vez.
+            if (!r.ok && j.error === PEDIR_ESPERA && intento === 1) {
+              await new Promise(res => setTimeout(res, ESPERA_REINTENTO_MS))
+              continue
+            }
+            poner(l, r.ok ? { estado: 'listo', r: j.resumen } : { estado: 'error', error: j.error ?? 'Fudo no respondió.' })
+          } catch {
+            poner(l, { estado: 'error', error: 'Se cortó la conexión con Fudo.' })
+          }
+          break
+        }
+      }
+    }
+    void Promise.all(Array.from({ length: Math.min(EN_PARALELO, conFudo.length) }, trabajador))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data])
+
   const filtrada = (data ?? []).filter(d => !local || d.local === local)
   const totalGastos = filtrada.reduce((s, d) => s + d.totalGastos, 0)
-  const totalMonto = filtrada.reduce((s, d) => s + d.totalMontoVendido, 0)
-  const totalUnidades = filtrada.reduce((s, d) => s + d.totalVendido, 0)
+  const ventasFiltradas = filtrada.map(d => ventas[d.local])
+  const totalMonto = ventasFiltradas.reduce((s, v) => s + (v?.estado === 'listo' ? v.r.total : 0), 0)
+  const totalVentas = ventasFiltradas.reduce((s, v) => s + (v?.estado === 'listo' ? v.r.ventas : 0), 0)
+  const trayendoVentas = !problemaVentas && ventasFiltradas.some(v => !v || v.estado === 'espera')
 
   return (
     <div className="space-y-6">
       <PageHeader
         icono={BarChart3}
         titulo="Resumen por local"
-        descripcion="Cuánto se gastó y cuánto se vendió en cada local en el período."
+        descripcion="Cuánto se gastó y cuánto se vendió en cada local en el período. Las ventas salen de Fudo."
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -222,20 +266,28 @@ export default function ResumenClient() {
         <div className={`space-y-4 transition-opacity duration-200 ${cargando ? 'opacity-60' : ''}`} aria-busy={cargando}>
           <div className="grid gap-3 sm:grid-cols-3">
             <KpiCard icon={<Wallet size={18} />} label="Gastos del período" value={formatearMoneda(totalGastos)} />
-            <KpiCard icon={<ShoppingBag size={18} />} label="Vendido" value={formatearMoneda(totalMonto)} detalle="según Posberry" />
-            <KpiCard icon={<Package size={18} />} label="Unidades vendidas" value={unidades(totalUnidades)} />
+            <KpiCard icon={<ShoppingBag size={18} />} label="Vendido" value={problemaVentas ? '—' : formatearMoneda(totalMonto)}
+              detalle={problemaVentas ? `hasta ${MAX_DIAS} días` : trayendoVentas ? 'trayendo de Fudo…' : 'según Fudo'} />
+            <KpiCard icon={<Receipt size={18} />} label="Ventas" value={problemaVentas ? '—' : num(totalVentas)} detalle={trayendoVentas ? 'hasta ahora' : undefined} />
           </div>
+
+          {problemaVentas && (
+            <p className="text-sm text-muted">
+              Las ventas se traen de Fudo para períodos de hasta {MAX_DIAS} días. Elegí uno más corto para verlas, o usá{' '}
+              <Link href="/admin/integraciones/ventas" className="font-semibold text-text underline decoration-accent decoration-2 underline-offset-4">Ventas Fudo</Link>.
+            </p>
+          )}
 
           {filtrada.length === 0 ? (
             <div className="overflow-hidden rounded-2xl border border-border">
               <EmptyState
                 icono={BarChart3}
                 titulo="No hay gastos ni ventas en el período"
-                descripcion="Probá con otro período. Los gastos salen de Gastos y las ventas, de Posberry."
+                descripcion="Probá con otro período. Los gastos salen de Gastos y las ventas, de Fudo."
               />
             </div>
           ) : (
-            filtrada.map(d => <TarjetaLocal key={d.local} d={d} />)
+            filtrada.map(d => <TarjetaLocal key={d.local} d={d} ventas={problemaVentas ? { estado: 'error', error: `Elegí un período de hasta ${MAX_DIAS} días para ver las ventas.` } : ventas[d.local]} />)
           )}
         </div>
       )}

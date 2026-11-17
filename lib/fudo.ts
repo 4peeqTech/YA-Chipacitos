@@ -54,6 +54,7 @@ export async function probarCredencialesFudo(apiKey: string, apiSecret: string):
     if (data.token) {
       const vence = typeof data.exp === 'number' ? data.exp * 1000 - 5 * 60_000 : Date.now() + 30 * 60_000
       tokens.set(apiKey, { token: data.token, vence })
+      await clienteServidor()?.from('fudo_tokens').upsert({ api_key: apiKey, token: data.token, vence: new Date(vence).toISOString() })
     }
     return 'ok'
   } catch {
@@ -65,26 +66,62 @@ export async function probarCredencialesFudo(apiKey: string, apiSecret: string):
 // se reusa hasta 5 minutos antes de que venza.
 const tokens = new Map<string, { token: string; vence: number }>()
 
+/** Espera lo que pidió Fudo con Retry-After (en segundos), con un tope. */
+function esperaPedida(res: Response, tope = 15_000): number | null {
+  const s = Number(res.headers.get('retry-after'))
+  if (!Number.isFinite(s) || s <= 0) return 5_000
+  return s * 1000 <= tope ? s * 1000 : null
+}
+
+/**
+ * El token de una API Key. Se reusa hasta 5 minutos antes de que venza: primero
+ * el de este proceso, después el guardado en la base (fudo_tokens, lo comparten
+ * todos los procesos de Vercel) y recién si no hay, se le pide uno a Fudo.
+ */
 export async function getFudoToken(apiKey: string, apiSecret: string): Promise<string> {
   const guardado = tokens.get(apiKey)
   if (guardado && guardado.vence > Date.now()) return guardado.token
-  const res = await fetch(FUDO_AUTH_URL, {
+
+  const db = clienteServidor()
+  if (db) {
+    const { data } = await db.from('fudo_tokens').select('token, vence').eq('api_key', apiKey).maybeSingle()
+    const vence = data ? Date.parse(data.vence) : 0
+    if (data && vence > Date.now()) {
+      tokens.set(apiKey, { token: data.token, vence })
+      return data.token
+    }
+  }
+
+  const pedir = () => fetch(FUDO_AUTH_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     body: JSON.stringify({ apiKey, apiSecret }),
     cache: 'no-store',
   })
+  let res = await pedir()
+  if (res.status === 429) {
+    const espera = esperaPedida(res)
+    if (espera != null) {
+      await new Promise(r => setTimeout(r, espera))
+      res = await pedir()
+    }
+  }
   if (res.status === 429) throw new Error('Fudo pidió esperar un rato antes de volver a consultar (429).')
   if (!res.ok) throw new Error(`Fudo auth failed: ${res.status}`)
   const data = await res.json() as { token: string; exp?: number }
   const vence = typeof data.exp === 'number' ? data.exp * 1000 - 5 * 60_000 : Date.now() + 30 * 60_000
   tokens.set(apiKey, { token: data.token, vence })
+  if (db) {
+    const { error } = await db.from('fudo_tokens').upsert({ api_key: apiKey, token: data.token, vence: new Date(vence).toISOString() })
+    if (error) console.error('[fudo] no se pudo guardar el token:', error.message)
+  }
   return data.token
 }
 
 /** Para cuando Fudo rechaza un token guardado (401): el próximo getFudoToken pide uno nuevo. */
-export function olvidarFudoToken(apiKey: string): void {
+export async function olvidarFudoToken(apiKey: string): Promise<void> {
   tokens.delete(apiKey)
+  await clienteServidor()?.from('fudo_tokens').delete().eq('api_key', apiKey)
 }
 
 export async function fudoGet(token: string, path: string): Promise<unknown> {
