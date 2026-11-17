@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Inbox, ClipboardList, TrendingUp, Truck, ChevronRight,
-  Ban, Send, History, Scale, PackageMinus, PackagePlus, Undo2, ClipboardCheck,
+  Ban, Send, History, Scale, PackageMinus, PackagePlus, Undo2, ClipboardCheck, Loader2,
 } from 'lucide-react'
 import { IconCalendarX } from '@tabler/icons-react'
 import { BadgeFueraDeDia } from '@/components/ui/Badge'
@@ -142,6 +142,9 @@ export default function SolicitudesClient({
   const [guardado, setGuardado] = useState<'idle' | 'guardando' | 'guardado'>('idle')
   const [confirmando, setConfirmando] = useState<'generar' | 'descartar' | null>(null)
   const [procesando, setProcesando] = useState(false)
+  // Después de generar, el modal queda en "Abriendo pedido…" hasta que la
+  // pantalla de Pedidos lo reemplaza (antes se cerraba y parecía que no pasaba nada).
+  const [abriendoPedido, setAbriendoPedido] = useState(false)
   const [motivo, setMotivo] = useState('')
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
@@ -279,12 +282,11 @@ export default function SolicitudesClient({
       .select('id, numero')
       .eq('solicitud_id', abierta.id)
       .order('numero')
-    setProcesando(false)
-    setConfirmando(null)
-    // Sin limpiar la URL: el salto a Pedidos de abajo la reemplaza entera.
-    soltar()
     const primero = pedidos?.[0]
     if (!primero) {
+      setProcesando(false)
+      setConfirmando(null)
+      soltar()
       toast.success(`${creados} pedido${creados === 1 ? '' : 's'} en borrador — revisalos en la tab Pedidos`)
       return
     }
@@ -292,6 +294,8 @@ export default function SolicitudesClient({
     toastGlobal.success(codigos.length === 1
       ? `Pedido ${codigos[0]} generado en borrador`
       : `${codigos.length} pedidos generados en borrador: ${codigos.join(', ')}`)
+    // Sin cerrar el modal ni limpiar la URL: el salto a Pedidos reemplaza la pantalla entera.
+    setAbriendoPedido(true)
     router.push(rutaDe({ tipo: 'pedido', id: primero.id }))
   }
 
@@ -588,7 +592,13 @@ export default function SolicitudesClient({
         )}
       </Modal>
 
-      <Modal open={confirmando === 'generar'} onClose={() => !procesando && setConfirmando(null)} title="Generar pedidos">
+      <Modal open={confirmando === 'generar'} onClose={() => !procesando && setConfirmando(null)} title={abriendoPedido ? 'Pedidos generados' : 'Generar pedidos'}>
+        {abriendoPedido ? (
+          <p className="flex items-center gap-2 text-sm text-[#f0f0f0]" role="status">
+            <Loader2 size={16} className="animate-spin text-[#e8c547] shrink-0" /> Abriendo pedido…
+          </p>
+        ) : (
+        <>
         <p className="text-sm text-[#888]">
           Se van a crear <span className="text-[#f0f0f0] font-medium">{grupos.length} pedido{grupos.length === 1 ? '' : 's'} en borrador</span>, uno por proveedor, con las líneas incluidas. Vas a poder revisarlos antes de enviarlos por WhatsApp.
         </p>
@@ -600,6 +610,8 @@ export default function SolicitudesClient({
             {procesando ? 'Generando...' : 'Confirmar'}
           </button>
         </div>
+        </>
+        )}
       </Modal>
 
       <Modal open={confirmando === 'descartar'} onClose={() => !procesando && setConfirmando(null)} title="Descartar solicitud" accent="red">
