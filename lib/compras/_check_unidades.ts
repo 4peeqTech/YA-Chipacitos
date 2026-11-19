@@ -1,7 +1,7 @@
 // Chequeo de las unidades de medida (A2b). Correr con: npx tsx lib/compras/_check_unidades.ts
 import {
   textoEquivalencia, convertirPrecio, cantidadCobrada, avisoNominal, avisoRemito, unidadPlural,
-  cantidadMensaje, desvioPct, tieneConversion, ejemploUnidades, etiquetaCobraPor, type UnidadesInsumo,
+  cantidadMensaje, desvioPct, tieneConversion, ejemploUnidades, etiquetaCobraPor, pideKgReales, type UnidadesInsumo,
 } from './unidades'
 import { subtotalLinea } from './totalesFactura'
 
@@ -18,6 +18,15 @@ const casos: { nombre: string; real: unknown; esperado: unknown }[] = [
   { nombre: 'sin conversión: Ananá (kg) sin unidad', real: textoEquivalencia(3, anana), esperado: null },
   { nombre: 'sin conversión: unidad "kg"', real: tieneConversion(enKg), esperado: false },
   { nombre: 'con conversión: Pote de 1 kg', real: tieneConversion({ unidad: 'Pote', unidadBase: 'kg', contenido: 1 }), esperado: true },
+
+  // Remito (19-11): los insumos de kg comprados en otra unidad piden kg reales, cobre como cobre el proveedor.
+  { nombre: 'kg reales: Queso en Caja de 16,5 kg', real: pideKgReales(queso), esperado: true },
+  { nombre: 'kg reales: Pote de 1 kg', real: pideKgReales({ unidad: 'Pote', unidadBase: 'kg', contenido: 1 }), esperado: true },
+  { nombre: 'kg reales: comprado en kg no los pide (la cantidad ya es kg)', real: pideKgReales(enKg), esperado: false },
+  { nombre: 'kg reales: Ananá sin unidad no los pide', real: pideKgReales(anana), esperado: false },
+  { nombre: 'kg reales: insumo por unidades no los pide', real: pideKgReales(bolsa), esperado: false },
+  { nombre: 'kg reales: litros no los pide', real: pideKgReales({ unidad: 'Bidón', unidadBase: 'litros', contenido: 5 }), esperado: false },
+  { nombre: 'kg reales: sin contenido cargado no los pide', real: pideKgReales({ unidad: 'Bolsa', unidadBase: 'kg', contenido: 0 }), esperado: false },
 
   { nombre: 'precio $/Caja → $/kg', real: convertirPrecio(2000, 'unidad', 'base', 16.5), esperado: 121.2121 },
   { nombre: 'precio ida y vuelta', real: Math.abs(vuelta - 2000) <= 0.01, esperado: true },
