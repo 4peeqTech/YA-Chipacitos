@@ -1,5 +1,8 @@
 'use client'
 
+import { useAcceso } from '@/components/ui/AccesoModulos'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
@@ -336,7 +339,7 @@ export default function PedidoDetalle({
   pedido,
   acciones,
   pendiente,
-  esAdmin,
+  verPlata,
   stockPorItem,
   devolucionResaltada = null,
   diasDemora,
@@ -344,8 +347,8 @@ export default function PedidoDetalle({
   pedido: PedidoVista
   acciones: AccionesDetalle
   pendiente: boolean
-  /** Solo admin ve la factura del pedido y puede cargarla (P1). */
-  esAdmin: boolean
+  /** Quien tiene compras.ver_plata ve la factura del pedido (P1). */
+  verPlata: boolean
   /** Para mostrar cómo queda el stock al resolver una diferencia. */
   stockPorItem: Record<string, number>
   /** B4: la devolución a la que llevó un deep link (?devolucion=). */
@@ -378,11 +381,14 @@ export default function PedidoDetalle({
     : rutaCargarDePedido('factura', fila.id)
   // La sección aparece cuando ya hay algo que mostrar o algo que hacer: antes
   // de enviar el pedido, la factura todavía no existe como paso.
-  const mostrarFactura = esAdmin && (pedido.factura != null || entrada.estado_recepcion !== 'sin_enviar')
+  const acceso = useAcceso()
+  const mostrarFactura = verPlata && (pedido.factura != null || entrada.estado_recepcion !== 'sin_enviar')
 
   const facturaConfirmada = pedido.factura?.estado === 'confirmada'
   // Llegó algo, o (admin) hay factura confirmada para corregir.
-  const puedeDevolver = entrada.estado_recepcion !== 'sin_enviar' && (pedido.recibioAlgo || (esAdmin && facturaConfirmada))
+  // Cargar NC y corregir precios: compras.facturas (las funciones de la base piden lo mismo).
+  const puedeFacturar = puede(acceso, ACCIONES.facturasCompras)
+  const puedeDevolver = entrada.estado_recepcion !== 'sin_enviar' && (pedido.recibioAlgo || (puedeFacturar && facturaConfirmada))
   const devolucionesPorLinea = new Map<string, number>()
   for (const l of pedido.lineas) if (l.pedido_item_id && (l.devuelto ?? 0) > 0) devolucionesPorLinea.set(l.pedido_item_id, l.devuelto ?? 0)
 
@@ -633,7 +639,7 @@ export default function PedidoDetalle({
       {entrada.estado_recepcion !== 'sin_enviar' && (pedido.devoluciones.length > 0 || puedeDevolver) && (
         <DevolucionesSeccion
           devoluciones={pedido.devoluciones}
-          esAdmin={esAdmin}
+          puedeFacturar={puedeFacturar}
           puedeRegistrar={puedeDevolver}
           resaltadaId={devolucionResaltada}
           onRegistrar={() => setRegistrando({ diferencia: null })}
@@ -646,7 +652,7 @@ export default function PedidoDetalle({
       <DevolucionModal
         key={registrando ? `reg-${registrando.diferencia?.id ?? 'pedido'}` : 'reg-cerrado'}
         pedidoId={fila.id}
-        esAdmin={esAdmin}
+        puedeFacturar={puedeFacturar}
         abierto={registrando != null}
         diferencia={registrando?.diferencia ?? null}
         onCerrar={() => setRegistrando(null)}
@@ -665,7 +671,7 @@ export default function PedidoDetalle({
           onCerrar={() => setAnulando(null)}
           contexto={{
             pedidoId: fila.id,
-            esAdmin,
+            puedeFacturar,
             estado: { estado_recepcion: aEstadoRecepcion(fila.estado_recepcion), estado_facturacion: aEstadoFacturacion(fila.estado_facturacion) },
             stockPorItem,
             gasto: pedido.factura?.gasto_id ? { id: pedido.factura.gasto_id, estado: pedido.factura.gastos?.estado ?? null, monto: pedido.factura.gastos?.monto ?? null } : null,

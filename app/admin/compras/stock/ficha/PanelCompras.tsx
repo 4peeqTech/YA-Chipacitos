@@ -76,14 +76,14 @@ export default function PanelCompras({
   supabase,
   itemId,
   unidades,
-  esAdmin,
+  verPlata,
   visible,
   onCerrar,
 }: {
   supabase: SupabaseClient<Database>
   itemId: string
   unidades: UnidadesInsumo
-  esAdmin: boolean
+  verPlata: boolean
   /** Oculta (otra pestaña activa): el gráfico no se dibuja, los datos quedan. */
   visible: boolean
   onCerrar: () => void
@@ -125,8 +125,8 @@ export default function PanelCompras({
     const vacio = Promise.resolve({ data: [] as Database['public']['Views']['v_compras_insumo_documentos']['Row'][], error: null })
     Promise.all([
       consultarUltimosDocumentos(supabase, itemId, 'remito'),
-      esAdmin ? consultarUltimosDocumentos(supabase, itemId, 'factura') : vacio,
-      esAdmin ? consultarPuntosPrecio(supabase, itemId, desde12) : vacio,
+      verPlata ? consultarUltimosDocumentos(supabase, itemId, 'factura') : vacio,
+      verPlata ? consultarPuntosPrecio(supabase, itemId, desde12) : vacio,
       consultarProveedoresDe(supabase, itemId),
     ]).then(([rem, fac, gra, prov]) => {
       if (!vigente) return
@@ -139,7 +139,7 @@ export default function PanelCompras({
       })
     })
     return () => { vigente = false }
-  }, [supabase, itemId, esAdmin, desde12])
+  }, [supabase, itemId, verPlata, desde12])
 
   const t = traz?.clave === claveTraz ? traz.datos : null
   const cargandoTraz = traz?.clave !== claveTraz
@@ -169,7 +169,7 @@ export default function PanelCompras({
         // 2×2 siempre: el modal mide como mucho 768px y 4 columnas no entran.
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {cargandoTraz || !t ? (
-            Array.from({ length: esAdmin ? 4 : 3 }, (_, i) => <Skeleton key={i} className="h-[92px] w-full rounded-2xl" />)
+            Array.from({ length: verPlata ? 4 : 3 }, (_, i) => <Skeleton key={i} className="h-[92px] w-full rounded-2xl" />)
           ) : (
             <>
               <Tarjeta icono={<ClipboardList size={16} />} label="Pedido" valor={conUnidad(t.pedido.cantidad, unidades.unidad)}>
@@ -214,7 +214,7 @@ export default function PanelCompras({
       </Seccion>
 
       {/* Gráfico (admin) */}
-      {esAdmin && visible && (
+      {verPlata && visible && (
         !fijos ?<Skeleton className="h-[280px] w-full rounded-xl" />
           : fijos.grafico.error ? <p role="alert" className="text-sm text-brand-red">{fijos.grafico.error}</p>
             : (
@@ -231,8 +231,8 @@ export default function PanelCompras({
       )}
 
       {/* Últimas facturas y remitos */}
-      <div className={`grid gap-6 ${esAdmin ? 'lg:grid-cols-2' : ''}`}>
-        {esAdmin && (
+      <div className={`grid gap-6 ${verPlata ? 'lg:grid-cols-2' : ''}`}>
+        {verPlata && (
           <Seccion titulo="Últimas facturas" icono={<ReceiptText size={13} />}>
             <ListaDocumentos cargado={fijos?.facturas} vacio="Todavía no hay facturas de este insumo" unidades={unidades} onNavegar={onCerrar} />
           </Seccion>
@@ -259,7 +259,7 @@ export default function PanelCompras({
               : (
                 <ul className="divide-y divide-border rounded-xl border border-border">
                   {[...proveedores.filter(p => p.activo), ...proveedores.filter(p => !p.activo)].map(p => (
-                    <FilaProveedor key={p.proveedor_id} p={p} unidades={unidades} esAdmin={esAdmin} onNavegar={onCerrar} />
+                    <FilaProveedor key={p.proveedor_id} p={p} unidades={unidades} verPlata={verPlata} onNavegar={onCerrar} />
                   ))}
                 </ul>
               )}
@@ -356,7 +356,7 @@ function ListaDocumentos({
   )
 }
 
-function FilaProveedor({ p, unidades, esAdmin, onNavegar }: { p: ProveedorDeInsumo; unidades: UnidadesInsumo; esAdmin: boolean; onNavegar: () => void }) {
+function FilaProveedor({ p, unidades, verPlata, onNavegar }: { p: ProveedorDeInsumo; unidades: UnidadesInsumo; verPlata: boolean; onNavegar: () => void }) {
   const cobra = esCobraPor(p.cobra_por) ? p.cobra_por : 'unidad'
   const ultimoPor = esCobraPor(p.ultimo_precio_por) ? p.ultimo_precio_por : 'unidad'
   const nombre = p.proveedores?.nombre ?? 'Proveedor'
@@ -375,7 +375,7 @@ function FilaProveedor({ p, unidades, esAdmin, onNavegar }: { p: ProveedorDeInsu
         <span className="whitespace-nowrap text-muted">
           Ref. {p.precio_ref != null ? `${formatearMonedaExacta(p.precio_ref)} /${etiquetaCobraPor(cobra, unidades)}` : '—'}
         </span>
-        {esAdmin && (
+        {verPlata && (
           p.ultimo_precio != null ? (
             <span className="whitespace-nowrap text-text">
               Últ. {formatearMonedaExacta(p.ultimo_precio)} /{etiquetaCobraPor(ultimoPor, unidades)}

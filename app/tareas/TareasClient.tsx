@@ -18,7 +18,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ModalTarea from './ModalTarea'
 import VistaCalendario from './VistaCalendario'
-import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, isVencida, esMiaTarea, esCompletadaVieja, nombrePerfil, notificarTarea, DESTINATARIO_DEFAULT_INFORME_ID } from './helpers'
+import { PRIORIDAD_META, ESTADO_META, fmtRelativoFecha, isVencida, esMiaTarea, esCompletadaVieja, nombrePerfil, notificarTarea } from './helpers'
 import { urlBase64ToUint8Array } from '@/lib/push'
 import { useRefrescarAlVolver } from '@/lib/hooks/useRefrescarAlVolver'
 import type { Tarea, PrioridadTarea, EstadoTarea, Turno } from '@/lib/types'
@@ -294,9 +294,11 @@ interface TareasClientProps {
   userNombre: string
   tareas: Tarea[]
   perfiles: PerfilLite[]
+  /** Permiso tareas.ver_todas: muestra el link a la vista de todas las tareas. */
+  puedeVerTodas: boolean
 }
 
-export default function TareasClient({ userId, userNombre, tareas: initial, perfiles }: TareasClientProps) {
+export default function TareasClient({ userId, userNombre, tareas: initial, perfiles, puedeVerTodas }: TareasClientProps) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const toast = useToasts()
@@ -696,7 +698,7 @@ export default function TareasClient({ userId, userNombre, tareas: initial, perf
             </p>
           )}
           <div className="flex gap-2 ml-auto">
-            {userId === DESTINATARIO_DEFAULT_INFORME_ID && (
+            {puedeVerTodas && (
               <Link href="/tareas/todas" className="text-xs text-[#888] hover:text-[#e8c547] transition-colors no-underline bg-[#111111] border border-[#2a2a2a] rounded-full px-3 py-1.5">
                 📋 Todas las tareas
               </Link>

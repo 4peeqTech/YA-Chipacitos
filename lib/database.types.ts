@@ -7800,6 +7800,7 @@ export type Database = {
         Args: { p_caja?: string; p_sucursal?: string }
         Returns: string
       }
+      mi_acceso: { Args: never; Returns: Json }
       mis_cuentas_local: { Args: never; Returns: string[] }
       mis_sucursales: { Args: never; Returns: string[] }
       mover_stock_terminado: {
@@ -7874,6 +7875,7 @@ export type Database = {
         Args: { p_clave: string; p_persona: string }
         Returns: boolean
       }
+      personas_con_alguno: { Args: { p_claves: string[] }; Returns: string[] }
       proveedores_archivar: {
         Args: { p_archivar: boolean; p_id: string }
         Returns: Json

@@ -1,3 +1,4 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClientTipado } from '@/lib/supabase/server'
 import { sincronizarFudo } from '@/lib/gastos/fudoSync'
@@ -13,8 +14,8 @@ export async function POST(req: NextRequest) {
   const supabase = await createClientTipado()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const { data: perfil } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (perfil?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const { acceso } = await cargarAcceso()
+  if (!acceso?.esAdmin) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const cuerpo = await req.json().catch(() => ({})) as { alAbrir?: unknown }
   const alAbrir = cuerpo.alAbrir === true

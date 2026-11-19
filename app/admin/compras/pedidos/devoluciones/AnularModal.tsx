@@ -25,7 +25,7 @@ const MOTIVOS: { value: MotivoRapido; label: string }[] = [
 
 export interface ContextoAnular {
   pedidoId: string
-  esAdmin: boolean
+  puedeFacturar: boolean
   estado: { estado_recepcion: EstadoRecepcion; estado_facturacion: EstadoFacturacion }
   stockPorItem: Record<string, number>
   gasto: { id: string; estado: string | null; monto: number | null } | null
@@ -50,7 +50,7 @@ export default function AnularModal({
   const [texto, setTexto] = useState('')
   const d = devolucion
   // Remitos (también las líneas libres) y devoluciones del pedido, como los lee el recálculo SQL.
-  const { ctx } = useContextoDevolucion(contexto.pedidoId, contexto.esAdmin)
+  const { ctx } = useContextoDevolucion(contexto.pedidoId, contexto.puedeFacturar)
 
   if (!d) return <Modal open={false} onClose={onCerrar} title="Anular">{null}</Modal>
 

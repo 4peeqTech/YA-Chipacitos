@@ -21,7 +21,7 @@ export default async function DetalleVisitaPage({ params, searchParams }: {
   const [{ data }, catalogo, usuario, { requerimientos }] = await Promise.all([
     supabase.from('supervision_visitas').select(SELECT_VISITA).eq('id', id).maybeSingle(),
     cargarCatalogo(supabase),
-    cargarUsuario(supabase, user.id),
+    cargarUsuario(supabase),
     cargarRequerimientos(supabase, id),
   ])
   if (!data) notFound()

@@ -28,7 +28,7 @@ export default function ProveedoresClient({
   insumosPorProveedor,
   abiertosPorProveedor,
   localesFacturacion,
-  esAdmin,
+  verPlata,
   proveedorInicial,
   pestanaInicial,
   diasDemora,
@@ -40,7 +40,7 @@ export default function ProveedoresClient({
   abiertosPorProveedor: Record<string, number>
   localesFacturacion: LocalFacturacion[]
   /** La Cuenta, las facturas y el último precio son de admin (E17). */
-  esAdmin: boolean
+  verPlata: boolean
   /** B5: compras_config 'pedidos.dias_demora'. */
   diasDemora?: number
   /** ?proveedor=<id>: abre su ficha. */
@@ -235,7 +235,7 @@ export default function ProveedoresClient({
           insumosActivos={insumosPorProveedor[ficha.id] ?? 0}
           pedidosAbiertos={abiertosPorProveedor[ficha.id] ?? 0}
           localesFacturacion={localesFacturacion}
-          esAdmin={esAdmin}
+          verPlata={verPlata}
           diasDemora={diasDemora}
           onEditar={() => abrirForm(ficha.id)}
           onEliminado={cerrarFicha}

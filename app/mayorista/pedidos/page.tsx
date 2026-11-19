@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { exigirArea } from '@/lib/permisos/servidor'
 import PedidosMayoristaClient from '@/components/pedidos/mayorista/PedidosMayoristaClient'
 import type { Pedido, Producto } from '@/lib/types'
 
@@ -9,8 +9,8 @@ export default async function MayoristaPedidosPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: profile }, { data: productos }, { data: pedidos }, { data: locales }, { data: inicioVersion }] = await Promise.all([
-    supabase.from('profiles').select('nombre, rol').eq('id', user!.id).single(),
+  await exigirArea('mayorista')
+  const [{ data: productos }, { data: pedidos }, { data: locales }, { data: inicioVersion }] = await Promise.all([
     supabase.from('productos').select('*').eq('tipo', 'producto').eq('destino', 'fabrica').order('nombre'),
     // Todos los activos, sin límite: los cerrados van al historial paginado.
     supabase.from('pedidos').select('*, pedido_items(*), pedido_mensajes(*)')
@@ -22,7 +22,6 @@ export default async function MayoristaPedidosPage() {
   ])
 
   // Pedidos es del mayorista (el layout ya lo controla; esto cubre un acceso directo).
-  if (profile?.rol !== 'mayorista') redirect('/login')
 
   const sucursales = [...new Set((locales ?? []).map(l => l.local_nombre as string))].sort((a, b) => a.localeCompare(b, 'es'))
 

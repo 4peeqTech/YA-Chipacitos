@@ -17,7 +17,7 @@ export default async function SupervisionPage({ searchParams }: { searchParams: 
 
   const { vista, aviso } = await searchParams
   const [catalogo, { visitas, error }, reqs, eq, usuario] = await Promise.all([
-    cargarCatalogo(supabase), cargarVisitas(supabase), cargarRequerimientos(supabase), cargarEquipos(supabase), cargarUsuario(supabase, user.id),
+    cargarCatalogo(supabase), cargarVisitas(supabase), cargarRequerimientos(supabase), cargarEquipos(supabase), cargarUsuario(supabase),
   ])
 
   return (

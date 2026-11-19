@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
-import { DESTINATARIO_DEFAULT_INFORME_ID } from '../helpers'
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import TodasTareasClient from './TodasTareasClient'
 
 export const metadata = { title: 'Todas las tareas — YA! Chipacitos' }
@@ -16,15 +18,16 @@ function getAdminClient() {
   )
 }
 
-// Vista exclusiva de Ricardo Cabrera (Gerencia Directiva): ve todas las
-// tareas del sistema, no solo las propias. El resto de la app respeta la
-// RLS de `tareas` (creador o asignado); acá se usa el cliente de service
-// role a propósito, sólo después de validar que el usuario logueado es él.
+// Todas las tareas del sistema, no solo las propias: permiso tareas.ver_todas
+// (antes, solo Ricardo Cabrera por id; épica roles y permisos). El resto de la
+// app respeta la RLS de `tareas` (creador o asignado); acá se usa el cliente de
+// service role a propósito, sólo después de validar el permiso.
 export default async function TodasTareasPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  if (user.id !== DESTINATARIO_DEFAULT_INFORME_ID) redirect('/tareas')
+  const { acceso } = await cargarAcceso()
+  if (!puede(acceso, ACCIONES.verTodasLasTareas)) redirect('/tareas')
 
   const admin = getAdminClient()
 

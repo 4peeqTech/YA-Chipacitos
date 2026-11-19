@@ -1,3 +1,4 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClientTipado } from '@/lib/supabase/server'
 import { fudoGet, getFudoCredentials, getFudoToken, olvidarFudoToken } from '@/lib/fudo'
@@ -21,8 +22,8 @@ export async function GET(req: NextRequest) {
   const supabase = await createClientTipado()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const { data: perfil } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (perfil?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const { acceso } = await cargarAcceso()
+  if (!acceso?.esAdmin) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const q = new URL(req.url).searchParams
   const local = q.get('local') ?? ''

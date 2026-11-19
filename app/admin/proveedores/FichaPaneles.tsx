@@ -61,12 +61,12 @@ interface FilaPedido {
 export function PanelPedidos({
   pedidos,
   facturas,
-  esAdmin,
+  verPlata,
   diasDemora,
 }: {
   pedidos: PedidoDeProveedor[]
   facturas: FacturaDePedidoProveedor[]
-  esAdmin: boolean
+  verPlata: boolean
   /** B5: compras_config 'pedidos.dias_demora' (default DIAS_DEMORA). */
   diasDemora?: number
 }) {
@@ -124,7 +124,7 @@ export function PanelPedidos({
       ocultarHasta: 'md',
       render: f => <span className="tabular-nums text-muted">{f.p.compras_remitos.length || '—'}</span>,
     },
-    ...(esAdmin ? [{
+    ...(verPlata ? [{
       key: 'factura',
       header: 'Factura',
       ocultarHasta: 'sm' as const,
@@ -162,13 +162,13 @@ export function PanelPedidos({
 export function PanelRemitos({
   remitos,
   facturas,
-  esAdmin,
+  verPlata,
   errorFacturas,
 }: {
   remitos: RemitoDeProveedor[]
   /** undefined = cargando (solo admin). */
   facturas: FacturaDeProveedor[] | undefined
-  esAdmin: boolean
+  verPlata: boolean
   errorFacturas?: string
 }) {
   const columnasRemitos: Columna<RemitoDeProveedor>[] = [
@@ -263,7 +263,7 @@ export function PanelRemitos({
         />
         {remitos.length >= LIMITE_REMITOS && <p className="text-xs text-muted">Se muestran los últimos {LIMITE_REMITOS}.</p>}
       </Seccion>
-      {esAdmin && (
+      {verPlata && (
         <Seccion titulo="Facturas" icono={<FileText size={13} />}>
           {errorFacturas ? <ErrorCarga mensaje={errorFacturas} /> : facturas === undefined ? <Cargando /> : (
             <>
@@ -423,7 +423,7 @@ function sufijo(cobraPor: string | null, unidad: string | null, unidadBase: stri
   return u ? ` / ${u}` : ''
 }
 
-function FilaInsumo({ i, esAdmin }: { i: InsumoDeProveedor; esAdmin: boolean }) {
+function FilaInsumo({ i, verPlata }: { i: InsumoDeProveedor; verPlata: boolean }) {
   const distinto = i.ultimo_precio != null && i.precio_ref != null && i.precio_ref > 0
     && i.cobra_por === i.ultimo_precio_por
     && Math.abs(i.ultimo_precio - i.precio_ref) / i.precio_ref > 0.005
@@ -443,7 +443,7 @@ function FilaInsumo({ i, esAdmin }: { i: InsumoDeProveedor; esAdmin: boolean }) 
         <span className="whitespace-nowrap text-muted">
           Ref. {i.precio_ref != null ? `${formatearMonedaExacta(i.precio_ref)}${sufijo(i.cobra_por, i.unidad, i.unidad_base)}` : '—'}
         </span>
-        {esAdmin && i.ultimo_precio != null && (
+        {verPlata && i.ultimo_precio != null && (
           <span className="whitespace-nowrap">
             <span className={distinto ? 'font-semibold text-warning' : 'text-text'} title={distinto ? 'Distinto del precio de referencia' : undefined}>
               Último {formatearMonedaExacta(i.ultimo_precio)}{sufijo(i.ultimo_precio_por, i.unidad, i.unidad_base)}
@@ -461,7 +461,7 @@ function FilaInsumo({ i, esAdmin }: { i: InsumoDeProveedor; esAdmin: boolean }) 
   )
 }
 
-export function PanelInsumos({ insumos, esAdmin }: { insumos: InsumoDeProveedor[]; esAdmin: boolean }) {
+export function PanelInsumos({ insumos, verPlata }: { insumos: InsumoDeProveedor[]; verPlata: boolean }) {
   const activos = insumos.filter(i => i.activo)
   const anteriores = insumos.filter(i => !i.activo)
   if (insumos.length === 0) {
@@ -473,7 +473,7 @@ export function PanelInsumos({ insumos, esAdmin }: { insumos: InsumoDeProveedor[
         ? <p className="text-sm text-muted">No tiene insumos activos.</p>
         : (
           <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
-            {activos.map(i => <FilaInsumo key={`${i.item_id}`} i={i} esAdmin={esAdmin} />)}
+            {activos.map(i => <FilaInsumo key={`${i.item_id}`} i={i} verPlata={verPlata} />)}
           </ul>
         )}
       {anteriores.length > 0 && (
@@ -482,7 +482,7 @@ export function PanelInsumos({ insumos, esAdmin }: { insumos: InsumoDeProveedor[
             <Tag size={14} /> Insumos anteriores ({anteriores.length})
           </summary>
           <ul className="mt-2 divide-y divide-border opacity-70">
-            {anteriores.map(i => <FilaInsumo key={`${i.item_id}`} i={i} esAdmin={esAdmin} />)}
+            {anteriores.map(i => <FilaInsumo key={`${i.item_id}`} i={i} verPlata={verPlata} />)}
           </ul>
         </details>
       )}

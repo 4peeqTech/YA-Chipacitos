@@ -1,3 +1,4 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
@@ -26,9 +27,8 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data: profile } = await supabase
-    .from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const { acceso } = await cargarAcceso()
+  if (!acceso?.esAdmin) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { fechaDesde, fechaHasta } = await req.json()
   if (!fechaDesde || !fechaHasta) {

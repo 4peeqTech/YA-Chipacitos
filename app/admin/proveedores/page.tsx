@@ -1,3 +1,6 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { createClientTipado } from '@/lib/supabase/server'
 import { consultarProveedores } from './datos'
 import { redirect } from 'next/navigation'
@@ -16,13 +19,13 @@ export default async function ProveedoresPage({
   searchParams: Promise<{ proveedor?: string; pestana?: string }>
 }) {
   const supabase = await createClientTipado()
+  const { acceso } = await cargarAcceso()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { proveedor, pestana } = await searchParams
 
-  const [{ data: perfil }, { data: proveedores }, { data: pares }, { data: pedidos }, { data: locales }, { data: config }] = await Promise.all([
-    supabase.from('profiles').select('rol').eq('id', user.id).single(),
+  const [{ data: proveedores }, { data: pares }, { data: pedidos }, { data: locales }, { data: config }] = await Promise.all([
     consultarProveedores(supabase),
     supabase.from('compras_item_proveedores').select('proveedor_id').eq('activo', true),
     supabase.from('compras_pedidos').select('proveedor_id, estado_recepcion, estado_facturacion, compras_remitos(count)'),
@@ -50,7 +53,7 @@ export default async function ProveedoresPage({
       insumosPorProveedor={insumos}
       abiertosPorProveedor={abiertos}
       localesFacturacion={locales ?? []}
-      esAdmin={perfil?.rol === 'admin'}
+      verPlata={puede(acceso, ACCIONES.verPlataCompras)}
       diasDemora={leerConfigAvisos(config ?? []).diasDemora}
       proveedorInicial={proveedor}
       pestanaInicial={PESTANAS.find(p => p === pestana)}

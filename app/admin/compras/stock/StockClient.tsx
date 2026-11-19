@@ -61,7 +61,7 @@ export default function StockClient({
   stock,
   insumoInicial,
   pestanaInicial = 'stock',
-  esAdmin,
+  verPlata,
   conteosConDiferencias,
   soloBajoInicial = false,
 }: {
@@ -70,7 +70,7 @@ export default function StockClient({
   insumoInicial?: string
   /** A2c: ?pestana= de la ficha (validado en page.tsx). */
   pestanaInicial?: PestanaInsumo
-  esAdmin: boolean
+  verPlata: boolean
   conteosConDiferencias: ConteoConDiferencias[]
   /** B5: ?bajo=1 (el KPI "Bajo el mínimo" del dashboard y el aviso de stock bajo). */
   soloBajoInicial?: boolean
@@ -272,7 +272,7 @@ export default function StockClient({
             key={abierta.item.id}
             fila={abierta}
             pestanaInicial={pestana}
-            esAdmin={esAdmin}
+            verPlata={verPlata}
             onCambios={setConCambios}
             onCerrar={cerrarYa}
           />

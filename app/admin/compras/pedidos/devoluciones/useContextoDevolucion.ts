@@ -48,7 +48,7 @@ export interface ContextoDevolucion {
  * historial del pedido): así se abre igual desde el pedido, la factura o una
  * diferencia, sin que cada pantalla cargue remitos y facturas de todo.
  */
-export function useContextoDevolucion(pedidoId: string, esAdmin: boolean) {
+export function useContextoDevolucion(pedidoId: string, puedeFacturar: boolean) {
   const supabase = useMemo(() => createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -69,7 +69,7 @@ export function useContextoDevolucion(pedidoId: string, esAdmin: boolean) {
       if (!ped.data) throw new Error('No encontramos el pedido. Recargá la página.')
 
       let factura: FacturaContexto | null = null
-      if (esAdmin) {
+      if (puedeFacturar) {
         const { data: f, error } = await supabase.from('v_compras_facturas')
           .select('id, numero, total, gasto_id, gasto_estado, gasto_monto, notas_credito_total')
           .eq('pedido_id', pedidoId).eq('tipo_comprobante', 'factura').eq('estado', 'confirmada').maybeSingle()
@@ -163,7 +163,7 @@ export function useContextoDevolucion(pedidoId: string, esAdmin: boolean) {
       .then(ctx => { if (vigente) setEstado({ ctx, error: null }) })
       .catch(e => { if (vigente) setEstado({ ctx: null, error: mensajeError(e, 'No se pudieron cargar los datos de la devolución.') }) })
     return () => { vigente = false }
-  }, [supabase, pedidoId, esAdmin])
+  }, [supabase, pedidoId, puedeFacturar])
 
   return { ctx: estado?.ctx ?? null, error: estado?.error ?? null, cargando: estado == null }
 }

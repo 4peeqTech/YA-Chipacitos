@@ -54,10 +54,10 @@ const ALERTAS: Record<AlertaPedidos, { label: string; vacio: string; soloAdmin: 
   nc: { label: 'Esperando nota de crédito', vacio: 'No hay pedidos esperando nota de crédito', soloAdmin: true },
 }
 
-function alertaDeParam(valor: string | null, esAdmin: boolean): AlertaPedidos | null {
+function alertaDeParam(valor: string | null, verPlata: boolean): AlertaPedidos | null {
   const a = ALERTAS_PEDIDOS.find(x => x === valor) ?? null
   // Diferencias y NC son datos de admin: para el resto la vista no los trae.
-  return a && (!ALERTAS[a].soloAdmin || esAdmin) ? a : null
+  return a && (!ALERTAS[a].soloAdmin || verPlata) ? a : null
 }
 
 // Activos: primero los que falta enviar, después los enviados hace más tiempo.
@@ -82,7 +82,7 @@ export default function PedidosClient({
   facturas,
   diferencias,
   devoluciones,
-  esAdmin,
+  verPlata,
   pedidoInicial,
   devolucionInicial,
   diasDemora = DIAS_DEMORA,
@@ -99,7 +99,7 @@ export default function PedidosClient({
   diferencias: DiferenciaFila[]
   devoluciones: DevolucionFila[]
   /** Solo admin ve la factura del pedido y puede cargarla (P1). */
-  esAdmin: boolean
+  verPlata: boolean
   pedidoInicial?: string
   /** B4: ?devolucion= (con ?pedido=) abre el pedido y resalta esa devolución. */
   devolucionInicial?: string
@@ -113,7 +113,7 @@ export default function PedidosClient({
   // valor que no es una pestaña se ignora. Elegir otra a mano lo saca de la URL.
   const searchParams = useSearchParams()
   const estadoParam = searchParams.get('estado') ?? undefined
-  const alerta = alertaDeParam(searchParams.get('alerta'), esAdmin)
+  const alerta = alertaDeParam(searchParams.get('alerta'), verPlata)
   const quitarAlerta = useQuitarParams('alerta')
   const [filtro, setFiltro] = useState<FiltroPedidos>(() => alerta ? 'todos' : filtroDeParam(estadoParam) ?? 'activos')
   useAlCambiarParam(alerta ?? undefined, () => setFiltro('todos'))
@@ -137,8 +137,8 @@ export default function PedidosClient({
   // la pantalla se vuelve a armar con lo que quedó en la base.
   const devolucionesVista = useMemo(() => armarDevoluciones(devoluciones), [devoluciones])
   const vistas = useMemo(
-    () => armarVistas(pedidos, lineas, facturas, esAdmin, undefined, diferencias, devolucionesVista, diasDemora),
-    [pedidos, lineas, facturas, esAdmin, diferencias, devolucionesVista, diasDemora],
+    () => armarVistas(pedidos, lineas, facturas, verPlata, undefined, diferencias, devolucionesVista, diasDemora),
+    [pedidos, lineas, facturas, verPlata, diferencias, devolucionesVista, diasDemora],
   )
   const stockPorItem = useMemo(() => Object.fromEntries(stock.map(s => [s.item_id, s.cantidad])), [stock])
   const abierto = abiertoId ? vistas.find(v => v.fila.id === abiertoId) ?? null : null
@@ -341,7 +341,7 @@ export default function PedidosClient({
       alinear: 'right',
       ocultarHasta: 'lg',
     },
-    ...(esAdmin ? [{
+    ...(verPlata ? [{
       key: 'factura',
       header: 'Factura',
       alinear: 'right' as const,
@@ -509,7 +509,7 @@ export default function PedidosClient({
           <PedidoDetalle
             pedido={abierto}
             pendiente={isPending}
-            esAdmin={esAdmin}
+            verPlata={verPlata}
             stockPorItem={stockPorItem}
             devolucionResaltada={devolucionResaltada}
             diasDemora={diasDemora}

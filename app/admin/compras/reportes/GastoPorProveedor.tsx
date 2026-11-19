@@ -45,16 +45,16 @@ const thNum = `${th} text-right`
 export default function GastoPorProveedor({
   facturas,
   pedidos,
-  esAdmin,
+  verPlata,
 }: {
   facturas: FacturaReporte[]
   /** Todos (no solo los del período): "recibido sin facturar" es cómo está hoy. */
   pedidos: PedidoReporte[]
-  esAdmin: boolean
+  verPlata: boolean
 }) {
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
 
-  if (!esAdmin) {
+  if (!verPlata) {
     return (
       <div className="overflow-hidden rounded-2xl border border-border">
         <EmptyState

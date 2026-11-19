@@ -69,13 +69,13 @@ function Paso({ numero, titulo, ayuda, children, accion }: { numero: number; tit
  */
 export default function DevolucionModal({
   pedidoId,
-  esAdmin,
+  puedeFacturar,
   abierto,
   onCerrar,
   diferencia = null,
 }: {
   pedidoId: string
-  esAdmin: boolean
+  puedeFacturar: boolean
   abierto: boolean
   onCerrar: () => void
   diferencia?: DiferenciaOrigen | null
@@ -102,7 +102,7 @@ export default function DevolucionModal({
       {abierto && (
         <Contenido
           pedidoId={pedidoId}
-          esAdmin={esAdmin}
+          puedeFacturar={puedeFacturar}
           diferencia={diferencia}
           onCambios={setConCambios}
           onPendiente={setPendiente}
@@ -116,14 +116,14 @@ export default function DevolucionModal({
 
 function Contenido(props: {
   pedidoId: string
-  esAdmin: boolean
+  puedeFacturar: boolean
   diferencia: DiferenciaOrigen | null
   onCambios: (hay: boolean) => void
   onPendiente: (p: boolean) => void
   onListo: () => void
   onCancelar: () => void
 }) {
-  const { ctx, error, cargando } = useContextoDevolucion(props.pedidoId, props.esAdmin)
+  const { ctx, error, cargando } = useContextoDevolucion(props.pedidoId, props.puedeFacturar)
   if (cargando) {
     return (
       <div className="space-y-4" aria-busy="true" aria-label="Cargando la devolución">
@@ -143,10 +143,10 @@ function Contenido(props: {
 interface PrecioNc { precio: number | null; alicuota: number }
 
 function Formulario({
-  ctx, esAdmin, diferencia, onCambios, onPendiente, onListo, onCancelar,
+  ctx, puedeFacturar, diferencia, onCambios, onPendiente, onListo, onCancelar,
 }: {
   ctx: ContextoDevolucion
-  esAdmin: boolean
+  puedeFacturar: boolean
   diferencia: DiferenciaOrigen | null
   onCambios: (hay: boolean) => void
   onPendiente: (p: boolean) => void
@@ -158,8 +158,8 @@ function Formulario({
   const [isPending, startTransition] = useTransition()
 
   const motivosVisibles = useMemo(
-    () => ctx.motivos.filter(m => m.activo && (esAdmin || m.devuelve_mercaderia)),
-    [ctx.motivos, esAdmin],
+    () => ctx.motivos.filter(m => m.activo && (puedeFacturar || m.devuelve_mercaderia)),
+    [ctx.motivos, puedeFacturar],
   )
   const sugerencia = diferencia ? sugerenciaDesdeDiferencia(diferencia, ctx.motivos) : null
 
@@ -203,7 +203,7 @@ function Formulario({
     return lineasPrecio(factura, unidadBaseDe).filter(l => !corregidas.has(l.facturaItemId))
   }, [factura, ctx.devoluciones]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hayNc = esAdmin && !!factura && conNc && (efecto !== 'mercaderia' || repone === false)
+  const hayNc = puedeFacturar && !!factura && conNc && (efecto !== 'mercaderia' || repone === false)
 
   // Ítems elegidos, en el orden de la tabla.
   const elegidos = useMemo(() => {
@@ -358,8 +358,8 @@ function Formulario({
       <EmptyState
         icono={Undo2}
         titulo="No hay motivos de devolución"
-        descripcion={esAdmin ? 'Cargá al menos uno en Proveedores › Motivos de devolución.' : 'Pedile a un administrador que cargue los motivos.'}
-        accion={esAdmin ? <Link href="/admin/proveedores/motivos-devolucion" className={botonSecundario}>Ir a Motivos de devolución</Link> : undefined}
+        descripcion={puedeFacturar ? 'Cargá al menos uno en Proveedores › Motivos de devolución.' : 'Pedile a un administrador que cargue los motivos.'}
+        accion={puedeFacturar ? <Link href="/admin/proveedores/motivos-devolucion" className={botonSecundario}>Ir a Motivos de devolución</Link> : undefined}
       />
     )
   }
@@ -460,7 +460,7 @@ function Formulario({
               efecto={efecto}
               cantidades={cantidades}
               kgs={kgs}
-              kgObligatorio={esAdmin && !!factura && efecto === 'mercaderia' ? repone !== true : hayNc}
+              kgObligatorio={puedeFacturar && !!factura && efecto === 'mercaderia' ? repone !== true : hayNc}
               stock={ctx.stock}
               insumos={ctx.insumos}
               error={errorFila}
@@ -508,7 +508,7 @@ function Formulario({
       )}
 
       {/* 4. Nota de crédito */}
-      {esAdmin && factura && efecto && (efecto !== 'mercaderia' || repone === false) && (
+      {puedeFacturar && factura && efecto && (efecto !== 'mercaderia' || repone === false) && (
         <Paso numero={efecto === 'mercaderia' ? 4 : 3} titulo="Nota de crédito">
           <div className="space-y-4">
             <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-text">

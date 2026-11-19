@@ -48,7 +48,7 @@ export default function ReportesClient({
   stockMinimoPorItem,
   facturas: facturasFiltradas,
   facturasDePedidos,
-  esAdmin,
+  verPlata,
 }: {
   /** El período: ya viene filtrado desde el servidor (B3). */
   rango: RangoFechas
@@ -67,7 +67,7 @@ export default function ReportesClient({
   /** Facturas confirmadas de los pedidos del período (para el Historial), de cualquier fecha. */
   facturasDePedidos: FacturaReporte[]
   /** El gasto sale de las facturas, que solo ve un administrador. */
-  esAdmin: boolean
+  verPlata: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -130,11 +130,11 @@ export default function ReportesClient({
         <KpiCard
           icon={<Wallet size={18} />}
           label="Gasto del período"
-          value={esAdmin ? `$${money(gastoTotalPeriodo)}` : '—'}
-          detalle={esAdmin
+          value={verPlata ? `$${money(gastoTotalPeriodo)}` : '—'}
+          detalle={verPlata
             ? (sinFacturar > 0 ? `facturas con IVA · ${sinFacturar} recibido${sinFacturar === 1 ? '' : 's'} sin facturar` : 'facturas con IVA')
             : 'lo ve un administrador'}
-          tono={esAdmin && sinFacturar > 0 ? 'alerta' : 'neutro'}
+          tono={verPlata && sinFacturar > 0 ? 'alerta' : 'neutro'}
         />
         <KpiCard
           icon={<ClipboardList size={18} />}
@@ -178,9 +178,9 @@ export default function ReportesClient({
       )}
 
       <div className={cargando ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
-      {tab === 'gasto' && <GastoPorProveedor facturas={facturasFiltradas} pedidos={pedidosPorFacturar} esAdmin={esAdmin} />}
-      {tab === 'insumo' && <PorInsumo rango={rango} esAdmin={esAdmin} />}
-      {tab === 'historial' && <HistorialPedidos pedidos={pedidosFiltrados} facturas={facturasDePedidos} esAdmin={esAdmin} />}
+      {tab === 'gasto' && <GastoPorProveedor facturas={facturasFiltradas} pedidos={pedidosPorFacturar} verPlata={verPlata} />}
+      {tab === 'insumo' && <PorInsumo rango={rango} verPlata={verPlata} />}
+      {tab === 'historial' && <HistorialPedidos pedidos={pedidosFiltrados} facturas={facturasDePedidos} verPlata={verPlata} />}
       {tab === 'stock' && <MovimientoStock movimientos={movimientosFiltrados} stockActualPorItem={stockActualPorItem} proveedorPorItem={proveedorPorItem} />}
       {tab === 'sugerido' && <SugeridoVsRecibido solicitudItems={solicitudItemsIniciales} pedidoItems={pedidoItemsIniciales} />}
       </div>

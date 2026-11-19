@@ -158,35 +158,36 @@ export function armarAvisos(filas: FilaAviso[]): MensajeAviso[] {
 // Destinatarios (§4.2, E9). Fijos en el código; nunca los elige el cliente.
 // ---------------------------------------------------------------------------
 
+/** Persona activa con los permisos de PERMISOS_DE que tiene (los arma avisosServidor). */
 export interface PerfilAviso {
   id: string
-  rol: string | null
-  modulos_permitidos: string[] | null
+  permisos: string[]
 }
 
-const MODULOS_DE: Record<TipoAviso, string[]> = {
-  remito_listo: [],
-  diferencias: [],
-  nc_pendiente: [],
-  pedido_demorado: ['compras-pedidos'],
-  stock_bajo: ['compras-pedidos', 'compras-stock'],
+/** Quién recibe cada aviso: alguno de estos permisos (épica roles y permisos). */
+export const PERMISOS_DE: Record<TipoAviso, string[]> = {
+  remito_listo: ['compras.ver_plata'],
+  diferencias: ['compras.ver_plata'],
+  nc_pendiente: ['compras.ver_plata'],
+  pedido_demorado: ['pantalla:compras-pedidos'],
+  stock_bajo: ['pantalla:compras-pedidos', 'pantalla:compras-stock'],
 }
 
 /** Texto de "Lo reciben" en Compras › Avisos (sale de la misma tabla). */
 export const RECIBEN: Record<TipoAviso, string> = {
-  remito_listo: 'Administradores',
-  diferencias: 'Administradores',
-  nc_pendiente: 'Administradores',
-  pedido_demorado: 'Administradores y quienes tienen Pedidos',
-  stock_bajo: 'Administradores y quienes tienen Pedidos o Stock',
+  remito_listo: 'Quienes ven la plata de Compras',
+  diferencias: 'Quienes ven la plata de Compras',
+  nc_pendiente: 'Quienes ven la plata de Compras',
+  pedido_demorado: 'Quienes tienen Pedidos',
+  stock_bajo: 'Quienes tienen Pedidos o Stock',
 }
 
-/** Los perfiles ya vienen activos (la consulta filtra estado = 'activo'). */
+/** Los perfiles ya vienen activos (personas_con_alguno filtra estado = 'activo'). */
 export function destinatariosDe(tipo: TipoAviso, perfiles: PerfilAviso[], excluir?: string): string[] {
-  const modulos = MODULOS_DE[tipo]
+  const permisos = PERMISOS_DE[tipo]
   return perfiles
     .filter(p => p.id !== excluir)
-    .filter(p => p.rol === 'admin' || (p.modulos_permitidos ?? []).some(m => modulos.includes(m)))
+    .filter(p => p.permisos.some(c => permisos.includes(c)))
     .map(p => p.id)
 }
 

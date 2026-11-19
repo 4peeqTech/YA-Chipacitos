@@ -1,3 +1,4 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
 import { redirect } from 'next/navigation'
 import { createClientTipado } from '@/lib/supabase/server'
 import { CLAVES_AVISOS, TIPOS_AVISO, leerConfigAvisos, totalAvisados, type ResultadoCorrida, type TipoAviso } from '@/lib/compras/avisos'
@@ -10,8 +11,9 @@ export default async function AvisosPage() {
   const supabase = await createClientTipado()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  const { data: perfil } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (perfil?.rol !== 'admin') redirect('/admin')
+  // Avisos de Compras: configuración, solo Admin (compras_config es es_admin() en la base).
+  const { acceso } = await cargarAcceso()
+  if (!acceso?.esAdmin) redirect('/admin')
 
   const [{ data: config }, { data: ultimas }, { data: ultimaCron }, { data: enviados }] = await Promise.all([
     supabase.from('compras_config').select('clave, valor').in('clave', CLAVES_AVISOS),

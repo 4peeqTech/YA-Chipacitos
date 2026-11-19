@@ -1,5 +1,6 @@
 'use server'
 
+import { cargarAcceso } from '@/lib/permisos/servidor'
 import { refresh } from 'next/cache'
 import { z } from 'zod'
 import { createClientTipado } from '@/lib/supabase/server'
@@ -38,9 +39,8 @@ export async function guardarConexionFudo(entrada: z.input<typeof Claves>): Prom
     // Antes de hablar con Fudo: la acción es alcanzable por POST directo y no
     // tiene que servir para probar claves ajenas.
     const supabase = await createClientTipado()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: perfil } = user ? await supabase.from('profiles').select('rol').eq('id', user.id).single() : { data: null }
-    if (perfil?.rol !== 'admin') return fallo(null, 'Solo un administrador puede cargar las claves de Fudo.')
+    const { acceso } = await cargarAcceso()
+    if (!acceso?.esAdmin) return fallo(null, 'Solo un administrador puede cargar las claves de Fudo.')
 
     const prueba = await probarCredencialesFudo(apiKey, apiSecret)
     if (prueba === 'rechazada') {

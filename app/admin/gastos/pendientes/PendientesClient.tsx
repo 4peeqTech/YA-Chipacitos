@@ -1,5 +1,6 @@
 'use client'
 
+import { useAcceso } from '@/components/ui/AccesoModulos'
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -162,7 +163,9 @@ export default function PendientesClient({
   const [navegando, startNav] = useTransition()
   const [busqueda, setBusqueda] = useState(filtros.q)
   const [pagando, setPagando] = useState<PendienteVista | null>(null)
-  const { actualizando, actualizar } = useActualizarFudo(fudo.activo, toast)
+  // Sincronizar Fudo es solo Admin (la ruta y la RPC lo piden): el resto ni lo dispara.
+  const esAdmin = useAcceso()?.esAdmin ?? false
+  const { actualizando, actualizar } = useActualizarFudo(fudo.activo && esAdmin, toast)
 
   function ir(cambios: Partial<FiltrosPendientes>) {
     const qs = paramsDePendientes({ ...filtros, ...cambios })

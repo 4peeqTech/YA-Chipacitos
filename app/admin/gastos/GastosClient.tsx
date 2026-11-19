@@ -1,5 +1,6 @@
 'use client'
 
+import { useAcceso } from '@/components/ui/AccesoModulos'
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -173,7 +174,9 @@ export default function GastosClient({
   const quitarParam = useQuitarParams('gasto')
   useAlCambiarParam(gastoInicial, id => abrir({ id }))
   const toast = useToast()
-  const { actualizando, actualizar } = useActualizarFudo(fudo.activo, toast)
+  // Sincronizar Fudo es solo Admin (la ruta y la RPC lo piden): el resto ni lo dispara.
+  const esAdmin = useAcceso()?.esAdmin ?? false
+  const { actualizando, actualizar } = useActualizarFudo(fudo.activo && esAdmin, toast)
 
   // Todo sale de las props: los filtros cambian la URL y las acciones llaman a
   // refresh(); en los dos casos el servidor vuelve a armar la página.

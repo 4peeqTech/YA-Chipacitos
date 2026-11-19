@@ -1,3 +1,6 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import PedidosClient from './PedidosClient'
@@ -20,8 +23,8 @@ export default async function PedidosPage({
 
   // Solo admin ve y carga facturas (P1). La RLS ya lo garantiza; el rol define
   // además qué le ofrecemos en pantalla.
-  const { data: perfil } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  const esAdmin = perfil?.rol === 'admin'
+  const { acceso } = await cargarAcceso()
+  const verPlata = puede(acceso, ACCIONES.verPlataCompras)
 
   const [
     { data: pedidos },
@@ -72,7 +75,7 @@ export default async function PedidosPage({
       facturas={facturas ?? []}
       diferencias={diferencias ?? []}
       devoluciones={devoluciones}
-      esAdmin={esAdmin}
+      verPlata={verPlata}
       pedidoInicial={pedido}
       devolucionInicial={devolucion}
       diasDemora={leerConfigAvisos(config ?? []).diasDemora}

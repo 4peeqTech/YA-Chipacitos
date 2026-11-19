@@ -81,19 +81,19 @@ const CABECERAS_FACTURAS = [
 ]
 const CABECERAS_FIN = ['Stock inicio', 'Stock fin']
 
-export function cabecerasCsv(esAdmin: boolean): string[] {
-  return [...CABECERAS_INICIO, ...(esAdmin ? CABECERAS_FACTURAS : []), ...CABECERAS_FIN]
+export function cabecerasCsv(verPlata: boolean): string[] {
+  return [...CABECERAS_INICIO, ...(verPlata ? CABECERAS_FACTURAS : []), ...CABECERAS_FIN]
 }
 
 /** Números crudos (como los exports de Fábrica); los nulls van vacíos. */
-export function filasCsv(filas: FilaReporteInsumo[], esAdmin: boolean): (string | number | null)[][] {
+export function filasCsv(filas: FilaReporteInsumo[], verPlata: boolean): (string | number | null)[][] {
   return filas.map(({ t }) => {
     const inicio = [
       t.nombre, t.categoria, t.unidades.unidad, t.unidades.unidadBase,
       t.pedido.cantidad, t.recibido.cantidad, t.recibido.baseReal, t.recibido.sinPesar,
     ]
     const f = t.facturado
-    const facturas = esAdmin
+    const facturas = verPlata
       ? [
           f?.cantidad ?? null, f?.base ?? null, f?.neto ?? null, f?.total ?? null, f?.facturas ?? null, f?.proveedores ?? null,
           f?.promUnidad ?? null, f?.promBase ?? null, f?.ultimo?.precio ?? null, f?.ultimo?.por ?? null, f?.ultimo?.fecha ?? null,

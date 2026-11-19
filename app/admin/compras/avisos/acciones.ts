@@ -1,5 +1,6 @@
 'use server'
 
+import { cargarAcceso } from '@/lib/permisos/servidor'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClientTipado } from '@/lib/supabase/server'
@@ -27,8 +28,8 @@ async function exigirAdmin() {
   const supabase = await createClientTipado()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { supabase, user: null, error: 'Iniciá sesión.' }
-  const { data: perfil } = await supabase.from('profiles').select('rol').eq('id', user.id).maybeSingle()
-  if (perfil?.rol !== 'admin') return { supabase, user: null, error: 'Solo un administrador puede cambiar los avisos.' }
+  const { acceso } = await cargarAcceso()
+  if (!acceso?.esAdmin) return { supabase, user: null, error: 'Solo un administrador puede cambiar los avisos.' }
   return { supabase, user, error: null }
 }
 

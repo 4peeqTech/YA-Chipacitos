@@ -4,7 +4,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { formatearMoneda } from '@/lib/formato'
-import { puedeEntrarAdmin } from '@/lib/modulos'
+import { puede, puedeEntrarRuta, type AccesoUsuario } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { rutaPedidos, rutaPedidosAlerta, rutaStockBajo } from '@/lib/compras/rutas'
 
 /** Lo que devuelve compras_tablero_resumen() (B5). Los campos de admin vienen en null para el resto. */
@@ -39,7 +40,7 @@ function plural(n: number, uno: string, varios: string) {
   return `${n} ${n === 1 ? uno : varios}`
 }
 
-function armarTarjetas(r: ResumenTablero, esAdmin: boolean): Tarjeta[] {
+function armarTarjetas(r: ResumenTablero, verPlata: boolean): Tarjeta[] {
   const t: Tarjeta[] = [
     {
       clave: 'por_recibir', icono: Truck, titulo: 'Por recibir', valor: String(r.por_recibir),
@@ -51,7 +52,7 @@ function armarTarjetas(r: ResumenTablero, esAdmin: boolean): Tarjeta[] {
       sub: `Enviados hace ${plural(r.dias_demora, 'día', 'días')} o más`,
       alerta: r.demorados > 0, href: rutaPedidosAlerta('demorados'),
     },
-    esAdmin && r.por_facturar_estimado != null
+    verPlata && r.por_facturar_estimado != null
       ? {
         clave: 'por_facturar', icono: ReceiptText, titulo: 'Recibidos sin facturar',
         valor: `≈ ${formatearMoneda(r.por_facturar_estimado)}`,
@@ -64,13 +65,13 @@ function armarTarjetas(r: ResumenTablero, esAdmin: boolean): Tarjeta[] {
         sub: 'Llegó la mercadería y falta la factura', href: rutaPedidos('por_facturar'),
       },
   ]
-  if (esAdmin && r.diferencias != null) {
+  if (verPlata && r.diferencias != null) {
     t.push({
       clave: 'diferencias', icono: Scale, titulo: 'Diferencias', valor: String(r.diferencias),
       sub: 'Pedidos con diferencias por resolver', alerta: r.diferencias > 0, href: rutaPedidosAlerta('diferencias'),
     })
   }
-  if (esAdmin && r.deuda_pendiente != null) {
+  if (verPlata && r.deuda_pendiente != null) {
     const aFavor = r.deuda_a_favor ?? 0
     t.push({
       clave: 'deuda', icono: Wallet, titulo: 'Deuda con proveedores', valor: formatearMoneda(r.deuda_pendiente),
@@ -80,7 +81,7 @@ function armarTarjetas(r: ResumenTablero, esAdmin: boolean): Tarjeta[] {
       href: '/admin/gastos/pendientes',
     })
   }
-  if (esAdmin && r.nc_pendientes != null) {
+  if (verPlata && r.nc_pendientes != null) {
     t.push({
       clave: 'nc', icono: FileMinus, titulo: 'NC pendientes', valor: String(r.nc_pendientes),
       sub: 'Pedidos esperando nota de crédito', alerta: r.nc_pendientes > 0, href: rutaPedidosAlerta('nc'),
@@ -112,15 +113,13 @@ function Contenido({ t }: { t: Tarjeta }) {
 export default function TableroCompras({
   resumen,
   error,
-  rol,
-  modulosPermitidos,
+  acceso,
 }: {
   resumen: ResumenTablero | null
   error: boolean
-  rol: string | null
-  modulosPermitidos: string[]
+  acceso: AccesoUsuario | null
 }) {
-  const esAdmin = rol === 'admin'
+  const verPlata = puede(acceso, ACCIONES.verPlataCompras)
   return (
     <section className="space-y-3">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-text">
@@ -132,10 +131,10 @@ export default function TableroCompras({
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {armarTarjetas(resumen, esAdmin).map(t => {
+          {armarTarjetas(resumen, verPlata).map(t => {
             const clases = 'block rounded-2xl border bg-surface p-4 ' + (t.alerta ? 'border-warning/40' : 'border-border')
             // Mismo criterio que LinkEntidad: sin el módulo del destino, texto y no link.
-            return puedeEntrarAdmin(t.href.split('?')[0], rol, modulosPermitidos) ? (
+            return acceso && puedeEntrarRuta(acceso, t.href.split('?')[0]).ok ? (
               <Link key={t.clave} href={t.href} className={`${clases} transition-colors hover:border-accent`}>
                 <Contenido t={t} />
               </Link>

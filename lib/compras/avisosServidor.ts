@@ -10,10 +10,9 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import type { Database } from '@/lib/database.types'
 import { enviarPush } from '@/lib/push/sendPush'
-import { MODULOS_COMPRAS } from '@/lib/modulos'
 import {
   armarAvisos, destinatariosDe, resumenCorrida, TIPOS_AVISO,
-  type FilaAviso, type PerfilAviso, type ResultadoCorrida, type ResumenCorrida, type TipoAviso,
+  PERMISOS_DE, type FilaAviso, type PerfilAviso, type ResultadoCorrida, type ResumenCorrida, type TipoAviso,
 } from './avisos'
 
 function clienteServicio() {
@@ -66,13 +65,15 @@ export async function correrAvisos(op: OpcionesCorrida): Promise<ResumenCorrida>
     filas = Filas.parse(data ?? [])
 
     if (filas.length > 0) {
-      const { data: perfiles, error: errPerfiles } = await admin
-        .from('profiles')
-        .select('id, rol, modulos_permitidos')
-        .eq('estado', 'activo')
-        .or(`rol.eq.admin,modulos_permitidos.ov.{${MODULOS_COMPRAS.join(',')}}`)
-      if (errPerfiles) throw new Error(errPerfiles.message)
-      const lista: PerfilAviso[] = perfiles ?? []
+      // Una consulta por permiso que recibe avisos: quién lo tiene (activo).
+      const claves = [...new Set(Object.values(PERMISOS_DE).flat())]
+      const porPersona = new Map<string, string[]>()
+      for (const clave of claves) {
+        const { data: ids, error: errPerfiles } = await admin.rpc('personas_con_alguno', { p_claves: [clave] })
+        if (errPerfiles) throw new Error(errPerfiles.message)
+        for (const id of (ids ?? []) as string[]) porPersona.set(id, [...(porPersona.get(id) ?? []), clave])
+      }
+      const lista: PerfilAviso[] = [...porPersona].map(([id, permisos]) => ({ id, permisos }))
 
       for (const m of armarAvisos(filas)) {
         const userIds = destinatariosDe(m.tipo, lista, op.excluir)

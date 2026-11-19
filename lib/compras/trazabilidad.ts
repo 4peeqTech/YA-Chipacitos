@@ -77,7 +77,7 @@ export interface Trazabilidad {
 }
 
 export function aTrazabilidad(f: FilaTrazabilidad): Trazabilidad {
-  const esAdmin = f.facturado_cantidad != null
+  const verPlata = f.facturado_cantidad != null
   const ultimoPrecio = num(f.ultimo_precio)
   const ultimo: UltimoPrecio | null =
     ultimoPrecio != null && f.ultimo_precio_fecha && f.ultimo_precio_factura_id
@@ -102,7 +102,7 @@ export function aTrazabilidad(f: FilaTrazabilidad): Trazabilidad {
       sinPesar: cero(f.recibido_sin_pesar),
       remitos: cero(f.remitos),
     },
-    facturado: esAdmin
+    facturado: verPlata
       ? {
           cantidad: cero(f.facturado_cantidad),
           base: cero(f.facturado_base),
