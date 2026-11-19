@@ -3985,6 +3985,7 @@ export type Database = {
           activo: boolean | null
           caja_default: string | null
           created_at: string | null
+          cuenta_local_id: string | null
           id: string
           orden: number
           sucursal: string
@@ -3995,6 +3996,7 @@ export type Database = {
           activo?: boolean | null
           caja_default?: string | null
           created_at?: string | null
+          cuenta_local_id?: string | null
           id?: string
           orden?: number
           sucursal: string
@@ -4005,6 +4007,7 @@ export type Database = {
           activo?: boolean | null
           caja_default?: string | null
           created_at?: string | null
+          cuenta_local_id?: string | null
           id?: string
           orden?: number
           sucursal?: string
@@ -4018,6 +4021,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "cajas"
             referencedColumns: ["nombre"]
+          },
+          {
+            foreignKeyName: "locales_config_cuenta_local_id_fkey"
+            columns: ["cuenta_local_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4635,6 +4645,139 @@ export type Database = {
           },
         ]
       }
+      permisos_catalogo: {
+        Row: {
+          area: string | null
+          clave: string
+          nombre: string
+          tipo: string
+        }
+        Insert: {
+          area?: string | null
+          clave: string
+          nombre: string
+          tipo: string
+        }
+        Update: {
+          area?: string | null
+          clave?: string
+          nombre?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
+      permisos_historial: {
+        Row: {
+          cambio: Json
+          created_at: string
+          hecho_por: string | null
+          id: string
+          persona_id: string | null
+          rol_key: string | null
+        }
+        Insert: {
+          cambio: Json
+          created_at?: string
+          hecho_por?: string | null
+          id?: string
+          persona_id?: string | null
+          rol_key?: string | null
+        }
+        Update: {
+          cambio?: Json
+          created_at?: string
+          hecho_por?: string | null
+          id?: string
+          persona_id?: string | null
+          rol_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permisos_historial_hecho_por_fkey"
+            columns: ["hecho_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permisos_historial_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permisos_historial_rol_key_fkey"
+            columns: ["rol_key"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      persona_permisos: {
+        Row: {
+          efecto: string
+          permiso: string
+          persona_id: string
+        }
+        Insert: {
+          efecto: string
+          permiso: string
+          persona_id: string
+        }
+        Update: {
+          efecto?: string
+          permiso?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "persona_permisos_permiso_fkey"
+            columns: ["permiso"]
+            isOneToOne: false
+            referencedRelation: "permisos_catalogo"
+            referencedColumns: ["clave"]
+          },
+          {
+            foreignKeyName: "persona_permisos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      persona_sucursales: {
+        Row: {
+          local_config_id: string
+          persona_id: string
+        }
+        Insert: {
+          local_config_id: string
+          persona_id: string
+        }
+        Update: {
+          local_config_id?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "persona_sucursales_local_config_id_fkey"
+            columns: ["local_config_id"]
+            isOneToOne: false
+            referencedRelation: "locales_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "persona_sucursales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plan_cuentas: {
         Row: {
           categoria_gasto: string | null
@@ -4959,6 +5102,59 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      rol_areas: {
+        Row: {
+          area: string
+          rol_key: string
+        }
+        Insert: {
+          area: string
+          rol_key: string
+        }
+        Update: {
+          area?: string
+          rol_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rol_areas_rol_key_fkey"
+            columns: ["rol_key"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      rol_permisos: {
+        Row: {
+          permiso: string
+          rol_key: string
+        }
+        Insert: {
+          permiso: string
+          rol_key: string
+        }
+        Update: {
+          permiso?: string
+          rol_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rol_permisos_permiso_fkey"
+            columns: ["permiso"]
+            isOneToOne: false
+            referencedRelation: "permisos_catalogo"
+            referencedColumns: ["clave"]
+          },
+          {
+            foreignKeyName: "rol_permisos_rol_key_fkey"
+            columns: ["rol_key"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
           },
         ]
       }
