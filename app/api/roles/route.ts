@@ -59,6 +59,10 @@ export async function PATCH(req: NextRequest) {
   const { key, nombre, color } = await req.json()
   if (!key) return NextResponse.json({ error: 'Key requerida' }, { status: 400 })
 
+  const { data: rol } = await supabase.from('roles').select('es_sistema').eq('key', key).single()
+  if (!rol) return NextResponse.json({ error: 'El rol no existe' }, { status: 404 })
+  if (rol.es_sistema) return NextResponse.json({ error: 'Los roles del sistema no se renombran' }, { status: 403 })
+
   const fields: Record<string, string> = {}
   if (nombre !== undefined) {
     if (!nombre.trim()) return NextResponse.json({ error: 'El nombre es obligatorio' }, { status: 400 })

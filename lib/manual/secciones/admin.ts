@@ -210,31 +210,9 @@ export const admin: SeccionManual = {
     },
     {
       ancla: 'usuarios',
-      titulo: 'Gestión de usuarios',
+      titulo: 'Usuarios y roles',
       bloques: [
-        { tipo: 'parrafo', texto: 'Administrás todas las cuentas del sistema.' },
-        {
-          tipo: 'pasos',
-          pasos: [
-            { texto: '**Crear usuario:** completá email, nombre, contraseña, rol y local (si aplica).' },
-            { texto: '**Cambiar rol:** usá el selector de rol en la fila del usuario.' },
-            { texto: '**Módulos permitidos:** para los roles de colaborador, seleccioná los módulos a los que ese usuario tiene acceso.' },
-            { texto: '**Resetear contraseña:** tocá el botón 🔑 en la fila del usuario.' },
-          ],
-        },
-        {
-          tipo: 'lista',
-          titulo: 'Roles disponibles',
-          items: [
-            '**Local** — hace pedidos desde su sucursal',
-            '**Depósito** — gestiona pedidos de depósito',
-            '**Supervisor de fábrica** — registro de producción, personal, conteo de stock y reportes de fábrica',
-            '**Mayorista** — gestiona los pedidos de fábrica y el catálogo de productos elaborados',
-            '**Colaborador** (squad o un rol creado en Roles) — acceso parcial a módulos del panel de administración',
-            '**Admin** — acceso completo al sistema',
-          ],
-        },
-        { tipo: 'alerta', texto: 'No podés cambiar tu propio rol. Si necesitás hacerlo, pedile a otro administrador.' },
+        { tipo: 'parrafo', texto: 'Roles, la ficha de cada persona, sus sucursales y el historial de cambios tienen su propia sección del manual: **Usuarios y roles**.' },
       ],
     },
     {

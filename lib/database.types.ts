@@ -4650,18 +4650,21 @@ export type Database = {
           area: string | null
           clave: string
           nombre: string
+          solo_admin: boolean
           tipo: string
         }
         Insert: {
           area?: string | null
           clave: string
           nombre: string
+          solo_admin?: boolean
           tipo: string
         }
         Update: {
           area?: string | null
           clave?: string
           nombre?: string
+          solo_admin?: boolean
           tipo?: string
         }
         Relationships: []
@@ -7156,6 +7159,31 @@ export type Database = {
         Args: { p_detalle?: Json; p_pedido_id: string; p_tipo: string }
         Returns: undefined
       }
+      _permisos_actuales: { Args: { p_persona: string }; Returns: string[] }
+      _permisos_exigir_areas: {
+        Args: { p_areas: string[] }
+        Returns: undefined
+      }
+      _permisos_exigir_facturas_con_plata: {
+        Args: { p_efectivos: string[] }
+        Returns: undefined
+      }
+      _permisos_exigir_gestion: { Args: never; Returns: undefined }
+      _permisos_exigir_que_tenga: {
+        Args: { p_claves: string[] }
+        Returns: undefined
+      }
+      _permisos_resolver: {
+        Args: {
+          p_agregar: string[]
+          p_areas: string[]
+          p_es_admin: boolean
+          p_quitar: string[]
+          p_rol_permisos: string[]
+        }
+        Returns: string[]
+      }
+      _permisos_validar: { Args: { p_claves: string[] }; Returns: undefined }
       _permisos_vincular_cuenta_local: {
         Args: { p_persona: string }
         Returns: undefined
@@ -7163,6 +7191,22 @@ export type Database = {
       _proveedores_referencias: {
         Args: { p_proveedor_id: string }
         Returns: Json
+      }
+      _resta: { Args: { a: string[]; b: string[] }; Returns: string[] }
+      _rol_diferencias: {
+        Args: { p_areas: string[]; p_permisos: string[]; p_rol: string }
+        Returns: {
+          ajustes: string[]
+          gana: string[]
+          nombre: string
+          persona_id: string
+          pierde: string[]
+          sin_sucursal: boolean
+        }[]
+      }
+      _rol_normalizar: {
+        Args: { p_areas: string[]; p_permisos: string[] }
+        Returns: string[]
       }
       ajustar_stock_terminado_manual: {
         Args: { p_delta_kg: number; p_producto_id: string }
@@ -7871,6 +7915,15 @@ export type Database = {
         Returns: Json
       }
       pedidos_inicio_version: { Args: never; Returns: string }
+      persona_guardar_acceso: {
+        Args: {
+          p_ajustes: Json
+          p_persona: string
+          p_rol: string
+          p_sucursales: string[]
+        }
+        Returns: undefined
+      }
       persona_tiene_permiso: {
         Args: { p_clave: string; p_persona: string }
         Returns: boolean
@@ -7896,6 +7949,15 @@ export type Database = {
       reordenar_plantilla_base: {
         Args: { p_ids: string[] }
         Returns: undefined
+      }
+      rol_puedo_asignar: { Args: { p_rol: string }; Returns: boolean }
+      roles_guardar: {
+        Args: { p_areas: string[]; p_permisos: string[]; p_rol: string }
+        Returns: Json
+      }
+      roles_vista_previa: {
+        Args: { p_areas: string[]; p_permisos: string[]; p_rol: string }
+        Returns: Json
       }
       supervision_mover_equipo: {
         Args: {

@@ -33,6 +33,8 @@ export interface PermisoCatalogo {
   ayuda?: string
   /** Sección del menú (pantallas de Administración), para agrupar en el editor. */
   seccion?: string
+  /** Pantalla que la base solo deja usar a Admin: se ve en los editores, no se da. */
+  soloAdmin?: boolean
 }
 
 /** Clave de la pantalla de un módulo de MODULOS. */
@@ -46,6 +48,7 @@ const PANTALLAS: PermisoCatalogo[] = MODULOS.map(m => ({
   area: m.key === 'tareas' ? null : 'administracion',
   nombre: m.label,
   seccion: m.section,
+  soloAdmin: m.soloAdmin === true,
 }))
 
 export const ACCIONES = {
