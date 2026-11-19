@@ -1,21 +1,30 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
-import RolesClient from './RolesClient'
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES, esArea, type Area } from '@/lib/permisos/catalogo'
+import RolesClient, { type RolEditable } from './RolesClient'
 
 export const metadata = { title: 'Roles | YA! Chipacitos' }
 
 export default async function RolesPage() {
-  const supabase = await createClient()
-  const [{ data: roles }, { data: perfiles }] = await Promise.all([
+  const { supabase, acceso } = await cargarAcceso()
+  const [{ data: roles }, { data: perfiles }, { data: areas }, { data: permisos }] = await Promise.all([
     supabase.from('roles').select('*').order('created_at'),
-    supabase.from('profiles').select('rol'),
+    supabase.from('profiles').select('id, nombre, rol').eq('estado', 'activo').order('nombre'),
+    supabase.from('rol_areas').select('rol_key, area'),
+    supabase.from('rol_permisos').select('rol_key, permiso'),
   ])
 
-  const usuariosPorRol: Record<string, number> = {}
-  for (const p of perfiles || []) {
-    usuariosPorRol[p.rol] = (usuariosPorRol[p.rol] || 0) + 1
-  }
+  const lista: RolEditable[] = (roles ?? []).map(r => ({
+    key: r.key,
+    nombre: r.nombre,
+    color: r.color,
+    es_sistema: r.es_sistema,
+    areas: (areas ?? []).filter(a => a.rol_key === r.key).map(a => a.area).filter(esArea) as Area[],
+    permisos: (permisos ?? []).filter(p => p.rol_key === r.key).map(p => p.permiso),
+    personas: (perfiles ?? []).filter(p => p.rol === r.key).map(p => p.nombre),
+  }))
 
-  return <RolesClient rolesIniciales={roles || []} usuariosPorRol={usuariosPorRol} />
+  return <RolesClient rolesIniciales={lista} puedeGestionar={puede(acceso, ACCIONES.gestionarUsuarios)} />
 }

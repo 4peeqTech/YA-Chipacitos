@@ -31,7 +31,7 @@ select json_build_object(
   'ajustes', (select coalesce(json_agg(json_build_object('persona', persona_id, 'permiso', permiso, 'efecto', efecto)), '[]') from persona_permisos),
   'sucursales', (select coalesce(json_agg(json_build_object('persona', persona_id, 'local', local_config_id)), '[]') from persona_sucursales),
   'cuentas', (select coalesce(json_agg(json_build_object('local', id, 'cuenta', cuenta_local_id)), '[]') from locales_config where cuenta_local_id is not null),
-  'catalogo', (select json_agg(json_build_object('clave', clave, 'tipo', tipo, 'area', area, 'nombre', nombre)) from permisos_catalogo)
+  'catalogo', (select json_agg(json_build_object('clave', clave, 'tipo', tipo, 'area', area, 'nombre', nombre, 'solo_admin', (to_jsonb(c) ->> 'solo_admin')::boolean)) from permisos_catalogo c)
 ) as r;`
 
 interface Datos {
@@ -41,7 +41,8 @@ interface Datos {
   ajustes: { persona: string; permiso: string; efecto: AjustePersona['efecto'] }[]
   sucursales: { persona: string; local: string }[]
   cuentas: { local: string; cuenta: string }[]
-  catalogo: { clave: string; tipo: string; area: string | null; nombre: string }[]
+  /** solo_admin: null en una base sin la migración de los editores (T5/T6). */
+  catalogo: { clave: string; tipo: string; area: string | null; nombre: string; solo_admin: boolean | null }[]
 }
 
 function consultar(): Datos {
@@ -67,6 +68,7 @@ for (const c of CATALOGO) {
   const b = enBase.get(c.clave)
   if (!b) problemas.push(`catálogo: falta ${c.clave} en la base`)
   else if (b.tipo !== c.tipo || (b.area ?? null) !== c.area || b.nombre !== c.nombre) problemas.push(`catálogo: ${c.clave} distinto en la base`)
+  else if (b.solo_admin !== null && b.solo_admin !== (c.soloAdmin === true)) problemas.push(`catálogo: ${c.clave} con otra marca "solo Admin" en la base`)
 }
 for (const b of d.catalogo) if (!CATALOGO.some(c => c.clave === b.clave)) problemas.push(`catálogo: ${b.clave} sobra en la base`)
 

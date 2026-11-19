@@ -21,12 +21,12 @@ const CreateUserSchema = z.object({
 // variantes no funciona en Zod v4: una key realmente ausente del body
 // no satisface z.undefined(), así que esa key se reporta como inválida
 // en TODAS las variantes y el union entero falla con "Invalid input".
+// El rol, los ajustes y las sucursales se guardan desde la ficha con
+// persona_guardar_acceso (valida y deja historial), no por acá.
 const PatchSchema = z.union([
-  z.object({ id: z.string().uuid(), rol: z.string().min(1) }),
   z.object({ id: z.string().uuid(), password: z.string().min(6) }),
   z.object({ id: z.string().uuid(), whatsapp_phone: z.string().nullable(), whatsapp_apikey: z.string().nullable() }),
   z.object({ id: z.string().uuid(), nombre_posberry: z.string().nullable() }),
-  z.object({ id: z.string().uuid(), modulos_permitidos: z.array(z.string()) }),
 ])
 
 const EditUserSchema = z.object({
@@ -60,6 +60,10 @@ export async function POST(req: NextRequest) {
   }
   const { email, password, nombre, rol, local_nombre } = parsed.data
 
+  // Nadie da lo que no tiene: el rol entero tiene que estar dentro de lo suyo.
+  const { data: puedeAsignar } = await supabase.rpc('rol_puedo_asignar', { p_rol: rol })
+  if (!puedeAsignar) return NextResponse.json({ error: 'No podés dar ese rol: trae áreas o permisos que no tenés' }, { status: 403 })
+
   const adminClient = getAdminClient()
   const { data: newUser, error: authError } = await adminClient.auth.admin.createUser({
     email,
@@ -71,13 +75,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: authError?.message || 'Error al crear auth' }, { status: 400 })
   }
 
-  // Squad arranca con acceso a Tareas por defecto — es el módulo base de ese rol.
-  const modulosPermitidos = rol === 'squad' ? ['tareas'] : []
-
+  // Las pantallas y acciones vienen del rol (rol_permisos); los ajustes se hacen en la ficha.
   const { data: newProfile, error: profileError } = await adminClient
     .from('profiles')
-    .insert({ id: newUser.user.id, nombre, rol, local_nombre: local_nombre || null, modulos_permitidos: modulosPermitidos })
-    .select()
+    .insert({ id: newUser.user.id, nombre, rol, local_nombre: local_nombre || null })
+    .select('id, nombre, rol, local_nombre, nombre_posberry, created_at')
     .single()
 
   if (profileError) {
@@ -85,7 +87,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: profileError.message }, { status: 400 })
   }
 
-  return NextResponse.json({ profile: newProfile })
+  // Una cuenta de local queda vinculada a su sucursal (por nombre; si no existe, se crea).
+  let sucursales: string[] = []
+  if (rol === 'local') {
+    const { error: vinculoError } = await adminClient.rpc('_permisos_vincular_cuenta_local', { p_persona: newUser.user.id })
+    if (vinculoError) console.error(vinculoError)
+    const { data } = await adminClient.from('persona_sucursales').select('local_config_id').eq('persona_id', newUser.user.id)
+    sucursales = (data ?? []).map(s => s.local_config_id)
+  }
+
+  return NextResponse.json({ profile: newProfile, sucursales })
 }
 
 export async function PATCH(req: NextRequest) {
@@ -120,13 +131,8 @@ export async function PATCH(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
   }
-  const { id, rol, password, whatsapp_phone, whatsapp_apikey, nombre_posberry, modulos_permitidos } = parsed.data as {
-    id: string; rol?: string; password?: string; whatsapp_phone?: string | null; whatsapp_apikey?: string | null; nombre_posberry?: string | null; modulos_permitidos?: string[]
-  }
-
-  // Evitar que admin se cambie su propio rol
-  if (rol && id === user.id) {
-    return NextResponse.json({ error: 'No podés cambiar tu propio rol' }, { status: 403 })
+  const { id, password, whatsapp_phone, whatsapp_apikey, nombre_posberry } = parsed.data as {
+    id: string; password?: string; whatsapp_phone?: string | null; whatsapp_apikey?: string | null; nombre_posberry?: string | null
   }
 
   // Resetear contraseña
@@ -144,23 +150,8 @@ export async function PATCH(req: NextRequest) {
   }
 
   // Actualizar nombre_posberry
-  if (nombre_posberry !== undefined) {
-    const { error } = await adminClient.from('profiles').update({ nombre_posberry }).eq('id', id)
-    if (error) { console.error(error); return NextResponse.json({ error: 'No se pudo guardar el nombre de Posberry' }, { status: 400 }) }
-    return NextResponse.json({ ok: true })
-  }
-
-  // Actualizar módulos permitidos
-  if (modulos_permitidos !== undefined) {
-    const { error } = await adminClient.from('profiles').update({ modulos_permitidos }).eq('id', id)
-    if (error) { console.error(error); return NextResponse.json({ error: 'No se pudieron guardar los módulos permitidos' }, { status: 400 }) }
-    return NextResponse.json({ ok: true })
-  }
-
-  // Cambiar rol
-  const { error } = await adminClient.from('profiles').update({ rol }).eq('id', id)
-  if (error) { console.error(error); return NextResponse.json({ error: 'No se pudo cambiar el rol' }, { status: 400 }) }
-
+  const { error } = await adminClient.from('profiles').update({ nombre_posberry }).eq('id', id)
+  if (error) { console.error(error); return NextResponse.json({ error: 'No se pudo guardar el nombre de Posberry' }, { status: 400 }) }
   return NextResponse.json({ ok: true })
 }
 
