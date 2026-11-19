@@ -1,4 +1,3 @@
-import { esRolConModulos } from '@/lib/modulos'
 import { ESTADOS } from '@/lib/estados'
 import type { Area, Bloque, Novedad, SeccionManual } from './tipos'
 import { local } from './secciones/local'
@@ -36,13 +35,17 @@ export const AREAS: { key: Area; titulo: string }[] = [
 
 export interface Lector {
   rol: string
+  esAdmin: boolean
+  /** Tiene el área Administración (los "colaboradores": roles con pantallas). */
+  administracion: boolean
+  /** Claves de las pantallas que puede abrir. */
   modulos: string[]
 }
 
-export function puedeVer(seccion: SeccionManual, { rol, modulos }: Lector): boolean {
-  if (rol === 'admin') return true
+export function puedeVer(seccion: SeccionManual, { rol, esAdmin, administracion, modulos }: Lector): boolean {
+  if (esAdmin) return true
   if (seccion.roles.includes(rol as SeccionManual['roles'][number])) return true
-  if (esRolConModulos(rol)) {
+  if (administracion) {
     if (seccion.roles.includes('colaborador')) return true
     return seccion.modulos.some(m => modulos.includes(m))
   }

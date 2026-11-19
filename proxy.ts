@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { getRoleHome, getModuloPorPath, MODULOS, esRolConModulos, moduloPermitido } from '@/lib/modulos'
+import { accesoDesdeRpc, homeDe, puedeEntrarRuta } from '@/lib/permisos/acceso'
 import { verificarEntorno } from '@/lib/entorno'
 
 export async function proxy(request: NextRequest) {
@@ -71,33 +71,24 @@ export async function proxy(request: NextRequest) {
       return supabaseResponse
     }
 
+    // Acceso efectivo (áreas, pantallas, acciones) calculado por la base: misma
+    // regla que sus reglas. Épica roles y permisos, T3.
+    const cargarAcceso = async () => {
+      const { data, error } = await supabase.rpc('mi_acceso')
+      return error ? null : accesoDesdeRpc(data)
+    }
+
     if (pathname === '/') {
       if (user) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('rol, modulos_permitidos')
-          .eq('id', user.id)
-          .single()
-
-        if (profileError) {
-          return NextResponse.redirect(new URL('/login', request.url))
-        }
-
-        let dest = profile?.rol ? getRoleHome(profile.rol) : '/login'
-        // Squad y roles personalizados no tienen un home fijo: depende de
-        // qué módulos tienen asignados.
-        if (esRolConModulos(profile?.rol)) {
-          const modulosPermitidos: string[] = profile?.modulos_permitidos || []
-          const primerModulo = MODULOS.find(m => !m.oculto && modulosPermitidos.includes(m.key))
-          dest = primerModulo?.href || '/ayuda'
-        }
-        return NextResponse.redirect(new URL(dest || '/login', request.url))
+        const acceso = await cargarAcceso()
+        return NextResponse.redirect(new URL(acceso ? homeDe(acceso) : '/login', request.url))
       }
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
     if (pathname === '/login') {
-      if (user) {
+      // Con sesión pero sin acceso (persona inactiva) se queda en el login: si no, / y /login se rebotan.
+      if (user && (await cargarAcceso())) {
         return NextResponse.redirect(new URL('/', request.url))
       }
       return supabaseResponse
@@ -107,62 +98,19 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('rol, modulos_permitidos')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError) {
+    const acceso = await cargarAcceso()
+    if (!acceso) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    const rol = profile?.rol
-    const modulosPermitidos: string[] = profile?.modulos_permitidos || []
-
-    // /tareas es transversal a todos los roles: el acceso real lo decide
-    // modulos_permitidos (o ser admin), no el rol en sí.
-    if (pathname.startsWith('/tareas')) {
-      if (rol !== 'admin' && !modulosPermitidos.includes('tareas')) {
-        return NextResponse.redirect(new URL(rol ? getRoleHome(rol) : '/login', request.url))
-      }
-      return supabaseResponse
-    }
-
-    const rolRoutes: Record<string, string[]> = {
-      local: ['/local', '/ayuda'],
-      deposito: ['/deposito', '/ayuda'],
-      supervisor_fabrica: ['/fabrica', '/ayuda'],
-      mayorista: ['/mayorista', '/ayuda'],
-      // /mayorista es solo del mayorista (26-10): el admin consulta los pedidos en /admin/pedidos.
-      admin: ['/admin', '/local', '/deposito', '/fabrica', '/ayuda'],
-    }
-
-    if (rol) {
-      // Squad y roles personalizados: mismo árbol de rutas que admin
-      // dentro de /admin, pero sin acceso a los portales operativos.
-      const allowed = rolRoutes[rol] || (esRolConModulos(rol) ? ['/admin', '/ayuda'] : [])
-      const hasAccess = allowed.some((r) => pathname.startsWith(r))
-      if (!hasAccess) {
-        return NextResponse.redirect(new URL(getRoleHome(rol), request.url))
-      }
-
-      // Squad y roles personalizados: dentro de /admin/*, solo pueden
-      // entrar a los módulos que tienen asignados en modulos_permitidos.
-      if (esRolConModulos(rol) && pathname.startsWith('/admin')) {
-        const modulo = getModuloPorPath(pathname)
-        if (!moduloPermitido(pathname, modulosPermitidos)) {
-          const primerModulo = MODULOS.find(m => !m.oculto && modulosPermitidos.includes(m.key))
-          // Si no tiene NINGÚN módulo asignado, '/ayuda' es la única ruta
-          // permitida sin permisos — evita un loop con /login.
-          const destino = new URL(primerModulo?.href || '/ayuda', request.url)
-          // El rebote es invisible sin esto: el usuario abre un link (una
-          // notificación, por ejemplo) y aparece en otra pantalla sin saber por
-          // qué. `sinAcceso` lo cuenta con un toast (ver AvisoRedireccion).
-          destino.searchParams.set('sinAcceso', modulo?.label ?? 'esa pantalla')
-          return NextResponse.redirect(destino)
-        }
-      }
+    const decision = puedeEntrarRuta(acceso, pathname)
+    if (!decision.ok) {
+      const destino = new URL(decision.destino, request.url)
+      // El rebote es invisible sin esto: el usuario abre un link (una
+      // notificación, por ejemplo) y aparece en otra pantalla sin saber por
+      // qué. `sinAcceso` lo cuenta con un toast (ver AvisoRedireccion).
+      if (decision.sinAcceso) destino.searchParams.set('sinAcceso', decision.sinAcceso)
+      return NextResponse.redirect(destino)
     }
 
     return supabaseResponse

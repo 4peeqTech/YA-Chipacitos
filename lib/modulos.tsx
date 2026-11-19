@@ -24,10 +24,9 @@ export interface Modulo {
   oculto?: boolean
 }
 
-// Registro único de módulos asignables. Lo usan el Sidebar (navegación),
-// el guard de acceso de /admin/* para el rol squad, y el editor de
-// permisos en Usuarios. Admin siempre tiene acceso a todos, sin mirar
-// modulos_permitidos.
+// Registro único de pantallas de Administración. Lo usan el Sidebar
+// (navegación), el catálogo de permisos (lib/permisos/catalogo: cada módulo es
+// una pantalla) y el guard de /admin/* (lib/permisos/acceso, puedeEntrarRuta).
 export const MODULOS: Modulo[] = [
   { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, href: '/admin/dashboard' },
 
@@ -90,54 +89,5 @@ export function getModuloPorPath(pathname: string): Modulo | undefined {
     .sort((a, b) => b.href.length - a.href.length)[0]
 }
 
-// Roles operativos: tienen su propio árbol de rutas (/local, /deposito,
-// /fabrica) y no pueden borrarse ni cambiar de key (ver tabla `roles`,
-// columna es_sistema). No todos nacieron como roles de sistema fijos:
-// `mayorista` es un rol dinámico (creado desde /admin/roles) al que se
-// le da este mismo trato de ruta fija y se protege con es_sistema=true
-// igual que los demás. Cualquier otro rol —squad o uno creado a mano—
-// entra al panel /admin/* y su acceso a módulos depende de
-// profiles.modulos_permitidos, igual que ya funciona para squad hoy.
-export const ROLES_OPERATIVOS = ['local', 'deposito', 'supervisor_fabrica', 'mayorista'] as const
-
-export function esRolConModulos(rol: string | null | undefined): boolean {
-  return !!rol && rol !== 'admin' && !ROLES_OPERATIVOS.includes(rol as typeof ROLES_OPERATIVOS[number])
-}
-
-/**
- * Si un rol con módulos (squad o personalizado) puede entrar a un pathname de
- * /admin/*: el módulo tiene que estar asignado y no ser solo de admin. Es el
- * chequeo de proxy.ts; los links entre pantallas (LinkEntidad) lo usan para no
- * ofrecer un salto que el proxy rebotaría.
- */
-export function moduloPermitido(pathname: string, modulosPermitidos: string[]): boolean {
-  const modulo = getModuloPorPath(pathname)
-  return !!modulo && !modulo.soloAdmin && modulosPermitidos.includes(modulo.key)
-}
-
-/** Si el usuario puede abrir ese pathname de /admin/*. Admin entra a todo. */
-export function puedeEntrarAdmin(pathname: string, rol: string | null | undefined, modulosPermitidos: string[]): boolean {
-  if (rol === 'admin') return true
-  if (!esRolConModulos(rol)) return false
-  return moduloPermitido(pathname, modulosPermitidos)
-}
-
-/**
- * Módulos que dan acceso a Compras. Replica tiene_acceso_compras() en SQL
- * (desde 20261005160000, sin fabrica-conteos: ese módulo solo lee conteos).
- */
+/** Pantallas que dan acceso a Compras: el mismo criterio que tiene_acceso_compras() en SQL. */
 export const MODULOS_COMPRAS = ['compras-insumos', 'compras-stock', 'compras-pedidos', 'compras-reportes'] as const
-
-/** Mismo criterio que tiene_acceso_compras(): admin, o algún módulo de Compras. */
-export function tieneAccesoCompras(rol: string | null | undefined, modulosPermitidos: string[] | null | undefined): boolean {
-  if (rol === 'admin') return true
-  return (modulosPermitidos ?? []).some(m => (MODULOS_COMPRAS as readonly string[]).includes(m))
-}
-
-export function getRoleHome(rol: string | null | undefined): string {
-  if (rol === 'local') return '/local/pedidos'
-  if (rol === 'deposito') return '/deposito/pedidos'
-  if (rol === 'supervisor_fabrica') return '/fabrica/registro'
-  if (rol === 'mayorista') return '/mayorista/pedidos'
-  return '/admin/dashboard' // admin, squad, o cualquier rol personalizado
-}

@@ -1,3 +1,6 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { PESTANAS_INSUMO } from '@/lib/compras/rutas'
@@ -11,13 +14,13 @@ export default async function StockPage({
   searchParams: Promise<{ insumo?: string; pestana?: string; bajo?: string }>
 }) {
   const supabase = await createClientTipado()
+  const { acceso } = await cargarAcceso()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { insumo, pestana, bajo } = await searchParams
 
-  const [{ data: perfil }, { data: items }, { data: stock }, { data: difs }] = await Promise.all([
-    supabase.from('profiles').select('rol').eq('id', user.id).single(),
+  const [{ data: items }, { data: stock }, { data: difs }] = await Promise.all([
     // A2a: también los archivados (se listan si tienen stock ≠ 0, y su ?insumo= abre la ficha).
     supabase.from('compras_items').select('id, nombre, unidad, stock_minimo, estado, unidad_base, cantidad_por_unidad').order('nombre'),
     supabase.from('v_compras_stock_actual').select('item_id, cantidad, actualizado_en, actualizado_por_nombre'),
@@ -53,7 +56,7 @@ export default async function StockPage({
       stock={stock ?? []}
       insumoInicial={insumo}
       pestanaInicial={PESTANAS_INSUMO.find(p => p === pestana) ?? 'stock'}
-      esAdmin={perfil?.rol === 'admin'}
+      verPlata={puede(acceso, ACCIONES.verPlataCompras)}
       conteosConDiferencias={conteosConDiferencias}
       soloBajoInicial={bajo === '1'}
     />

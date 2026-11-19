@@ -1,3 +1,6 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -5,8 +8,8 @@ async function requireAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { supabase, error: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) }
-  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') return { supabase, error: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
+  const { acceso } = await cargarAcceso()
+  if (!puede(acceso, ACCIONES.gestionarUsuarios)) return { supabase, error: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
   return { supabase, error: null }
 }
 

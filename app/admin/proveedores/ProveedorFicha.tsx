@@ -32,9 +32,9 @@ interface Datos {
 }
 type Clave = keyof Datos
 
-const NECESITA: Record<PestanaProveedor, (esAdmin: boolean) => Clave[]> = {
+const NECESITA: Record<PestanaProveedor, (verPlata: boolean) => Clave[]> = {
   pedidos: () => ['pedidos'],
-  remitos: esAdmin => (esAdmin ? ['remitos', 'facturas'] : ['remitos']),
+  remitos: verPlata => (verPlata ? ['remitos', 'facturas'] : ['remitos']),
   cuenta: () => ['facturas'],
   insumos: () => ['insumos'],
 }
@@ -53,7 +53,7 @@ export default function ProveedorFicha({
   insumosActivos,
   pedidosAbiertos,
   localesFacturacion,
-  esAdmin,
+  verPlata,
   diasDemora,
   onEditar,
   onEliminado,
@@ -64,7 +64,7 @@ export default function ProveedorFicha({
   insumosActivos: number
   pedidosAbiertos: number
   localesFacturacion: LocalFacturacion[]
-  esAdmin: boolean
+  verPlata: boolean
   diasDemora?: number
   onEditar: () => void
   onEliminado: () => void
@@ -79,7 +79,7 @@ export default function ProveedorFicha({
   const [pendiente, startTransition] = useTransition()
   const [accion, setAccion] = useState<'archivar' | 'eliminar' | null>(null)
 
-  const inicial: PestanaProveedor = pestanaInicial === 'cuenta' && !esAdmin ? 'pedidos' : pestanaInicial ?? 'pedidos'
+  const inicial: PestanaProveedor = pestanaInicial === 'cuenta' && !verPlata ? 'pedidos' : pestanaInicial ?? 'pedidos'
   const [activa, setActiva] = useState<PestanaProveedor>(inicial)
 
   // ---- Datos de las pestañas: cada clave se pide una sola vez por apertura.
@@ -100,7 +100,7 @@ export default function ProveedorFicha({
         const { data, error } = await consultarPedidosDe(supabase, id)
         if (error) throw error
         const ids = data.map(p => p.id)
-        const facturas = esAdmin && ids.length ? (await consultarFacturasDe(supabase, ids)).data ?? [] : []
+        const facturas = verPlata && ids.length ? (await consultarFacturasDe(supabase, ids)).data ?? [] : []
         return { filas: data, facturas }
       },
       remitos: async () => {
@@ -119,7 +119,7 @@ export default function ProveedorFicha({
         return data
       },
     }
-    for (const clave of NECESITA[activa](esAdmin)) {
+    for (const clave of NECESITA[activa](verPlata)) {
       if (pedidas.current.has(clave)) continue
       pedidas.current.add(clave)
       cargadores[clave]().then(
@@ -127,7 +127,7 @@ export default function ProveedorFicha({
         () => { if (montada.current) setErrores(e => ({ ...e, [clave]: 'No se pudo cargar. Cerrá la ficha y volvé a abrirla.' })) },
       )
     }
-  }, [activa, esAdmin, id, supabase])
+  }, [activa, verPlata, id, supabase])
 
   // ---- Impacto: arma los diálogos de archivar y eliminar.
   const [impacto, setImpacto] = useState<{ datos: ImpactoProveedor; en: number } | null>(null)
@@ -249,8 +249,8 @@ export default function ProveedorFicha({
 
   const pestanas: (Pestana & { id: PestanaProveedor })[] = [
     { id: 'pedidos', label: 'Pedidos', icon: <ClipboardList size={14} />, contador: pedidosAbiertos },
-    { id: 'remitos', label: esAdmin ? 'Remitos y facturas' : 'Remitos', icon: <Truck size={14} /> },
-    ...(esAdmin ? [{ id: 'cuenta' as const, label: 'Cuenta', icon: <Wallet size={14} /> }] : []),
+    { id: 'remitos', label: verPlata ? 'Remitos y facturas' : 'Remitos', icon: <Truck size={14} /> },
+    ...(verPlata ? [{ id: 'cuenta' as const, label: 'Cuenta', icon: <Wallet size={14} /> }] : []),
     { id: 'insumos', label: 'Insumos', icon: <Package size={14} />, contador: insumosActivos },
   ]
 
@@ -259,21 +259,21 @@ export default function ProveedorFicha({
   const ocupado = pendiente || accion != null
 
   function panel(clave: PestanaProveedor): ReactNode {
-    const faltan = NECESITA[clave](esAdmin)
+    const faltan = NECESITA[clave](verPlata)
     const error = faltan.map(k => errores[k]).find(Boolean)
     switch (clave) {
       case 'pedidos':
         if (errores.pedidos) return <ErrorCarga mensaje={errores.pedidos} />
-        return datos.pedidos ? <PanelPedidos pedidos={datos.pedidos.filas} facturas={datos.pedidos.facturas} esAdmin={esAdmin} diasDemora={diasDemora} /> : <Cargando />
+        return datos.pedidos ? <PanelPedidos pedidos={datos.pedidos.filas} facturas={datos.pedidos.facturas} verPlata={verPlata} diasDemora={diasDemora} /> : <Cargando />
       case 'remitos':
         if (errores.remitos) return <ErrorCarga mensaje={errores.remitos} />
-        return datos.remitos ? <PanelRemitos remitos={datos.remitos} facturas={datos.facturas} esAdmin={esAdmin} errorFacturas={errores.facturas} /> : <Cargando />
+        return datos.remitos ? <PanelRemitos remitos={datos.remitos} facturas={datos.facturas} verPlata={verPlata} errorFacturas={errores.facturas} /> : <Cargando />
       case 'cuenta':
         if (error) return <ErrorCarga mensaje={error} />
         return datos.facturas ? <PanelCuenta facturas={datos.facturas} /> : <Cargando />
       case 'insumos':
         if (error) return <ErrorCarga mensaje={error} />
-        return datos.insumos ? <PanelInsumos insumos={datos.insumos} esAdmin={esAdmin} /> : <Cargando />
+        return datos.insumos ? <PanelInsumos insumos={datos.insumos} verPlata={verPlata} /> : <Cargando />
     }
   }
 

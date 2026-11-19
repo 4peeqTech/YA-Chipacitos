@@ -1,3 +1,6 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { aEstadoFacturacion, aEstadoRecepcion } from '@/lib/compras/estadoPedido'
@@ -23,8 +26,8 @@ export default async function ReportesPage({
   if (!user) redirect('/login')
 
   // El gasto sale de las facturas (F5), que solo ve un administrador (P1).
-  const { data: perfil } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  const esAdmin = perfil?.rol === 'admin'
+  const { acceso } = await cargarAcceso()
+  const verPlata = puede(acceso, ACCIONES.verPlataCompras)
 
   // B3: el período se filtra en la base, no en el navegador (los movimientos
   // crecen rápido). Los timestamptz se cortan por día UTC, como hacía el
@@ -92,7 +95,7 @@ export default async function ReportesPage({
   // El Historial muestra lo facturado de cada pedido del período, aunque la
   // factura sea de otra fecha.
   const pedidoIds = (pedidos ?? []).map(p => p.id)
-  const facturasDePedidos: FacturaReporte[] = esAdmin
+  const facturasDePedidos: FacturaReporte[] = verPlata
     ? (await Promise.all(
         Array.from({ length: Math.ceil(pedidoIds.length / TANDA) }, (_, i) =>
           supabase.from('v_compras_facturas').select(COLUMNAS_FACTURA).eq('estado', 'confirmada')
@@ -147,7 +150,7 @@ export default async function ReportesPage({
       stockMinimoPorItem={stockMinimoPorItem}
       facturas={facturas ?? []}
       facturasDePedidos={facturasDePedidos}
-      esAdmin={esAdmin}
+      verPlata={verPlata}
     />
   )
 }

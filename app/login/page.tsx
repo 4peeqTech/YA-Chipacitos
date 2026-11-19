@@ -4,7 +4,6 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { getRoleHome } from '@/lib/modulos'
 import { BadgeEntorno } from '@/components/ui/Badge'
 
 export default function LoginPage() {
@@ -30,13 +29,8 @@ export default function LoginPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('rol')
-      .eq('id', user.id)
-      .single()
-
-    router.push(profile?.rol ? getRoleHome(profile.rol) : '/')
+    // El inicio de cada persona lo decide proxy.ts con su acceso (áreas y pantallas).
+    router.push('/')
     router.refresh()
   }
 

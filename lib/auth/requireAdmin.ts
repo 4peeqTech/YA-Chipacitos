@@ -1,7 +1,9 @@
-import { requireRolApi } from './requireRol'
+import { exigirApi } from '@/lib/permisos/servidor'
 
-/** Copiado antes en ~10 API routes (ver ARQUITECTURA.md §8, Q4) — extraído acá.
- * Ahora es un caso particular de requireRol(['admin']). */
+/**
+ * Rutas API "solo Admin": lo que todavía no es una acción del catálogo de
+ * permisos (épica roles y permisos, T3) y la base también reserva con es_admin().
+ */
 export async function requireAdmin() {
-  return requireRolApi(['admin'], 'Solo un administrador puede hacer esto')
+  return exigirApi('admin', 'Solo un administrador puede hacer esto')
 }

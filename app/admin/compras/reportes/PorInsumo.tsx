@@ -52,7 +52,7 @@ function pesosCortos(n: number): string {
  * de cada insumo en el período, con CSV. Calcula en el navegador con la función
  * compras_trazabilidad_insumo (acotada por período). Un no admin no ve pesos.
  */
-export default function PorInsumo({ rango, esAdmin }: { rango: RangoFechas; esAdmin: boolean }) {
+export default function PorInsumo({ rango, verPlata }: { rango: RangoFechas; verPlata: boolean }) {
   const toast = useToast()
   const supabase = useMemo(() => createClient(), [])
   const clave = `${rango.desde}|${rango.hasta}`
@@ -80,8 +80,8 @@ export default function PorInsumo({ rango, esAdmin }: { rango: RangoFechas; esAd
   const todas = useMemo(() => {
     const filas = datos?.filas ?? []
     // Orden por defecto: admin por neto (ya viene así), no admin por recibido.
-    return esAdmin ? filas : [...filas].sort((a, b) => b.t.recibido.cantidad - a.t.recibido.cantidad)
-  }, [datos, esAdmin])
+    return verPlata ? filas : [...filas].sort((a, b) => b.t.recibido.cantidad - a.t.recibido.cantidad)
+  }, [datos, verPlata])
   const categorias = useMemo(() => categoriasReporte(todas), [todas])
   const filtradas = useMemo(
     () => filtrarReporte(todas, { texto, categoria: categoria === TODAS ? null : categoria }),
@@ -98,7 +98,7 @@ export default function PorInsumo({ rango, esAdmin }: { rango: RangoFechas; esAd
   [filtradas])
 
   function exportar() {
-    descargarCsv(nombreCsv(rango.desde, rango.hasta), cabecerasCsv(esAdmin), filasCsv(filtradas, esAdmin))
+    descargarCsv(nombreCsv(rango.desde, rango.hasta), cabecerasCsv(verPlata), filasCsv(filtradas, verPlata))
   }
 
   const columnas: Columna<FilaReporteInsumo>[] = [
@@ -132,7 +132,7 @@ export default function PorInsumo({ rango, esAdmin }: { rango: RangoFechas; esAd
       render: f => <span className="tabular-nums text-text">{f.recibidoTexto}</span>,
       ordenar: ({ t }) => t.recibido.cantidad,
     },
-    ...(esAdmin ? [
+    ...(verPlata ? [
       {
         key: 'facturado', header: 'Facturado', alinear: 'right', ocultarHasta: 'md',
         render: f => <span className="tabular-nums text-muted">{f.facturadoTexto ?? '—'}</span>,
@@ -182,7 +182,7 @@ export default function PorInsumo({ rango, esAdmin }: { rango: RangoFechas; esAd
 
   return (
     <div className="space-y-4">
-      {!esAdmin && (
+      {!verPlata && (
         <p className="flex items-center gap-2 text-sm text-muted"><Lock size={14} /> Lo facturado y los precios los ve un administrador.</p>
       )}
 
@@ -209,7 +209,7 @@ export default function PorInsumo({ rango, esAdmin }: { rango: RangoFechas; esAd
       )}
 
       {cargando ? (
-        <SkeletonTabla filas={6} columnas={esAdmin ? 5 : 3} />
+        <SkeletonTabla filas={6} columnas={verPlata ? 5 : 3} />
       ) : datos?.error ? (
         <div className="overflow-hidden rounded-2xl border border-border">
           <EmptyState icono={ShoppingBasket} titulo="No se pudo cargar el reporte" descripcion={datos.error} />
@@ -222,7 +222,7 @@ export default function PorInsumo({ rango, esAdmin }: { rango: RangoFechas; esAd
         </div>
       ) : (
         <>
-          {esAdmin && top.length >= 2 && (
+          {verPlata && top.length >= 2 && (
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Top {top.length} por pesos facturados (neto)</p>
               <ResponsiveContainer width="100%" height={Math.max(200, top.length * 34 + 40)}>
@@ -239,7 +239,7 @@ export default function PorInsumo({ rango, esAdmin }: { rango: RangoFechas; esAd
           <DataTable filas={filtradas} columnas={columnas} filaKey={f => f.t.itemId} />
           <p className="text-sm text-muted tabular-nums">
             {totales.insumos === 1 ? '1 insumo' : `${totales.insumos} insumos`}
-            {esAdmin && <> · Neto {formatearMoneda(totales.neto)} · Total con IVA {formatearMoneda(totales.total)}</>}
+            {verPlata && <> · Neto {formatearMoneda(totales.neto)} · Total con IVA {formatearMoneda(totales.total)}</>}
           </p>
         </>
       )}

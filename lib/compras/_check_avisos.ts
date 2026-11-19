@@ -16,11 +16,12 @@ const fila = (p: Partial<FilaAviso>): FilaAviso => ({
 })
 
 const perfiles: PerfilAviso[] = [
-  { id: 'admin1', rol: 'admin', modulos_permitidos: null },
-  { id: 'admin2', rol: 'admin', modulos_permitidos: [] },
-  { id: 'pedidos', rol: 'squad', modulos_permitidos: ['compras-pedidos'] },
-  { id: 'stock', rol: 'squad', modulos_permitidos: ['compras-stock'] },
-  { id: 'reportes', rol: 'squad', modulos_permitidos: ['compras-reportes', 'dashboard'] },
+  // Admin tiene todos los permisos; los colaboradores, sus pantallas.
+  { id: 'admin1', permisos: ['compras.ver_plata', 'pantalla:compras-pedidos', 'pantalla:compras-stock'] },
+  { id: 'admin2', permisos: ['compras.ver_plata', 'pantalla:compras-pedidos', 'pantalla:compras-stock'] },
+  { id: 'pedidos', permisos: ['pantalla:compras-pedidos'] },
+  { id: 'stock', permisos: ['pantalla:compras-stock'] },
+  { id: 'reportes', permisos: ['pantalla:compras-reportes', 'pantalla:dashboard'] },
 ]
 
 const [demorado] = armarAvisos([fila({})])

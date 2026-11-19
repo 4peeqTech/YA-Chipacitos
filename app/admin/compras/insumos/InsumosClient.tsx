@@ -115,7 +115,7 @@ export default function InsumosClient({
   modosPorItem,
   resumenPorItem,
   enPedidoBase,
-  esAdmin,
+  verPlata,
   insumoInicial,
 }: {
   items: CompraItem[]
@@ -125,7 +125,7 @@ export default function InsumosClient({
   modosPorItem: Record<string, ModoCalculo[]>
   resumenPorItem: Record<string, ResumenInsumo>
   enPedidoBase: string[]
-  esAdmin: boolean
+  verPlata: boolean
   /** A2c: ?insumo= abre el form de ese insumo ("Editar insumo" desde la ficha). */
   insumoInicial?: string
 }) {
@@ -373,7 +373,7 @@ export default function InsumosClient({
         )
       },
     },
-    ...(esAdmin ? [{
+    ...(verPlata ? [{
       key: 'ultimaFactura',
       header: <span className="whitespace-nowrap">Última factura</span>,
       alinear: 'right' as const,

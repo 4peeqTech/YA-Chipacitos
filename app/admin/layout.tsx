@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { exigirArea } from '@/lib/permisos/servidor'
+import { pantallasDe, puedePantalla } from '@/lib/permisos/acceso'
 import { LayoutDashboard, Wallet, BarChart3, RefreshCw, ListTodo, HelpCircle } from 'lucide-react'
 import Header from '@/components/ui/Header'
 import { BadgeEntorno } from '@/components/ui/Badge'
@@ -10,28 +10,20 @@ import NotificationBell from '@/components/ui/NotificationBell'
 import AvisoRedireccion from '@/components/ui/AvisoRedireccion'
 import { ProveedorAcceso } from '@/components/ui/AccesoModulos'
 import { IconClipboardCheck } from '@tabler/icons-react'
-import { esRolConModulos, getModuloPorPath } from '@/lib/modulos'
+import { getModuloPorPath } from '@/lib/modulos'
 
-// El control fino de qué rutas /admin/* puede pisar un usuario squad o de
-// rol personalizado (según modulos_permitidos) vive en proxy.ts, que es
-// el único lugar del árbol de Server Components con acceso al pathname
-// de la request.
+// El control fino de qué pantallas de /admin/* puede abrir cada persona
+// (lib/permisos/acceso, puedeEntrarRuta) vive en proxy.ts, que es el único
+// lugar del árbol de Server Components con acceso al pathname de la request.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, acceso } = await exigirArea('administracion')
 
-  const { data: profile } = await supabase
-    .from('profiles').select('nombre, rol, modulos_permitidos, roles(nombre)').eq('id', user.id).single()
-
-  if (!profile) redirect('/login')
-  if (profile.rol !== 'admin' && !esRolConModulos(profile.rol)) redirect('/login')
-
-  const rolLabel = (profile.roles as unknown as { nombre: string } | null)?.nombre || 'Admin'
-  const esSquad = esRolConModulos(profile.rol)
-  const modulosPermitidos: string[] = profile.modulos_permitidos || []
-
-  const tieneTareas = !esSquad || modulosPermitidos.includes('tareas')
+  const { data: perfil } = await supabase.from('profiles').select('roles(nombre)').eq('id', acceso.id).single()
+  const rolLabel = (perfil?.roles as unknown as { nombre: string } | null)?.nombre || 'Admin'
+  // Quien no es admin ve solo sus pantallas (antes: roles con módulos).
+  const conPantallas = !acceso.esAdmin
+  const pantallas = pantallasDe(acceso)
+  const tieneTareas = puedePantalla(acceso, 'tareas')
 
   const navBase = [
     { href: '/admin/dashboard',    label: 'Dashboard',       icon: <LayoutDashboard size={20} /> },
@@ -43,8 +35,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // que tienen habilitado (antes veían todo y el proxy los rebotaba). Supervisión
   // va en la barra solo para ellos: el supervisor de locales trabaja desde el teléfono.
   const navItems = [
-    ...(esSquad ? navBase.filter(i => modulosPermitidos.includes(getModuloPorPath(i.href)?.key ?? '')) : navBase),
-    ...(esSquad && modulosPermitidos.includes('supervision')
+    ...(conPantallas ? navBase.filter(i => pantallas.includes(getModuloPorPath(i.href)?.key ?? '')) : navBase),
+    ...(conPantallas && pantallas.includes('supervision')
       ? [{ href: '/admin/supervision', label: 'Supervisión', icon: <IconClipboardCheck size={20} /> }]
       : []),
     ...(tieneTareas ? [{ href: '/tareas', label: 'Tareas', icon: <ListTodo size={20} /> }] : []),
@@ -58,17 +50,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
       {/* Sidebar solo desktop */}
       <Sidebar
-        nombre={profile?.nombre || 'Admin'}
+        nombre={acceso.nombre || 'Admin'}
         rolLabel={rolLabel}
-        modulosPermitidos={esSquad ? modulosPermitidos : undefined}
-        usuarioEmail={user.email}
+        modulosPermitidos={conPantallas ? pantallas : undefined}
+        usuarioEmail={acceso.email}
       />
 
       {/* Contenido principal — empuja a la derecha en desktop */}
       <div className="lg:ml-60 flex flex-col min-h-screen">
         {/* Header solo mobile */}
         <div className="lg:hidden">
-          <Header titulo="YA! Chipacitos" subtitulo={profile?.nombre} rol={profile?.rol} />
+          <Header titulo="YA! Chipacitos" subtitulo={acceso.nombre} rol={acceso.rol} />
         </div>
 
         {/* Header desktop */}
@@ -77,7 +69,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <div className="flex items-center gap-4">
             <NotificationBell />
             <div className="flex items-center gap-3">
-              <span className="text-sm text-[#888]">{profile?.nombre}</span>
+              <span className="text-sm text-[#888]">{acceso.nombre}</span>
               <span className="text-xs bg-[#e8c547]/10 text-[#e8c547] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">{rolLabel}</span>
             </div>
           </div>
@@ -85,7 +77,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
         <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6">
           {/* Los links entre pantallas se apagan si el módulo destino no está permitido */}
-          <ProveedorAcceso rol={profile.rol} modulosPermitidos={modulosPermitidos}>
+          <ProveedorAcceso acceso={acceso}>
             {children}
           </ProveedorAcceso>
         </main>

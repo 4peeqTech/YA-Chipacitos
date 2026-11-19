@@ -1,3 +1,4 @@
+import { accesoDesdeRpc } from '@/lib/permisos/acceso'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   BloqueSupervision, EquipoSupervision, ItemSupervision, LugarSupervision, MovimientoEquipo, ParametroSupervision,
@@ -52,8 +53,9 @@ export async function cargarEquipos(supabase: SupabaseClient) {
   }
 }
 
-/** Nombre del usuario y si es admin (solo admin borra visitas; la RLS lo hace cumplir). */
-export async function cargarUsuario(supabase: SupabaseClient, userId: string) {
-  const { data } = await supabase.from('profiles').select('nombre, rol').eq('id', userId).single()
-  return { nombre: (data?.nombre as string | undefined) ?? '', esAdmin: data?.rol === 'admin' }
+/** Nombre de quien está logueado y si es admin (solo admin borra visitas; la RLS lo hace cumplir). */
+export async function cargarUsuario(supabase: SupabaseClient) {
+  const { data } = await supabase.rpc('mi_acceso')
+  const acceso = accesoDesdeRpc(data)
+  return { nombre: acceso?.nombre ?? '', esAdmin: acceso?.esAdmin ?? false }
 }

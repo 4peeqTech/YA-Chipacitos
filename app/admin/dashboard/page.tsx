@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import Card from '@/components/ui/Card'
 import Link from 'next/link'
-import { tieneAccesoCompras } from '@/lib/modulos'
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { tieneAccesoComprasDe } from '@/lib/permisos/acceso'
 import TableroCompras, { type ResumenTablero } from './TableroCompras'
 
 export default async function AdminDashboard() {
@@ -11,11 +12,8 @@ export default async function AdminDashboard() {
   const hoy = new Date().toISOString().split('T')[0]
 
   // B5: la franja de compras, solo para quien tiene compras (la RPC además lo exige).
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: perfil } = user
-    ? await supabase.from('profiles').select('rol, modulos_permitidos').eq('id', user.id).single()
-    : { data: null }
-  const conCompras = tieneAccesoCompras(perfil?.rol, perfil?.modulos_permitidos)
+  const { acceso } = await cargarAcceso()
+  const conCompras = tieneAccesoComprasDe(acceso)
 
   const [
     { data: ventasHoy },
@@ -75,8 +73,7 @@ export default async function AdminDashboard() {
         <TableroCompras
           resumen={(tablero?.data ?? null) as ResumenTablero | null}
           error={!!tablero?.error}
-          rol={perfil?.rol ?? null}
-          modulosPermitidos={perfil?.modulos_permitidos ?? []}
+          acceso={acceso}
         />
       )}
 

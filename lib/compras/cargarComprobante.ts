@@ -5,7 +5,7 @@ import { armarComprobante, type DatosComprobante } from './comprobanteFactura'
 // Una sola fuente para la imagen (ruta /api/compras/facturas/[id]/comprobante)
 // y el mensaje (server action datosCompartirFactura): no pueden decir cosas
 // distintas. Corre con la sesión del usuario (nada de service role): la vista y
-// las tablas de factura ya filtran con es_admin().
+// las tablas de factura ya filtran con compras.ver_plata.
 
 export type CargaComprobante =
   | { ok: true; data: DatosComprobante }
@@ -15,8 +15,12 @@ export async function cargarComprobante(supabase: SupabaseClient<Database>, fact
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, status: 401, error: 'Iniciá sesión' }
 
-  const { data: perfil } = await supabase.from('profiles').select('rol, nombre').eq('id', user.id).maybeSingle()
-  if (perfil?.rol !== 'admin') return { ok: false, status: 403, error: 'Solo un administrador puede compartir facturas' }
+  // Compartir una factura es mostrar su plata: compras.ver_plata, como la RLS de las tablas.
+  const [{ data: perfil }, { data: verPlata }] = await Promise.all([
+    supabase.from('profiles').select('nombre').eq('id', user.id).maybeSingle(),
+    supabase.rpc('tiene_permiso', { p_clave: 'compras.ver_plata' }),
+  ])
+  if (!perfil || !verPlata) return { ok: false, status: 403, error: 'No tenés permiso para ver la plata de Compras' }
 
   const { data: f, error: errorFactura } = await supabase
     .from('v_compras_facturas')

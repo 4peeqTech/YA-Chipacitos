@@ -1,3 +1,6 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import FacturasClient from './FacturasClient'
@@ -21,8 +24,8 @@ export default async function FacturasPage({
   // Solo admin (P1). La RLS ya devolvería listas vacías, pero una pantalla
   // vacía no explica nada: mejor rebotar a Pedidos con el mismo aviso que usa
   // proxy.ts cuando falta el permiso.
-  const { data: perfil } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (perfil?.rol !== 'admin') redirect('/admin/compras/pedidos?sinAcceso=Facturas')
+  const { acceso } = await cargarAcceso()
+  if (!puede(acceso, ACCIONES.verPlataCompras)) redirect('/admin/compras/pedidos?sinAcceso=Facturas')
 
   const { pedido, factura } = await searchParams
 

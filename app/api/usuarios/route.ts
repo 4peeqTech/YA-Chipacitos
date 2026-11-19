@@ -1,3 +1,6 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
@@ -47,8 +50,8 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const { acceso } = await cargarAcceso()
+  if (!puede(acceso, ACCIONES.gestionarUsuarios)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const body = await req.json()
   const parsed = CreateUserSchema.safeParse(body)
@@ -90,8 +93,8 @@ export async function PATCH(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const { acceso } = await cargarAcceso()
+  if (!puede(acceso, ACCIONES.gestionarUsuarios)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const body = await req.json()
   const adminClient = getAdminClient()
@@ -166,8 +169,8 @@ export async function DELETE(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const { acceso } = await cargarAcceso()
+  if (!puede(acceso, ACCIONES.gestionarUsuarios)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await req.json()
   if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })

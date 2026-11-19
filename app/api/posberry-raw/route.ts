@@ -1,3 +1,4 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { parseFechaSheet, parseNumero } from '@/lib/csvParser'
@@ -10,8 +11,8 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const { acceso } = await cargarAcceso()
+  if (!acceso?.esAdmin) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const apiKey = process.env.GOOGLE_SHEETS_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'Falta GOOGLE_SHEETS_API_KEY' }, { status: 400 })

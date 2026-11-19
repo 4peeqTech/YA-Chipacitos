@@ -20,8 +20,8 @@ function getAdminClient() {
 // POST /api/fabrica/solicitudes/notificar
 // Body: { solicitudId: string }
 // Notifica a todos los usuarios con acceso a Compras (mismo criterio que
-// tiene_acceso_compras() en SQL: rol admin, o algún módulo compras-* en
-// modulos_permitidos) de que hay una solicitud nueva para revisar. El
+// tiene_acceso_compras() en SQL: alguna pantalla de Compras) de que hay una
+// solicitud nueva para revisar. El
 // cliente no elige destinatarios — se resuelven acá con service role,
 // igual que /api/notificaciones/pedidos.
 export async function POST(request: NextRequest) {
@@ -34,13 +34,11 @@ export async function POST(request: NextRequest) {
     if (!solicitudId) return NextResponse.json({ error: 'Falta solicitudId' }, { status: 400 })
 
     const admin = getAdminClient()
-    const { data: destinatarios } = await admin
-      .from('profiles')
-      .select('id')
-      .eq('estado', 'activo')
-      .or(`rol.eq.admin,modulos_permitidos.ov.{${MODULOS_COMPRAS.join(',')}}`)
+    const { data: destinatarios } = await admin.rpc('personas_con_alguno', {
+      p_claves: MODULOS_COMPRAS.map(m => `pantalla:${m}`),
+    })
 
-    const userIds = (destinatarios || []).map(p => p.id)
+    const userIds = (destinatarios ?? []) as string[]
     const resultado = await enviarPush({
       userIds,
       title: '🏭 Nueva solicitud de Fábrica',

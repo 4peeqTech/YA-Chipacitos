@@ -41,16 +41,16 @@ const fecha = (v: string | null) => (v ? formatearFecha(v) : '—')
 export default function HistorialPedidos({
   pedidos,
   facturas,
-  esAdmin,
+  verPlata,
 }: {
   pedidos: PedidoReporte[]
   facturas: FacturaReporte[]
   /** El total facturado es dato de admin (P1): para el resto la columna no se muestra. */
-  esAdmin: boolean
+  verPlata: boolean
 }) {
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
   const filas = calcularHistorialPedidos(pedidos, facturas)
-  const columnas = esAdmin ? 8 : 7
+  const columnas = verPlata ? 8 : 7
 
   if (filas.length === 0) {
     return (
@@ -97,7 +97,7 @@ export default function HistorialPedidos({
                 <th className={th}>Enviado</th>
                 <th className={th}>Último remito</th>
                 <th className={`${th} text-right`}>Remitos</th>
-                {esAdmin && <th className={`${th} text-right`}>Facturado</th>}
+                {verPlata && <th className={`${th} text-right`}>Facturado</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -123,7 +123,7 @@ export default function HistorialPedidos({
                       <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted">{fecha(p.enviadoEn)}</td>
                       <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted">{fecha(p.ultimoRemito)}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-muted">{p.remitosCount}</td>
-                      {esAdmin && (
+                      {verPlata && (
                         <td className={`whitespace-nowrap px-4 py-3 text-right tabular-nums ${p.facturado == null ? 'text-muted' : 'text-text'}`}>
                           {p.facturado == null ? 'Sin facturar' : formatearMonedaExacta(p.facturado)}
                         </td>

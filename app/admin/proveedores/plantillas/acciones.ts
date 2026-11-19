@@ -1,5 +1,6 @@
 'use server'
 
+import { cargarAcceso } from '@/lib/permisos/servidor'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClientTipado } from '@/lib/supabase/server'
@@ -33,8 +34,8 @@ export async function guardarWhatsappAdministracion(numero: string): Promise<Res
     const supabase = await createClientTipado()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return fallo(null, 'Iniciá sesión')
-    const { data: perfil } = await supabase.from('profiles').select('rol').eq('id', user.id).maybeSingle()
-    if (perfil?.rol !== 'admin') return fallo(null, 'Solo un administrador puede cambiar el número.')
+    const { acceso } = await cargarAcceso()
+    if (!acceso?.esAdmin) return fallo(null, 'Solo un administrador puede cambiar el número.')
 
     const { error } = await supabase
       .from('compras_config')

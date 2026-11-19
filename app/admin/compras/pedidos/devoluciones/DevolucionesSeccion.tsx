@@ -24,10 +24,10 @@ function textoNc(d: DevolucionVista): string {
 }
 
 function Tarjeta({
-  d, esAdmin, resaltada, onCargarNc, onAnularNc, onAnular,
+  d, puedeFacturar, resaltada, onCargarNc, onAnularNc, onAnular,
 }: {
   d: DevolucionVista
-  esAdmin: boolean
+  puedeFacturar: boolean
   resaltada: boolean
   onCargarNc: (d: DevolucionVista) => void
   onAnularNc: (d: DevolucionVista) => void
@@ -47,10 +47,10 @@ function Tarjeta({
   const tieneNc = !!d.notaCreditoId
   const items: ItemMenu[] = []
   if (!anulada) {
-    if (esAdmin && d.esperaNotaCredito) items.push({ label: 'Cargar nota de crédito', icono: ReceiptText, onClick: () => onCargarNc(d) })
-    if (esAdmin && tieneNc) items.push({ label: 'Anular nota de crédito', icono: FileX2, onClick: () => onAnularNc(d) })
+    if (puedeFacturar && d.esperaNotaCredito) items.push({ label: 'Cargar nota de crédito', icono: ReceiptText, onClick: () => onCargarNc(d) })
+    if (puedeFacturar && tieneNc) items.push({ label: 'Anular nota de crédito', icono: FileX2, onClick: () => onAnularNc(d) })
     // Sin NC y con mercadería la anula Compras; lo demás, solo admin (E15).
-    if (esAdmin || (!tieneNc && d.devuelveMercaderia)) items.push({ label: 'Anular devolución', icono: Ban, onClick: () => onAnular(d), peligro: true })
+    if (puedeFacturar || (!tieneNc && d.devuelveMercaderia)) items.push({ label: 'Anular devolución', icono: Ban, onClick: () => onAnular(d), peligro: true })
   }
 
   return (
@@ -79,7 +79,7 @@ function Tarjeta({
         {d.lineas.map(l => (
           <li key={l.id} className="tabular-nums">
             {textoLineaDevolucion(l)}
-            {d.corrigePrecio && esAdmin && l.precioCorrecto != null && (
+            {d.corrigePrecio && puedeFacturar && l.precioCorrecto != null && (
               <span className="text-muted"> · precio correcto {formatearMonedaExacta(l.precioCorrecto)}</span>
             )}
           </li>
@@ -88,7 +88,7 @@ function Tarjeta({
       {d.nota && <p className="text-xs text-muted">Nota: {d.nota}</p>}
 
       {!anulada && (
-        esAdmin ? (
+        puedeFacturar ? (
           tieneNc ? (
             <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
               <ReceiptText size={13} className="shrink-0 text-success" />
@@ -130,10 +130,10 @@ function Tarjeta({
  * anuladas al final y plegadas si son más de 2.
  */
 export default function DevolucionesSeccion({
-  devoluciones, esAdmin, puedeRegistrar, resaltadaId, onRegistrar, onCargarNc, onAnularNc, onAnular,
+  devoluciones, puedeFacturar, puedeRegistrar, resaltadaId, onRegistrar, onCargarNc, onAnularNc, onAnular,
 }: {
   devoluciones: DevolucionVista[]
-  esAdmin: boolean
+  puedeFacturar: boolean
   puedeRegistrar: boolean
   resaltadaId: string | null
   onRegistrar: () => void
@@ -145,7 +145,7 @@ export default function DevolucionesSeccion({
   const anuladas = devoluciones.filter(d => d.estado !== 'activa')
   const resaltadaAnulada = anuladas.some(d => d.id === resaltadaId)
   const [verAnuladas, setVerAnuladas] = useState(anuladas.length <= MAX_ANULADAS_VISIBLES || resaltadaAnulada)
-  const props = { esAdmin, onCargarNc, onAnularNc, onAnular }
+  const props = { puedeFacturar, onCargarNc, onAnularNc, onAnular }
 
   if (devoluciones.length === 0 && !puedeRegistrar) return null
 

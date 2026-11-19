@@ -38,7 +38,7 @@ export default function AnularDesdeFactura({
       onCerrar={onCerrar}
       contexto={{
         pedidoId,
-        esAdmin: true,
+        puedeFacturar: true,
         estado: { estado_recepcion: ctx.pedido.estadoRecepcion, estado_facturacion: ctx.pedido.estadoFacturacion },
         stockPorItem: ctx.stock,
         gasto: ctx.factura?.gastoId ? { id: ctx.factura.gastoId, estado: ctx.factura.gastoEstado, monto: ctx.factura.gastoMonto } : null,

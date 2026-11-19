@@ -1,3 +1,6 @@
+import { cargarAcceso } from '@/lib/permisos/servidor'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { createClientTipado } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import InsumosClient, { type CompraItem, type PedidoAbierto, type ResumenInsumo } from './InsumosClient'
@@ -12,12 +15,12 @@ export default async function InsumosPage({
   searchParams: Promise<{ insumo?: string }>
 }) {
   const supabase = await createClientTipado()
+  const { acceso } = await cargarAcceso()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
   const { insumo } = await searchParams
 
   const [
-    { data: perfil },
     { data: items },
     { data: proveedores },
     { data: categorias },
@@ -25,7 +28,6 @@ export default async function InsumosPage({
     { data: resumen },
     { data: plantillaBase },
   ] = await Promise.all([
-    supabase.from('profiles').select('rol').eq('id', user.id).single(),
     supabase
       .from('compras_items')
       .select('id, nombre, unidad, categoria_id, stock_minimo, cantidad_por_unidad, cantidad_por_masa, redondeo, stock_maximo, a_demanda, alicuota_iva, estado, unidad_base, cobra_por_default, compras_item_proveedores(proveedor_id, es_principal, activo, precio_ref, codigo_proveedor, created_at, cobra_por)')
@@ -83,7 +85,7 @@ export default async function InsumosPage({
       modosPorItem={modosPorItem}
       resumenPorItem={resumenPorItem}
       enPedidoBase={[...new Set((plantillaBase ?? []).map(p => p.item_id).filter((id): id is string => !!id))]}
-      esAdmin={perfil?.rol === 'admin'}
+      verPlata={puede(acceso, ACCIONES.verPlataCompras)}
       insumoInicial={insumo}
     />
   )

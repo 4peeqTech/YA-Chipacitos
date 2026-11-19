@@ -1,5 +1,8 @@
 'use client'
 
+import { useAcceso } from '@/components/ui/AccesoModulos'
+import { puede } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
 import { useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
@@ -241,6 +244,7 @@ export default function FacturaForm({
 }) {
   const confirmar = useConfirmar()
   const toast = useToast()
+  const acceso = useAcceso()
   const [isPending, startTransition] = useTransition()
   const [pedidoId, setPedidoId] = useState(factura?.pedidoId ?? pedidoIdInicial ?? '')
   const [intentoGuardar, setIntentoGuardar] = useState(false)
@@ -982,7 +986,7 @@ export default function FacturaForm({
           <DevolucionModal
             key={registrando ? `reg-${registrando.diferencia?.id ?? 'factura'}` : 'reg-cerrado'}
             pedidoId={factura.pedidoId}
-            esAdmin
+            puedeFacturar={puede(acceso, ACCIONES.facturasCompras)}
             abierto={registrando != null}
             diferencia={registrando?.diferencia ?? null}
             onCerrar={() => setRegistrando(null)}
