@@ -11,7 +11,7 @@ import EstadoBadge from '@/components/ui/EstadoBadge'
 import LinkEntidad from '@/components/ui/LinkEntidad'
 import { formatearFecha, formatearFechaHora, formatearMonedaExacta } from '@/lib/formato'
 import { proximaAccion, subtextoEstado } from '@/lib/compras/estadoPedido'
-import { codigoRemito } from '@/lib/compras/codigos'
+import { codigoRemito, etiquetaRemito } from '@/lib/compras/codigos'
 import { rutaCargarDePedido, rutaDe } from '@/lib/compras/rutas'
 import {
   agruparEventos, etiquetaEvento, leerDiferencia, partesDiff, partesLineas, textoCantidadItems, textoSolicitud, textosCabeceraRemito, textosDevolucion,
@@ -154,7 +154,10 @@ function VerMensaje({ mensaje }: { mensaje: string }) {
 }
 
 /** Lo que va debajo de la etiqueta de un evento. null si no hay nada que agregar. */
-function detalleEvento(e: EventoLeido, numeroPedido: number, pedidoId: string): ReactNode {
+/** Número del proveedor de cada remito del pedido, por id (el actual, no el del momento del evento). */
+type NumerosRemito = Record<string, string | null>
+
+function detalleEvento(e: EventoLeido, numeroPedido: number, pedidoId: string, numeros: NumerosRemito): ReactNode {
   switch (e.tipo) {
     case 'creado': {
       if (!e.d) return null
@@ -208,7 +211,7 @@ function detalleEvento(e: EventoLeido, numeroPedido: number, pedidoId: string): 
       return (
         <>
           <p className="text-xs text-muted">
-            <LinkEntidad entidad={{ tipo: 'remito', id: e.d.remito_id }}>{codigoRemito(numeroPedido, e.d.secuencia)}</LinkEntidad>
+            <LinkEntidad entidad={{ tipo: 'remito', id: e.d.remito_id }}>{etiquetaRemito(numeroPedido, e.d.secuencia, numeros[e.d.remito_id] ?? e.d.numero)}</LinkEntidad>
             {e.d.fecha && <> · llegó el {formatearFecha(e.d.fecha)}</>}
             {e.d.origen === 'factura' && <> · generado al confirmar la factura {e.d.factura_numero ?? ''}</>}
           </p>
@@ -221,7 +224,7 @@ function detalleEvento(e: EventoLeido, numeroPedido: number, pedidoId: string): 
       return (
         <>
           <p className="text-xs text-muted">
-            <LinkEntidad entidad={{ tipo: 'remito', id: e.d.remito_id }}>{codigoRemito(numeroPedido, e.d.secuencia)}</LinkEntidad>
+            <LinkEntidad entidad={{ tipo: 'remito', id: e.d.remito_id }}>{etiquetaRemito(numeroPedido, e.d.secuencia, numeros[e.d.remito_id])}</LinkEntidad>
             {cabecera.map(t => <span key={t}> · {t}</span>)}
           </p>
           <PartesDiff partes={partesDiff(e.d)} />
@@ -233,7 +236,7 @@ function detalleEvento(e: EventoLeido, numeroPedido: number, pedidoId: string): 
       return (
         <>
           <p className="text-xs text-muted">
-            <span className="font-mono tabular-nums">{codigoRemito(numeroPedido, e.d.secuencia)}</span>
+            <span className="font-mono tabular-nums">{etiquetaRemito(numeroPedido, e.d.secuencia, e.d.numero)}</span>
             {e.d.motivo && <> · Motivo: {e.d.motivo}</>}
             {!!e.d.lineas?.length && <> · Se descontó:</>}
           </p>
@@ -301,7 +304,7 @@ function rangoFecha(desde: string | null, hasta: string | null): string {
   return `${inicio}–${new Date(hasta).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
 }
 
-function EntradaDelHistorial({ entrada, numeroPedido, pedidoId }: { entrada: EntradaHistorial; numeroPedido: number; pedidoId: string }) {
+function EntradaDelHistorial({ entrada, numeroPedido, pedidoId, numeros }: { entrada: EntradaHistorial; numeroPedido: number; pedidoId: string; numeros: NumerosRemito }) {
   const Icono = ICONO_EVENTO[entrada.tipo] ?? History
   const mixto = entrada.tipo === 'grupo'
   return (
@@ -315,7 +318,7 @@ function EntradaDelHistorial({ entrada, numeroPedido, pedidoId }: { entrada: Ent
         {entrada.persona && <> · {entrada.persona}</>}
       </p>
       {entrada.eventos.map(e => {
-        const detalle = detalleEvento(e, numeroPedido, pedidoId)
+        const detalle = detalleEvento(e, numeroPedido, pedidoId, numeros)
         if (!mixto) return detalle ? <div key={`${e.tipo}-${e.id}`} className="mt-0.5">{detalle}</div> : null
         // En un grupo con varios tipos, cada sub-evento va con su propia etiqueta.
         return (
@@ -367,6 +370,7 @@ export default function PedidoDetalle({
   const subtexto = subtextoEstado(entrada)
   const esperaMercaderia = entrada.estado_recepcion === 'enviado' || entrada.estado_recepcion === 'parcial'
   const remitos = [...fila.compras_remitos].sort((a, b) => a.secuencia - b.secuencia)
+  const numerosRemito: NumerosRemito = Object.fromEntries(remitos.map(r => [r.id, r.numero]))
   const { historial, cargando: cargandoHistorial, error: errorHistorial } = useHistorialPedido(fila)
   const hrefRemito = rutaCargarDePedido('remito', fila.id)
   const hrefFactura = pedido.factura
@@ -563,7 +567,8 @@ export default function PedidoDetalle({
                     className="flex min-h-11 items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-surface2 transition-colors"
                   >
                     <span className="text-text">
-                      <span className="font-mono tabular-nums font-medium">{codigoRemito(fila.numero, r.secuencia)}</span>
+                      <span className="font-mono tabular-nums font-medium">{etiquetaRemito(fila.numero, r.secuencia, r.numero)}</span>
+                      {r.numero?.trim() && <span className="font-mono tabular-nums text-muted"> · {codigoRemito(fila.numero, r.secuencia)}</span>}
                       <span className="text-muted"> · llegó el {formatearFecha(r.fecha)}</span>
                       {r.origen === 'factura' && <span className="text-muted"> · desde la factura</span>}
                     </span>
@@ -680,7 +685,7 @@ export default function PedidoDetalle({
         {historial && (
           <ol className="relative space-y-3 border-l border-border pl-5 ml-2">
             {historial.map(entrada => (
-              <EntradaDelHistorial key={entrada.key} entrada={entrada} numeroPedido={fila.numero} pedidoId={fila.id} />
+              <EntradaDelHistorial key={entrada.key} entrada={entrada} numeroPedido={fila.numero} pedidoId={fila.id} numeros={numerosRemito} />
             ))}
           </ol>
         )}

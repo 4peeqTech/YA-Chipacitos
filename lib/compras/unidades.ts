@@ -57,6 +57,16 @@ function unidadEsLaBase(u: UnidadesInsumo): boolean {
   return unidad === '' || SINONIMOS[u.unidadBase].test(unidad)
 }
 
+/**
+ * El remito pide los kg reales (pedido de Marcos, 19-11): insumos que se miden
+ * en kg y se compran en otra unidad (Caja, Bolsa), cobre como cobre el
+ * proveedor. Es control: el stock sigue en la unidad de compra. Si se compra
+ * directo en kg, la cantidad ya son los kg y no se pide aparte.
+ */
+export function pideKgReales(u: UnidadesInsumo): boolean {
+  return u.unidadBase === 'kg' && tieneConversion(u)
+}
+
 /** Hay conversión que mostrar: el contenido no es 1, o la unidad de compra no es la base ("Caja" vs. "kg"). */
 export function tieneConversion(u: UnidadesInsumo): boolean {
   if (!(u.contenido > 0)) return false

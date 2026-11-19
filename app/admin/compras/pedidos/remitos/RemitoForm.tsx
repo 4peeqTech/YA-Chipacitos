@@ -11,7 +11,7 @@ import LinkEntidad from '@/components/ui/LinkEntidad'
 import { codigoPedido, codigoRemito } from '@/lib/compras/codigos'
 import { conUnidad } from '../modelo'
 import {
-  avisoNominal, cortoBase, equivalenteBase, esCobraPor, esUnidadBase, numeroCorto, tieneConversion,
+  avisoNominal, cortoBase, equivalenteBase, esCobraPor, esUnidadBase, numeroCorto, pideKgReales, tieneConversion,
   type CobraPor, type UnidadesInsumo,
 } from '@/lib/compras/unidades'
 import { eliminarRemito, guardarRemito } from './acciones'
@@ -33,14 +33,16 @@ interface UnidadesLinea {
 }
 
 /**
- * "Kg reales" solo donde se cobra por peso: debajo, el nominal y el aviso si se
- * aleja más del 10 % (no bloquea). Es opcional: vacío no se manda.
+ * "Kg reales" donde se cobra por peso o el insumo se mide en kg (pideKgReales):
+ * debajo, el nominal y el aviso si se aleja más del 10 % (no bloquea).
+ * En un remito nuevo de un insumo de kg es obligatorio (`faltante`).
  */
-function KgReales({ unidades, cantidad, valor, descripcion, onChange }: {
+function KgReales({ unidades, cantidad, valor, descripcion, faltante, onChange }: {
   unidades: UnidadesLinea
   cantidad: number | null
   valor: number | null
   descripcion: string
+  faltante?: boolean
   onChange: (v: number | null) => void
 }) {
   const base = cortoBase(unidades.u.unidadBase)
@@ -53,7 +55,7 @@ function KgReales({ unidades, cantidad, valor, descripcion, onChange }: {
           onChange={onChange}
           placeholder={nominal != null ? numeroCorto(nominal) : base}
           min={0}
-          className={`${controlClass} min-h-11 text-right tabular-nums`}
+          className={`${controlClass} min-h-11 text-right tabular-nums ${faltante ? 'border-brand-red' : ''}`}
           ariaLabel={`${base === 'kg' ? 'Kg' : base} reales de ${descripcion}`}
         />
       </div>
@@ -69,7 +71,10 @@ function AyudaKg({ unidades, cantidad, valor }: { unidades: UnidadesLinea; canti
   return (
     <div className="basis-full space-y-0.5 text-xs">
       <p className="text-muted tabular-nums">
-        {nominal != null ? `Nominal ${numeroCorto(nominal)} ${base} · ` : ''}cobra por {base}: con los {base} reales, la factura sale prellenada.
+        {nominal != null ? `Nominal ${numeroCorto(nominal)} ${base} · ` : ''}
+        {unidades.cobraPor === 'base'
+          ? `cobra por ${base}: con los ${base} reales, la factura sale prellenada.`
+          : `los ${base} reales quedan registrados para control; el stock sigue en ${unidades.u.unidad ?? 'unidades'}.`}
       </p>
       {aviso && (
         <p className="flex items-center gap-1.5 font-medium text-warning">
@@ -183,20 +188,25 @@ export default function RemitoForm({
   const pedido = pedidos.find(p => p.id === pedidoId) ?? null
   const cargadoAntes = useMemo(() => cargadoPorLinea(remito), [remito])
 
-  // A2b: solo las líneas que el proveedor cobra por peso (y con conversión) piden kg.
+  // Piden kg las líneas que el proveedor cobra por peso (A2b) y las de insumos de kg
+  // comprados en otra unidad (19-11), con conversión cargada.
   function unidadesDeLinea(l: LineaPedido | undefined): UnidadesLinea | null {
-    if (!l?.item_id || !esUnidadBase(l.unidad_base) || !esCobraPor(l.cobra_por) || l.contenido == null) return null
+    if (!l?.item_id || !esUnidadBase(l.unidad_base) || l.contenido == null) return null
     const u: UnidadesInsumo = { unidad: l.unidad, unidadBase: l.unidad_base, contenido: l.contenido }
-    return l.cobra_por === 'base' && tieneConversion(u) ? { u, cobraPor: l.cobra_por } : null
+    const cobraPor: CobraPor = esCobraPor(l.cobra_por) ? l.cobra_por : 'unidad'
+    if (!tieneConversion(u)) return null
+    return cobraPor === 'base' || pideKgReales(u) ? { u, cobraPor } : null
   }
 
   function unidadesDeInsumo(itemId: string | null): UnidadesLinea | null {
     const i = itemId ? insumos.find(x => x.id === itemId) : undefined
     if (!i || !esUnidadBase(i.unidad_base)) return null
     const par = i.compras_item_proveedores.find(cp => cp.proveedor_id === pedido?.proveedor_id)
-    const cobraPor = par && esCobraPor(par.cobra_por) ? par.cobra_por : i.cobra_por_default
+    const cobraPor: CobraPor = par && esCobraPor(par.cobra_por) ? par.cobra_por
+      : esCobraPor(i.cobra_por_default) ? i.cobra_por_default : 'unidad'
     const u: UnidadesInsumo = { unidad: i.unidad, unidadBase: i.unidad_base, contenido: i.cantidad_por_unidad }
-    return cobraPor === 'base' && tieneConversion(u) ? { u, cobraPor } : null
+    if (!tieneConversion(u)) return null
+    return cobraPor === 'base' || pideKgReales(u) ? { u, cobraPor } : null
   }
 
   function unidadesDeLibre(l: LineaLibre): UnidadesLinea | null {
@@ -229,6 +239,25 @@ export default function RemitoForm({
   )
   const sinStock = lineasSinStock(envio)
   const problema = validar(estado)
+
+  // Remito nuevo: los insumos de kg (pideKgReales) no se guardan sin los kg reales.
+  // Al editar uno viejo no se exigen, para poder corregir otra cosa sin pesar de nuevo.
+  const faltanKg = useMemo(() => {
+    if (remito) return new Set<string>()
+    const faltan = new Set<string>()
+    const exige = (x: UnidadesLinea | null) => !!x && pideKgReales(x.u)
+    for (const l of lineasDelPedido) {
+      const id = l.pedido_item_id ?? ''
+      const c = estado.porLinea[id]
+      if ((c?.cantidad ?? 0) > 0 && c?.cantidadBase == null && exige(unidadesDeLinea(l))) faltan.add(id)
+    }
+    for (const l of estado.libres) {
+      if ((l.cantidad ?? 0) > 0 && l.cantidadBase == null && exige(unidadesDeLibre(l))) faltan.add(l.clave)
+    }
+    return faltan
+    // unidadesDeLinea/unidadesDeLibre solo leen props y estado ya listados.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remito, lineasDelPedido, estado, insumos, pedido])
 
   // Lo que ya llegó en otros remitos y lo que suma este, por línea del pedido.
   const recepcion = useMemo(() => {
@@ -294,6 +323,11 @@ export default function RemitoForm({
   function guardar() {
     if (!pedido) { toast.error('Elegí el pedido al que corresponde el remito.'); return }
     if (problema) { setIntentoGuardar(true); toast.error(mensajeProblema()); return }
+    if (faltanKg.size > 0) {
+      setIntentoGuardar(true)
+      toast.error(faltanKg.size === 1 ? 'Falta cargar los kg reales de una línea.' : `Falta cargar los kg reales de ${faltanKg.size} líneas.`)
+      return
+    }
 
     const ejecutar = () => startTransition(async () => {
       const r = await guardarRemito({ remitoId: remito?.id ?? null, pedidoId: pedido.id, fecha: estado.fecha, numero: estado.numero, lineas: envio })
@@ -398,7 +432,7 @@ export default function RemitoForm({
         <>
           {!remito && codigo && (
             <p className="-mt-2 text-xs text-muted">
-              Se guarda como <span className="font-mono tabular-nums text-text">{codigo}</span>. El número impreso del proveedor es opcional: sirve para encontrarlo después.
+              Se guarda como <span className="font-mono tabular-nums text-text">{codigo}</span>. El número impreso del proveedor es el que se ve en el historial del pedido.
             </p>
           )}
 
@@ -459,6 +493,7 @@ export default function RemitoForm({
                           cantidad={cant}
                           valor={kgValor}
                           descripcion={l.descripcion ?? 'la línea'}
+                          faltante={intentoGuardar && faltanKg.has(id)}
                           onChange={v => cambiar(e => ({ ...e, porLinea: { ...e.porLinea, [id]: { ...e.porLinea[id], cantidadBase: v } } }))}
                         />
                       )}
@@ -539,6 +574,7 @@ export default function RemitoForm({
                         cantidad={l.cantidad}
                         valor={l.cantidadBase}
                         descripcion={l.descripcion || 'la línea'}
+                        faltante={intentoGuardar && faltanKg.has(l.clave)}
                         onChange={v => actualizarLibre(l.clave, x => ({ ...x, cantidadBase: v }))}
                       />
                       <AyudaKg unidades={kg} cantidad={l.cantidad} valor={l.cantidadBase} />
