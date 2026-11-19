@@ -7150,9 +7150,14 @@ export type Database = {
         Args: { p_tipo: string }
         Returns: string
       }
+      _norm_sucursal: { Args: { p: string }; Returns: string }
       _pedido_estado_label: { Args: { p_estado: string }; Returns: string }
       _pedido_evento: {
         Args: { p_detalle?: Json; p_pedido_id: string; p_tipo: string }
+        Returns: undefined
+      }
+      _permisos_vincular_cuenta_local: {
+        Args: { p_persona: string }
         Returns: undefined
       }
       _proveedores_referencias: {
@@ -7795,6 +7800,8 @@ export type Database = {
         Args: { p_caja?: string; p_sucursal?: string }
         Returns: string
       }
+      mis_cuentas_local: { Args: never; Returns: string[] }
+      mis_sucursales: { Args: never; Returns: string[] }
       mover_stock_terminado: {
         Args: {
           p_delta_kg: number
@@ -7863,6 +7870,10 @@ export type Database = {
         Returns: Json
       }
       pedidos_inicio_version: { Args: never; Returns: string }
+      persona_tiene_permiso: {
+        Args: { p_clave: string; p_persona: string }
+        Returns: boolean
+      }
       proveedores_archivar: {
         Args: { p_archivar: boolean; p_id: string }
         Returns: Json
@@ -7919,7 +7930,9 @@ export type Database = {
       tiene_acceso_compras: { Args: never; Returns: boolean }
       tiene_acceso_fabrica: { Args: never; Returns: boolean }
       tiene_acceso_nomenclador: { Args: never; Returns: boolean }
+      tiene_area: { Args: { p_area: string }; Returns: boolean }
       tiene_lectura_conteos: { Args: never; Returns: boolean }
+      tiene_permiso: { Args: { p_clave: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
