@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { accesoDesdeRpc, areaDeRuta, homeDe, puedeEntrarRuta } from '@/lib/permisos/acceso'
+import { accesoDesdeRpc, areaDeRuta, homeDe, puede, puedeEntrarRuta } from '@/lib/permisos/acceso'
+import { ACCIONES } from '@/lib/permisos/catalogo'
+import { COOKIE_VER_COMO, MENSAJE_SOLO_LECTURA } from '@/lib/permisos/verComo'
 import { verificarEntorno } from '@/lib/entorno'
 
 const COOKIE_AREA = 'area'
@@ -68,16 +70,28 @@ export async function proxy(request: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser()
 
-    // Las rutas de API siempre pasan
+    // Las rutas de API siempre pasan. En "ver como" (T7), solo para leer: lo que
+    // escribe se corta acá (salir del modo es /api/ver-como).
+    const verComo = request.cookies.get(COOKIE_VER_COMO)?.value
     if (pathname.startsWith('/api/')) {
+      if (verComo && !['GET', 'HEAD', 'OPTIONS'].includes(request.method) && pathname !== '/api/ver-como') {
+        return NextResponse.json({ error: MENSAJE_SOLO_LECTURA }, { status: 403 })
+      }
       return supabaseResponse
     }
 
     // Acceso efectivo (áreas, pantallas, acciones) calculado por la base: misma
     // regla que sus reglas. Épica roles y permisos, T3.
+    // Con "ver como", el de la otra persona si quien mira gestiona usuarios (como cargarAcceso() del servidor).
     const cargarAcceso = async () => {
       const { data, error } = await supabase.rpc('mi_acceso')
-      return error ? null : accesoDesdeRpc(data)
+      const propio = error ? null : accesoDesdeRpc(data)
+      if (propio && verComo && verComo !== propio.id && puede(propio, ACCIONES.gestionarUsuarios)) {
+        const { data: otro } = await supabase.rpc('acceso_de', { p_persona: verComo })
+        const ajeno = accesoDesdeRpc(otro)
+        if (ajeno) return { ...ajeno, quienMira: { id: propio.id, nombre: propio.nombre } }
+      }
+      return propio
     }
 
     // Última área en la que estuvo (selector de área, T4): / la lleva ahí.
@@ -107,6 +121,10 @@ export async function proxy(request: NextRequest) {
     if (!acceso) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
+
+    // Una cookie de "ver como" que ya no vale (ya no gestiona usuarios, la persona no
+    // está activa) se borra: si no, el navegador seguiría en solo lectura sin banner.
+    if (verComo && !acceso.quienMira) supabaseResponse.cookies.delete(COOKIE_VER_COMO)
 
     const decision = puedeEntrarRuta(acceso, pathname, areaPreferida)
     if (!decision.ok) {

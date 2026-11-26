@@ -2,10 +2,13 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { verificarEntornoServidor } from '@/lib/entorno'
 import type { Database } from '@/lib/database.types'
+import { COOKIE_VER_COMO, fetchSoloLectura } from '@/lib/permisos/verComo'
 
 async function opcionesCookies() {
   const cookieStore = await cookies()
   return {
+    // "Ver como" (T7): con la cookie, lee y no escribe (server components y server actions).
+    global: { fetch: fetchSoloLectura((...a) => fetch(...a), () => !!cookieStore.get(COOKIE_VER_COMO)) },
     cookies: {
       getAll() {
         return cookieStore.getAll()

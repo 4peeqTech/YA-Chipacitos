@@ -7,6 +7,7 @@ import InstallPrompt from '@/components/ui/InstallPrompt'
 import ProveedorUI from '@/components/ui/ProveedorUI'
 import { FranjaEntorno } from '@/components/ui/Badge'
 import AvisoVersionNueva from '@/components/ui/AvisoVersionNueva'
+import BannerVerComo from '@/components/layout/BannerVerComo'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <FranjaEntorno />
+        <BannerVerComo />
         <SWRegister />
         <InstallPrompt />
         <AvisoVersionNueva />

@@ -8,7 +8,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { IconChevronLeft, IconInfoCircle, IconKey, IconPencil, IconTrash, IconUserPlus, IconUsers } from '@tabler/icons-react'
+import { IconChevronLeft, IconEye, IconInfoCircle, IconKey, IconPencil, IconTrash, IconUserPlus, IconUsers } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAvisoSinGuardar } from '@/lib/hooks/useAvisoSinGuardar'
 import PageHeader from '@/components/ui/PageHeader'
@@ -286,6 +286,18 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
     setAviso('Nombre en Posberry guardado.')
   }
 
+  // "Ver como" (T7): la app como la ve esta persona, en solo lectura. Recarga
+  // completa: el cliente de Supabase arranca en modo lectura.
+  async function verComo() {
+    if (!elegido) return
+    if (hayCambios) { setError('Guardá o descartá los cambios antes de ver como esta persona.'); return }
+    setOcupado(true)
+    const res = await fetch('/api/ver-como', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: elegido.id }) })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setOcupado(false); setError(data.error || 'No se pudo ver como esta persona'); return }
+    window.location.assign(data.destino)
+  }
+
   async function eliminar() {
     if (!elegido) return
     setOcupado(true); setErrorModal('')
@@ -418,6 +430,13 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
         </div>
         {puedeGestionar && (soyAdmin || elegido.rol !== 'admin') && (
           <div className="flex gap-1 shrink-0">
+            {!soyYo && elegido.rol !== 'admin' && (
+              <button type="button" onClick={verComo} disabled={ocupado} aria-label={`Ver como ${elegido.nombre}`}
+                title={`Ver la app como ${elegido.nombre}, sin poder guardar`}
+                className="h-10 px-3 rounded-xl border border-border text-muted hover:text-text inline-flex items-center gap-1.5 text-sm disabled:opacity-40">
+                <IconEye size={18} /> <span className="hidden sm:inline">Ver como</span>
+              </button>
+            )}
             <button type="button" title="Editar datos" aria-label="Editar datos"
               onClick={() => { setFormEdit({ nombre: elegido.nombre, local_nombre: elegido.local_nombre ?? '', email: emails[elegido.id] ?? '', nueva_password: '' }); setErrorModal(''); setEditando(true) }}
               className="w-10 h-10 rounded-xl border border-border text-muted hover:text-text flex items-center justify-center"><IconPencil size={18} /></button>
