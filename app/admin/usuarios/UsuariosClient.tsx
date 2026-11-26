@@ -83,11 +83,15 @@ function iniciales(nombre: string) {
   return nombre.split(/\s+/).filter(p => /^\p{L}/u.test(p)).slice(0, 2).map(p => p[0]).join('').toUpperCase() || '?'
 }
 
+// En hora de Argentina, no la del que renderiza: con ?persona= la ficha también se
+// arma en el servidor (UTC) y una hora distinta rompía la hidratación.
+const FECHA_HORA = new Intl.DateTimeFormat('es-AR', {
+  timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+})
+
 function fechaHora(iso: string) {
-  const d = new Date(iso)
-  const dd = String(d.getDate()).padStart(2, '0')
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  return `${dd}-${mm}-${d.getFullYear()} · ${d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
+  const p = Object.fromEntries(FECHA_HORA.formatToParts(new Date(iso)).map(x => [x.type, x.value]))
+  return `${p.day}-${p.month}-${p.year} · ${p.hour}:${p.minute}`
 }
 
 const lista = (v: unknown) => (Array.isArray(v) ? v.map(String) : [])
