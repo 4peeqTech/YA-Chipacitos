@@ -9,9 +9,10 @@ export const fabrica: SeccionManual = {
   roles: ['supervisor_fabrica'],
   modulos: [],
   resumen: 'Registro diario de producción, operarios, conteo semanal de stock y reportes de fábrica.',
-  actualizado: '2026-09-23',
+  actualizado: '2026-11-26',
   pendiente: 'Resumen inicial. Los pasos detallados y las capturas se suman en una próxima entrega; el conteo semanal tiene su propia sección.',
   novedades: [
+    { fecha: '2026-11-26', texto: 'Si entrás a **más de un área** (por ejemplo Fábrica y Administración), elegí en cuál estás en **Área**, debajo del encabezado. Al volver a entrar arrancás en la última que usaste.' },
     { fecha: '2026-11-17', texto: 'Cuando sale una **versión nueva** del sistema aparece un cartel arriba. Guardá lo que estés cargando y tocá **Actualizar**.' },
   ],
   apartados: [

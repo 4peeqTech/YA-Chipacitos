@@ -9,9 +9,10 @@ export const deposito: SeccionManual = {
   roles: ['deposito'],
   modulos: [],
   resumen: 'Pedidos de insumos y packaging de los locales: prepararlos, despacharlos y hablar con el local.',
-  actualizado: '2026-09-23',
+  actualizado: '2026-11-26',
   pendiente: 'Esta sección viene del manual anterior. Se revisa y se suman capturas en una próxima entrega.',
   novedades: [
+    { fecha: '2026-11-26', texto: 'Si entrás a **más de un área**, elegí en cuál estás en **Área**, debajo del encabezado. Al volver a entrar arrancás en la última que usaste.' },
     { fecha: '2026-11-17', texto: 'Cuando sale una **versión nueva** del sistema aparece un cartel arriba. Guardá lo que estés cargando y tocá **Actualizar**.' },
   ],
   apartados: [
