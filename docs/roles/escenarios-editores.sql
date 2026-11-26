@@ -25,6 +25,10 @@ declare
   v_err text;
   v_n int;
   v_pant text;
+  v_admin2 uuid := (select id from profiles where rol = 'admin' and estado = 'activo' order by nombre offset 1 limit 1);
+  v_libre uuid := (select id from locales_config where activo and cuenta_local_id is null and tiene_fudo order by orden limit 1);
+  v_otra uuid := (select id from locales_config where activo and cuenta_local_id is not null order by orden offset 1 limit 1);
+  v_locales int;
 begin
   -- Helpers locales: entrar como alguien / volver a postgres.
   create or replace function pg_temp.como(p uuid) returns void language plpgsql as $f$
@@ -202,6 +206,79 @@ begin
   update profiles set modulos_permitidos = array['tareas'] where id = v_directivo;
   perform pg_temp.caso('sin puente: modulos_permitidos no cambia ajustes',
     (select count(*) from persona_permisos where persona_id = v_directivo) = v_n);
+  -- 15. Revisión (20261126100000).
+  -- Admin no necesita sucursal.
+  perform pg_temp.como(v_admin);
+  begin
+    perform persona_guardar_acceso(v_admin2, 'admin', '[]'::jsonb, null);
+    perform pg_temp.caso('Admin se guarda sin sucursales', true);
+  exception when others then perform pg_temp.caso('Admin se guarda sin sucursales', false, sqlerrm); end;
+
+  -- Gestor no da una sucursal que no tiene (ni a sí mismo).
+  perform pg_temp.como(v_gerente);
+  begin
+    perform persona_guardar_acceso(v_gerente, 'gerencia_operativa', '[]'::jsonb, array[v_suc, v_otra]);
+    perform pg_temp.caso('gestor no se da otra sucursal', false);
+  exception when others then perform pg_temp.caso('gestor no se da otra sucursal', sqlerrm like '%no la tenés%', sqlerrm); end;
+
+  -- Pasar a Local vincula la sucursal elegida, sin crear ninguna; salir de Local desvincula.
+  perform pg_temp.como(v_admin);
+  select count(*) into v_locales from locales_config;
+  begin
+    perform persona_guardar_acceso(v_directivo, 'local', '[]'::jsonb, array[]::uuid[]);
+    perform pg_temp.caso('a Local sin sucursal pide elegir', false);
+  exception when others then perform pg_temp.caso('a Local sin sucursal pide elegir', sqlerrm like '%elegí cuál%', sqlerrm); end;
+  begin
+    perform persona_guardar_acceso(v_directivo, 'local', '[]'::jsonb, array[v_otra]);
+    perform pg_temp.caso('a Local con una sucursal que ya tiene cuenta', false);
+  exception when others then perform pg_temp.caso('a Local con una sucursal que ya tiene cuenta', sqlerrm like '%ya tiene su cuenta%', sqlerrm); end;
+  perform persona_guardar_acceso(v_directivo, 'local', '[]'::jsonb, array[v_libre]);
+  perform pg_temp.yo();
+  perform pg_temp.caso('a Local: vincula la elegida y no crea sucursales',
+    (select cuenta_local_id from locales_config where id = v_libre) = v_directivo
+    and (select count(*) from locales_config) = v_locales);
+  perform pg_temp.como(v_admin);
+  perform persona_guardar_acceso(v_directivo, 'gerencia_directiva', '[]'::jsonb, null);
+  perform pg_temp.yo();
+  perform pg_temp.caso('salir de Local desvincula',
+    (select cuenta_local_id from locales_config where id = v_libre) is null
+    and not exists (select 1 from persona_sucursales where persona_id = v_directivo));
+
+  -- Ajustes de áreas que el rol no tiene se conservan al guardar.
+  insert into persona_permisos (persona_id, permiso, efecto) values (v_directivo, 'fabrica.corregir_cargas_viejas', 'agregar') on conflict do nothing;
+  perform pg_temp.como(v_admin);
+  perform persona_guardar_acceso(v_directivo, 'gerencia_directiva', '[]'::jsonb, null);
+  perform pg_temp.yo();
+  perform pg_temp.caso('ajuste de otra área se conserva',
+    exists (select 1 from persona_permisos where persona_id = v_directivo and permiso = 'fabrica.corregir_cargas_viejas'));
+
+  -- Vista previa: un "agregar" que el rol pasa a traer no figura como ajuste que sigue.
+  v_pant := (select clave from permisos_catalogo c where tipo = 'pantalla' and area = 'administracion' and not solo_admin
+             and not exists (select 1 from rol_permisos where rol_key = 'gerencia_directiva' and permiso = c.clave) order by clave limit 1);
+  insert into persona_permisos (persona_id, permiso, efecto) values (v_directivo, v_pant, 'agregar') on conflict do nothing;
+  perform pg_temp.como(v_admin);
+  v_res := roles_vista_previa('gerencia_directiva',
+    array(select area from rol_areas where rol_key = 'gerencia_directiva'),
+    array(select permiso from rol_permisos where rol_key = 'gerencia_directiva') || array[v_pant]);
+  perform pg_temp.caso('vista previa: agregar redundante no figura como ajuste que sigue',
+    not exists (select 1 from jsonb_array_elements(v_res->'personas') p where p->>'id' = v_directivo::text and p->'ajustes' ? v_pant), v_pant);
+
+  -- roles_guardar: Facturas sin Ver la plata en una persona del rol (por su "quitar").
+  perform pg_temp.yo();
+  insert into persona_permisos (persona_id, permiso, efecto) values (v_gerente, 'compras.ver_plata', 'quitar')
+  on conflict (persona_id, permiso) do update set efecto = 'quitar';
+  perform pg_temp.como(v_admin);
+  begin
+    perform roles_guardar('gerencia_operativa',
+      array(select area from rol_areas where rol_key = 'gerencia_operativa'),
+      array(select permiso from rol_permisos where rol_key = 'gerencia_operativa') || array['compras.ver_plata', 'compras.facturas']);
+    perform pg_temp.caso('roles_guardar: Facturas sin Ver la plata en una persona', false);
+  exception when others then perform pg_temp.caso('roles_guardar: Facturas sin Ver la plata en una persona', sqlerrm like '%quedaría con%', sqlerrm); end;
+
+  -- Gestores leen locales_config.
+  perform pg_temp.como(v_gerente);
+  perform pg_temp.caso('gestor lee locales_config', (select count(*) from locales_config) > 0);
+  perform pg_temp.yo();
 end $$;
 
 reset role;

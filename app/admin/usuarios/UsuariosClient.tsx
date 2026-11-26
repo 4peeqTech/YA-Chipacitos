@@ -145,8 +145,11 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
   const rolActual = rolPor.get(rolEdit)
   const areasEdit = useMemo(() => rolActual?.areas ?? [], [rolActual])
   const referencia = useMemo(() => new Set(normalizar(rolActual?.permisos ?? [], areasEdit)), [rolActual, areasEdit])
-  const esCuentaLocal = !!elegido && cuentaDe.has(elegido.id)
-  const conLocales = areasEdit.includes('locales')
+  // Cuenta de local: tiene su sucursal fija. Pasar a alguien al rol Local pide elegir una sin cuenta.
+  const esCuentaLocal = !!elegido && rolEdit === 'local' && cuentaDe.has(elegido.id)
+  const vincularLocal = !!elegido && rolEdit === 'local' && !cuentaDe.has(elegido.id)
+  // Admin entra a todas las sucursales: no se eligen.
+  const conLocales = areasEdit.includes('locales') && rolEdit !== 'admin'
   const hayCambios = !!original && (
     rolEdit !== original.rol
     || !mismosElementos(normalizar(valor, areasEdit), original.permisos)
@@ -165,12 +168,14 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
     const rol = rolPor.get(key)
     setRolEdit(key)
     setValor(new Set(normalizar(rol?.permisos ?? [], rol?.areas ?? [])))
+    if (key === 'local' && elegido && !cuentaDe.has(elegido.id)) setSucEdit([])
   }
 
   async function guardar() {
     if (!elegido || !rolActual) return
     const problema = problemaAlGuardar(valor)
     if (problema) { setError(problema); return }
+    if (vincularLocal && sucEdit.length !== 1) { setError('Elegí la sucursal de esta cuenta de local.'); return }
     if (conLocales && !esCuentaLocal && sucEdit.length === 0) { setError('Elegí al menos una sucursal: su rol entra a Locales.'); return }
     setGuardando(true); setError('')
     const nuevosAjustes = rolEdit === 'admin' ? [] : ajustesMinimos([...referencia], normalizar(valor, areasEdit))
@@ -269,7 +274,7 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
   const [form, setForm] = useState({ email: '', password: '', nombre: '', rol: rolInicial, local_nombre: '' })
   const [sucNuevo, setSucNuevo] = useState<string[]>([])
   const rolNuevo = rolPor.get(form.rol)
-  const nuevoPideSucursal = !!rolNuevo?.areas.includes('locales') && form.rol !== 'local'
+  const nuevoPideSucursal = !!rolNuevo?.areas.includes('locales') && form.rol !== 'local' && form.rol !== 'admin'
 
   async function crearUsuario() {
     if (!form.email || !form.password || !form.nombre) return
@@ -371,7 +376,7 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
             {emails[elegido.id] ?? 'sin email'} · {areasEdit.length ? areasEdit.map(nombreArea).join(' y ') : 'sin áreas'}
           </p>
         </div>
-        {puedeGestionar && (
+        {puedeGestionar && (soyAdmin || elegido.rol !== 'admin') && (
           <div className="flex gap-1 shrink-0">
             <button type="button" title="Editar datos" aria-label="Editar datos"
               onClick={() => { setFormEdit({ nombre: elegido.nombre, local_nombre: elegido.local_nombre ?? '', email: emails[elegido.id] ?? '', nueva_password: '' }); setErrorModal(''); setEditando(true) }}
@@ -407,11 +412,13 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
         <section className="space-y-2">
           <h3 className="text-sm font-semibold text-text">Sucursales <span className="font-normal text-muted">en Locales elige entre estas</span></h3>
           <div className="flex flex-wrap gap-2">
-            {(esCuentaLocal ? datos.locales.filter(l => l.cuenta_local_id === elegido.id) : elegibles).map(l => {
+            {(esCuentaLocal ? datos.locales.filter(l => l.cuenta_local_id === elegido.id)
+              : vincularLocal ? elegibles.filter(l => !l.cuenta_local_id) : elegibles).map(l => {
               const activa = esCuentaLocal || sucEdit.includes(l.id)
               return (
                 <button key={l.id} type="button" role="checkbox" aria-checked={activa} disabled={!editable || esCuentaLocal}
-                  onClick={() => setSucEdit(prev => prev.includes(l.id) ? prev.filter(x => x !== l.id) : [...prev, l.id].sort())}
+                  onClick={() => setSucEdit(prev => vincularLocal ? [l.id]
+                    : prev.includes(l.id) ? prev.filter(x => x !== l.id) : [...prev, l.id].sort())}
                   className={`min-h-11 sm:min-h-9 px-3 rounded-full text-xs font-semibold border presionable ${
                     activa ? 'bg-accent text-black border-accent' : 'bg-surface2 text-muted border-border hover:text-text'
                   } disabled:cursor-default`}>
@@ -419,7 +426,7 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
                 </button>
               )
             })}
-            {!esCuentaLocal && editable && (
+            {!esCuentaLocal && !vincularLocal && editable && (
               <button type="button"
                 onClick={() => setSucEdit(prev => prev.length === elegibles.length ? [] : elegibles.map(l => l.id).sort())}
                 className="min-h-11 sm:min-h-9 px-3 rounded-full text-xs font-semibold border border-dashed border-accent text-accent-fg presionable">
@@ -430,7 +437,9 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
           <p className="text-xs text-muted">
             {esCuentaLocal
               ? 'Es la cuenta de este local: tiene solo la suya y no se cambia desde acá.'
-              : 'Hay que elegir al menos una. Una cuenta de local tiene solo la suya. Fábrica y Churros Tubo no son sucursales de Locales.'}
+              : vincularLocal
+                ? 'Una cuenta de local va con una sola sucursal: elegí la suya (las que ya tienen cuenta no aparecen).'
+                : 'Hay que elegir al menos una. Una cuenta de local tiene solo la suya. Fábrica y Churros Tubo no son sucursales de Locales.'}
           </p>
           {esCuentaLocal && (
             <div className="flex flex-wrap items-end gap-2 pt-1">
