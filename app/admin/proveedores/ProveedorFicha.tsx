@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
+import { createClientTipado } from '@/lib/supabase/client'
 import {
   Archive, ArchiveRestore, ClipboardList, CreditCard, Loader2, Mail, MapPin, MessageCircle, Package, Pencil, Phone,
   Tag, Trash2, Truck, User, Wallet,
 } from 'lucide-react'
-import type { Database } from '@/lib/database.types'
 import type { PestanaProveedor } from '@/lib/compras/rutas'
 import { codigoPedido } from '@/lib/compras/codigos'
 import { formatearTelefono, normalizarTelefonoAR } from '@/lib/compras/telefono'
@@ -70,10 +69,7 @@ export default function ProveedorFicha({
   onEliminado: () => void
   onClose: () => void
 }) {
-  const supabase = useMemo(() => createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  ), [])
+  const supabase = useMemo(() => createClientTipado(), [])
   const toast = useToast()
   const confirmar = useConfirmar()
   const [pendiente, startTransition] = useTransition()

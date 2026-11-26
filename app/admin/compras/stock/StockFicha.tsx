@@ -3,10 +3,9 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { History, Package, Pencil, ShoppingBasket } from 'lucide-react'
-import { createBrowserClient } from '@supabase/ssr'
+import { createClientTipado } from '@/lib/supabase/client'
 import Pestanas, { panelDe } from '@/components/ui/Pestanas'
 import { usePuedeEntrar } from '@/components/ui/AccesoModulos'
-import type { Database } from '@/lib/database.types'
 import { rutaEditarInsumo, type PestanaInsumo } from '@/lib/compras/rutas'
 import { textoBaseItem } from '@/lib/compras/unidades'
 import { unidadesDe } from '@/lib/compras/trazabilidad'
@@ -54,10 +53,7 @@ export default function StockFicha({
   }
 
   const puedeEntrar = usePuedeEntrar()
-  const supabase = useMemo(() => createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  ), [])
+  const supabase = useMemo(() => createClientTipado(), [])
   const unidades = useMemo(() => unidadesDe({
     unidad: fila.item.unidad, unidad_base: fila.item.unidad_base, contenido: fila.item.cantidad_por_unidad,
   }), [fila.item.unidad, fila.item.unidad_base, fila.item.cantidad_por_unidad])

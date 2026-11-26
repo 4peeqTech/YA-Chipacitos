@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
-import type { Database } from '@/lib/database.types'
+import { createClientTipado } from '@/lib/supabase/client'
 import { mensajeError } from '@/lib/errores'
 import { aEstadoFacturacion, aEstadoRecepcion, type EstadoFacturacion, type EstadoRecepcion } from '@/lib/compras/estadoPedido'
 import { esCobraPor, type CobraPor } from '@/lib/compras/unidades'
@@ -49,10 +48,7 @@ export interface ContextoDevolucion {
  * diferencia, sin que cada pantalla cargue remitos y facturas de todo.
  */
 export function useContextoDevolucion(pedidoId: string, puedeFacturar: boolean) {
-  const supabase = useMemo(() => createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  ), [])
+  const supabase = useMemo(() => createClientTipado(), [])
   const [estado, setEstado] = useState<{ ctx: ContextoDevolucion | null; error: string | null } | null>(null)
 
   useEffect(() => {
