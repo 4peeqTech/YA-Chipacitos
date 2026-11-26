@@ -201,7 +201,7 @@ export default function RolesClient({ rolesIniciales, puedeGestionar }: { rolesI
           <button key={r.key} type="button" onClick={() => elegir(r)}
             className={`w-full text-left px-4 py-3 flex items-center gap-3 min-h-14 ${activo ? 'bg-accent-bg' : 'hover:bg-surface2'}`}>
             <span className="flex-1 min-w-0">
-              <span className={`block text-sm font-semibold truncate ${activo ? 'text-accent-fg' : 'text-text'}`}>{r.nombre}</span>
+              <span className={`block text-sm font-semibold break-words ${activo ? 'text-accent-fg' : 'text-text'}`}>{r.nombre}</span>
               <span className="block text-xs text-muted truncate">{resumenRol(r)}</span>
             </span>
             {r.es_sistema && <span className="shrink-0 text-3xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border border-border text-muted">Sistema</span>}

@@ -90,29 +90,32 @@ function Fila({ permiso: p, valor, referencia, soloLectura, conAyuda, onAlternar
   const bloqueado = soloLectura || !tildable(p)
   const distinto = referencia && tildable(p) && referencia.has(p.clave) !== marcado
   return (
-    <div className="flex items-center gap-2 min-h-11 sm:min-h-9">
-      <button type="button" role="checkbox" aria-checked={marcado} disabled={bloqueado}
-        onClick={() => onAlternar(p.clave)}
-        className={`flex-1 min-w-0 flex items-start gap-3 text-left py-1 ${bloqueado ? 'cursor-default' : 'presionable'}`}>
-        <Tilde marcado={marcado} deshabilitado={!tildable(p) && !soloLectura} />
-        <span className="min-w-0">
-          <span className={`block text-sm ${conAyuda ? 'font-semibold text-text' : marcado ? 'text-text' : 'text-muted'}`}>{p.nombre}</span>
-          {conAyuda && p.ayuda && <span className="block text-xs text-muted mt-0.5">{p.ayuda}</span>}
-        </span>
-      </button>
-      {!tildable(p) && <MarcaSoloAdmin />}
+    <div>
+      <div className="flex items-center gap-2 min-h-11 sm:min-h-9">
+        <button type="button" role="checkbox" aria-checked={marcado} disabled={bloqueado}
+          onClick={() => onAlternar(p.clave)}
+          className={`flex-1 min-w-0 flex items-start gap-3 text-left py-1 ${bloqueado ? 'cursor-default' : 'presionable'}`}>
+          <Tilde marcado={marcado} deshabilitado={!tildable(p) && !soloLectura} />
+          <span className="min-w-0">
+            <span className={`block text-sm ${conAyuda ? 'font-semibold text-text' : marcado ? 'text-text' : 'text-muted'}`}>{p.nombre}</span>
+            {conAyuda && p.ayuda && <span className="block text-xs text-muted mt-0.5">{p.ayuda}</span>}
+          </span>
+        </button>
+        {!tildable(p) && <MarcaSoloAdmin />}
+      </div>
+      {/* La marca va debajo del nombre: en tarjetas angostas, al lado se montaba sobre el texto. */}
       {distinto && (
-        <>
-          <span className={`shrink-0 text-3xs font-semibold px-2 py-0.5 rounded-full ${
+        <div className="flex flex-wrap items-center gap-x-2 pl-8 -mt-1 pb-1">
+          <span className={`text-3xs font-semibold px-2 py-0.5 rounded-full ${
             marcado ? 'bg-green-bg text-success' : 'bg-danger-bg text-brand-red'
           }`}>{marcado ? 'agregada' : 'quitada'}</span>
           {onVolverAlRol && !soloLectura && (
             <button type="button" onClick={() => onVolverAlRol(p.clave)}
-              className="shrink-0 text-xs font-semibold text-accent-fg hover:underline min-h-9 px-1">
+              className="text-xs font-semibold text-accent-fg hover:underline min-h-9 px-1">
               Volver al rol
             </button>
           )}
-        </>
+        </div>
       )}
     </div>
   )

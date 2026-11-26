@@ -347,7 +347,7 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
           return (
             <button key={u.id} type="button" onClick={() => elegir(u)}
               className={`w-full text-left px-4 py-3 min-h-14 ${activo ? 'bg-accent-bg' : 'hover:bg-surface2'}`}>
-              <span className={`block text-sm font-semibold truncate ${activo ? 'text-accent-fg' : 'text-text'}`}>{u.nombre}</span>
+              <span className={`block text-sm font-semibold break-words ${activo ? 'text-accent-fg' : 'text-text'}`}>{u.nombre}</span>
               <span className="block text-xs text-muted truncate">{resumen(u)}</span>
             </button>
           )
