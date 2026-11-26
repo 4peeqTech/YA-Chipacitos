@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react'
 import LinkEntidad from '@/components/ui/LinkEntidad'
 import { Check, ClipboardCheck, EyeOff, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
-import { createBrowserClient } from '@supabase/ssr'
+import { createClientTipado } from '@/lib/supabase/client'
 import { useConfirmar, useToast } from '@/components/ui/ProveedorUI'
 import EmptyState from '@/components/ui/EmptyState'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -130,10 +130,7 @@ export default function DiferenciasConteo({
   const [datos, setDatos] = useState<{ clave: string; filas: Fila[]; error: string | null } | null>(null)
   const cargando = datos?.clave !== clave
 
-  const supabase = useMemo(() => createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  ), [])
+  const supabase = useMemo(() => createClientTipado(), [])
 
   useEffect(() => {
     let vigente = true

@@ -13,6 +13,9 @@ export const COOKIE_VER_COMO = 'ver_como'
 
 export const MENSAJE_SOLO_LECTURA = 'Estás viendo como otra persona: es solo lectura, no se guarda nada.'
 
+/** Evento del navegador cada vez que se corta una escritura (lo muestra el banner). */
+export const EVENTO_BLOQUEO = 'ver-como:bloqueado'
+
 type Fetch = typeof fetch
 
 function solicitud(input: RequestInfo | URL, init?: RequestInit) {
@@ -23,6 +26,8 @@ function solicitud(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 function bloqueado() {
+  // Muchas pantallas muestran su propio "No se pudo guardar": el banner avisa el porqué.
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(EVENTO_BLOQUEO))
   return new Response(JSON.stringify({ code: 'VER_COMO', message: MENSAJE_SOLO_LECTURA, details: null, hint: null }), {
     status: 403,
     headers: { 'Content-Type': 'application/json' },

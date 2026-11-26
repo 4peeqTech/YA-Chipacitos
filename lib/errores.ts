@@ -78,6 +78,8 @@ export function mensajeError(error: unknown, fallback: string): string {
   const codigo = extraerCodigo(error)
 
   if (codigo === 'P0001') return mensaje || fallback
+  // "Ver como" (T7): el cliente de Supabase cortó una escritura; el mensaje ya está listo.
+  if (codigo === 'VER_COMO') return mensaje || fallback
 
   if (codigo === '23505') {
     const match = mensaje.match(/unique constraint "([^"]+)"/)

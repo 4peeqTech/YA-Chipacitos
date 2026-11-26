@@ -5,7 +5,7 @@ import { puede } from '@/lib/permisos/acceso'
 import { ACCIONES } from '@/lib/permisos/catalogo'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { createBrowserClient } from '@supabase/ssr'
+import { createClientTipado } from '@/lib/supabase/client'
 import {
   ArrowRight, Ban, Clock, FilePen, FileX2, History, ListChecks, Loader2, Lock, MapPin, MessageCircle,
   PackageOpen, PencilLine, ReceiptText, Repeat, RotateCcw, Scale, Send, Store, Trash2, Truck, Undo2, type LucideIcon,
@@ -31,7 +31,6 @@ import DevolucionesSeccion from './devoluciones/DevolucionesSeccion'
 import type { DevolucionVista } from './devoluciones/datos'
 import { aEstadoFacturacion, aEstadoRecepcion } from '@/lib/compras/estadoPedido'
 import { mensajeError } from '@/lib/errores'
-import type { Database } from '@/lib/database.types'
 import { conUnidad, type PedidoVista } from './modelo'
 import type { EventoPedido, PedidoFila } from './datos'
 
@@ -44,10 +43,7 @@ import type { EventoPedido, PedidoFila } from './datos'
  * anteriores del mismo pedido.
  */
 function useHistorialPedido(fila: PedidoFila) {
-  const supabase = useMemo(() => createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  ), [])
+  const supabase = useMemo(() => createClientTipado(), [])
   const clave = [
     fila.id, fila.actualizado_en, fila.estado_recepcion, fila.estado_facturacion,
     fila.compras_remitos.map(r => r.id).join(','),
