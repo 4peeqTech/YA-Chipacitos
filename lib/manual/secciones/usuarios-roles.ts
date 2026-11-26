@@ -28,6 +28,7 @@ export const usuariosRoles: SeccionManual = {
             '**Sucursales:** si el rol entra a Locales, cada persona trabaja con las sucursales que tenga elegidas.',
           ],
         },
+        { tipo: 'parrafo', texto: '**Usuarios** y **Roles** son para quien tiene la acción **Gestionar usuarios y roles**. Sin ella, la pantalla avisa que hay que pedírsela a un Admin.' },
         { tipo: 'alerta', texto: 'Nadie puede dar lo que no tiene: si no tenés **Ver la plata de Compras**, no se la podés dar a un rol ni a una persona. **Admin** tiene todo y no se edita.' },
       ],
     },
@@ -35,7 +36,7 @@ export const usuariosRoles: SeccionManual = {
       ancla: 'roles',
       titulo: 'Roles',
       bloques: [
-        { tipo: 'parrafo', texto: 'En **Parámetros › Roles** está la lista de roles a la izquierda y, a la derecha, lo que trae el rol elegido. En el celular, tocá un rol para abrirlo y usá **‹ Roles** para volver.' },
+        { tipo: 'parrafo', texto: 'En **Parámetros › Roles** está la lista de roles a la izquierda y, a la derecha, lo que trae el rol elegido. En el celular, tocá un rol para abrirlo; **‹ Roles** o el botón atrás del teléfono vuelven a la lista.' },
         {
           tipo: 'pasos',
           pasos: [
@@ -73,6 +74,7 @@ export const usuariosRoles: SeccionManual = {
             { texto: 'Tocá **Guardar**.' },
           ],
         },
+        { tipo: 'tip', texto: 'Si tenés cambios sin guardar y querés salir (otra pantalla del menú, recargar o cerrar), la app te avisa antes de perderlos.' },
         { tipo: 'tip', texto: 'Con el lápiz cambiás nombre y email; con la llave, la contraseña; con el tacho, la persona deja de entrar (lo que cargó se conserva).' },
         { tipo: 'alerta', texto: 'No podés cambiar tu propio rol. Solo Admin puede dar o sacar el rol Admin.' },
       ],

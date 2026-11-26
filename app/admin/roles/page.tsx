@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic'
 
+import { IconShield } from '@tabler/icons-react'
 import { cargarAcceso } from '@/lib/permisos/servidor'
+import SinGestion from '@/components/permisos/SinGestion'
 import { puede } from '@/lib/permisos/acceso'
 import { ACCIONES, esArea, type Area } from '@/lib/permisos/catalogo'
 import RolesClient, { type RolEditable } from './RolesClient'
@@ -9,6 +11,8 @@ export const metadata = { title: 'Roles | YA! Chipacitos' }
 
 export default async function RolesPage() {
   const { supabase, acceso } = await cargarAcceso()
+  if (!puede(acceso, ACCIONES.gestionarUsuarios)) return <SinGestion icono={IconShield} titulo="Roles" />
+
   const [{ data: roles }, { data: perfiles }, { data: areas }, { data: permisos }] = await Promise.all([
     supabase.from('roles').select('*').order('created_at'),
     supabase.from('profiles').select('id, nombre, rol').eq('estado', 'activo').order('nombre'),

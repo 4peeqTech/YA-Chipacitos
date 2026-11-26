@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { IconUsers } from '@tabler/icons-react'
 import { cargarAcceso } from '@/lib/permisos/servidor'
+import SinGestion from '@/components/permisos/SinGestion'
 import { puede } from '@/lib/permisos/acceso'
 import { ACCIONES, esArea, type Area } from '@/lib/permisos/catalogo'
 import type { Efecto } from '@/lib/permisos/resolver'
@@ -11,6 +13,8 @@ export const metadata = { title: 'Usuarios | YA! Chipacitos' }
 
 export default async function UsuariosPage() {
   const { supabase, acceso } = await cargarAcceso()
+  if (!puede(acceso, ACCIONES.gestionarUsuarios)) return <SinGestion icono={IconUsers} titulo="Usuarios" />
+
   const [
     { data: usuarios }, { data: roles }, { data: rolAreas }, { data: rolPermisos },
     { data: ajustes }, { data: sucursales }, { data: locales }, { data: historial },

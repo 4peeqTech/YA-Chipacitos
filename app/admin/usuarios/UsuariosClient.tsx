@@ -6,9 +6,11 @@
 // sucursales (si su rol entra a Locales) e historial. Guarda con
 // persona_guardar_acceso, que valida lo mismo en la base.
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { IconChevronLeft, IconInfoCircle, IconKey, IconPencil, IconTrash, IconUserPlus, IconUsers } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
+import { useAvisoSinGuardar } from '@/lib/hooks/useAvisoSinGuardar'
 import PageHeader from '@/components/ui/PageHeader'
 import AyudaLink from '@/components/ui/AyudaLink'
 import Modal from '@/components/ui/Modal'
@@ -121,7 +123,11 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
 
   const [busqueda, setBusqueda] = useState('')
   const [elegidoId, setElegidoId] = useState<string | null>(null)
-  const [enFichaMobile, setEnFichaMobile] = useState(false)
+  // La persona abierta va en la URL (?persona=): "atrás" vuelve a la lista y el link se puede pasar.
+  // En el celular la lista y la ficha no entran juntas: con ?persona= se ve la ficha.
+  const enUrl = useSearchParams().get('persona')
+  const enFichaMobile = enUrl != null
+  const vinoDeLaLista = useRef(false)
   const elegido = usuarios.find(u => u.id === elegidoId) ?? null
 
   // Ficha en edición
@@ -156,11 +162,31 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
     || (conLocales && !esCuentaLocal && !mismosElementos(sucEdit, original.suc))
   )
 
-  function elegir(u: Usuario) {
-    const ir = () => { cargarFicha(u); setEnFichaMobile(true); setAviso('') }
+  useAvisoSinGuardar(hayCambios)
+
+  function irA(id: string | null, modo: 'push' | 'replace' = 'push') {
+    const url = id ? `?persona=${encodeURIComponent(id)}` : window.location.pathname
+    if (modo === 'push') window.history.pushState(null, '', url)
+    else window.history.replaceState(null, '', url)
+  }
+
+  function descartarYCargar(u: Usuario, alCancelar?: () => void) {
+    const ir = () => { cargarFicha(u); setAviso('') }
     if (hayCambios && u.id !== elegidoId) {
-      confirmar({ titulo: 'Descartar cambios', mensaje: `Los cambios de ${elegido?.nombre} no se guardaron.`, textoConfirmar: 'Descartar', peligroso: true, onConfirmar: ir })
+      confirmar({ titulo: 'Descartar cambios', mensaje: `Los cambios de ${elegido?.nombre} no se guardaron.`, textoConfirmar: 'Descartar', peligroso: true, onConfirmar: ir, onCancelar: alCancelar })
     } else ir()
+  }
+
+  // Elegir de la lista solo cambia la URL; abrir la ficha (y preguntar si hay cambios) es más abajo.
+  function elegir(u: Usuario) {
+    if (u.id === enUrl) return
+    vinoDeLaLista.current = true
+    irA(u.id)
+  }
+
+  function volverALista() {
+    if (vinoDeLaLista.current) { vinoDeLaLista.current = false; window.history.back() }
+    else irA(null, 'replace')
   }
 
   function cambiarRol(key: string) {
@@ -265,7 +291,7 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
     setUsuarios(prev => prev.filter(u => u.id !== elegido.id))
     cargarFicha(null)
     setEliminando(false)
-    setEnFichaMobile(false)
+    irA(null, 'replace')
   }
 
   // Nuevo usuario
@@ -302,8 +328,18 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
     setRolEdit(nuevo.rol)
     setValor(new Set(normalizar(rolPor.get(nuevo.rol)?.permisos ?? [], rolPor.get(nuevo.rol)?.areas ?? [])))
     setSucEdit(sucNuevas.map(s => s.local_config_id).sort())
-    setEnFichaMobile(true)
+    irA(nuevo.id)
     setAviso(a => a || `${nuevo.nombre} ya puede entrar con su email y contraseña.`)
+  }
+
+  // La URL cambió (lista, atrás, adelante, link): abrir esa ficha. Si había cambios
+  // y no se descartan, la URL vuelve a la persona que se estaba editando. Va después
+  // de todos los estados porque cargarFicha los usa.
+  const [urlVista, setUrlVista] = useState<string | null>(null)
+  if (enUrl !== urlVista) {
+    setUrlVista(enUrl)
+    const u = enUrl ? usuarios.find(x => x.id === enUrl) : null
+    if (u && u.id !== elegidoId) descartarYCargar(u, () => irA(elegidoId, 'replace'))
   }
 
   // Sucursales que se eligen en Locales: activas con cuenta de local o con Fudo (Fábrica y Churros Tubo no).
@@ -347,7 +383,7 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
           return (
             <button key={u.id} type="button" onClick={() => elegir(u)}
               className={`w-full text-left px-4 py-3 min-h-14 ${activo ? 'bg-accent-bg' : 'hover:bg-surface2'}`}>
-              <span className={`block text-sm font-semibold truncate ${activo ? 'text-accent-fg' : 'text-text'}`}>{u.nombre}</span>
+              <span className={`block text-sm font-semibold break-words ${activo ? 'text-accent-fg' : 'text-text'}`}>{u.nombre}</span>
               <span className="block text-xs text-muted truncate">{resumen(u)}</span>
             </button>
           )
@@ -364,7 +400,7 @@ export default function UsuariosClient({ datos, yo, soyAdmin, puedeGestionar }: 
 
   const ficha = elegido && (
     <div className="space-y-5 pb-20 md:pb-0">
-      <button type="button" onClick={() => setEnFichaMobile(false)} className="md:hidden flex items-center gap-1 text-sm text-muted min-h-11 -my-2">
+      <button type="button" onClick={volverALista} className="md:hidden flex items-center gap-1 text-sm text-muted min-h-11 -my-2">
         <IconChevronLeft size={18} /> Usuarios
       </button>
 

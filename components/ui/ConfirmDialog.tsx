@@ -11,6 +11,8 @@ interface ConfirmOptions {
   /** Estilo de alerta (rojo) para acciones destructivas o irreversibles. */
   peligroso?: boolean
   onConfirmar: () => void
+  /** Al cerrar sin confirmar (Cancelar, Escape o el fondo). */
+  onCancelar?: () => void
 }
 
 export function useConfirm() {
@@ -25,11 +27,16 @@ export function useConfirm() {
     cerrar()
   }
 
+  function cancelar() {
+    opciones?.onCancelar?.()
+    cerrar()
+  }
+
   const dialog = (
-    <Modal open={!!opciones} onClose={cerrar} title={opciones?.titulo ?? 'Confirmar'} accent={opciones?.peligroso ? 'red' : 'gold'}>
+    <Modal open={!!opciones} onClose={cancelar} title={opciones?.titulo ?? 'Confirmar'} accent={opciones?.peligroso ? 'red' : 'gold'}>
       <p className="text-sm text-muted">{opciones?.mensaje}</p>
       <div className="flex gap-2 pt-4">
-        <button onClick={cerrar} className="flex-1 py-2.5 border border-border rounded-xl text-sm font-medium text-muted hover:text-text transition-colors">
+        <button onClick={cancelar} className="flex-1 py-2.5 border border-border rounded-xl text-sm font-medium text-muted hover:text-text transition-colors">
           {opciones?.textoCancelar ?? 'Cancelar'}
         </button>
         <button
