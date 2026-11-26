@@ -17,6 +17,8 @@ export interface AccesoUsuario {
   permisos: string[]
   /** Ids de locales_config. */
   sucursales: string[]
+  /** "Ver como" (T7): este es el acceso de otra persona y quien mira es esta. Solo lectura. */
+  quienMira?: { id: string; nombre: string }
 }
 
 /** Lo que devuelve la RPC mi_acceso() (null si no hay sesión o la persona no está activa). */

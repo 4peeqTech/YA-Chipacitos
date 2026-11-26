@@ -6932,6 +6932,7 @@ export type Database = {
       }
     }
     Functions: {
+      _acceso_json: { Args: { p_persona: string }; Returns: Json }
       _compras_anular_nc_de_devolucion: {
         Args: {
           p_dev: Database["public"]["Tables"]["compras_devoluciones"]["Row"]
@@ -7208,6 +7209,7 @@ export type Database = {
         Args: { p_areas: string[]; p_permisos: string[] }
         Returns: string[]
       }
+      acceso_de: { Args: { p_persona: string }; Returns: Json }
       ajustar_stock_terminado_manual: {
         Args: { p_delta_kg: number; p_producto_id: string }
         Returns: undefined
@@ -7959,6 +7961,7 @@ export type Database = {
         Args: { p_areas: string[]; p_permisos: string[]; p_rol: string }
         Returns: Json
       }
+      rpc_de_lectura: { Args: never; Returns: string[] }
       supervision_mover_equipo: {
         Args: {
           p_destino: string

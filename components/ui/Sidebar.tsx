@@ -123,7 +123,7 @@ export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos,
   }
 
   return (
-    <aside className="hidden lg:flex flex-col w-60 bg-surface border-r border-border h-screen fixed left-0 top-0 z-40">
+    <aside className="hidden lg:flex flex-col w-60 bg-surface border-r border-border h-[calc(100dvh-var(--alto-banner,0px))] fixed left-0 top-[var(--alto-banner,0px)] z-40">
       {/* Logo */}
       <div className="px-5 py-4 border-b border-border flex items-center gap-3">
         <Image src="/chipacitos-logo.png" alt="YA! Chipacitos" width={48} height={48} className="rounded-lg shrink-0" />

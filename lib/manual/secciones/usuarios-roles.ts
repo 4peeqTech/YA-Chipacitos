@@ -95,6 +95,23 @@ export const usuariosRoles: SeccionManual = {
       ],
     },
     {
+      ancla: 'ver-como',
+      titulo: 'Ver como',
+      bloques: [
+        { tipo: 'parrafo', texto: 'Para revisar qué ve una persona, en su ficha tocá **Ver como**. La app se abre como la ve ella: sus áreas, su menú, sus pantallas y botones, y su sucursal.' },
+        {
+          tipo: 'lista',
+          items: [
+            'Arriba queda una franja **Viendo como … · solo lectura** y un borde de color alrededor de la pantalla.',
+            '**No se guarda nada**: si tocás guardar, enviar o borrar, aparece el aviso de solo lectura.',
+            'Los datos que ves son los que vos podés ver: sirve para revisar menús y permisos, no para leer lo que esa persona cargó.',
+            '**Salir** te devuelve a tu sesión, en la ficha de esa persona.',
+          ],
+        },
+        { tipo: 'tip', texto: 'No hace falta "ver como" un Admin: entra a todo.' },
+      ],
+    },
+    {
       ancla: 'nuevo-usuario',
       titulo: 'Nuevo usuario',
       bloques: [
