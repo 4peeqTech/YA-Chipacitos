@@ -11,8 +11,9 @@ export const mayorista: SeccionManual = {
   roles: ['mayorista'],
   modulos: [],
   resumen: 'Los pedidos de los locales: prepararlos, ajustarlos antes de mandar, despacharlos y hablar con el local.',
-  actualizado: '2026-10-25',
+  actualizado: '2026-11-26',
   novedades: [
+    { fecha: '2026-11-26', texto: 'Si entrás a **más de un área**, elegí en cuál estás en **Área**, debajo del encabezado. Al volver a entrar arrancás en la última que usaste.' },
     { fecha: '2026-11-17', texto: 'Cuando sale una **versión nueva** del sistema aparece un cartel arriba. Guardá lo que estés cargando y tocá **Actualizar**.' },
     { fecha: '2026-10-25', texto: 'Tu sección ahora se llama **Mayorista** (antes decía Fábrica) y tiene su propio menú: **Pedidos** y **Catálogo**. Si tenías guardada la dirección vieja, te lleva sola a la nueva.' },
     { fecha: '2026-10-25', texto: 'Los avisos se prenden o apagan desde la **campana** (ya no queda el cartel arriba) y tocar una notificación abre ese pedido. El sonido ahora anda en Safari.' },

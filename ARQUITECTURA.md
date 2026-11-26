@@ -160,71 +160,95 @@ navegación ni permisos por separado.
 
 ### 3.1 Login
 
-[app/login/page.tsx](app/login/page.tsx) → `supabase.auth.signInWithPassword()` →
-lee `profiles.rol` → `router.push(getRoleHome(rol))`.
+[app/login/page.tsx](app/login/page.tsx) → `supabase.auth.signInWithPassword()` → `/`,
+que [proxy.ts](proxy.ts) manda al inicio del área de la persona (la última que usó,
+cookie `area`).
 
 No hay registro público, ni recuperación de contraseña, ni OAuth. **Los usuarios los
-crea el admin** desde `/admin/usuarios` (vía `/api/usuarios` con service role).
+crea quien gestiona usuarios** desde `/admin/usuarios` (vía `/api/usuarios` con service
+role; el rol que se da tiene que estar dentro de lo que tiene quien lo crea).
 
-### 3.2 Los roles
+### 3.2 Roles, áreas y permisos (épica roles y permisos, nov-2026)
 
-Los roles viven en la tabla **`roles`** (dinámicos) y `profiles.rol` es FK a
-`roles.key`. Hay cinco de fábrica:
+Una persona tiene **un rol** (`profiles.rol` → `roles.key`). El rol define:
 
-| Rol | `es_sistema` | Home | Árbol de rutas | Permisos |
-|---|---|---|---|---|
-| `local` | ✔ | `/local/pedidos` | `/local`, `/ayuda` | Solo sus propios pedidos |
-| `deposito` | ✔ | `/deposito/pedidos` | `/deposito`, `/ayuda` | Pedidos con `destino='deposito'` + catálogo de insumos |
-| `fabrica` | ✔ | `/fabrica/pedidos` | `/fabrica`, `/ayuda` | Pedidos con `destino='fabrica'` + catálogo de productos |
-| `admin` | ✔ | `/admin/dashboard` | todo | Todo, sin mirar `modulos_permitidos` |
-| `squad` | ✗ | primer módulo asignado | `/admin`, `/ayuda` | Solo módulos en `profiles.modulos_permitidos[]` |
+- **Áreas** (`rol_areas`): a qué partes de la app entra. Fijas en código
+  ([lib/permisos/catalogo.ts](lib/permisos/catalogo.ts)): Administración `/admin`,
+  Locales `/local`, Fábrica `/fabrica`, Depósito `/deposito`, Mayorista `/mayorista`.
+- **Permisos por defecto** (`rol_permisos`): pantallas de Administración (una por
+  módulo de `MODULOS`, más Tareas, que es transversal) y **acciones** que no alcanzan
+  con tener la pantalla: `compras.ver_plata`, `compras.facturas`,
+  `fabrica.corregir_cargas_viejas`, `usuarios.gestionar`, `tareas.ver_todas`. En las
+  otras cuatro áreas, el área da todas sus pantallas.
 
-**Roles personalizados:** el admin puede crear roles nuevos desde `/admin/roles`. Se
-comportan igual que `squad` — la función `esRolConModulos(rol)` en
-[lib/modulos.ts](lib/modulos.ts) devuelve `true` para cualquier rol que no sea `admin`
-ni uno de los tres operativos (`ROLES_OPERATIVOS`).
+Sobre el rol, cada persona puede tener **ajustes** (`persona_permisos`: agregar o
+quitar una pantalla o acción) y **sucursales** (`persona_sucursales` →
+`locales_config`, que es la sucursal; `locales_config.cuenta_local_id` es la cuenta
+del local, el `local_id` de pedidos, ventas y conciliaciones).
 
-### 3.3 Las tres capas de autorización
+Acceso efectivo = áreas del rol; permisos = defaults del rol + "agregar" − "quitar",
+solo de sus áreas. **Admin** tiene todo y no se edita. La misma regla está en la base
+(`persona_tiene_permiso`, `mi_acceso()`) y en
+[lib/permisos/resolver.ts](lib/permisos/resolver.ts) (chequeo y comparador).
+
+El catálogo (`permisos_catalogo`) se siembra desde `lib/permisos/catalogo.ts`;
+`solo_admin` marca las pantallas que la base solo deja usar a Admin (se ven en los
+editores y no se dan). Todo cambio de rol, ajuste o sucursal queda en
+`permisos_historial`.
+
+**Pantallas:** `/admin/roles` (áreas, pantallas y acciones por rol, con vista previa
+de a quién afecta) y la ficha de `/admin/usuarios` (rol, ajustes, sucursales,
+historial y "Ver como"). Las dos piden `usuarios.gestionar`. Guardan con
+`roles_guardar` y `persona_guardar_acceso`: nadie da lo que no tiene (pantallas,
+acciones, áreas ni sucursales), Admin solo lo da Admin, Facturas va con Ver la plata.
+
+**Selectores (T4):** con más de un área, **Área** (debajo del encabezado; en desktop
+de Administración, en el menú lateral). En Locales, con más de una sucursal,
+**Sucursal** (cookie `sucursal`, validada contra las suyas): pedidos, historial y
+ventas son de la elegida y `pedidos_crear(p_items, p_notas, p_sucursal)` crea a
+nombre de su cuenta. Lo resuelve `sucursalesDeLocales()`.
+
+**Ver como (T7):** con `usuarios.gestionar`, la cookie `ver_como` hace que
+`cargarAcceso()` y `proxy.ts` usen el acceso de otra persona (`acceso_de()`), en solo
+lectura: el cliente de Supabase (navegador y servidor) corta escrituras a tablas,
+storage y funciones que no son STABLE/IMMUTABLE (`rpc_de_lectura()`), y el proxy corta
+`/api/*` que no sea GET. Los datos se leen con la sesión de quien mira. Todo cliente
+del navegador sale de [lib/supabase/client.ts](lib/supabase/client.ts):
+`createBrowserClient` devuelve uno solo y se queda con las opciones del primero.
+
+### 3.3 Las capas de autorización
 
 ```
-Capa 1 — proxy.ts (middleware, corre en el edge en cada request)
-   · Sin sesión → /login
-   · /  → redirige al home del rol
-   · Valida que el pathname esté en el árbol permitido para el rol
-   · Para squad/roles custom en /admin/*: getModuloPorPath(pathname) debe
-     estar en modulos_permitidos, si no redirige al primer módulo o /ayuda
-   · /api/* SIEMPRE pasa (cada handler valida por su cuenta)
-   · /tareas es transversal: pasa si rol='admin' o 'tareas' ∈ modulos_permitidos
+Capa 1 — proxy.ts (en cada request)
+   · Sin sesión → /login;  / → inicio del área preferida (cookie area)
+   · mi_acceso() (o acceso_de() en Ver como) → puedeEntrarRuta():
+     el área de la ruta tiene que estar en sus áreas; en /admin/*, la pantalla
+     (getModuloPorPath) tiene que estar en sus permisos
+   · /api/* pasa (cada handler valida); en Ver como, solo GET
+   · /tareas es transversal: pasa con la pantalla Tareas
 
-Capa 2 — Layouts (Server Components)
-   · app/admin/layout.tsx  → redirect('/login') si no es admin ni rol-con-módulos
-   · app/local|fabrica|deposito/layout.tsx → exige rol exacto (o admin)
-   · app/tareas/layout.tsx → exige 'tareas' ∈ modulos_permitidos
+Capa 2 — Layouts, páginas, server actions y API (lib/permisos/servidor.ts)
+   · exigirArea(area), exigirSesion(), exigirApi(clave)
+   · puede(acceso, clave) para botones y datos (p. ej. verPlata, puedeFacturar)
 
-Capa 3 — RLS en Postgres (la única que un atacante no puede saltar)
-   · Helper get_user_rol() SECURITY DEFINER STABLE
-   · Ver el inventario completo de policies en §7.2
+Capa 3 — RLS y funciones en Postgres (la única que no se puede saltar)
+   · tiene_area(), tiene_permiso(), mis_sucursales(), mis_cuentas_local(),
+     es_admin() (lo que sigue siendo solo Admin)
+   · Los helpers viejos (tiene_acceso_compras, puede_operar_destino,
+     fabrica_puede_editar_fecha…) mantienen nombre y firma; por dentro usan estos
 ```
 
-**Importante:** las capas 1 y 2 son UX (que nadie vea una pantalla vacía). La única
-frontera de seguridad real es **RLS**, porque el navegador tiene la anon key y puede
-llamar a Supabase directo.
+**Importante:** las capas 1 y 2 son UX (que nadie vea una pantalla que no puede
+usar). La frontera de seguridad real es **RLS**, porque el navegador tiene la anon key.
+Pruebas: `docs/roles/escenarios*.sql` (begin … rollback, por persona) y
+`npm run permisos:comparar` (acceso viejo contra nuevo).
 
-### 3.4 Módulos asignables
+### 3.4 Módulos (pantallas de Administración)
 
-Los `key` de módulo que se guardan en `profiles.modulos_permitidos[]`:
-
-```
-dashboard
-gastos · gastos_pendientes · resumen · fudo                      (sección Gastos)
-importar · posberry · conciliacion                                (sección Mayorista)
-integraciones_ventas · integraciones_cajas                        (sección Integraciones)
-catalogo · mapeos · usuarios · roles · plan_cuentas ·
-  proveedores · cajas · formas_pago                                (sección Parámetros)
-compras-insumos · compras-stock · compras-pedidos ·
-  compras-reportes                                                (sección Compras)
-tareas
-```
+[lib/modulos.ts](lib/modulos.ts) (`MODULOS`) es el registro de pantallas: lo usan el
+Sidebar, el guard de `/admin/*` y el catálogo de permisos (cada módulo es
+`pantalla:<key>`). `profiles.modulos_permitidos` ya no se usa: queda sin escribir
+durante este pase (para poder volver atrás) y se borra en la salida siguiente.
 
 ---
 
@@ -1858,7 +1882,7 @@ el JS.
 | S6 | 🟡 Baja | **`pedido_items` SELECT abierto:** `auth.uid() IS NOT NULL`. Toda sucursal ve los ítems, cantidades y `valor_total` de las demás. | `initial_schema:169` |
 | S7 | ✅ Resuelto 2026-09-02 | ~~Sin env vars, `proxy.ts` deja pasar todo sin autenticar; combinado con los placeholders de `next.config.ts`, un deploy mal configurado queda abierto.~~ Se concretó el 2026-09-01: las env vars de Production en Vercel quedaron apuntando al proyecto dev por ~16h (sin escrituras en prod durante la ventana; 1 pedido recuperado a mano). `lib/entorno.ts` ahora valida URL/anon key/service role key contra el ref esperado en build (`next.config.ts`, aborta), middleware (`proxy.ts`, 503 fail-closed) y runtime (`lib/supabase/server.ts`), más badge visible y `GET /api/entorno`. | [lib/entorno.ts](lib/entorno.ts), [proxy.ts](proxy.ts), [next.config.ts](next.config.ts) |
 | S8 | 🟡 Baja | **Sin rate limiting en ninguna ruta.** Las de IA (`/api/tareas/audio`, `/agente`) queman cuota de Groq; `/api/sync-sheets` es costosa. | todo `app/api/` |
-| S9 | 🟡 Baja | **UUID de usuario hardcodeado como permiso.** `DESTINATARIO_DEFAULT_INFORME_ID` habilita `/tareas/todas` (service role, todas las tareas del sistema). Debería ser un permiso en datos. | [app/tareas/helpers.ts:79](app/tareas/helpers.ts) |
+| S9 | ✅ | **Resuelto en el permiso (épica roles y permisos): `/tareas/todas` pide la acción `tareas.ver_todas`.** El UUID queda solo como destinatario por defecto de los informes diarios (ModalInforme). ~~UUID de usuario hardcodeado como permiso.~~ `DESTINATARIO_DEFAULT_INFORME_ID` habilita `/tareas/todas` (service role, todas las tareas del sistema). Debería ser un permiso en datos. | [app/tareas/helpers.ts:79](app/tareas/helpers.ts) |
 
 ### 10.2 Bugs funcionales
 
@@ -1943,7 +1967,7 @@ día siguiente **entre las 21:00 y las 00:00 hora argentina**.
 | Q8 | **`Rol` es `string`.** Correcto porque los roles son dinámicos, pero se perdió todo el type-safety; los literales `'admin'`/`'squad'` se comparan a mano en decenas de lugares |
 | Q9 | **`console.error` como único logging.** Sin Sentry ni structured logs — los fallos del cron y de las sincronizaciones son invisibles |
 | Q10 | **Sin `types` generados de Supabase.** `supabase gen types typescript` daría tipado real de tablas y RPCs |
-| Q11 | **Permisos de acción hardcodeados por rol.** Quién edita qué (y hasta cuándo) y quién ve cada botón está escrito en el código y en las funciones SQL nombrando roles: p. ej. `fabrica_puede_editar_fecha` deja editar y borrar cargas de fábrica (producción, congelados, devoluciones) de cualquier fecha a `admin` y `supervisor_fabrica`, y al resto hoy/ayer; y en la app cada pantalla decide sola si muestra "Editar". Cada pedido del cliente ("que el supervisor pueda editar X") es una migración o un cambio de código. Objetivo: permisos de acción parametrizables por rol desde `/admin/roles`, trabajados en `dev` (ver Fase 3). Primer permiso a pasar al esquema: **editar devoluciones de fábrica de cualquier fecha** (pedido de Marcos, 2026-11-17; mientras tanto queda fijo para `supervisor_fabrica` y `admin`) |
+| Q11 | ✅ **Resuelto (épica roles y permisos, nov-2026, ver §3.2).** ~~Permisos de acción hardcodeados por rol.~~ Quién edita qué (y hasta cuándo) y quién ve cada botón está escrito en el código y en las funciones SQL nombrando roles: p. ej. `fabrica_puede_editar_fecha` deja editar y borrar cargas de fábrica (producción, congelados, devoluciones) de cualquier fecha a `admin` y `supervisor_fabrica`, y al resto hoy/ayer; y en la app cada pantalla decide sola si muestra "Editar". Cada pedido del cliente ("que el supervisor pueda editar X") es una migración o un cambio de código. Objetivo: permisos de acción parametrizables por rol desde `/admin/roles`, trabajados en `dev` (ver Fase 3). Primer permiso a pasar al esquema: **editar devoluciones de fábrica de cualquier fecha** (pedido de Marcos, 2026-11-17; mientras tanto queda fijo para `supervisor_fabrica` y `admin`) |
 
 ---
 
@@ -2076,14 +2100,14 @@ Aplicar a las 7 tablas `compras_*`, `gastos`, `proveedores`, `plan_cuentas`,
 
 - Cerrar `pedido_mensajes` y `producto_mapeos` (S5) con policies reales.
 - Acotar `pedido_items` SELECT al dueño del pedido o los operadores del destino (S6).
-- Reemplazar `DESTINATARIO_DEFAULT_INFORME_ID` por un módulo `tareas_todas` (S9).
-- Permisos de acción parametrizables (Q11): además de los módulos, una lista de
+- ✅ ~~Reemplazar `DESTINATARIO_DEFAULT_INFORME_ID` por un módulo `tareas_todas` (S9).~~ Hecho con `tareas.ver_todas`.
+- ✅ Hecho en la épica roles y permisos (§3.2): ~~Permisos de acción parametrizables (Q11): además de los módulos, una lista de
   acciones por rol (editar fuera de plazo, ver botones sensibles, borrar) editable
   en `/admin/roles`, con un helper SQL tipo `tiene_permiso('fabrica.devolucion.editar_fuera_de_plazo')`
   que reemplace los roles nombrados en las funciones. Primer caso: editar
   devoluciones de fábrica de cualquier fecha (hoy fijo para `supervisor_fabrica` y
   `admin` en `fabrica_puede_editar_fecha`).
-  Se trabaja en `dev`, no como hotfix.
+  Se trabaja en `dev`, no como hotfix.~~ `fabrica.corregir_cargas_viejas` reemplazó los roles nombrados en `fabrica_puede_editar_fecha`.
 
 ### Fase 4 — Fuente única de verdad para los maestros (2 días)
 
