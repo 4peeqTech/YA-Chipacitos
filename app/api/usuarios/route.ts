@@ -45,6 +45,16 @@ function getAdminClient() {
   )
 }
 
+// Los datos de un Admin (email, contraseña, baja) solo los toca otro Admin:
+// si no, quien gestiona usuarios podría entrar como Admin.
+async function exigirAdminSiEsAdmin(adminClient: ReturnType<typeof getAdminClient>, id: unknown, soyAdmin: boolean) {
+  if (soyAdmin || typeof id !== 'string') return null
+  const { data } = await adminClient.from('profiles').select('rol').eq('id', id).single()
+  if (data?.rol === 'admin') return NextResponse.json({ error: 'Solo Admin puede cambiar los datos de otro Admin' }, { status: 403 })
+  return null
+}
+
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -109,6 +119,8 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json()
   const adminClient = getAdminClient()
+  const prohibido = await exigirAdminSiEsAdmin(adminClient, body?.id, !!acceso?.esAdmin)
+  if (prohibido) return prohibido
 
   // Editar nombre / local_nombre / email / nueva_password — schema separado
   if ('nombre' in body) {
@@ -168,6 +180,8 @@ export async function DELETE(req: NextRequest) {
   if (id === user.id) return NextResponse.json({ error: 'No podés eliminarte a vos mismo' }, { status: 403 })
 
   const adminClient = getAdminClient()
+  const prohibido = await exigirAdminSiEsAdmin(adminClient, id, !!acceso?.esAdmin)
+  if (prohibido) return prohibido
 
   // Soft delete: se banea el acceso y se marca el perfil como eliminado,
   // pero no se borra nada — así se conserva el historial que referencia
