@@ -4,9 +4,11 @@
 // rol define áreas y pantallas/acciones por defecto; al guardar, una vista
 // previa muestra a quién afecta. La base valida lo mismo (roles_guardar).
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { IconChevronLeft, IconInfoCircle, IconPencil, IconPlus, IconShield, IconTrash } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
+import { useAvisoSinGuardar } from '@/lib/hooks/useAvisoSinGuardar'
 import PageHeader from '@/components/ui/PageHeader'
 import AyudaLink from '@/components/ui/AyudaLink'
 import Modal from '@/components/ui/Modal'
@@ -64,9 +66,14 @@ export default function RolesClient({ rolesIniciales, puedeGestionar }: { rolesI
   const supabase = useMemo(() => createClient(), [])
   const { confirmar, dialog } = useConfirm()
   const [roles, setRoles] = useState(rolesIniciales)
-  const [elegido, setElegido] = useState<string | null>(rolesIniciales.find(r => r.key !== 'admin')?.key ?? rolesIniciales[0]?.key ?? null)
-  // En el celular la lista y el editor no entran juntos: se ve uno u otro.
-  const [enEditorMobile, setEnEditorMobile] = useState(false)
+  // El rol abierto va en la URL (?rol=): "atrás" vuelve a la lista y el link se puede pasar.
+  // En el celular la lista y el editor no entran juntos: con ?rol= se ve el editor.
+  const enUrl = useSearchParams().get('rol')
+  const enEditorMobile = enUrl != null
+  const vinoDeLaLista = useRef(false)
+  const [elegido, setElegido] = useState<string | null>(
+    (enUrl && rolesIniciales.some(r => r.key === enUrl) ? enUrl : null)
+      ?? rolesIniciales.find(r => r.key !== 'admin')?.key ?? rolesIniciales[0]?.key ?? null)
 
   const rol = roles.find(r => r.key === elegido) ?? null
   const esAdmin = rol?.key === 'admin'
@@ -93,6 +100,8 @@ export default function RolesClient({ rolesIniciales, puedeGestionar }: { rolesI
   const [eliminando, setEliminando] = useState(false)
   const [errorModal, setErrorModal] = useState('')
 
+  useAvisoSinGuardar(hayCambios)
+
   function cargarRol(r: RolEditable | null) {
     setElegido(r?.key ?? null)
     setAreas(r?.areas ?? [])
@@ -100,11 +109,38 @@ export default function RolesClient({ rolesIniciales, puedeGestionar }: { rolesI
     setError('')
   }
 
-  function elegir(r: RolEditable) {
-    const ir = () => { cargarRol(r); setEnEditorMobile(true); setAviso('') }
+  function irA(key: string | null, modo: 'push' | 'replace' = 'push') {
+    const url = key ? `?rol=${encodeURIComponent(key)}` : window.location.pathname
+    if (modo === 'push') window.history.pushState(null, '', url)
+    else window.history.replaceState(null, '', url)
+  }
+
+  function descartarYCargar(r: RolEditable, alCancelar?: () => void) {
+    const ir = () => { cargarRol(r); setAviso('') }
     if (hayCambios && r.key !== elegido) {
-      confirmar({ titulo: 'Descartar cambios', mensaje: `Los cambios en ${rol?.nombre} no se guardaron.`, textoConfirmar: 'Descartar', peligroso: true, onConfirmar: ir })
+      confirmar({ titulo: 'Descartar cambios', mensaje: `Los cambios en ${rol?.nombre} no se guardaron.`, textoConfirmar: 'Descartar', peligroso: true, onConfirmar: ir, onCancelar: alCancelar })
     } else ir()
+  }
+
+  // Elegir de la lista solo cambia la URL; abrirlo (y preguntar si hay cambios) es de abajo.
+  function elegir(r: RolEditable) {
+    if (r.key === enUrl) return
+    vinoDeLaLista.current = true
+    irA(r.key)
+  }
+
+  // La URL cambió (lista, atrás, adelante): abrir ese rol. Si había cambios y no
+  // se descartan, la URL vuelve al rol que se estaba editando.
+  const [urlVista, setUrlVista] = useState(enUrl)
+  if (enUrl !== urlVista) {
+    setUrlVista(enUrl)
+    const r = enUrl ? roles.find(x => x.key === enUrl) : null
+    if (r && r.key !== elegido) descartarYCargar(r, () => irA(elegido, 'replace'))
+  }
+
+  function volverALista() {
+    if (vinoDeLaLista.current) { vinoDeLaLista.current = false; window.history.back() }
+    else irA(null, 'replace')
   }
 
   function alternarArea(a: Area) {
@@ -157,7 +193,7 @@ export default function RolesClient({ rolesIniciales, puedeGestionar }: { rolesI
     const nuevo: RolEditable = { key: data.key, nombre: data.nombre, color: data.color, es_sistema: false, areas: [], permisos: [], personas: [] }
     setRoles(prev => [...prev, nuevo])
     cargarRol(nuevo)
-    setEnEditorMobile(true)
+    irA(nuevo.key)
     setModalNuevo(false)
     setForm({ nombre: '', key: '', color: PALETA[0] })
     setKeyEditadaAMano(false)
@@ -190,7 +226,7 @@ export default function RolesClient({ rolesIniciales, puedeGestionar }: { rolesI
     setRoles(resto)
     cargarRol(resto.find(r => r.key !== 'admin') ?? null)
     setEliminando(false)
-    setEnEditorMobile(false)
+    irA(null, 'replace')
   }
 
   const lista = (
@@ -213,7 +249,7 @@ export default function RolesClient({ rolesIniciales, puedeGestionar }: { rolesI
 
   const editor = rol && (
     <div className="space-y-5 pb-20 md:pb-0">
-      <button type="button" onClick={() => setEnEditorMobile(false)} className="md:hidden flex items-center gap-1 text-sm text-muted min-h-11 -my-2">
+      <button type="button" onClick={volverALista} className="md:hidden flex items-center gap-1 text-sm text-muted min-h-11 -my-2">
         <IconChevronLeft size={18} /> Roles
       </button>
 
