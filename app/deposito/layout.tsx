@@ -1,7 +1,8 @@
 import { exigirArea } from '@/lib/permisos/servidor'
-import { puedePantalla } from '@/lib/permisos/acceso'
+import { opcionesDeArea, puedePantalla } from '@/lib/permisos/acceso'
 import { ClipboardList, Shuffle, ListTodo, HelpCircle } from 'lucide-react'
 import LayoutOperativo from '@/components/layout/LayoutOperativo'
+import BarraContexto from '@/components/layout/BarraContexto'
 
 export default async function DepositoLayout({ children }: { children: React.ReactNode }) {
   const { acceso } = await exigirArea('deposito')
@@ -14,7 +15,8 @@ export default async function DepositoLayout({ children }: { children: React.Rea
   ]
 
   return (
-    <LayoutOperativo titulo="Depósito" subtitulo={acceso.nombre} rol={acceso.rol} navItems={navItems}>
+    <LayoutOperativo titulo="Depósito" subtitulo={acceso.nombre} rol={acceso.rol} navItems={navItems}
+      contexto={<BarraContexto areas={opcionesDeArea(acceso)} areaActual="deposito" />}>
       {children}
     </LayoutOperativo>
   )

@@ -9,8 +9,9 @@ export const local: SeccionManual = {
   roles: ['local'],
   modulos: [],
   resumen: 'Pedidos al mayorista, seguimiento, mensajes y recepción de lo que llega.',
-  actualizado: '2026-10-22',
+  actualizado: '2026-11-26',
   novedades: [
+    { fecha: '2026-11-26', texto: 'Si trabajás con **más de una sucursal**, elegí en cuál estás en **Sucursal**, debajo del encabezado: lo que pedís, los pedidos y el carrito son de esa. Con más de un área (por ejemplo Administración y Locales), **Área** te lleva de una a otra.' },
     { fecha: '2026-11-17', texto: 'Cuando sale una **versión nueva** del sistema aparece un cartel arriba. Guardá lo que estés cargando y tocá **Actualizar**.' },
     { fecha: '2026-10-22', texto: 'Pantalla **Pedir** nueva: arriba están **Tus habituales**, escribís la cantidad (con atajos **+5 / +10 / +25**) y listo, sin botón Agregar. Los productos sin stock se ven en gris.' },
     { fecha: '2026-10-21', texto: 'El carrito no se pierde, **Repetir el último** pedido y resumen antes de enviar. Se pueden pedir cantidades con decimales (por ejemplo 1,5).' },

@@ -18,17 +18,21 @@ export default function LayoutOperativo({
   subtitulo,
   rol,
   navItems,
+  contexto,
   children,
 }: {
   titulo: string
   subtitulo?: string
   rol?: string
   navItems: NavItem[]
+  /** Selector de área y de sucursal (BarraContexto), debajo del encabezado. */
+  contexto?: ReactNode
   children: ReactNode
 }) {
   return (
     <div className="min-h-screen bg-bg flex flex-col">
       <Header titulo={titulo} subtitulo={subtitulo} rol={rol} />
+      {contexto}
       <main className="flex-1 pb-24 lg:pb-16 w-full lg:pt-4">
         {children}
       </main>

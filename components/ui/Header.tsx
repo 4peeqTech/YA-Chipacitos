@@ -61,7 +61,7 @@ export default function Header({ titulo, subtitulo, rol }: HeaderProps) {
         <Image src="/chipacitos-logo.png" alt="YA! Chipacitos" width={36} height={36} className="rounded-md shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="font-['Syne'] font-bold text-accent text-base leading-tight truncate">{titulo}</p>
-          {subtitulo && <p className="text-muted text-2xs">{subtitulo}</p>}
+          {subtitulo && <p className="text-muted text-2xs truncate">{subtitulo}</p>}
         </div>
       </div>
       <div className="shrink-0">

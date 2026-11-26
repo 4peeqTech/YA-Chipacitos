@@ -1,7 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { accesoDesdeRpc, homeDe, puedeEntrarRuta } from '@/lib/permisos/acceso'
+import { accesoDesdeRpc, areaDeRuta, homeDe, puedeEntrarRuta } from '@/lib/permisos/acceso'
 import { verificarEntorno } from '@/lib/entorno'
+
+const COOKIE_AREA = 'area'
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -78,10 +80,13 @@ export async function proxy(request: NextRequest) {
       return error ? null : accesoDesdeRpc(data)
     }
 
+    // Última área en la que estuvo (selector de área, T4): / la lleva ahí.
+    const areaPreferida = request.cookies.get(COOKIE_AREA)?.value ?? null
+
     if (pathname === '/') {
       if (user) {
         const acceso = await cargarAcceso()
-        return NextResponse.redirect(new URL(acceso ? homeDe(acceso) : '/login', request.url))
+        return NextResponse.redirect(new URL(acceso ? homeDe(acceso, areaPreferida) : '/login', request.url))
       }
       return NextResponse.redirect(new URL('/login', request.url))
     }
@@ -103,7 +108,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    const decision = puedeEntrarRuta(acceso, pathname)
+    const decision = puedeEntrarRuta(acceso, pathname, areaPreferida)
     if (!decision.ok) {
       const destino = new URL(decision.destino, request.url)
       // El rebote es invisible sin esto: el usuario abre un link (una
@@ -111,6 +116,11 @@ export async function proxy(request: NextRequest) {
       // qué. `sinAcceso` lo cuenta con un toast (ver AvisoRedireccion).
       if (decision.sinAcceso) destino.searchParams.set('sinAcceso', decision.sinAcceso)
       return NextResponse.redirect(destino)
+    }
+
+    const area = areaDeRuta(pathname)
+    if (area && area !== areaPreferida) {
+      supabaseResponse.cookies.set(COOKIE_AREA, area, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' })
     }
 
     return supabaseResponse

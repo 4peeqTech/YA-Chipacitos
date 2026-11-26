@@ -3,6 +3,7 @@
 // comparaciones de rol escritas a mano.
 
 import { cache } from 'react'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
@@ -48,3 +49,31 @@ export async function exigirApi(clave: string | 'admin', mensajeProhibido = 'No 
   if (!ok) return { supabase, acceso, error: NextResponse.json({ error: mensajeProhibido }, { status: 403 }) }
   return { supabase, acceso, error: null }
 }
+
+export const COOKIE_SUCURSAL = 'sucursal'
+
+export interface SucursalLocales {
+  /** Id de locales_config. */
+  id: string
+  nombre: string
+  /** La cuenta del local: pedidos, ventas y conciliaciones van con este local_id. */
+  cuentaLocalId: string
+}
+
+/**
+ * Locales (T4): las sucursales con las que trabaja la persona y la elegida. Solo
+ * cuentan las que tienen cuenta de local (los pedidos van a su nombre). La
+ * elegida sale de la cookie `sucursal` si es una de las suyas (las que la base le
+ * deja leer: mis_sucursales(); Admin, todas las activas); si no, la primera.
+ */
+export const sucursalesDeLocales = cache(async (): Promise<{ sucursales: SucursalLocales[]; actual: SucursalLocales | null }> => {
+  const { supabase, acceso } = await cargarAcceso()
+  if (!acceso) return { sucursales: [], actual: null }
+  let consulta = supabase.from('locales_config').select('id, sucursal, cuenta_local_id').not('cuenta_local_id', 'is', null).order('orden')
+  consulta = acceso.esAdmin ? consulta.eq('activo', true) : consulta.in('id', acceso.sucursales)
+  const { data, error } = await consulta
+  if (error) console.error('[sucursalesDeLocales]', error.message)
+  const sucursales = (data ?? []).map(l => ({ id: l.id, nombre: l.sucursal, cuentaLocalId: l.cuenta_local_id as string }))
+  const elegida = (await cookies()).get(COOKIE_SUCURSAL)?.value
+  return { sucursales, actual: sucursales.find(x => x.id === elegida) ?? sucursales[0] ?? null }
+})

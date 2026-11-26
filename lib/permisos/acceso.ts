@@ -82,6 +82,21 @@ function homeDeArea(a: AccesoUsuario, area: Area): string | null {
   return HOME_AREA[area]
 }
 
+export interface OpcionArea {
+  clave: Area
+  nombre: string
+  /** Su pantalla de inicio para esta persona. */
+  href: string
+}
+
+/** Áreas a las que puede ir, con su inicio: las opciones del selector de área (T4). */
+export function opcionesDeArea(a: AccesoUsuario): OpcionArea[] {
+  return AREAS.flatMap(x => {
+    const href = homeDeArea(a, x.clave)
+    return href ? [{ clave: x.clave, nombre: x.nombre, href }] : []
+  })
+}
+
 /** A dónde va al entrar: el área preferida (T4: la última que usó) o la primera que tenga. */
 export function homeDe(a: AccesoUsuario, areaPreferida?: string | null): string {
   if (areaPreferida && esArea(areaPreferida)) {

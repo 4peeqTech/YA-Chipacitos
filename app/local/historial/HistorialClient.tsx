@@ -60,12 +60,14 @@ function coincideTexto(p: Pedido, f: FiltroTexto) {
 
 interface Props {
   usuarioId: string
+  /** Cuenta de la sucursal elegida (T4): los pedidos que se escuchan en vivo. */
+  localId: string
   enCursoIniciales: Pedido[]
   cerradosIniciales: PaginaCerrados | null
   errorCarga: boolean
 }
 
-export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosIniciales, errorCarga }: Props) {
+export default function HistorialClient({ usuarioId, localId, enCursoIniciales, cerradosIniciales, errorCarga }: Props) {
   const router = useRouter()
   const toast = useToast()
   const [supabase] = useState(() => createClient())
@@ -186,7 +188,7 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
     let activo = true
     const canal = supabase
       .channel(`mis-pedidos-${usuarioId}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `local_id=eq.${usuarioId}` }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `local_id=eq.${localId}` }, payload => {
         if (!activo) return
         const id = (payload.new as { id?: string })?.id ?? (payload.old as { id?: string })?.id
         // El estado nuevo se ve al instante con lo que trae el cambio; después se
@@ -222,7 +224,7 @@ export default function HistorialClient({ usuarioId, enCursoIniciales, cerradosI
       .subscribe(estado => { if (activo && estado === 'CHANNEL_ERROR') router.refresh() })
     return () => { activo = false; supabase.removeChannel(canal) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usuarioId, supabase, recargarPedido])
+  }, [usuarioId, localId, supabase, recargarPedido])
 
   // Red de seguridad si el WebSocket se cae en silencio.
   useRefrescarAlVolver(() => router.refresh())

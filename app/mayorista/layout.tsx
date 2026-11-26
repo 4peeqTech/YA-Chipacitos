@@ -1,7 +1,8 @@
 import { exigirArea } from '@/lib/permisos/servidor'
-import { puedePantalla } from '@/lib/permisos/acceso'
+import { opcionesDeArea, puedePantalla } from '@/lib/permisos/acceso'
 import { IconHelp, IconListCheck, IconPackages, IconTruckDelivery } from '@tabler/icons-react'
 import LayoutOperativo from '@/components/layout/LayoutOperativo'
+import BarraContexto from '@/components/layout/BarraContexto'
 
 // Sección del mayorista: los pedidos de los locales y el stock de su catálogo.
 // Antes vivía dentro de /fabrica (su pantalla decía "Fábrica" y compartía menú con
@@ -18,7 +19,8 @@ export default async function MayoristaLayout({ children }: { children: React.Re
   ]
 
   return (
-    <LayoutOperativo titulo="Mayorista" subtitulo={acceso.nombre} rol={acceso.rol} navItems={navItems}>
+    <LayoutOperativo titulo="Mayorista" subtitulo={acceso.nombre} rol={acceso.rol} navItems={navItems}
+      contexto={<BarraContexto areas={opcionesDeArea(acceso)} areaActual="mayorista" />}>
       {children}
     </LayoutOperativo>
   )

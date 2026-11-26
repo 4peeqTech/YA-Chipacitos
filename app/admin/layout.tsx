@@ -1,11 +1,12 @@
 import { Suspense } from 'react'
 import { exigirArea } from '@/lib/permisos/servidor'
-import { pantallasDe, puedePantalla } from '@/lib/permisos/acceso'
+import { opcionesDeArea, pantallasDe, puedePantalla } from '@/lib/permisos/acceso'
 import { LayoutDashboard, Wallet, BarChart3, RefreshCw, ListTodo, HelpCircle } from 'lucide-react'
 import Header from '@/components/ui/Header'
 import { BadgeEntorno } from '@/components/ui/Badge'
 import BottomNav from '@/components/ui/BottomNav'
 import Sidebar from '@/components/ui/Sidebar'
+import BarraContexto from '@/components/layout/BarraContexto'
 import NotificationBell from '@/components/ui/NotificationBell'
 import AvisoRedireccion from '@/components/ui/AvisoRedireccion'
 import { ProveedorAcceso } from '@/components/ui/AccesoModulos'
@@ -54,6 +55,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         rolLabel={rolLabel}
         modulosPermitidos={conPantallas ? pantallas : undefined}
         usuarioEmail={acceso.email}
+        contexto={<BarraContexto areas={opcionesDeArea(acceso)} areaActual="administracion" compacta />}
       />
 
       {/* Contenido principal — empuja a la derecha en desktop */}
@@ -61,6 +63,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         {/* Header solo mobile */}
         <div className="lg:hidden">
           <Header titulo="YA! Chipacitos" subtitulo={acceso.nombre} rol={acceso.rol} />
+          <BarraContexto areas={opcionesDeArea(acceso)} areaActual="administracion" />
         </div>
 
         {/* Header desktop */}

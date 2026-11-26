@@ -22,10 +22,10 @@ export const usuariosRoles: SeccionManual = {
         {
           tipo: 'lista',
           items: [
-            '**Áreas:** las da solo el rol. Con más de un área, la persona elige en cuál está desde el encabezado.',
+            '**Áreas:** las da solo el rol. Con más de un área, la persona elige en cuál está en **Área** (debajo del encabezado en el celular, arriba del menú en la computadora) y al volver a entrar arranca en la última.',
             '**Pantallas:** se tildan las de Administración y Tareas. Las de Locales, Fábrica, Depósito y Mayorista vienen con el área.',
             '**Acciones:** lo que no alcanza con tener la pantalla, como **Ver la plata de Compras** o **Gestionar usuarios y roles**.',
-            '**Sucursales:** si el rol entra a Locales, cada persona trabaja con las sucursales que tenga elegidas.',
+            '**Sucursales:** si el rol entra a Locales, cada persona trabaja con las sucursales que tenga elegidas; con más de una, elige en cuál está en **Sucursal** y los pedidos salen a nombre de esa.',
           ],
         },
         { tipo: 'parrafo', texto: '**Usuarios** y **Roles** son para quien tiene la acción **Gestionar usuarios y roles**. Sin ella, la pantalla avisa que hay que pedírsela a un Admin.' },
