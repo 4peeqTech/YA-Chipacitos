@@ -4,12 +4,13 @@
 # transacción: sirve para probarla antes de aplicarla.
 #
 #   scripts/permisos-editores-prueba.sh [migración.sql] [ref]     (ref por defecto: dev)
+#   ESCENARIOS=docs/roles/escenarios-selector.sql scripts/permisos-editores-prueba.sh ...  (otro archivo)
 set -euo pipefail
 MIGRACION="${1:-}"
 REF="${2:-fafckqysyvtlslfnpzrh}"
 TMP="$(mktemp -d)"
 
-python3 -I - "$MIGRACION" docs/roles/escenarios-editores.sql "$TMP/prueba.sql" <<'EOF'
+python3 -I - "$MIGRACION" "${ESCENARIOS:-docs/roles/escenarios-editores.sql}" "$TMP/prueba.sql" <<'EOF'
 import sys
 mig = open(sys.argv[1]).read() if sys.argv[1] else ''
 esc = open(sys.argv[2]).read()

@@ -7911,7 +7911,7 @@ export type Database = {
         Returns: undefined
       }
       pedidos_crear: {
-        Args: { p_items: Json; p_notas?: string }
+        Args: { p_items: Json; p_notas?: string; p_sucursal?: string }
         Returns: Json
       }
       pedidos_inicio_version: { Args: never; Returns: string }

@@ -28,7 +28,10 @@ export interface UltimoPedido {
 export interface Habitual { productoId: string; ultimaCantidad: number | null }
 
 interface Props {
-  usuarioId: string
+  /** Cuenta de la sucursal elegida (T4): el carrito guardado es de cada sucursal. */
+  localId: string
+  /** Sucursal elegida (locales_config): el pedido sale a nombre de su cuenta. */
+  sucursalId: string
   /** Productos del mayorista, con stock o sin stock (activo = false). */
   productos: Producto[]
   /** Categorías de fábrica, en el orden de Admin → Catálogo → Categorías. */
@@ -51,11 +54,11 @@ function redondear(n: number) {
   return Math.round(n * 1000) / 1000
 }
 
-export default function LocalPedidosClient({ usuarioId, productos, categorias, habituales, ultimoPedido, errorUltimoPedido = false }: Props) {
+export default function LocalPedidosClient({ localId, sucursalId, productos, categorias, habituales, ultimoPedido, errorUltimoPedido = false }: Props) {
   const cats = useMemo(() => indexarCategorias(categorias), [categorias])
   const toast = useToast()
   const confirmar = useConfirmar()
-  const [carrito, actualizarCarrito] = useCarritoGuardado(`ya-carrito-local-${usuarioId}`)
+  const [carrito, actualizarCarrito] = useCarritoGuardado(`ya-carrito-local-${localId}`)
   const [busqueda, setBusqueda] = useState('')
   const [carritoAbierto, setCarritoAbierto] = useState(false)
   const [resumenAbierto, setResumenAbierto] = useState(false)
@@ -181,6 +184,7 @@ export default function LocalPedidosClient({ usuarioId, productos, categorias, h
     const r = await crearPedido(
       lineas.map(l => ({ producto_id: l.producto.id, cantidad: l.cantidad })),
       carrito.notas.trim() || null,
+      sucursalId,
     )
     setEnviando(false)
     if (!r.ok) {

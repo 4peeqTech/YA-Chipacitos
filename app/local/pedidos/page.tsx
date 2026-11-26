@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
+import { cargarAcceso, sucursalesDeLocales } from '@/lib/permisos/servidor'
 import type { Producto } from '@/lib/types'
 import { COLUMNAS_CATEGORIA, buscarCategoria, esPedible, indexarCategorias, type CategoriaCatalogo, type Categorias } from '@/lib/pedidos/categorias'
 import LocalPedidosClient, { type Habitual, type UltimoPedido } from './LocalPedidosClient'
@@ -52,9 +52,9 @@ function inicioVentanaHabituales() {
 }
 
 export default async function LocalPedidosPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const { supabase, acceso } = await cargarAcceso()
+  const { actual } = await sucursalesDeLocales()
+  if (!acceso || !actual) return null
 
   const desde = inicioVentanaHabituales()
 
@@ -66,7 +66,7 @@ export default async function LocalPedidosPage() {
     supabase
       .from('pedidos')
       .select('numero, pedido_items(producto_id, producto_nombre, cantidad, origen)')
-      .eq('local_id', user.id)
+      .eq('local_id', actual.cuentaLocalId)
       .eq('destino', 'fabrica')
       .neq('estado', 'cancelado')
       .order('created_at', { ascending: false })
@@ -75,7 +75,7 @@ export default async function LocalPedidosPage() {
     supabase
       .from('pedidos')
       .select('created_at, pedido_items(producto_id, cantidad, origen)')
-      .eq('local_id', user.id)
+      .eq('local_id', actual.cuentaLocalId)
       .eq('destino', 'fabrica')
       .neq('estado', 'cancelado')
       .gte('created_at', desde)
@@ -99,7 +99,9 @@ export default async function LocalPedidosPage() {
   const lista = ((productos ?? []) as Producto[]).filter(p => esPedible(p, cats))
   return (
     <LocalPedidosClient
-      usuarioId={user.id}
+      key={actual.id}
+      localId={actual.cuentaLocalId}
+      sucursalId={actual.id}
       productos={lista}
       categorias={categorias}
       habituales={calcularHabituales((historial ?? []) as PedidoHistorial[], lista, cats)}

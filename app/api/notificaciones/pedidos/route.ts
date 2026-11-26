@@ -73,7 +73,9 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = getAdminClient()
-    const esLocalDueno = pedido.local_id === user.id
+    // Del lado del local: la cuenta del local o quien trabaja con esa sucursal (T4).
+    const { data: misCuentas } = await supabase.rpc('mis_cuentas_local')
+    const esLocalDueno = pedido.local_id === user.id || (misCuentas ?? []).includes(pedido.local_id)
     const rolDestino = ROL_DESTINO[pedido.destino]
     const n = `#${pedido.numero}`
 

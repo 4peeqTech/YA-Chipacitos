@@ -1,18 +1,18 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
+import { sucursalesDeLocales, cargarAcceso } from '@/lib/permisos/servidor'
 import Card from '@/components/ui/Card'
 
 export default async function VentasPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const { supabase } = await cargarAcceso()
+  const { actual } = await sucursalesDeLocales()
+  if (!actual) return null
 
   const hoy = new Date().toISOString().split('T')[0]
   const { data: ventas } = await supabase
     .from('ventas_posberry')
     .select('*')
-    .eq('local_id', user.id)
+    .eq('local_id', actual.cuentaLocalId)
     .eq('fecha', hoy)
     .order('producto_nombre')
 

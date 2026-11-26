@@ -16,6 +16,8 @@ interface SidebarProps {
   /** Si se omite, el usuario ve todos los módulos (admin). Si se pasa, solo ve los incluidos. */
   modulosPermitidos?: string[]
   usuarioEmail?: string
+  /** Selector de área (BarraContexto compacta), debajo del logo. */
+  contexto?: ReactNode
 }
 
 interface NavItem {
@@ -33,7 +35,7 @@ const bottomStandaloneItems: NavItem[] = [
   { href: '/ayuda', label: 'Ayuda', icon: <HelpCircle size={16} /> },
 ]
 
-export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos, usuarioEmail }: SidebarProps) {
+export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos, usuarioEmail, contexto }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -130,6 +132,7 @@ export default function Sidebar({ nombre, rolLabel = 'Admin', modulosPermitidos,
           <p className="text-muted text-3xs mt-0.5">Sistema de gestión</p>
         </div>
       </div>
+      {contexto && <div className="px-4 py-3 border-b border-border">{contexto}</div>}
 
       {/* Nav links */}
       <nav className="flex-1 px-3 py-4 space-y-3 overflow-y-auto scrollbar-thin">

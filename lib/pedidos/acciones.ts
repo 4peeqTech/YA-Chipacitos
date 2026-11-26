@@ -69,9 +69,10 @@ async function conAviso<T>(r: Resultado<T>, pedidoId: string, evento: EventoAvis
   return avisado ? r : { ...r, advertencia: AVISO_FALLIDO }
 }
 
-/** Local: crea el pedido (uno por destino, en una sola transacción) y avisa a cada destino. */
-export async function crearPedido(items: ItemNuevoPedido[], notas?: string | null): Promise<Resultado<PedidoCreado[]>> {
-  const r = await rpc<PedidoCreado[]>('pedidos_crear', { p_items: items, p_notas: notas ?? null }, 'enviar el pedido')
+/** Local: crea el pedido (uno por destino, en una sola transacción) y avisa a cada destino.
+ * `sucursalId` (locales_config): a nombre de la cuenta de esa sucursal; la base valida que sea de quien pide. */
+export async function crearPedido(items: ItemNuevoPedido[], notas?: string | null, sucursalId?: string | null): Promise<Resultado<PedidoCreado[]>> {
+  const r = await rpc<PedidoCreado[]>('pedidos_crear', { p_items: items, p_notas: notas ?? null, p_sucursal: sucursalId ?? null }, 'enviar el pedido')
   if (!r.ok) return r
   const avisos = await Promise.all(r.data.map(p => avisar(p.id, 'creado')))
   return avisos.every(Boolean) ? r : { ...r, advertencia: AVISO_FALLIDO }
